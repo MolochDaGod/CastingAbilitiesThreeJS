@@ -21,7 +21,7 @@ export class HUD {
     root.innerHTML = `
       <div class="hud__panel hud__title">
         Casting Abilities
-        <span data-blurb>Grudge6 · cast · walk = windsurf ride (feet/hand IK)</span>
+        <span data-blurb data-drc-blurb>Grudge6 · Q equip/combat · DRC skills · TPS</span>
       </div>
 
       <div class="hud__panel hud__stats">
@@ -40,9 +40,10 @@ export class HUD {
           <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd> elements &nbsp;
           <kbd>Q</kbd><kbd>E</kbd> cycle
         </div>
-        <div><kbd>G</kbd> editor &nbsp; <kbd>I</kbd> inventory &nbsp; <kbd>F</kbd> attack</div>
-        <div><kbd>C</kbd> clear &nbsp; <kbd>P</kbd> pause &nbsp; <kbd>H</kbd> hide</div>
-        <div><kbd>T</kbd> sit / stand &nbsp; <kbd>M</kbd> cast / walk</div>
+        <div><kbd>Q</kbd> equip / DRC combat &nbsp; <kbd>I</kbd> inventory</div>
+        <div><kbd>WASD</kbd> move (combat) &nbsp; <kbd>1–4</kbd> DRC skills &nbsp; <kbd>F</kbd> strike</div>
+        <div><kbd>G</kbd> editor &nbsp; <kbd>C</kbd> clear &nbsp; <kbd>P</kbd> pause &nbsp; <kbd>H</kbd> hide</div>
+        <div><kbd>T</kbd> sit &nbsp; <kbd>M</kbd> cast / windsurf ride &nbsp; <kbd>E</kbd> cycle element</div>
       </div>
 
       <div class="hud__modes">
@@ -99,6 +100,7 @@ export class HUD {
     this.toast = root.querySelector('[data-toast]');
     this.blurb = root.querySelector('[data-blurb]');
     this.elements = root.querySelector('.hud__elements');
+    this._drcSession = 'equip';
   }
 
   setElement(element) {
@@ -116,8 +118,31 @@ export class HUD {
     }
     const meta = MODE_META[mode];
     if (!meta) return;
-    this.blurb.textContent = meta.blurb;
-    this.elements.classList.toggle('is-dimmed', mode !== 'casting');
+    if (this._drcSession !== 'combat') this.blurb.textContent = meta.blurb;
+    this.elements.classList.toggle('is-dimmed', mode !== 'casting' && this._drcSession !== 'combat');
+  }
+
+  /** DRC equip ↔ combat session (Q). */
+  setDrcSession(session) {
+    this._drcSession = session;
+    if (session === 'combat') {
+      this.blurb.textContent = 'DRC combat · WASD · 1–4 skills · TPS camera · F strike';
+      this.elements.classList.remove('is-dimmed');
+      // Relabel element cards as skill slots
+      const labels = ['Fire Bolt', 'Water Lash', 'Earth Spike', 'Blade'];
+      let i = 0;
+      for (const card of this.cards.values()) {
+        const lab = card.querySelector('.element-card__label');
+        if (lab && labels[i]) lab.textContent = labels[i];
+        i++;
+      }
+    } else {
+      this.blurb.textContent = 'Equip · I inventory · mesh loadout · M cast/ride';
+      for (const [key, card] of this.cards) {
+        const lab = card.querySelector('.element-card__label');
+        if (lab && ELEMENT_META[key]) lab.textContent = ELEMENT_META[key].label;
+      }
+    }
   }
 
   toggleHelp() {

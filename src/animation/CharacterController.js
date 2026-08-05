@@ -71,11 +71,15 @@ export class CharacterController {
     this.presetId = 'mage';
     this.presets = FALLBACK_PRESETS.slice();
 
-    /** 'idle' | 'cast_loop' | 'attack' | 'sit' */
+    /** 'idle' | 'walk' | 'run' | 'cast_loop' | 'attack' | 'sit' */
     this.animState = 'idle';
     this._attackTimer = 0;
+    this._oneShotTimer = 0;
     this._castingExternal = false;
     this._boundPacks = new Set();
+    /** Gait: 0 idle, 1 walk, 2 run/sprint */
+    this._gait = 0;
+    this._gaitLocked = false; // true during one-shots
   }
 
   /**
@@ -388,32 +392,90 @@ export class CharacterController {
     }
   }
 
-  /** Melee / staff weapon attack one-shot (F). */
-  playWeaponAttack() {
-    if (this.isSitting) return false;
-    const name = this.actions.has('attack')
-      ? 'attack'
-      : this.actions.has('sword_shield:attack')
-        ? 'sword_shield:attack'
-        : this.actions.has('cast')
-          ? 'cast'
+  /**
+   * AnimationDirector-style gait (locomotion under overlays).
+   * @param {0|1|2|number} level 0 idle, 1 walk, 2 run
+   * @param {boolean} [sprinting]
+   */
+  setGait(level, sprinting = false) {
+    if (this._gaitLocked || this._rideActive || this.isSitting) return;
+    if (this._castingExternal && level === 0) {
+      /* keep cast loop while abilities fly */
+      return;
+    }
+    const g = sprinting ? 2 : MathUtils.clamp(level | 0, 0, 2);
+    if (g === this._gait && this.animState !== 'attack') return;
+    this._gait = g;
+    if (g === 0) {
+      if (this.actions.has('idle') && this.animState !== 'cast_loop') {
+        this.animState = 'idle';
+        this.play('idle', 0.2);
+      }
+    } else if (g === 1) {
+      const walk = this.actions.has('walk')
+        ? 'walk'
+        : this.actions.has('run')
+          ? 'run'
           : null;
+      if (walk) {
+        this.animState = 'walk';
+        this.play(walk, 0.18);
+      }
+    } else {
+      const run = this.actions.has('run')
+        ? 'run'
+        : this.actions.has('walk')
+          ? 'walk'
+          : null;
+      if (run) {
+        this.animState = 'run';
+        this.play(run, 0.15);
+      }
+    }
+  }
+
+  /**
+   * Overlay one-shot (DRC skill / attack) — gait resumes after clip.
+   * @param {'attack'|'cast'|'block'|string} role
+   */
+  requestOneShot(role) {
+    if (this.isSitting || this._rideActive) return false;
+    let name = null;
+    if (role === 'attack') {
+      name = this.actions.has('attack')
+        ? 'attack'
+        : this.actions.has('sword_shield:attack')
+          ? 'sword_shield:attack'
+          : this.actions.has('cast')
+            ? 'cast'
+            : null;
+    } else if (role === 'cast') {
+      name = this.actions.has('cast') ? 'cast' : this.actions.has('attack') ? 'attack' : null;
+    } else if (role === 'block') {
+      name = this.actions.has('block') ? 'block' : null;
+    } else if (this.actions.has(role)) {
+      name = role;
+    }
     if (!name) return false;
 
-    this.animState = 'attack';
+    this._gaitLocked = true;
+    this.animState = role === 'cast' ? 'cast_loop' : 'attack';
     this.play(name, 0.1);
-    const duration = this.actions.get(name)?.getClip()?.duration ?? 1.0;
-    this._attackTimer = duration + 0.05;
+    const duration = this.actions.get(name)?.getClip()?.duration ?? 0.8;
+    this._oneShotTimer = duration + 0.04;
+    this._attackTimer = this._oneShotTimer;
     return true;
+  }
+
+  /** Melee / staff weapon attack one-shot (F). */
+  playWeaponAttack() {
+    return this.requestOneShot('attack');
   }
 
   /** One-shot cast flourish if not already in cast loop. */
   playCastFlourish() {
     if (this.isSitting) return;
-    if (this.actions.has('cast')) {
-      this.animState = 'cast_loop';
-      this.play('cast', 0.12);
-    }
+    this.requestOneShot('cast');
   }
 
   getCastOrigin(out) {
@@ -478,21 +540,28 @@ export class CharacterController {
 
     if (this.sitting?.valid && this.sitting.stale) this.sitting.build();
 
-    // State machine: attack timer > cast loop > idle
-    if (this._attackTimer > 0) {
-      this._attackTimer -= dt;
-      if (this._attackTimer <= 0) {
-        this.animState = this._castingExternal ? 'cast_loop' : 'idle';
-        if (this._castingExternal && this.actions.has('cast')) this.play('cast', 0.2);
-        else if (this.actions.has('idle')) this.play('idle', 0.25);
+    // One-shot unlock → return to gait / cast loop / idle
+    if (this._oneShotTimer > 0) {
+      this._oneShotTimer -= dt;
+      this._attackTimer = this._oneShotTimer;
+      if (this._oneShotTimer <= 0) {
+        this._gaitLocked = false;
+        if (this._castingExternal && this.actions.has('cast')) {
+          this.animState = 'cast_loop';
+          this.play('cast', 0.2);
+        } else {
+          const g = this._gait;
+          this._gait = -1;
+          this.setGait(g, g >= 2);
+        }
       }
-    } else if (!this.isSitting) {
-      if (this._castingExternal && this.actions.has('cast')) {
+    } else if (!this.isSitting && !this._gaitLocked) {
+      if (this._castingExternal && this.actions.has('cast') && this._gait === 0) {
         if (this.animState !== 'cast_loop') {
           this.animState = 'cast_loop';
           this.play('cast', 0.15);
         }
-      } else if (this.animState === 'cast_loop') {
+      } else if (this.animState === 'cast_loop' && !this._castingExternal) {
         this.animState = 'idle';
         if (this.actions.has('idle')) this.play('idle', 0.25);
       }

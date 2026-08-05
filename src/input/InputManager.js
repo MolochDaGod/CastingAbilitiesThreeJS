@@ -82,7 +82,8 @@ export class InputManager extends EventEmitter {
         this.emit('element', 3);
         break;
       case 'KeyQ':
-        this.emit('action', 'prevElement');
+        // DRC: equip ↔ combat (was prevElement)
+        this.emit('action', 'toggleDrcSession');
         break;
       case 'KeyE':
         this.emit('action', 'nextElement');

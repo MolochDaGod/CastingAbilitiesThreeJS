@@ -6,16 +6,19 @@ import { LAYER } from './Layers.js';
 
 const _dir = new Vector3();
 const _desiredTarget = new Vector3();
+const _desiredPos = new Vector3();
+const _look = new Vector3();
 
 /**
- * Third-person orbit rig.
+ * Camera rig: orbit (sandbox) or combat TPS follow.
  *
- * - Left mouse is reserved for drawing, so orbiting is bound to right-drag.
- * - The distance always resolves back to `settings.camera.distance`, so framing
- *   stays consistent no matter where the orbit target drifts. The wheel zooms by
- *   writing that same setting, which means zoom keeps working while the rig is
- *   following an ability, and the editor slider stays the single source of truth.
- * - The rig gently drifts its look-at point toward whatever ability is casting.
+ * Hard rule: **OrbitControls must not write the camera during combat TPS** —
+ * when `viewMode === 'tps'`, controls are disabled and we place the camera
+ * behind the character (fleet Danger Room style).
+ *
+ * - Left mouse reserved for path draw / combat aim
+ * - Orbit: right-drag (sandbox cast/walk)
+ * - TPS: yaw from character facing + optional right-drag offset
  */
 export class CameraRig {
   constructor(domElement) {
@@ -32,31 +35,57 @@ export class CameraRig {
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.075;
     this.controls.enablePan = false;
-    this.controls.enableZoom = false; // the wheel drives `settings.camera.distance` instead
+    this.controls.enableZoom = false;
     this.controls.minPolarAngle = settings.camera.minPolar;
     this.controls.maxPolarAngle = settings.camera.maxPolar;
     this.controls.rotateSpeed = 0.65;
 
-    // Free the left button for path drawing.
     this.controls.mouseButtons = { LEFT: null, MIDDLE: null, RIGHT: MOUSE.ROTATE };
     this.controls.touches = { ONE: null, TWO: TOUCH.DOLLY_ROTATE };
 
-    this.anchor = new Vector3(0, 0, 0); // the character
-    this.focus = new Vector3(0, 0, 0); // point of interest (ability head)
+    this.anchor = new Vector3(0, 0, 0);
+    this.focus = new Vector3(0, 0, 0);
     this.focusWeight = 0;
     this.shakeOffset = new Vector3();
     this.shakeRoll = 0;
 
+    /** @type {'orbit'|'tps'} */
+    this.viewMode = 'orbit';
+    this.characterYaw = 0;
+    this._tpsYawOffset = 0;
+    this._tpsPitch = 0.38;
+
     this.controls.target.set(0, settings.camera.targetHeight, 0);
     this.controls.update();
 
-    // Actual distance, eased toward `settings.camera.distance` so a wheel flick
-    // glides instead of snapping.
     this.distance = settings.camera.distance;
 
     this.domElement = domElement;
     this._onWheel = this._onWheel.bind(this);
+    this._onPointerMove = this._onPointerMove.bind(this);
+    this._onPointerDown = this._onPointerDown.bind(this);
+    this._onPointerUp = this._onPointerUp.bind(this);
+    this._rmb = false;
+    this._lastX = 0;
+    this._lastY = 0;
     domElement.addEventListener('wheel', this._onWheel, { passive: false });
+    window.addEventListener('pointerdown', this._onPointerDown);
+    window.addEventListener('pointermove', this._onPointerMove);
+    window.addEventListener('pointerup', this._onPointerUp);
+  }
+
+  /**
+   * @param {'orbit'|'tps'} mode
+   */
+  setViewMode(mode) {
+    const next = mode === 'tps' ? 'tps' : 'orbit';
+    if (this.viewMode === next) return;
+    this.viewMode = next;
+    // Combat TPS: freeze OrbitControls so they cannot fight follow camera
+    this.controls.enabled = next === 'orbit';
+    if (next === 'tps') {
+      this._tpsYawOffset = 0;
+    }
   }
 
   /** Wheel zoom. Multiplicative, so each notch feels the same at any distance. */
@@ -80,11 +109,38 @@ export class CameraRig {
     this.anchor.set(x, y, z);
   }
 
+  /** Character facing (radians) for TPS back-follow. */
+  setCharacterYaw(yaw) {
+    this.characterYaw = yaw;
+  }
+
   /** Nudge the look-at point toward an ability. `weight` 0..1, decays on its own. */
   lookAt(point, weight = 1) {
     this.focus.copy(point);
     this.focusWeight = Math.max(this.focusWeight, weight);
   }
+
+  _onPointerDown = (event) => {
+    if (this.viewMode !== 'tps') return;
+    if (event.button !== 2) return;
+    this._rmb = true;
+    this._lastX = event.clientX;
+    this._lastY = event.clientY;
+  };
+
+  _onPointerUp = () => {
+    this._rmb = false;
+  };
+
+  _onPointerMove = (event) => {
+    if (this.viewMode !== 'tps' || !this._rmb) return;
+    const dx = event.clientX - this._lastX;
+    const dy = event.clientY - this._lastY;
+    this._lastX = event.clientX;
+    this._lastY = event.clientY;
+    this._tpsYawOffset -= dx * 0.004;
+    this._tpsPitch = clamp(this._tpsPitch + dy * 0.003, 0.12, 1.15);
+  };
 
   update(dt) {
     const cam = settings.camera;
@@ -93,10 +149,27 @@ export class CameraRig {
       this.camera.fov = cam.fov;
       this.camera.updateProjectionMatrix();
     }
+
+    this.distance = damp(this.distance, cam.distance, cam.zoomDamping, dt);
+    this.focusWeight = damp(this.focusWeight, 0, 0.08, dt);
+
+    if (this.viewMode === 'tps') {
+      this._updateTps(dt, cam);
+    } else {
+      this._updateOrbit(dt, cam);
+    }
+
+    if (this.shakeOffset.lengthSq() > 0) {
+      this.camera.position.add(this.shakeOffset);
+      this.camera.rotateZ(this.shakeRoll);
+    }
+  }
+
+  _updateOrbit(dt, cam) {
+    this.controls.enabled = true;
     this.controls.minPolarAngle = cam.minPolar;
     this.controls.maxPolarAngle = cam.maxPolar;
 
-    // Blend the orbit target between the character and any active ability.
     const blend = MathUtils.clamp(this.focusWeight * cam.autoFrame, 0, 0.85);
     _desiredTarget.copy(this.anchor);
     _desiredTarget.y += cam.targetHeight;
@@ -108,22 +181,46 @@ export class CameraRig {
       damp(this.controls.target.z, _desiredTarget.z, cam.damping, dt)
     );
 
-    this.focusWeight = damp(this.focusWeight, 0, 0.08, dt);
-
     this.controls.update();
 
-    // Enforce the orbit distance (zoom and the editor slider both land here).
-    this.distance = damp(this.distance, cam.distance, cam.zoomDamping, dt);
     _dir.copy(this.camera.position).sub(this.controls.target);
     const len = _dir.length() || 1;
     _dir.multiplyScalar(1 / len);
     this.camera.position.copy(this.controls.target).addScaledVector(_dir, this.distance);
+  }
 
-    // Camera shake is additive and applied after the controls have settled.
-    if (this.shakeOffset.lengthSq() > 0) {
-      this.camera.position.add(this.shakeOffset);
-      this.camera.rotateZ(this.shakeRoll);
+  /**
+   * Combat TPS: place camera behind character; OrbitControls disabled.
+   */
+  _updateTps(dt, cam) {
+    this.controls.enabled = false;
+
+    const yaw = this.characterYaw + this._tpsYawOffset;
+    const pitch = this._tpsPitch;
+    const dist = this.distance * (cam.tpsDistanceScale ?? 0.72);
+    const height = cam.targetHeight + Math.sin(pitch) * dist * 0.85;
+
+    _desiredTarget.copy(this.anchor);
+    _desiredTarget.y += cam.targetHeight;
+    if (this.focusWeight > 0.05) {
+      _desiredTarget.lerp(this.focus, Math.min(0.45, this.focusWeight * cam.autoFrame));
     }
+
+    // Behind character: opposite of facing (+Z local face)
+    _desiredPos.set(
+      this.anchor.x - Math.sin(yaw) * dist * Math.cos(pitch),
+      this.anchor.y + height,
+      this.anchor.z - Math.cos(yaw) * dist * Math.cos(pitch)
+    );
+
+    this.camera.position.x = damp(this.camera.position.x, _desiredPos.x, cam.tpsDamping ?? 0.12, dt);
+    this.camera.position.y = damp(this.camera.position.y, _desiredPos.y, cam.tpsDamping ?? 0.12, dt);
+    this.camera.position.z = damp(this.camera.position.z, _desiredPos.z, cam.tpsDamping ?? 0.12, dt);
+
+    _look.copy(_desiredTarget);
+    this.camera.lookAt(_look);
+    // Keep OrbitControls target in sync for mode switch back to orbit
+    this.controls.target.copy(_look);
   }
 
   resize(width, height) {
@@ -133,6 +230,9 @@ export class CameraRig {
 
   dispose() {
     this.domElement.removeEventListener('wheel', this._onWheel);
+    window.removeEventListener('pointerdown', this._onPointerDown);
+    window.removeEventListener('pointermove', this._onPointerMove);
+    window.removeEventListener('pointerup', this._onPointerUp);
     this.controls.dispose();
   }
 }

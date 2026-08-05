@@ -25,6 +25,16 @@ export const settings = {
    */
   mode: 'casting',
 
+  /**
+   * DRC session: equip (mesh panel / sandbox) vs combat (WASD + skills + TPS).
+   * Q toggles. Independent of path cast/walk mode (M).
+   */
+  drc: {
+    session: 'equip', // 'equip' | 'combat'
+    moveSpeed: 3.6,
+    sprintMul: 1.65
+  },
+
   /* ------------------------------------------------------------------ */
   /* Global multipliers — apply to every ability simultaneously          */
   /* ------------------------------------------------------------------ */
@@ -172,7 +182,10 @@ export const settings = {
     fov: 46,
     targetHeight: 1.35,
     damping: 0.06,
-    autoFrame: 0.35 // how strongly the rig drifts toward active abilities
+    autoFrame: 0.35, // how strongly the rig drifts toward active abilities
+    /** Combat TPS (DRC) — OrbitControls disabled while active */
+    tpsDamping: 0.14,
+    tpsDistanceScale: 0.68
   },
 
   /* ------------------------------------------------------------------ */

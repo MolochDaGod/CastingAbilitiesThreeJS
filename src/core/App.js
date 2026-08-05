@@ -30,6 +30,7 @@ import { PostProcessing } from '../postprocessing/PostProcessing.js';
 import { HUD, LoadingScreen } from '../ui/HUD.js';
 import { Editor } from '../ui/Editor.js';
 import { InventoryPanel } from '../ui/InventoryPanel.js';
+import { DrcCombatController } from '../combat/DrcCombatController.js';
 
 import { settings, ELEMENTS, MODES, MODE_META } from '../config/settings.js';
 
@@ -120,12 +121,33 @@ export class App {
       onToast: (message) => this.hud.showToast(message)
     });
 
+    this.drc = new DrcCombatController({
+      character: this.character,
+      abilities: this.abilities,
+      camera: this.camera,
+      onToast: (message) => this.hud.showToast(message),
+      onSession: (session) => this._onDrcSession(session)
+    });
+
     this._bindEvents();
     this._mode = null;
     this.setMode(settings.mode);
     this.selectElement(ELEMENTS[0]);
+    this._onDrcSession(this.drc.session);
 
     this._focusPoint = new Vector3();
+  }
+
+  _onDrcSession(session) {
+    settings.drc.session = session;
+    // Combat → TPS follow (OrbitControls off). Equip/sandbox → orbit.
+    this.rig.setViewMode(session === 'combat' ? 'tps' : 'orbit');
+    if (session === 'equip') {
+      this.inventory.setOpen(true);
+    } else {
+      this.inventory.setOpen(false);
+    }
+    this.hud.setDrcSession?.(session);
   }
 
   /* ------------------------------------------------------------------ */
@@ -141,16 +163,28 @@ export class App {
     this.input.on('draw:move', (pointer) => this.pathDrawer.move(pointer));
     this.input.on('draw:end', () => this.pathDrawer.end());
 
-    this.input.on('element', (index) => this.selectElement(ELEMENTS[index]));
+    this.input.on('element', (index) => {
+      // In DRC combat, digits 1–4 are weapon skills; element cycle stays on E
+      if (this.drc.inCombat) {
+        this.drc.useSkill(index);
+        return;
+      }
+      this.selectElement(ELEMENTS[index]);
+    });
     this.input.on('action', (action) => this._handleAction(action));
 
     // One gesture, two meanings — the mode decides what a finished stroke does.
     this.pathDrawer.on('cast', (curve) => {
+      if (this.drc.inCombat) {
+        // Combat: path still casts selected element as free aim skill
+        this.abilities.cast(curve);
+        this.character.requestOneShot?.('cast') || this.character.playCastFlourish?.();
+        return;
+      }
       if (settings.mode === 'walk') {
         if (!this.walk.begin(curve)) this.hud.showToast('Path too short to ride');
       } else {
         this.abilities.cast(curve);
-        // Start cast-loop anim; App.frame keeps it while abilities remain active.
         this.character.playCastFlourish?.();
         const end = curve?.getPoint?.(1) || curve?.points?.[curve.points.length - 1];
         if (end) {
@@ -174,6 +208,9 @@ export class App {
       case 'prevElement':
         this.selectElement(ELEMENTS[(index - 1 + ELEMENTS.length) % ELEMENTS.length]);
         break;
+      case 'toggleDrcSession':
+        this.drc.toggleSession();
+        break;
       case 'toggleHelp':
         this.hud.toggleHelp();
         break;
@@ -181,12 +218,18 @@ export class App {
         this.editor.toggle();
         break;
       case 'toggleInventory':
-        this.inventory.toggle();
-        this.hud.showToast(this.inventory.open ? 'Inventory open' : 'Inventory closed');
+        if (this.drc.inCombat) this.drc.setSession('equip');
+        else {
+          this.inventory.toggle();
+          this.hud.showToast(this.inventory.open ? 'Inventory open' : 'Inventory closed');
+        }
         break;
       case 'weaponAttack':
-        if (this.character.playWeaponAttack?.()) this.hud.showToast('Weapon attack');
-        else this.hud.showToast('No attack clip');
+        if (this.drc.inCombat) {
+          this.drc.useSkill(3);
+        } else if (this.character.playWeaponAttack?.()) {
+          this.hud.showToast('Weapon attack');
+        } else this.hud.showToast('No attack clip');
         break;
       case 'clear':
         this.clearEffects();
@@ -318,8 +361,10 @@ export class App {
 
     this.environment.setFocus(this.character.position.x, this.character.position.z);
     this.environment.update();
+    // DRC combat WASD + skills (equip session skips locomotion)
+    this.drc.update(dt, this.input.keys);
     // Walk mode places the character; the controller then animates him there.
-    this.walk.update(dt);
+    if (!this.drc.inCombat) this.walk.update(dt);
     this.character.update(dt);
 
     this.ground.update(this.elapsed);
@@ -347,6 +392,7 @@ export class App {
     const focus = this.abilities.focus;
     if (focus) this.rig.lookAt(focus.position, MathUtils.clamp(1 - focus.u * 0.4, 0, 1));
     this.rig.setAnchor(this.character.position.x, 0, this.character.position.z);
+    this.rig.setCharacterYaw(this.character.facing);
     this.shake.update(raw);
     this.flash.update(raw);
     this.rig.update(raw);
