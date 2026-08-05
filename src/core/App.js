@@ -31,6 +31,8 @@ import { HUD, LoadingScreen } from '../ui/HUD.js';
 import { Editor } from '../ui/Editor.js';
 import { InventoryPanel } from '../ui/InventoryPanel.js';
 import { DrcCombatController } from '../combat/DrcCombatController.js';
+import { PhysicsWorld } from '../physics/PhysicsWorld.js';
+import { VfxDirector } from '../vfx/VfxDirector.js';
 
 import { settings, ELEMENTS, MODES, MODE_META } from '../config/settings.js';
 
@@ -121,10 +123,23 @@ export class App {
       onToast: (message) => this.hud.showToast(message)
     });
 
+    this.physics = new PhysicsWorld();
+    this.vfxDirector = new VfxDirector({
+      scene: this.scene,
+      particles: this.particles,
+      lights: this.lights,
+      decals: this.decals,
+      bursts: this.bursts,
+      shake: this.shake,
+      flash: this.flash
+    });
+
     this.drc = new DrcCombatController({
       character: this.character,
       abilities: this.abilities,
       camera: this.camera,
+      physics: null,
+      vfx: this.vfxDirector,
       onToast: (message) => this.hud.showToast(message),
       onSession: (session) => this._onDrcSession(session)
     });
@@ -172,6 +187,11 @@ export class App {
       this.selectElement(ELEMENTS[index]);
     });
     this.input.on('action', (action) => this._handleAction(action));
+    this.input.on('sandboxVfx', (effectId) => {
+      if (this.drc.previewSandboxEffect(effectId)) {
+        this.hud.showToast(`VFX · ${effectId}`);
+      }
+    });
 
     // One gesture, two meanings — the mode decides what a finished stroke does.
     this.pathDrawer.on('cast', (curve) => {
@@ -297,7 +317,16 @@ export class App {
   async load() {
     const assets = new AssetLoader();
 
-    this.loading.setProgress(0.05, 'Loading environment…');
+    this.loading.setProgress(0.05, 'Init Rapier physics…');
+    try {
+      await this.physics.init();
+      this.drc.setPhysics(this.physics);
+      this.physics.setPlayerFeet(0, 0, 0);
+    } catch (err) {
+      console.warn('[App] Rapier init failed — kinematic fallback', err);
+    }
+
+    this.loading.setProgress(0.15, 'Loading environment…');
     const hdr = await assets.loadHDR(HDR_URL);
     await this.environment.loadEnvironment(hdr);
     frame.uEnvMap.value = this.environment.equirect;

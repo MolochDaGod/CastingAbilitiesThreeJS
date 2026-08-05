@@ -7,6 +7,28 @@ This is the fleet-owned rebrand of the original bending playground: **Mixamo cha
 **Repo:** [MolochDaGod/CastingAbilitiesThreeJS](https://github.com/MolochDaGod/CastingAbilitiesThreeJS)  
 **Live:** [casting-abilities-threejs.vercel.app](https://casting-abilities-threejs.vercel.app)
 
+### Stack (fleet package gate)
+
+| Package | Role |
+|---------|------|
+| `three` ^0.185 | Renderer / GLTF / AnimationMixer |
+| `@dimforge/rapier3d-compat` ^0.19 | Ground + human CCT (SI capsule) |
+| VFX beauty | [vfxgrudge.puter.site](https://vfxgrudge.puter.site/) catalog → `src/vfx/VfxDirector.js` |
+
+**Alt+V/B/F/G/T/C** — sandbox VFX (Ice Serpent, Moon Beam, Frost Wave, Aura, Earth Surge, Fireball).  
+**Q** equip ↔ DRC combat · **1–4** weapon skills with layered cast/impact VFX.
+
+### Stack (fleet package gate)
+
+| Package | Role |
+|---------|------|
+| `three` ^0.185 | Renderer / GLTF / AnimationMixer |
+| `@dimforge/rapier3d-compat` ^0.19 | Ground + human CCT (SI capsule) |
+| VFX | [vfxgrudge.puter.site](https://vfxgrudge.puter.site/) catalog → `VfxDirector` beauty layers |
+
+**Alt+V/B/F/G/T/C** — sandbox VFX previews (Ice Serpent, Moon Beam, Frost Wave, Aura, Earth Surge, Fireball).  
+**Q** equip ↔ DRC combat · **1–4** weapon skills with layered cast/impact VFX.
+
 ---
 
 ## About

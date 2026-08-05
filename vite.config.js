@@ -1,5 +1,9 @@
 import { defineConfig } from 'vite';
 
+/**
+ * Fleet pin: three ^0.185 + Rapier WASM (rapier3d-compat).
+ * @see grudge-3d-game-packages · grudge-rapier
+ */
 export default defineConfig({
   base: './',
   server: {
@@ -10,8 +14,11 @@ export default defineConfig({
   build: {
     target: 'es2022',
     sourcemap: true,
-    chunkSizeWarningLimit: 2000
+    chunkSizeWarningLimit: 2500
   },
-  // HDR probe lives in /public. Character mesh + anims load from Grudge CDN/Open.
-  assetsInclude: ['**/*.hdr', '**/*.glb']
+  optimizeDeps: {
+    exclude: ['@dimforge/rapier3d-compat']
+  },
+  // HDR + ride GLBs in /public; character kits from CDN.
+  assetsInclude: ['**/*.hdr', '**/*.glb', '**/*.wasm']
 });

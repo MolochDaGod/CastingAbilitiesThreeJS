@@ -41,9 +41,9 @@ export class HUD {
           <kbd>Q</kbd><kbd>E</kbd> cycle
         </div>
         <div><kbd>Q</kbd> equip / DRC combat &nbsp; <kbd>I</kbd> inventory</div>
-        <div><kbd>WASD</kbd> move (combat) &nbsp; <kbd>1–4</kbd> DRC skills &nbsp; <kbd>F</kbd> strike</div>
-        <div><kbd>G</kbd> editor &nbsp; <kbd>C</kbd> clear &nbsp; <kbd>P</kbd> pause &nbsp; <kbd>H</kbd> hide</div>
-        <div><kbd>T</kbd> sit &nbsp; <kbd>M</kbd> cast / windsurf ride &nbsp; <kbd>E</kbd> cycle element</div>
+        <div><kbd>WASD</kbd> move (Rapier) &nbsp; <kbd>1–4</kbd> skills + beauty VFX &nbsp; <kbd>F</kbd> strike</div>
+        <div><kbd>Alt</kbd>+<kbd>V B F G T C</kbd> vfxgrudge sandbox preview</div>
+        <div><kbd>G</kbd> editor &nbsp; <kbd>C</kbd> clear &nbsp; <kbd>P</kbd> pause &nbsp; <kbd>M</kbd> cast/ride</div>
       </div>
 
       <div class="hud__modes">

@@ -23,6 +23,8 @@ export class DrcCombatController {
    *   character: import('../animation/CharacterController.js').CharacterController,
    *   abilities: import('../abilities/AbilityManager.js').AbilityManager,
    *   camera: import('three').Camera,
+   *   physics?: import('../physics/PhysicsWorld.js').PhysicsWorld|null,
+   *   vfx?: import('../vfx/VfxDirector.js').VfxDirector|null,
    *   onToast?: (msg: string) => void,
    *   onSession?: (session: 'equip'|'combat') => void
    * }} opts
@@ -31,6 +33,8 @@ export class DrcCombatController {
     this.character = opts.character;
     this.abilities = opts.abilities;
     this.camera = opts.camera;
+    this.physics = opts.physics || null;
+    this.vfx = opts.vfx || null;
     this.onToast = opts.onToast || (() => {});
     this.onSession = opts.onSession || (() => {});
 
@@ -43,12 +47,21 @@ export class DrcCombatController {
     this.maxStamina = 100;
     this.elapsed = 0;
 
-    this.moveSpeed = 3.6;
-    this.sprintMul = 1.65;
+    this.moveSpeed = settings.drc?.moveSpeed ?? 3.6;
+    this.sprintMul = settings.drc?.sprintMul ?? 1.65;
     this._moveX = 0;
     this._moveZ = 0;
     this._sprinting = false;
     this._yaw = 0;
+    this._usePhysics = true;
+  }
+
+  setPhysics(physics) {
+    this.physics = physics;
+  }
+
+  setVfx(vfx) {
+    this.vfx = vfx;
   }
 
   get inCombat() {
@@ -120,11 +133,19 @@ export class DrcCombatController {
 
     const speed = this.moveSpeed * (this._sprinting ? this.sprintMul : 1) * (settings.global?.animationSpeed || 1);
     const moving = _move.lengthSq() > 1e-6;
+    const vx = moving ? _move.x * speed : 0;
+    const vz = moving ? _move.z * speed : 0;
+
+    if (this.physics?.ready && this._usePhysics) {
+      const pose = this.physics.movePlayer(vx, vz, dt);
+      this.character.root.position.set(pose.x, pose.y, pose.z);
+    } else if (moving) {
+      this.character.root.position.x += vx * dt;
+      this.character.root.position.z += vz * dt;
+      this.character.root.position.y = 0;
+    }
 
     if (moving) {
-      this.character.root.position.x += _move.x * speed * dt;
-      this.character.root.position.z += _move.z * speed * dt;
-      this.character.root.position.y = 0;
       this._yaw = Math.atan2(_move.x, _move.z);
       this.character.setFacing(this._yaw);
     }
@@ -167,7 +188,19 @@ export class DrcCombatController {
       this.character.requestOneShot?.(skill.animRole) || this.character.playCastFlourish?.();
     }
 
-    // VFX: spell → elemental ability along forward curve; melee → short slash curve + wind/fire pop
+    const yaw = this.character.facing;
+    _fwd.set(Math.sin(yaw), 0, Math.cos(yaw));
+    this.character.getCastOrigin(_origin);
+    const pose = {
+      origin: this.character.position.clone(),
+      forward: _fwd.clone(),
+      aim: _end.copy(_origin).addScaledVector(_fwd, skill.rangeM * 0.65)
+    };
+
+    // High-beauty cast tell (vfxgrudge catalog)
+    this.vfx?.deploySkill?.(skill.id, pose, 'cast');
+
+    // VFX: spell → elemental ability along forward curve; melee → short slash + residual
     if (skill.style === 'spell' && skill.element) {
       const curve = this._aimCurve(skill.rangeM);
       this.abilities.select(skill.element);
@@ -177,20 +210,37 @@ export class DrcCombatController {
         aimY: _end.y,
         aimZ: _end.z
       });
+      // Delayed impact beauty at curve end
+      const impactAt = skill.castDuration * 0.55;
+      setTimeout(() => {
+        this.vfx?.deploySkill?.(skill.id, { ...pose, origin: pose.aim, aim: pose.aim }, 'impact');
+      }, impactAt * 1000);
       this.onToast(skill.label);
       return true;
     }
 
     if (skill.style === 'melee') {
       const curve = this._aimCurve(Math.min(skill.rangeM, 3.2));
-      // Melee uses wind element for slash trail if available, else fire
       const el = this.abilities.selected || 'wind';
       this.abilities.cast(curve, el === 'earth' ? 'wind' : el);
+      this.vfx?.deploySkill?.(skill.id, pose, 'full');
       this.onToast(skill.label);
       return true;
     }
 
     return false;
+  }
+
+  /** Alt+sandbox hotkey from vfxgrudge.puter.site */
+  previewSandboxEffect(effectId) {
+    if (!this.vfx || !effectId) return false;
+    const yaw = this.character.facing;
+    _fwd.set(Math.sin(yaw), 0, Math.cos(yaw));
+    this.vfx.deploy(effectId, {
+      origin: this.character.position.clone(),
+      forward: _fwd.clone()
+    });
+    return true;
   }
 
   /** Build CatmullRom from hand → aim point for Ability.spawn */

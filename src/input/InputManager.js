@@ -68,6 +68,23 @@ export class InputManager extends EventEmitter {
 
     this.keys.add(event.code);
 
+    // Alt+V/B/F/G/T/C → vfxgrudge.puter.site sandbox beauty previews
+    if (event.altKey) {
+      const map = {
+        KeyV: 'ice_lightning_burst',
+        KeyB: 'moon_beam',
+        KeyF: 'frost_wave',
+        KeyG: 'fire_aura',
+        KeyT: 'earth_surge',
+        KeyC: 'fireball'
+      };
+      if (map[event.code]) {
+        event.preventDefault();
+        this.emit('sandboxVfx', map[event.code]);
+        return;
+      }
+    }
+
     switch (event.code) {
       case 'Digit1':
         this.emit('element', 0);

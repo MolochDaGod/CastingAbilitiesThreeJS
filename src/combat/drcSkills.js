@@ -40,10 +40,11 @@ export const DRC_WEAPON_SKILLS = [
     cooldown: 1.1,
     castDuration: 0.85,
     staminaCost: 12,
-    castEffectId: 'fire_cast',
-    impactEffectId: 'fire_impact',
+    castEffectId: 'fire_hand',
+    impactEffectId: 'inferno',
+    travelEffectId: 'fireball',
     attachToHand: true,
-    hint: '1 — path of fire from hand'
+    hint: '1 — fireball path + vfxgrudge fire beauty'
   },
   {
     id: 'drc_water_lash',
@@ -56,10 +57,11 @@ export const DRC_WEAPON_SKILLS = [
     cooldown: 1.2,
     castDuration: 0.9,
     staminaCost: 12,
-    castEffectId: 'water_cast',
-    impactEffectId: 'water_impact',
+    castEffectId: 'arcane_swirl',
+    impactEffectId: 'frost_wave',
+    travelEffectId: 'moon_beam',
     attachToHand: true,
-    hint: '2 — water strike along aim'
+    hint: '2 — frost/moon path (vfxgrudge B/F)'
   },
   {
     id: 'drc_earth_spike',
@@ -72,10 +74,11 @@ export const DRC_WEAPON_SKILLS = [
     cooldown: 1.4,
     castDuration: 1.0,
     staminaCost: 16,
-    castEffectId: 'earth_cast',
-    impactEffectId: 'earth_impact',
+    castEffectId: 'earth_surge',
+    impactEffectId: 'earth_surge',
+    travelEffectId: 'earth_surge',
     attachToHand: true,
-    hint: '3 — earth burst path'
+    hint: '3 — earth surge (vfxgrudge T)'
   },
   {
     id: 'drc_melee_strike',
@@ -87,10 +90,10 @@ export const DRC_WEAPON_SKILLS = [
     cooldown: 0.75,
     castDuration: 0.7,
     staminaCost: 10,
-    castEffectId: 'melee_slash',
-    impactEffectId: 'melee_hit',
+    castEffectId: 'getsuga_slash',
+    impactEffectId: 'getsuga_slash',
     attachToHand: true,
-    hint: '4 / F — sword_shield attack + slash VFX'
+    hint: '4 / F — sword attack + residual slash VFX'
   }
 ];
 
