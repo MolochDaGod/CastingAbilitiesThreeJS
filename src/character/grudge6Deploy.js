@@ -78,13 +78,27 @@ export function unifySkeletons(root) {
     if (!widest || newSkel.bones.length > widest.bones.length) widest = newSkel;
   });
 
+  // CRITICAL: remove non-canonical Bone nodes from the graph.
+  // PropertyBinding / AnimationMixer finds the *first* node by name. Dead
+  // duplicate Bip001 trees would still receive clip tracks while skins use
+  // canon bones → exploded bag-blob mesh (the screenshot failure).
+  const canonSet = new Set(canon.values());
+  const orphans = [];
+  root.traverse((node) => {
+    if (node.isBone && !canonSet.has(node)) orphans.push(node);
+  });
+  for (const bone of orphans) {
+    bone.parent?.remove(bone);
+  }
+
   if (unresolved > 0) {
     console.warn(
       `[grudge6Deploy] unifySkeletons: ${unresolved} bone(s) had no canonical match`
     );
   }
   console.info(
-    `[grudge6Deploy] unifySkeletons: ${beforeIds.size} skeletons → 1 canon (${canon.size} bones), rebound ${rebound} skins`
+    `[grudge6Deploy] unifySkeletons: ${beforeIds.size} skels → 1 canon (${canon.size} bones), ` +
+      `rebound ${rebound} skins, pruned ${orphans.length} orphan bones`
   );
   return widest;
 }

@@ -32,20 +32,21 @@ import {
   reGroundAfterAnimSample,
   unifySkeletons
 } from '../character/grudge6Deploy.js';
-import { HandIK } from '../character/HandIK.js';
-import { RideIK } from '../character/RideIK.js';
 import { settings } from '../config/settings.js';
 import { disposeObject } from '../utils/dispose.js';
 import { loadBakedClipJson, rematchClipToSkeleton } from './bakeClip.js';
-import { SittingPose } from './SittingPose.js';
+
+const _castOrigin = new Vector3();
 
 /**
- * grudge6 / Toon RTS character:
- *  - GLTFLoader path (via AssetLoader) + SkeletonUtils.clone
- *  - EquipmentManager mesh visibility
- *  - single AnimationMixer
- *  - cast loop while abilities active; weapon attack one-shot
- *  - HandIK cast origin + soft aim
+ * Toon RTS / grudge6 combat hero — clean path only:
+ *  SkeletonUtils.clone → unifySkeletons (+ prune orphans) → mesh_ids
+ *  → SI deploy → body atlas → mixer + gait + one-shots.
+ *
+ * Purged from this controller (do not re-add without SSOT):
+ *  - SittingPose (Mixamo procedural — corrupts Bip001)
+ *  - RideIK / windsurf bone writes
+ *  - Soft HandIK aim that rewrites hand quaternions every frame
  */
 export class CharacterController {
   constructor(environment) {
@@ -64,30 +65,28 @@ export class CharacterController {
     this.headPosition = new Vector3(0, 1.5, 0);
     this.forwardAxis = new Vector3(0, 0, 1);
 
-    this.sitting = null;
-    this._poseWeight = 0;
-    this._poseTime = 0;
-    this._poseBlend = null;
-
     this.equipment = null;
-    this.ik = null;
-    /** @type {import('../character/RideIK.js').RideIK|null} */
-    this.rideIk = null;
-    this._rideActive = false;
+    /** @type {{ rHand?: object, lHand?: object, pelvis?: object }|null} */
+    this.bones = null;
     this.raceId = DEFAULT_RACE;
     this.animPackId = 'magic';
     this.presetId = 'mage';
     this.presets = FALLBACK_PRESETS.slice();
 
-    /** 'idle' | 'walk' | 'run' | 'cast_loop' | 'attack' | 'sit' */
+    /** 'idle' | 'walk' | 'run' | 'cast_loop' | 'attack' */
     this.animState = 'idle';
     this._attackTimer = 0;
     this._oneShotTimer = 0;
     this._castingExternal = false;
     this._boundPacks = new Set();
-    /** Gait: 0 idle, 1 walk, 2 run/sprint */
     this._gait = 0;
-    this._gaitLocked = false; // true during one-shots
+    this._gaitLocked = false;
+
+    // Stubs kept so WalkController / App do not throw if still referenced
+    this.sitting = null;
+    this.rideIk = null;
+    this._rideActive = false;
+    this.ik = null;
   }
 
   /**
@@ -123,37 +122,24 @@ export class CharacterController {
       this.atlas = atlas;
     }
 
-    // NEVER plain scene.clone() on skinned kits — bag-blob / broken skinning.
+    // Clear previous kit
+    while (this.tilt.children.length) {
+      const c = this.tilt.children[0];
+      this.tilt.remove(c);
+      disposeObject(c);
+    }
+
     const kit = skeletonClone(gltf.scene);
     kit.name = `${race.id}_Characters`;
     kit.userData.importPipeline = 'glb-baked';
     kit.userData.importUrl = kitUrl;
 
-    // REQUIRED: modular grudge6 kits ship many disconnected skeletons.
-    // Without unify, idle clips only move one bone tree → exploded mesh.
+    // 1) Unify multi-skeleton modular kit + prune orphan bones (mixer bind fix)
     const skBefore = countSkeletons(kit);
     unifySkeletons(kit);
-    const skAfter = countSkeletons(kit);
-    if (skBefore > 1) {
-      console.info(`[CharacterController] skeletons ${skBefore} → ${skAfter} (unify)`);
-    }
+    console.info(`[CharacterController] skeletons ${skBefore} → ${countSkeletons(kit)}`);
 
-    // Multiverse CRITICAL order after unify:
-    // 1) SI deploy while full kit still visible (bodyBox skips weapons)
-    // 2) body-only atlas (keep weapon embeds)
-    // 3) mesh_ids equip
-    // 4) re-ground
-    const deploy = deployGrudge6Model(kit, { facePlusZ: true, groundY: 0, unify: false });
-    prepMeshFlags(kit);
-    if (this.atlas) applyBodyAtlas(kit, this.atlas);
-    else applyBodyAtlas(kit, null); // colorSpace fix on embeds only
-    // Contact-shadow casters (Environment depth pass)
-    kit.traverse((o) => {
-      if (!o.isMesh && !o.isSkinnedMesh) return;
-      const mats = Array.isArray(o.material) ? o.material : [o.material];
-      for (const m of mats) if (m) this.environment?.registerShadowCaster?.(m);
-    });
-
+    // 2) Equip BEFORE fit (wardrobe bomb inflates AABB)
     this.equipment = new EquipmentManager(kit);
     const preset = this.presets.find((p) => p.id === this.presetId) || this.presets[0];
     this.animPackId = this._packFromPreset(preset);
@@ -162,20 +148,29 @@ export class CharacterController {
     if (report.missing?.length) {
       console.warn('[CharacterController] mesh_ids missing', report);
     }
+
+    // 3) SI deploy (fit if needed, art-forward, feet/pelvis)
+    const deploy = deployGrudge6Model(kit, { facePlusZ: true, groundY: 0, unify: false });
+    prepMeshFlags(kit);
+
+    // 4) Body atlas only (weapons keep embeds / colorSpace fix)
+    if (this.atlas) applyBodyAtlas(kit, this.atlas);
+    else applyBodyAtlas(kit, null);
+    kit.traverse((o) => {
+      if (!o.isMesh && !o.isSkinnedMesh) return;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      for (const m of mats) if (m) this.environment?.registerShadowCaster?.(m);
+    });
+
     reGroundAfterAnimSample(kit, 0);
 
     this.tilt.add(kit);
     this.model = kit;
     this.height = deploy.height || kit.userData.deployHeightM || 1.8;
     this.headPosition.set(0, this.height * 0.86, 0);
+    this.bones = this.equipment.findBones();
 
-    const bones = this.equipment.findBones();
-    this.ik = new HandIK(kit, bones);
-    this.rideIk = new RideIK(kit);
-
-    this.sitting = new SittingPose(kit);
-    if (this.sitting.valid) this.forwardAxis.copy(this.sitting.forward);
-
+    // 5) Single mixer — Bip001 packs only
     this.mixer = new AnimationMixer(kit);
     this.actions.clear();
     this._boundPacks.clear();
@@ -187,7 +182,6 @@ export class CharacterController {
     if (this.actions.has('idle')) this.play('idle', 0);
     else if (this.actions.size) this.play([...this.actions.keys()][0], 0);
 
-    // Sample idle (rotation-only tracks) → re-ground residual hip float
     this.mixer.update(1 / 30);
     reGroundAfterAnimSample(kit, 0);
 
@@ -195,17 +189,15 @@ export class CharacterController {
     if (!look.ok) console.warn('[CharacterController] look', look);
     else {
       console.info(
-        `[CharacterController] ${this.raceId} ${this.presetId} h=${look.heightM}m ` +
-          `feet=${look.feetMinY} meshes=${report.matched}/${meshIds.length}`
+        `[CharacterController] OK ${this.raceId} ${this.presetId} ` +
+          `h=${look.heightM}m feet=${look.feetMinY} equip=${report.matched}/${meshIds.length} ` +
+          `pelvis=${look.pelvis} clips=${this.actions.size}`
       );
     }
 
     return this;
   }
 
-  /**
-   * Fleet diagnose: height band, feet, pelvis, hands.
-   */
   diagnoseLook() {
     if (!this.model) return { ok: false, reason: 'no-model' };
     const d = diagnoseCharacterLook(this.model, 0);
@@ -219,7 +211,8 @@ export class CharacterController {
       pelvis: !!bones.pelvis,
       rHand: !!bones.rHand,
       errors: d.errors,
-      equipMatched: this.equipment?.loadout || {}
+      equipMatched: this.equipment?.loadout || {},
+      skeletons: countSkeletons(this.model)
     };
   }
 
@@ -240,7 +233,6 @@ export class CharacterController {
     const pack = preset?.pack || 'magic';
     if (pack === 'magic' || pack.startsWith('magic')) return 'magic';
     if (pack.includes('sword') || pack.includes('shield') || pack === '2h_melee') return 'sword_shield';
-    // longbow / spear — still use sword_shield attack or magic idle
     if (pack.includes('bow')) return 'magic';
     return ANIM_PACKS[pack] ? pack : 'magic';
   }
@@ -251,17 +243,15 @@ export class CharacterController {
     if (!pack) return;
 
     const roleMap = {
-      idle: { loop: LoopRepeat },
-      cast: { loop: LoopRepeat }, // loop while casting — ability manager drives state
-      attack: { loop: LoopOnce },
-      block: { loop: LoopOnce },
-      walk: { loop: LoopRepeat },
-      run: { loop: LoopRepeat }
+      idle: LoopRepeat,
+      cast: LoopRepeat,
+      attack: LoopOnce,
+      block: LoopOnce,
+      walk: LoopRepeat,
+      run: LoopRepeat
     };
 
     for (const [role, rel] of Object.entries(pack)) {
-      const actionName = role; // shared names: idle/cast/attack prefer primary pack
-      // Secondary pack: prefix if role already bound from primary
       const name =
         this.actions.has(role) && packId !== this.animPackId ? `${packId}:${role}` : role;
       try {
@@ -272,8 +262,7 @@ export class CharacterController {
           console.warn(`[CharacterController] empty tracks: ${rel}`);
           continue;
         }
-        const loop = roleMap[role]?.loop ?? LoopRepeat;
-        this._registerClip(name, matched, loop);
+        this._registerClip(name, matched, roleMap[role] ?? LoopRepeat);
       } catch (err) {
         console.warn(`[CharacterController] clip fail ${rel}`, err);
       }
@@ -290,11 +279,6 @@ export class CharacterController {
     this.actions.set(name, action);
   }
 
-  /**
-   * Re-apply equip from inventory panel (no full reload).
-   * @param {Record<string, string>} loadout
-   * @param {{ pack?: string, presetId?: string }} [meta]
-   */
   applyLoadout(loadout, meta = {}) {
     if (!this.equipment) return { matched: 0, missing: ['no-equipment'] };
     if (meta.presetId) this.presetId = meta.presetId;
@@ -306,8 +290,8 @@ export class CharacterController {
       reGroundAfterAnimSample(this.model, 0);
       this.height = this.model.userData.deployHeightM || this.height;
       this.headPosition.set(0, this.height * 0.86, 0);
+      this.bones = this.equipment.findBones();
     }
-    this.ik?.setBones(this.equipment.findBones());
     if (this.actions.has('idle') && this.animState === 'idle') this.play('idle', 0.2);
     return report;
   }
@@ -337,31 +321,17 @@ export class CharacterController {
     this.current = next;
   }
 
-  /**
-   * External: ability manager has active casts → cast loop; else idle.
-   * @param {boolean} isCasting
-   * @param {{ aimX?: number, aimY?: number, aimZ?: number } | null} aim
-   */
-  setCasting(isCasting, aim = null) {
+  setCasting(isCasting) {
     this._castingExternal = !!isCasting;
-    if (isCasting && aim && Number.isFinite(aim.aimX)) {
-      this.ik?.setAimTarget(aim.aimX, aim.aimY ?? 1.2, aim.aimZ, 0.55);
-    } else if (!isCasting) {
-      this.ik?.clearAim();
-    }
   }
 
   /**
-   * AnimationDirector-style gait (locomotion under overlays).
    * @param {0|1|2|number} level 0 idle, 1 walk, 2 run
    * @param {boolean} [sprinting]
    */
   setGait(level, sprinting = false) {
-    if (this._gaitLocked || this._rideActive || this.isSitting) return;
-    if (this._castingExternal && level === 0) {
-      /* keep cast loop while abilities fly */
-      return;
-    }
+    if (this._gaitLocked) return;
+    if (this._castingExternal && level === 0) return;
     const g = sprinting ? 2 : MathUtils.clamp(level | 0, 0, 2);
     if (g === this._gait && this.animState !== 'attack') return;
     this._gait = g;
@@ -371,21 +341,13 @@ export class CharacterController {
         this.play('idle', 0.2);
       }
     } else if (g === 1) {
-      const walk = this.actions.has('walk')
-        ? 'walk'
-        : this.actions.has('run')
-          ? 'run'
-          : null;
+      const walk = this.actions.has('walk') ? 'walk' : this.actions.has('run') ? 'run' : null;
       if (walk) {
         this.animState = 'walk';
         this.play(walk, 0.18);
       }
     } else {
-      const run = this.actions.has('run')
-        ? 'run'
-        : this.actions.has('walk')
-          ? 'walk'
-          : null;
+      const run = this.actions.has('run') ? 'run' : this.actions.has('walk') ? 'walk' : null;
       if (run) {
         this.animState = 'run';
         this.play(run, 0.15);
@@ -393,12 +355,7 @@ export class CharacterController {
     }
   }
 
-  /**
-   * Overlay one-shot (DRC skill / attack) — gait resumes after clip.
-   * @param {'attack'|'cast'|'block'|string} role
-   */
   requestOneShot(role) {
-    if (this.isSitting || this._rideActive) return false;
     let name = null;
     if (role === 'attack') {
       name = this.actions.has('attack')
@@ -426,55 +383,46 @@ export class CharacterController {
     return true;
   }
 
-  /** Melee / staff weapon attack one-shot (F). */
   playWeaponAttack() {
     return this.requestOneShot('attack');
   }
 
-  /** One-shot cast flourish if not already in cast loop. */
   playCastFlourish() {
-    if (this.isSitting) return;
     this.requestOneShot('cast');
   }
 
+  /** World-space cast / projectile origin (hand container or approx chest). */
   getCastOrigin(out) {
-    return this.ik?.getCastOrigin(out) ?? this.root.getWorldPosition(out || new Vector3()).add(new Vector3(0, 1.4, 0.3));
+    const target = out || _castOrigin;
+    const hand = this.bones?.rHand;
+    if (hand) {
+      hand.getWorldPosition(target);
+      return target;
+    }
+    this.root.getWorldPosition(target);
+    target.y += this.height * 0.72;
+    target.z += Math.cos(this.facing) * 0.25;
+    target.x += Math.sin(this.facing) * 0.25;
+    return target;
   }
 
-  /**
-   * Windsurf/hoverboard ride: plant feet + hands on manifest sockets.
-   * @param {boolean} active
-   */
-  setRideActive(active) {
-    this._rideActive = !!active;
-    this.rideIk?.setActive(this._rideActive);
-    // Prefer standing idle on the deck (not lotus sit)
-    if (active) this.setPose('idle', settings.walk?.poseBlend ?? 0.35);
+  // --- stubs: ride / sit purged ---
+  setRideActive(_active) {
+    this._rideActive = false;
   }
-
-  /**
-   * @param {Record<string, import('three').Vector3|{x:number,y:number,z:number}>} worldSockets
-   */
-  setRideSockets(worldSockets) {
-    this.rideIk?.setTargets(worldSockets);
+  setRideSockets() {}
+  setPose(pose) {
+    settings.character.pose = 'idle';
+    return 'idle';
   }
-
-  setPose(pose, blend = null) {
-    this._poseBlend = blend;
-    settings.character.pose = pose === 'sitting' ? 'sitting' : 'idle';
-    return settings.character.pose;
-  }
-
   togglePose() {
-    return this.setPose(settings.character.pose === 'sitting' ? 'idle' : 'sitting');
+    return this.setPose('idle');
   }
-
   get isSitting() {
-    return settings.character.pose === 'sitting';
+    return false;
   }
-
   get poseWeight() {
-    return this._poseWeight;
+    return 0;
   }
 
   setFacing(yaw) {
@@ -497,9 +445,6 @@ export class CharacterController {
   update(dt) {
     if (!this.mixer) return;
 
-    if (this.sitting?.valid && this.sitting.stale) this.sitting.build();
-
-    // One-shot unlock → return to gait / cast loop / idle
     if (this._oneShotTimer > 0) {
       this._oneShotTimer -= dt;
       this._attackTimer = this._oneShotTimer;
@@ -514,7 +459,7 @@ export class CharacterController {
           this.setGait(g, g >= 2);
         }
       }
-    } else if (!this.isSitting && !this._gaitLocked) {
+    } else if (!this._gaitLocked) {
       if (this._castingExternal && this.actions.has('cast') && this._gait === 0) {
         if (this.animState !== 'cast_loop') {
           this.animState = 'cast_loop';
@@ -528,27 +473,6 @@ export class CharacterController {
 
     this.mixer.timeScale = settings.global.animationSpeed;
     this.mixer.update(dt);
-
-    // Hand soft-aim after mixer (cast aim); ride IK takes over feet+hands on board
-    if (this._rideActive && this.rideIk) {
-      this.rideIk.update(dt);
-    } else {
-      this.ik?.update();
-    }
-
-    // Skip lotus sit while riding
-    if (this._rideActive || !this.sitting?.valid) return;
-    this._poseTime += dt;
-
-    const target = this.isSitting ? 1 : 0;
-    const step = dt / Math.max(0.001, this._poseBlend ?? settings.character.blendTime);
-    this._poseWeight = MathUtils.clamp(
-      this._poseWeight + MathUtils.clamp(target - this._poseWeight, -step, step),
-      0,
-      1
-    );
-
-    this.sitting.apply(MathUtils.smoothstep(this._poseWeight, 0, 1), this._poseTime);
   }
 
   get position() {

@@ -38,8 +38,8 @@ export class DrcCombatController {
     this.onToast = opts.onToast || (() => {});
     this.onSession = opts.onSession || (() => {});
 
-    /** @type {'equip'|'combat'} */
-    this.session = 'equip';
+    /** @type {'equip'|'combat'} — combat-first showcase (Q toggles equip) */
+    this.session = 'combat';
     this.skills = DRC_WEAPON_SKILLS;
     /** @type {Map<string, number>} skillId → readyAt elapsed */
     this._cdUntil = new Map();

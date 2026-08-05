@@ -1,49 +1,44 @@
 import { ELEMENTS, ELEMENT_META, MODES, MODE_META } from '../config/settings.js';
 import { ELEMENT_SIGILS } from './glyphs.js';
 
+const SKILL_LABELS = ['Fire Bolt', 'Water Lash', 'Earth Spike', 'Blade'];
+
 /**
- * Heads-up display: mode switch, element selector, controls, live stats and
- * toasts.
- *
- * Plain DOM — no framework. The switches are the only interactive parts; they
- * mirror the keyboard shortcuts and report back through `onSelect` / `onMode`.
+ * HUD: DRC combat action bar (default) + sandbox mode switch + stats.
+ * Plain DOM — no framework.
  */
 export class HUD {
   constructor(root) {
     this.root = root;
     this.onSelect = null;
     this.onMode = null;
+    this.onSkillSlot = null;
     this._toastTimer = 0;
     this._statsAccumulator = 0;
     this._frames = 0;
     this._fps = 0;
+    this._drcSession = 'combat';
 
     root.innerHTML = `
       <div class="hud__panel hud__title">
-        Casting Abilities
-        <span data-blurb data-drc-blurb>Grudge6 · Q equip/combat · DRC skills · TPS</span>
+        Grudge Casting · Toon RTS
+        <span data-blurb>DRC combat · Bip001 · weapon skills</span>
       </div>
 
       <div class="hud__panel hud__stats">
         <div>FPS <b data-stat="fps">—</b></div>
+        <div>STA <b data-stat="stamina">100</b></div>
         <div>Particles <b data-stat="particles">0</b></div>
-        <div>Draw calls <b data-stat="calls">0</b></div>
-        <div>Abilities <b data-stat="abilities">0</b></div>
+        <div>Draw <b data-stat="calls">0</b></div>
       </div>
 
       <div class="hud__panel hud__help">
-        <div><strong>Hold left mouse</strong> — draw a path on the ground</div>
-        <div><strong>Release</strong> — cast the selected element</div>
-        <div><strong>Right drag</strong> — orbit the camera</div>
-        <div><strong>Scroll</strong> — zoom in / out</div>
-        <div style="margin-top:6px">
-          <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd> elements &nbsp;
-          <kbd>Q</kbd><kbd>E</kbd> cycle
-        </div>
-        <div><kbd>Q</kbd> equip / DRC combat &nbsp; <kbd>I</kbd> inventory</div>
-        <div><kbd>WASD</kbd> move (Rapier) &nbsp; <kbd>1–4</kbd> skills + beauty VFX &nbsp; <kbd>F</kbd> strike</div>
-        <div><kbd>Alt</kbd>+<kbd>V B F G T C</kbd> vfxgrudge sandbox preview</div>
-        <div><kbd>G</kbd> editor &nbsp; <kbd>C</kbd> clear &nbsp; <kbd>P</kbd> pause &nbsp; <kbd>M</kbd> cast/ride</div>
+        <div><strong>Combat (default)</strong></div>
+        <div><kbd>WASD</kbd> move · <kbd>Shift</kbd> sprint · TPS camera</div>
+        <div><kbd>1</kbd>–<kbd>4</kbd> weapon skills · <kbd>F</kbd> blade strike</div>
+        <div><kbd>Q</kbd> equip / inventory · <kbd>I</kbd> panel</div>
+        <div><kbd>C</kbd> clear VFX · <kbd>P</kbd> pause · <kbd>G</kbd> editor</div>
+        <div style="margin-top:6px;opacity:.75">Sandbox: hold LMB draw path to free-cast</div>
       </div>
 
       <div class="hud__modes">
@@ -57,14 +52,15 @@ export class HUD {
         <span class="hud__modes-key">M</span>
       </div>
 
-      <div class="hud__elements">
+      <div class="hud__actionbar" data-actionbar>
         ${ELEMENTS.map((element, index) => {
           const meta = ELEMENT_META[element];
           return `
-            <div class="element-card" data-element="${element}" style="--accent:${meta.accent}">
-              <div class="element-card__key">${index + 1}</div>
-              <div class="element-card__glyph">${ELEMENT_SIGILS[element] ?? meta.glyph}</div>
-              <div class="element-card__label">${meta.label}</div>
+            <div class="action-slot" data-element="${element}" data-slot="${index}" style="--accent:${meta.accent}">
+              <div class="action-slot__cd" data-cd></div>
+              <div class="action-slot__key">${index + 1}</div>
+              <div class="action-slot__glyph">${ELEMENT_SIGILS[element] ?? meta.glyph}</div>
+              <div class="action-slot__label">${SKILL_LABELS[index] || meta.label}</div>
             </div>`;
         }).join('')}
       </div>
@@ -73,11 +69,12 @@ export class HUD {
     `;
 
     this.cards = new Map();
-    for (const card of root.querySelectorAll('.element-card')) {
+    for (const card of root.querySelectorAll('.action-slot')) {
       this.cards.set(card.dataset.element, card);
       card.addEventListener('pointerdown', (event) => {
         event.stopPropagation();
         this.onSelect?.(card.dataset.element);
+        this.onSkillSlot?.(Number(card.dataset.slot));
       });
     }
 
@@ -92,26 +89,23 @@ export class HUD {
 
     this.stats = {
       fps: root.querySelector('[data-stat="fps"]'),
+      stamina: root.querySelector('[data-stat="stamina"]'),
       particles: root.querySelector('[data-stat="particles"]'),
-      calls: root.querySelector('[data-stat="calls"]'),
-      abilities: root.querySelector('[data-stat="abilities"]')
+      calls: root.querySelector('[data-stat="calls"]')
     };
     this.help = root.querySelector('.hud__help');
     this.toast = root.querySelector('[data-toast]');
     this.blurb = root.querySelector('[data-blurb]');
-    this.elements = root.querySelector('.hud__elements');
-    this._drcSession = 'equip';
+    this.actionbar = root.querySelector('[data-actionbar]');
+    this.elements = this.actionbar;
   }
 
   setElement(element) {
     for (const [key, card] of this.cards) {
       card.classList.toggle('is-active', key === element);
     }
-    const meta = ELEMENT_META[element];
-    if (meta) this.showToast(`${meta.hint} selected`);
   }
 
-  /** Reflect the interaction mode. Walk mode dims the (unused) element picker. */
   setMode(mode) {
     for (const [key, card] of this.modeCards) {
       card.classList.toggle('is-active', key === mode);
@@ -119,29 +113,36 @@ export class HUD {
     const meta = MODE_META[mode];
     if (!meta) return;
     if (this._drcSession !== 'combat') this.blurb.textContent = meta.blurb;
-    this.elements.classList.toggle('is-dimmed', mode !== 'casting' && this._drcSession !== 'combat');
   }
 
-  /** DRC equip ↔ combat session (Q). */
   setDrcSession(session) {
     this._drcSession = session;
     if (session === 'combat') {
-      this.blurb.textContent = 'DRC combat · WASD · 1–4 skills · TPS camera · F strike';
-      this.elements.classList.remove('is-dimmed');
-      // Relabel element cards as skill slots
-      const labels = ['Fire Bolt', 'Water Lash', 'Earth Spike', 'Blade'];
+      this.blurb.textContent = 'DRC combat · WASD · 1–4 skills · TPS · F strike';
+      this.actionbar?.classList.remove('is-dimmed');
       let i = 0;
       for (const card of this.cards.values()) {
-        const lab = card.querySelector('.element-card__label');
-        if (lab && labels[i]) lab.textContent = labels[i];
+        const lab = card.querySelector('.action-slot__label');
+        if (lab && SKILL_LABELS[i]) lab.textContent = SKILL_LABELS[i];
         i++;
       }
     } else {
-      this.blurb.textContent = 'Equip · I inventory · mesh loadout · M cast/ride';
-      for (const [key, card] of this.cards) {
-        const lab = card.querySelector('.element-card__label');
-        if (lab && ELEMENT_META[key]) lab.textContent = ELEMENT_META[key].label;
-      }
+      this.blurb.textContent = 'Equip · I inventory · mesh loadout';
+      this.actionbar?.classList.add('is-dimmed');
+    }
+  }
+
+  setCombatHud(cd01Fn, stamina) {
+    if (this.stats.stamina && stamina != null) {
+      this.stats.stamina.textContent = String(Math.round(stamina));
+    }
+    if (!cd01Fn) return;
+    for (const card of this.cards.values()) {
+      const slot = Number(card.dataset.slot);
+      const cd = cd01Fn(slot);
+      const el = card.querySelector('[data-cd]');
+      if (el) el.style.setProperty('--cd', String(cd));
+      card.classList.toggle('is-cooling', cd > 0.02);
     }
   }
 
@@ -156,12 +157,6 @@ export class HUD {
     this._toastTimer = setTimeout(() => this.toast.classList.remove('is-visible'), duration);
   }
 
-  /**
-   * @param {number} dt
-   * @param {() => {particles:number, calls:number, abilities:number}} collect
-   *   Called only when the readout actually refreshes, so gathering the numbers
-   *   (which means walking the particle pools) stays off the hot path.
-   */
   update(dt, collect) {
     this._frames++;
     this._statsAccumulator += dt;
@@ -175,7 +170,12 @@ export class HUD {
     this.stats.fps.textContent = this._fps;
     this.stats.particles.textContent = info.particles;
     this.stats.calls.textContent = info.calls;
-    this.stats.abilities.textContent = info.abilities;
+    if (info.stamina != null && this.stats.stamina) {
+      this.stats.stamina.textContent = String(Math.round(info.stamina));
+    }
+    if (info.cooldown01 && this._drcSession === 'combat') {
+      this.setCombatHud(info.cooldown01, info.stamina);
+    }
   }
 }
 

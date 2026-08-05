@@ -156,10 +156,11 @@ export class App {
 
   _onDrcSession(session) {
     settings.drc.session = session;
-    // Combat → TPS follow (OrbitControls off). Equip/sandbox → orbit.
+    // Combat → TPS follow (OrbitControls off). Equip → orbit + inventory.
     this.rig.setViewMode(session === 'combat' ? 'tps' : 'orbit');
     if (session === 'equip') {
       this.inventory.setOpen(true);
+      this.walk?.cancel?.();
     } else {
       this.inventory.setOpen(false);
     }
@@ -217,6 +218,9 @@ export class App {
     });
 
     this.hud.onSelect = (element) => this.selectElement(element);
+    this.hud.onSkillSlot = (slot) => {
+      if (this.drc.inCombat) this.drc.useSkill(slot);
+    };
     this.hud.onMode = (mode) => this.setMode(mode);
   }
 
@@ -336,14 +340,17 @@ export class App {
     await this.character.load(assets, { raceId: 'WK', presetId: 'mage' });
     this.inventory.refresh();
 
-    this.loading.setProgress(0.7, 'Loading windsurf board + sail IK…');
-    try {
-      await this.walk.load(assets);
-    } catch (err) {
-      console.warn('[App] ride asset load failed — walk mode may miss board', err);
+    // Ride board only when explicitly requested — not on combat boot path
+    if (/[?&]ride=1\b/.test(location.search)) {
+      this.loading.setProgress(0.7, 'Loading windsurf board…');
+      try {
+        await this.walk.load(assets);
+      } catch (err) {
+        console.warn('[App] ride asset load failed', err);
+      }
     }
 
-    // Optional props: ?props=1 — keep boot stage clean for Toon RTS showcase
+    // Optional props: ?props=1
     this.generatedCatalog = null;
     if (/[?&]props=1\b/.test(location.search)) {
       this.loading.setProgress(0.78, 'Generated props catalog…');
@@ -353,7 +360,7 @@ export class App {
         if (cat.assets?.length) {
           await spawnGeneratedProp(assets, this.scene, {
             name: 'rock',
-            position: [3.5, 0, -2],
+            position: [3.5, 0, -2]
           });
         }
       } catch (err) {
@@ -362,11 +369,15 @@ export class App {
     }
 
     this.loading.setProgress(0.85, 'Compiling shaders…');
-    // Compile everything up front so the first cast never stutters.
     await this.renderer.gl.compileAsync(this.scene, this.camera);
 
-    this.loading.setProgress(1, 'Ready');
+    // Combat-first: DRC session + TPS + skill bar
+    this.drc.setSession('combat');
+    this.physics?.setPlayerFeet?.(0, 0, 0);
+
+    this.loading.setProgress(1, 'Ready — DRC combat');
     this.loading.hide();
+    this.hud.showToast('DRC Combat · WASD · 1–4 skills · F strike · Q equip', 2800);
 
     this.start();
   }
@@ -411,8 +422,8 @@ export class App {
     this.environment.update();
     // DRC combat WASD + skills (equip session skips locomotion)
     this.drc.update(dt, this.input.keys);
-    // Walk mode places the character; the controller then animates him there.
-    if (!this.drc.inCombat) this.walk.update(dt);
+    // Ride path only when walk mode + ride assets loaded
+    if (!this.drc.inCombat && settings.mode === 'walk') this.walk.update(dt);
     this.character.update(dt);
 
     this.ground.update(this.elapsed);
@@ -457,7 +468,12 @@ export class App {
     this.hud.update(raw, () => ({
       particles: this.particles.countLive(this.elapsed),
       calls: gl.info.render.calls,
-      abilities: this.abilities.active.length
+      abilities: this.abilities.active.length,
+      stamina: this.drc.stamina,
+      cooldown01: (slot) => {
+        const skill = this.drc.skills.find((s) => s.slot === slot);
+        return skill ? this.drc.cooldown01(skill.id) : 0;
+      }
     }));
   }
 
