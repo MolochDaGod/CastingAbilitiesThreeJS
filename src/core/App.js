@@ -343,24 +343,22 @@ export class App {
       console.warn('[App] ride asset load failed — walk mode may miss board', err);
     }
 
-    this.loading.setProgress(0.78, 'Generated props catalog (three-generator)…');
-    try {
-      const cat = await loadGeneratedCatalog();
-      this.generatedCatalog = cat;
-      if (cat.assets?.length) {
-        // Place first baked prop near origin for play/forge smoke
-        await spawnGeneratedProp(assets, this.scene, {
-          name: 'rock',
-          position: [3.5, 0, -2],
-        });
-        console.info(
-          '[App] generated catalog',
-          cat._fetchedFrom,
-          cat.assets.map((a) => a.name)
-        );
+    // Optional props: ?props=1 — keep boot stage clean for Toon RTS showcase
+    this.generatedCatalog = null;
+    if (/[?&]props=1\b/.test(location.search)) {
+      this.loading.setProgress(0.78, 'Generated props catalog…');
+      try {
+        const cat = await loadGeneratedCatalog();
+        this.generatedCatalog = cat;
+        if (cat.assets?.length) {
+          await spawnGeneratedProp(assets, this.scene, {
+            name: 'rock',
+            position: [3.5, 0, -2],
+          });
+        }
+      } catch (err) {
+        console.warn('[App] generated props catalog unavailable', err);
       }
-    } catch (err) {
-      console.warn('[App] generated props catalog unavailable', err);
     }
 
     this.loading.setProgress(0.85, 'Compiling shaders…');

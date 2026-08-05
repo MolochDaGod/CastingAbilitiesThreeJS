@@ -34,21 +34,22 @@ export function classifyMesh(name) {
   // Skip pure skeleton / helper names
   if (key.startsWith('bip') || key.includes('container') || key === 'armature') return null;
 
+  // grudge6 / Toon RTS: WK_Units_Body_A → bodya after meshKey
   const slotPatterns = [
-    { slot: 'body', re: /^(?:units)?body([a-z])$/ },
-    { slot: 'arms', re: /^(?:units)?arms([a-z])$/ },
-    { slot: 'legs', re: /^(?:units)?legs([a-z])$/ },
-    { slot: 'head', re: /^(?:units)?head([a-z])$/ },
-    { slot: 'shoulders', re: /^(?:units)?shoulderpads?([a-z])$/ },
-    { slot: 'sword', re: /^(?:weapon)?sword([a-z])?$/ },
-    { slot: 'axe', re: /^(?:weapon)?axe([a-z])?$/ },
-    { slot: 'hammer', re: /^(?:weapon)?hammer([a-z])?$/ },
-    { slot: 'spear', re: /^(?:weapon)?spear([a-z])?$/ },
-    { slot: 'staff', re: /^(?:weapon)?staff([a-z])?$/ },
-    { slot: 'bow', re: /^(?:weapon)?bow([a-z])?$/ },
-    { slot: 'shield', re: /^shield([a-z])?$/ },
-    { slot: 'quiver', re: /^quiver([a-z])?$/ },
-    { slot: 'bag', re: /^bag([a-z])?$/ }
+    { slot: 'body', re: /^(?:units)?body([a-z0-9])$/ },
+    { slot: 'arms', re: /^(?:units)?arms([a-z0-9])$/ },
+    { slot: 'legs', re: /^(?:units)?legs([a-z0-9])$/ },
+    { slot: 'head', re: /^(?:units)?head([a-z0-9])$/ },
+    { slot: 'shoulders', re: /^(?:units)?shoulderpads?([a-z0-9])$/ },
+    { slot: 'sword', re: /^(?:weapon)?sword([a-z0-9])?$/ },
+    { slot: 'axe', re: /^(?:weapon)?axe([a-z0-9])?$/ },
+    { slot: 'hammer', re: /^(?:weapon)?hammer([a-z0-9])?$/ },
+    { slot: 'spear', re: /^(?:weapon)?spear([a-z0-9])?$/ },
+    { slot: 'staff', re: /^(?:weapon)?staff([a-z0-9])?$/ },
+    { slot: 'bow', re: /^(?:weapon)?bow([a-z0-9])?$/ },
+    { slot: 'shield', re: /^shield([a-z0-9])?$/ },
+    { slot: 'quiver', re: /^quiver([a-z0-9])?$/ },
+    { slot: 'bag', re: /^(?:xtra)?bag([a-z0-9])?$/ }
   ];
 
   for (const { slot, re } of slotPatterns) {
@@ -59,12 +60,29 @@ export function classifyMesh(name) {
     }
   }
 
-  // Looser contains match for odd author names
-  for (const slot of EQUIP_SLOTS) {
-    if (key.includes(slot.replace(/s$/, '')) || key.includes(slot)) {
-      const letter = key.match(/([a-z])$/);
-      return { slot, variant: letter ? letter[1].toUpperCase() : '_default' };
-    }
+  // Contains match — only armor/weapon keywords, require trailing letter when possible
+  const contains = [
+    ['shoulderpads', 'shoulders'],
+    ['shoulder', 'shoulders'],
+    ['body', 'body'],
+    ['arms', 'arms'],
+    ['legs', 'legs'],
+    ['head', 'head'],
+    ['sword', 'sword'],
+    ['staff', 'staff'],
+    ['shield', 'shield'],
+    ['hammer', 'hammer'],
+    ['spear', 'spear'],
+    ['quiver', 'quiver'],
+    ['bow', 'bow'],
+    ['axe', 'axe'],
+    ['bag', 'bag']
+  ];
+  for (const [frag, slot] of contains) {
+    if (!key.includes(frag)) continue;
+    const m = key.match(new RegExp(`${frag}([a-z0-9])$`));
+    const variant = m ? m[1].toUpperCase() : '_default';
+    return { slot, variant };
   }
 
   return null;
@@ -141,29 +159,49 @@ export class EquipmentManager {
     const missing = [];
     let matched = 0;
 
-    // Exclusive weapon group: only one weapon_r / weapon_l
+    // Exclusive weapon group: only one main weapon visible
     const weaponKeys = WEAPON_SLOTS.filter((s) => this.loadout[s]);
-    // Prefer staff for mage, else first listed
     let activeWeapon = null;
     if (weaponKeys.includes('staff')) activeWeapon = 'staff';
     else if (weaponKeys.includes('bow')) activeWeapon = 'bow';
     else if (weaponKeys.length) activeWeapon = weaponKeys[0];
 
-    for (const [slot, variant] of Object.entries(this.loadout)) {
-      if (WEAPON_SLOTS.includes(slot) && slot !== activeWeapon) continue;
-
+    // Armor first so body exists before weapons
+    const armorSlots = ['body', 'arms', 'legs', 'head', 'shoulders'];
+    for (const slot of armorSlots) {
+      const variant = this.loadout[slot];
+      if (!variant) continue;
       const shown = this._show(slot, variant);
       if (shown) matched += shown;
       else missing.push(`${slot}:${variant}`);
     }
 
-    // Always try to show something if armor empty (first body variant)
-    if (!this.loadout.body) {
-      const bodies = this.variantsFor('body');
-      if (bodies[0]) this._show('body', bodies[0]);
+    for (const [slot, variant] of Object.entries(this.loadout)) {
+      if (armorSlots.includes(slot)) continue;
+      if (WEAPON_SLOTS.includes(slot) && slot !== activeWeapon) continue;
+      const shown = this._show(slot, variant);
+      if (shown) matched += shown;
+      else missing.push(`${slot}:${variant}`);
     }
 
-    return { matched, missing };
+    // Fail-safe: always one body variant so kit is never empty/invisible
+    const anyBody = (this.bySlot.get('body') || []).some((m) => m.visible);
+    if (!anyBody) {
+      const bodies = this.variantsFor('body');
+      if (bodies[0]) {
+        this._show('body', bodies[0]);
+        this.loadout.body = bodies[0];
+        matched += 1;
+      }
+    }
+
+    return {
+      matched,
+      missing,
+      slots: Object.keys(this.loadout),
+      catalogSlots: [...this.bySlot.keys()],
+      activeWeapon
+    };
   }
 
   _show(slot, variant) {

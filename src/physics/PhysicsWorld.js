@@ -14,6 +14,9 @@ let _initPromise = null;
 
 export async function initRapier() {
   if (!_initPromise) {
+    // rapier3d-compat 0.19 embeds base64 wasm and calls init(bytes) internally.
+    // Vite plugin `fix-rapier-init-deprecation` normalizes that to
+    // `{ module_or_path: bytes }` so the wasm-bindgen warn is gone.
     _initPromise = RAPIER.init().then(() => RAPIER);
   }
   return _initPromise;
@@ -60,6 +63,7 @@ export class PhysicsWorld {
     );
     this.characterController = this.world.createCharacterController(0.01);
     this.characterController.setApplyImpulsesToDynamicBodies(true);
+    // API is positional (maxHeight, minWidth, includeDynamicBodies) — not an object.
     this.characterController.enableAutostep(0.35, 0.2, true);
     this.characterController.enableSnapToGround(0.3);
     this.bodies.set('player', {
