@@ -40,7 +40,8 @@ export class HUD {
           <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd> elements &nbsp;
           <kbd>Q</kbd><kbd>E</kbd> cycle
         </div>
-        <div><kbd>G</kbd> editor &nbsp; <kbd>C</kbd> clear &nbsp; <kbd>P</kbd> pause &nbsp; <kbd>H</kbd> hide</div>
+        <div><kbd>G</kbd> editor &nbsp; <kbd>I</kbd> inventory &nbsp; <kbd>F</kbd> attack</div>
+        <div><kbd>C</kbd> clear &nbsp; <kbd>P</kbd> pause &nbsp; <kbd>H</kbd> hide</div>
         <div><kbd>T</kbd> sit / stand &nbsp; <kbd>M</kbd> cast / walk</div>
       </div>
 

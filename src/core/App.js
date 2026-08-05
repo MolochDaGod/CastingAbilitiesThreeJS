@@ -29,6 +29,7 @@ import { PostProcessing } from '../postprocessing/PostProcessing.js';
 
 import { HUD, LoadingScreen } from '../ui/HUD.js';
 import { Editor } from '../ui/Editor.js';
+import { InventoryPanel } from '../ui/InventoryPanel.js';
 
 import { settings, ELEMENTS, MODES, MODE_META } from '../config/settings.js';
 
@@ -114,6 +115,10 @@ export class App {
       onClear: () => this.clearEffects(),
       onToast: (message) => this.hud.showToast(message)
     });
+    this.inventory = new InventoryPanel({
+      character: this.character,
+      onToast: (message) => this.hud.showToast(message)
+    });
 
     this._bindEvents();
     this._mode = null;
@@ -145,7 +150,14 @@ export class App {
         if (!this.walk.begin(curve)) this.hud.showToast('Path too short to ride');
       } else {
         this.abilities.cast(curve);
+        // Start cast-loop anim; App.frame keeps it while abilities remain active.
         this.character.playCastFlourish?.();
+        const end = curve?.getPoint?.(1) || curve?.points?.[curve.points.length - 1];
+        if (end) {
+          this.character.setCasting?.(true, { aimX: end.x, aimY: end.y + 0.2, aimZ: end.z });
+        } else {
+          this.character.setCasting?.(true);
+        }
       }
     });
 
@@ -168,8 +180,17 @@ export class App {
       case 'toggleEditor':
         this.editor.toggle();
         break;
+      case 'toggleInventory':
+        this.inventory.toggle();
+        this.hud.showToast(this.inventory.open ? 'Inventory open' : 'Inventory closed');
+        break;
+      case 'weaponAttack':
+        if (this.character.playWeaponAttack?.()) this.hud.showToast('Weapon attack');
+        else this.hud.showToast('No attack clip');
+        break;
       case 'clear':
         this.clearEffects();
+        this.character.setCasting?.(false);
         this.hud.showToast('Effects cleared');
         break;
       case 'togglePause':
@@ -238,8 +259,9 @@ export class App {
     await this.environment.loadEnvironment(hdr);
     frame.uEnvMap.value = this.environment.equirect;
 
-    this.loading.setProgress(0.5, 'Loading grudge6 + magic anims…');
-    await this.character.load(assets);
+    this.loading.setProgress(0.5, 'Loading Toon RTS kit (GLTF + Draco)…');
+    await this.character.load(assets, { raceId: 'WK', presetId: 'mage' });
+    this.inventory.refresh();
 
     this.loading.setProgress(0.85, 'Compiling shaders…');
     // Compile everything up front so the first cast never stutters.
@@ -298,6 +320,17 @@ export class App {
 
     this.pathDrawer.update(raw); // the preview keeps animating while paused
     this.abilities.update(dt);
+
+    // Cast loop while any ability is in flight; soft-aim at active focus.
+    const focusAbility = this.abilities.focus;
+    const casting = this.abilities.active.length > 0;
+    if (casting && focusAbility?.position) {
+      const p = focusAbility.position;
+      this.character.setCasting?.(true, { aimX: p.x, aimY: p.y, aimZ: p.z });
+    } else {
+      this.character.setCasting?.(false);
+    }
+
     this.particles.flush();
     this.decals.update(dt);
     this.bursts.update(dt);

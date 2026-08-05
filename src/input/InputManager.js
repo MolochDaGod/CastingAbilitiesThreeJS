@@ -105,6 +105,12 @@ export class InputManager extends EventEmitter {
       case 'KeyM':
         this.emit('action', 'toggleMode');
         break;
+      case 'KeyI':
+        this.emit('action', 'toggleInventory');
+        break;
+      case 'KeyF':
+        this.emit('action', 'weaponAttack');
+        break;
       default:
         break;
     }

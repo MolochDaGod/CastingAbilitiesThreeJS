@@ -78,11 +78,21 @@ Code SSOT: `src/config/assets.js`.
 | **M** | Toggle **cast** / **walk** mode |
 | **1 / 2 / 3 / 4** | Fire / Water / Earth / Air |
 | **Q / E** | Cycle elements |
+| **I** | Inventory / equipment / ability outputs panel |
+| **F** | Weapon attack (sword_shield pack or cast flourish) |
 | **G** | Show/hide VFX editor |
 | **C** | Clear effects (cancel ride) |
 | **P** | Pause / resume |
 | **T** | Toggle standing idle ↔ meditation sit |
 | **H** | Hide help |
+
+### Character stack (Toon RTS)
+
+- **Loader:** three.js `GLTFLoader` + `DRACOLoader` + `MeshoptDecoder` ([examples](https://threejs.org/examples/?q=loader%20gltf))
+- **Clone:** `SkeletonUtils.clone` (never plain `scene.clone` on skinned kits)
+- **Equip:** mesh visibility via `EquipmentManager` (presets from CDN gear_presets)
+- **Anims:** Bip001 magic cast **loop while abilities active**; sword_shield **attack** on **F**
+- **IK:** hand cast origin + soft aim toward ability focus (`HandIK`)
 
 ---
 
