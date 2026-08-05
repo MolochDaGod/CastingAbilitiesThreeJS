@@ -2,13 +2,14 @@ import { MathUtils, Quaternion, Vector3 } from 'three';
 import { settings } from '../config/settings.js';
 
 /**
- * SittingPose — a procedural cross-legged meditation pose for the Mixamo rig.
+ * SittingPose — a procedural cross-legged meditation pose.
  *
- * The FBX only ships a standing idle, so the seated pose is authored here in
- * code rather than imported as a second clip. Every joint is described in a
- * *rig-relative* frame (forward / up / left, derived from the bind pose) which
- * makes the table readable and keeps it independent of which way the rig
- * happens to face in world space:
+ * Authored against Mixamo-style short bone names (Hips, LeftArm, …) and also
+ * accepts grudge6 **Bip001** skeletons via `toMixamoShort()` (Pelvis→Hips,
+ * L UpperArm→LeftArm, …). The seated pose is code-authored rather than a
+ * second clip. Every joint is described in a *rig-relative* frame
+ * (forward / up / left, derived from the bind pose) which makes the table
+ * readable and keeps it independent of which way the rig happens to face:
  *
  *  - `dir`   the world direction the bone should point at (bone → child).
  *            Absolute, so tweaking the thigh never drags the shin off target.
@@ -147,8 +148,9 @@ export class SittingPose {
         this.skinStride = Math.max(1, Math.ceil(node.geometry.attributes.position.count / 12000));
       }
       if (!node.isBone) return;
-      // Exporters disagree on the namespace: "mixamorig:LeftArm", "mixamorigLeftArm".
-      const short = node.name.split(':').pop().replace(/^mixamorig/i, '');
+      // Mixamo: "mixamorig:LeftArm" / "mixamorigLeftArm". Bip001: "Bip001 L UpperArm".
+      const raw = node.name.split(':').pop().replace(/^mixamorig/i, '');
+      const short = toMixamoShort(raw);
       if (!this.bones.has(short)) this.bones.set(short, node);
 
       this.rest.set(node, {
@@ -163,7 +165,7 @@ export class SittingPose {
 
     this.hips = this.bones.get('Hips') ?? null;
     if (!this.hips || this.entries.length === 0) {
-      console.warn('[SittingPose] rig does not look like a Mixamo skeleton — sitting disabled');
+      console.warn('[SittingPose] no Hips/Pelvis skeleton — sitting disabled');
       return;
     }
 
@@ -440,6 +442,50 @@ export class SittingPose {
 }
 
 /** Match a bone name against the pose table, resolving side and mirroring. */
+/**
+ * Map grudge6 Bip001 / Mixamo raw names onto the Mixamo short names used by
+ * the pose tables (Hips, LeftArm, LeftUpLeg, …).
+ */
+function toMixamoShort(name) {
+  let n = String(name || '').trim();
+  // Strip Bip001 prefix: "Bip001 Pelvis" / "Bip001_L_UpperArm" / "Bip001 L UpperArm"
+  n = n.replace(/^Bip001[\s._-]*/i, '');
+  n = n.replace(/[._]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+  const lower = n.toLowerCase();
+  const BIP_MAP = {
+    pelvis: 'Hips',
+    hips: 'Hips',
+    spine: 'Spine',
+    spine1: 'Spine1',
+    spine2: 'Spine2',
+    neck: 'Neck',
+    head: 'Head',
+    'l clavicle': 'LeftShoulder',
+    'r clavicle': 'RightShoulder',
+    'l upperarm': 'LeftArm',
+    'r upperarm': 'RightArm',
+    'l forearm': 'LeftForeArm',
+    'r forearm': 'RightForeArm',
+    'l hand': 'LeftHand',
+    'r hand': 'RightHand',
+    'l thigh': 'LeftUpLeg',
+    'r thigh': 'RightUpLeg',
+    'l calf': 'LeftLeg',
+    'r calf': 'RightLeg',
+    'l foot': 'LeftFoot',
+    'r foot': 'RightFoot',
+    'l toe0': 'LeftToeBase',
+    'r toe0': 'RightToeBase',
+    'l toe': 'LeftToeBase',
+    'r toe': 'RightToeBase'
+  };
+  if (BIP_MAP[lower]) return BIP_MAP[lower];
+
+  // Already Mixamo-ish (LeftArm, Hips, …)
+  return n.replace(/\s+/g, '');
+}
+
 function resolveSpec(short) {
   if (CENTER[short]) return { spec: CENTER[short], sign: 1, side: '' };
   for (const side of ['Left', 'Right']) {

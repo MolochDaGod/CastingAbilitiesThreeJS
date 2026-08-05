@@ -20,8 +20,8 @@ export class HUD {
 
     root.innerHTML = `
       <div class="hud__panel hud__title">
-        Bending Sandbox
-        <span data-blurb>Draw a path. Release to cast.</span>
+        Casting Abilities
+        <span data-blurb>Grudge6 · draw a path · release to cast</span>
       </div>
 
       <div class="hud__panel hud__stats">

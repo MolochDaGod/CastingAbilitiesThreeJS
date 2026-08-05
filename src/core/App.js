@@ -145,6 +145,7 @@ export class App {
         if (!this.walk.begin(curve)) this.hud.showToast('Path too short to ride');
       } else {
         this.abilities.cast(curve);
+        this.character.playCastFlourish?.();
       }
     });
 
@@ -237,7 +238,7 @@ export class App {
     await this.environment.loadEnvironment(hdr);
     frame.uEnvMap.value = this.environment.equirect;
 
-    this.loading.setProgress(0.5, 'Loading character…');
+    this.loading.setProgress(0.5, 'Loading grudge6 + magic anims…');
     await this.character.load(assets);
 
     this.loading.setProgress(0.85, 'Compiling shaders…');

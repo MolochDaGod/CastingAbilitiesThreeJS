@@ -1,14 +1,13 @@
 import { LoadingManager, TextureLoader } from 'three';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 
 /**
  * A 1×1 opaque white PNG.
  *
- * Authoring tools bake absolute local texture paths into FBX files (this model
- * points at `C:/Users/.../textures/...`). Those requests can never resolve from
- * a web server, so they are redirected here: the material keeps a neutral map
- * instead of a permanently pending texture, and the console stays clean.
+ * Authoring tools bake absolute local texture paths into FBX files. Those
+ * requests can never resolve from a web server, so they are redirected here.
  */
 export const PLACEHOLDER_TEXTURE_URL =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==';
@@ -30,6 +29,7 @@ export class AssetLoader {
     );
 
     this.fbx = new FBXLoader(this.manager);
+    this.gltf = new GLTFLoader(this.manager);
     this.hdr = new HDRLoader(this.manager);
     this.texture = new TextureLoader(this.manager);
 
@@ -84,10 +84,27 @@ export class AssetLoader {
     });
   }
 
+  /**
+   * Load a glTF / GLB. Returns the full glTF result (`scene`, `animations`, …).
+   * @returns {Promise<import('three/addons/loaders/GLTFLoader.js').GLTF>}
+   */
+  loadGLTF(url) {
+    return new Promise((resolve, reject) => {
+      this.gltf.load(
+        url,
+        resolve,
+        (event) => {
+          if (event.lengthComputable) this._onProgress?.(event.loaded / event.total, url);
+        },
+        reject
+      );
+    });
+  }
+
   /** @returns {Promise<THREE.Texture>} */
   loadTexture(url) {
     return new Promise((resolve, reject) => {
-      this.texture.load(encodeURI(url), resolve, undefined, reject);
+      this.texture.load(url, resolve, undefined, reject);
     });
   }
 

@@ -2,7 +2,7 @@
   "name": "casting-abilities",
   "version": "1.0.0",
   "private": true,
-  "description": "Avatar-inspired elemental bending sandbox built with Three.js, custom GLSL and a real-time VFX editor.",
+  "description": "Grudge Studio elemental casting sandbox — Three.js + grudge6 CDN character + Bip001 magic anims + GLSL VFX editor.",
   "type": "module",
   "scripts": {
     "dev": "vite",

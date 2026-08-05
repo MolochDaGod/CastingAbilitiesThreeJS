@@ -12,6 +12,6 @@ export default defineConfig({
     sourcemap: true,
     chunkSizeWarningLimit: 2000
   },
-  // Large binary assets (FBX / HDR) live in /public and are served untouched.
-  assetsInclude: ['**/*.fbx', '**/*.hdr']
+  // HDR probe lives in /public. Character mesh + anims load from Grudge CDN/Open.
+  assetsInclude: ['**/*.hdr', '**/*.glb']
 });
