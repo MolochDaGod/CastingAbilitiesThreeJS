@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "generator": "@grudge-studio/asset-convert@1.0.0",
+  "source": "C:\\Users\\nugye\\Documents\\_forks\\three-generator\\rock_3d_model.glb",
+  "output": "C:\\Users\\nugye\\Documents\\_forks\\three-generator\\uploads\\baked\\rock_3d_model.glb",
+  "intermediateBackend": "copy",
+  "warnings": [],
+  "stats": {
+    "meshes": 1,
+    "materials": 1,
+    "textures": 1,
+    "animations": 0,
+    "nodes": 1,
+    "skins": 0
+  },
+  "aabb": {
+    "min": [
+      -0.409723699092865,
+      -0.3997550904750824,
+      -0.3863559663295746
+    ],
+    "max": [
+      0.4089129865169525,
+      0.40024492144584656,
+      0.37983453273773193
+    ],
+    "size": [
+      0.8186366856098175,
+      0.800000011920929,
+      0.7661904990673065
+    ],
+    "bodyOnly": false
+  },
+  "collider": "C:\\Users\\nugye\\Documents\\_forks\\three-generator\\uploads\\baked\\rock_3d_model.collider.json",
+  "producedAt": "2026-08-05T07:24:56.009Z",
+  "production": {
+    "format": "glb",
+    "yHipGround": true,
+    "textures": "webp",
+    "maxTexture": 1024,
+    "meshCompression": "quantize",
+    "bakeMeshes": true,
+    "bakeAnims": true,
+    "bakeColliders": true
+  }
+}

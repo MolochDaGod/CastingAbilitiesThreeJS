@@ -33,6 +33,7 @@ import { InventoryPanel } from '../ui/InventoryPanel.js';
 import { DrcCombatController } from '../combat/DrcCombatController.js';
 import { PhysicsWorld } from '../physics/PhysicsWorld.js';
 import { VfxDirector } from '../vfx/VfxDirector.js';
+import { loadGeneratedCatalog, spawnGeneratedProp } from '../assets/generatedCatalog.js';
 
 import { settings, ELEMENTS, MODES, MODE_META } from '../config/settings.js';
 
@@ -340,6 +341,26 @@ export class App {
       await this.walk.load(assets);
     } catch (err) {
       console.warn('[App] ride asset load failed — walk mode may miss board', err);
+    }
+
+    this.loading.setProgress(0.78, 'Generated props catalog (three-generator)…');
+    try {
+      const cat = await loadGeneratedCatalog();
+      this.generatedCatalog = cat;
+      if (cat.assets?.length) {
+        // Place first baked prop near origin for play/forge smoke
+        await spawnGeneratedProp(assets, this.scene, {
+          name: 'rock',
+          position: [3.5, 0, -2],
+        });
+        console.info(
+          '[App] generated catalog',
+          cat._fetchedFrom,
+          cat.assets.map((a) => a.name)
+        );
+      }
+    } catch (err) {
+      console.warn('[App] generated props catalog unavailable', err);
     }
 
     this.loading.setProgress(0.85, 'Compiling shaders…');

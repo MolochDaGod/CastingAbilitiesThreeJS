@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "updatedAt": "2026-08-05T07:26:17.211Z",
+  "source": "three-generator",
+  "cdnRoot": "https://assets.grudge-studio.com",
+  "assets": [
+    {
+      "id": "9ed6c726c368c24d76fca7273c52c12c0f3bff21",
+      "name": "horse",
+      "meshUrl": "https://assets.grudge-studio.com/models/props/generated/horse_da4c09919ad7.glb",
+      "colliderUrl": "https://assets.grudge-studio.com/models/props/generated/horse_da4c09919ad7.collider.json",
+      "manifestUrl": "https://assets.grudge-studio.com/models/props/generated/horse_da4c09919ad7.manifest.json",
+      "kind": "prop",
+      "tags": [
+        "generated",
+        "three-generator",
+        "baked"
+      ]
+    },
+    {
+      "id": "2005a225d141481fa7a19debff4ee8a020359bc8",
+      "name": "house",
+      "meshUrl": "https://assets.grudge-studio.com/models/props/generated/house_1aa71b9670ad.glb",
+      "colliderUrl": "https://assets.grudge-studio.com/models/props/generated/house_1aa71b9670ad.collider.json",
+      "manifestUrl": "https://assets.grudge-studio.com/models/props/generated/house_1aa71b9670ad.manifest.json",
+      "kind": "prop",
+      "tags": [
+        "generated",
+        "three-generator",
+        "baked"
+      ]
+    },
+    {
+      "id": "55c60fde35bd0e8bc171f0081a56088c7d63f667",
+      "name": "rock",
+      "meshUrl": "https://assets.grudge-studio.com/models/props/generated/rock_93e4af3a22f7.glb",
+      "colliderUrl": "https://assets.grudge-studio.com/models/props/generated/rock_93e4af3a22f7.collider.json",
+      "manifestUrl": "https://assets.grudge-studio.com/models/props/generated/rock_93e4af3a22f7.manifest.json",
+      "kind": "prop",
+      "tags": [
+        "generated",
+        "three-generator",
+        "baked"
+      ]
+    },
+    {
+      "id": "c0af63a0ba0c482f1c97ca3197ba588c444827b9",
+      "name": "rock_3d_model",
+      "meshUrl": "https://assets.grudge-studio.com/models/props/generated/rock_3d_model_b10ad580e69f.glb",
+      "colliderUrl": "https://assets.grudge-studio.com/models/props/generated/rock_3d_model_b10ad580e69f.collider.json",
+      "manifestUrl": "https://assets.grudge-studio.com/models/props/generated/rock_3d_model_b10ad580e69f.manifest.json",
+      "kind": "prop",
+      "tags": [
+        "generated",
+        "three-generator",
+        "baked"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "generator": "@grudge-studio/asset-convert@1.0.0",
+  "source": "C:\\Users\\nugye\\Documents\\_forks\\three-generator\\uploads\\house.glb",
+  "output": "C:\\Users\\nugye\\Documents\\_forks\\three-generator\\uploads\\baked\\house.glb",
+  "intermediateBackend": "copy",
+  "warnings": [],
+  "stats": {
+    "meshes": 1,
+    "materials": 1,
+    "textures": 1,
+    "animations": 0,
+    "nodes": 1,
+    "skins": 0
+  },
+  "aabb": {
+    "min": [
+      -2.4144296646118164,
+      -2.2945032119750977,
+      -2.153228282928467
+    ],
+    "max": [
+      2.317660331726074,
+      2.2054967880249023,
+      1.9478821754455566
+    ],
+    "size": [
+      4.732089996337891,
+      4.5,
+      4.101110458374023
+    ],
+    "bodyOnly": false
+  },
+  "collider": "C:\\Users\\nugye\\Documents\\_forks\\three-generator\\uploads\\baked\\house.collider.json",
+  "producedAt": "2026-08-05T07:24:52.260Z",
+  "production": {
+    "format": "glb",
+    "yHipGround": true,
+    "textures": "webp",
+    "maxTexture": 1024,
+    "meshCompression": "quantize",
+    "bakeMeshes": true,
+    "bakeAnims": true,
+    "bakeColliders": true
+  }
+}

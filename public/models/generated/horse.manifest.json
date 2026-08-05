@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "generator": "@grudge-studio/asset-convert@1.0.0",
+  "source": "C:\\Users\\nugye\\Documents\\_forks\\three-generator\\uploads\\horse.glb",
+  "output": "C:\\Users\\nugye\\Documents\\_forks\\three-generator\\uploads\\baked\\horse.glb",
+  "intermediateBackend": "copy",
+  "warnings": [],
+  "stats": {
+    "meshes": 1,
+    "materials": 1,
+    "textures": 1,
+    "animations": 0,
+    "nodes": 1,
+    "skins": 0
+  },
+  "aabb": {
+    "min": [
+      -0.29311057925224304,
+      -0.8167906999588013,
+      -0.858178973197937
+    ],
+    "max": [
+      0.25911104679107666,
+      0.7832093238830566,
+      0.8257853388786316
+    ],
+    "size": [
+      0.5522216260433197,
+      1.600000023841858,
+      1.6839643120765686
+    ],
+    "bodyOnly": false
+  },
+  "collider": "C:\\Users\\nugye\\Documents\\_forks\\three-generator\\uploads\\baked\\horse.collider.json",
+  "producedAt": "2026-08-05T07:24:48.194Z",
+  "production": {
+    "format": "glb",
+    "yHipGround": true,
+    "textures": "webp",
+    "maxTexture": 1024,
+    "meshCompression": "quantize",
+    "bakeMeshes": true,
+    "bakeAnims": true,
+    "bakeColliders": true
+  }
+}
