@@ -1,0 +1,47 @@
+{
+  "units": "m",
+  "primary": "windsurf",
+  "sourceImage": "./ik-reference.png",
+  "notes": "IK sockets mapped from sail/deck graph (blue points): feet on deck pads, hands on boom/rail, mast base for sail pivot. Local space: board origin = bottom center, +Y up, +Z nose/forward.",
+  "hoverboard": {
+    "file": "./hoverboard.glb",
+    "lengthM": 1.15,
+    "deckY": 0.0,
+    "sockets": {
+      "footL": [-0.14, 0.02, 0.05],
+      "footR": [0.14, 0.02, 0.05],
+      "deckCenter": [0, 0.02, 0]
+    },
+    "forward": [0, 0, 1]
+  },
+  "windsurf": {
+    "file": "./windsurf_package.glb",
+    "size": [2.8, 0.684, 1.815],
+    "deckY": 0.06,
+    "sockets": {
+      "footL": [-0.18, 0.07, -0.08],
+      "footR": [0.18, 0.07, -0.08],
+      "deckCenter": [0.0, 0.06, -0.05],
+      "mastBase": [0.0, 0.08, 0.05],
+      "sailBoomL": [-0.22, 0.32, 0.12],
+      "sailBoomR": [0.22, 0.32, 0.12],
+      "sailRail": [0.0, 0.34, 0.18],
+      "sailPeak": [0.0, 0.62, 0.25],
+      "bowTip": [0.0, 0.08, 1.15],
+      "engineMount": [0.0, 0.12, -0.95]
+    },
+    "ik": {
+      "feet": ["footL", "footR"],
+      "hands": ["sailRail", "sailBoomL", "sailBoomR"],
+      "primaryHand": "sailRail",
+      "secondaryHand": "sailBoomL",
+      "rigidBody": "deckCenter"
+    },
+    "motion": {
+      "bankMaxDeg": 18,
+      "swayHz": 0.55,
+      "swayM": 0.04
+    },
+    "forward": [0, 0, 1]
+  }
+}

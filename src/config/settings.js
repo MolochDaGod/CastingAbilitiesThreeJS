@@ -117,12 +117,14 @@ export const settings = {
     speed: 5.0, // metres/second along the drawn path
     accel: 0.45, // seconds spent easing up to speed after landing
     brake: 0.6, // seconds of gliding to a stop at the far end
-    dismountTime: 0.55, // seconds to step off the ball
+    dismountTime: 0.55, // seconds to step off the board
     returnHome: false, // leap back to where he started once the path is ridden
 
-    /* --- how he rides --- */
-    hover: 0.06, // gap between the ball and the floor
-    seatSink: 0.34, // how deep the seat sits into the ball, × radius
+    /* --- how he rides (windsurf / hoverboard deck) --- */
+    hover: 0.06, // deck height above floor when pack deckY missing
+    standOffset: 0.02, // rider root above deck (standing, not lotus sink)
+    seatSink: 0.0, // legacy air-ball sink — unused for board
+    debugSockets: false, // true = blue spheres on footL/footR/sailRail…
     bob: 0.035, // vertical bounce while riding, metres
     bobRate: 2.3, // bounces per second
     lean: 26, // degrees of bank at a full-rate turn
@@ -563,7 +565,12 @@ export const MODES = ['casting', 'walk'];
 /** Presentation metadata for the HUD's mode switch. */
 export const MODE_META = {
   casting: { label: 'Cast', glyph: '✦', hint: 'Casting mode', blurb: 'Draw a path. Release to cast.' },
-  walk: { label: 'Walk', glyph: '◎', hint: 'Walk mode', blurb: 'Draw a path. Release to ride it.' }
+  walk: {
+    label: 'Walk',
+    glyph: '◎',
+    hint: 'Windsurf ride',
+    blurb: 'Draw a path. Release to board-ride (feet + sail-rail IK).'
+  }
 };
 
 /** Presentation metadata for the HUD. */

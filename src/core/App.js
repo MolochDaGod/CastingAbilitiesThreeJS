@@ -259,9 +259,16 @@ export class App {
     await this.environment.loadEnvironment(hdr);
     frame.uEnvMap.value = this.environment.equirect;
 
-    this.loading.setProgress(0.5, 'Loading Toon RTS kit (GLTF + Draco)…');
+    this.loading.setProgress(0.45, 'Loading Toon RTS kit (GLTF + Draco)…');
     await this.character.load(assets, { raceId: 'WK', presetId: 'mage' });
     this.inventory.refresh();
+
+    this.loading.setProgress(0.7, 'Loading windsurf board + sail IK…');
+    try {
+      await this.walk.load(assets);
+    } catch (err) {
+      console.warn('[App] ride asset load failed — walk mode may miss board', err);
+    }
 
     this.loading.setProgress(0.85, 'Compiling shaders…');
     // Compile everything up front so the first cast never stutters.

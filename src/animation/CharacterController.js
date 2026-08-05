@@ -24,6 +24,7 @@ import {
 } from '../config/assets.js';
 import { EquipmentManager } from '../character/EquipmentManager.js';
 import { HandIK } from '../character/HandIK.js';
+import { RideIK } from '../character/RideIK.js';
 import { settings } from '../config/settings.js';
 import { LAYER } from '../core/Layers.js';
 import { disposeObject } from '../utils/dispose.js';
@@ -62,6 +63,9 @@ export class CharacterController {
 
     this.equipment = null;
     this.ik = null;
+    /** @type {import('../character/RideIK.js').RideIK|null} */
+    this.rideIk = null;
+    this._rideActive = false;
     this.raceId = DEFAULT_RACE;
     this.animPackId = 'magic';
     this.presetId = 'mage';
@@ -130,6 +134,7 @@ export class CharacterController {
 
     const bones = this.equipment.findBones();
     this.ik = new HandIK(kit, bones);
+    this.rideIk = new RideIK(kit);
 
     this.sitting = new SittingPose(kit);
     if (this.sitting.valid) this.forwardAxis.copy(this.sitting.forward);
@@ -415,6 +420,24 @@ export class CharacterController {
     return this.ik?.getCastOrigin(out) ?? this.root.getWorldPosition(out || new Vector3()).add(new Vector3(0, 1.4, 0.3));
   }
 
+  /**
+   * Windsurf/hoverboard ride: plant feet + hands on manifest sockets.
+   * @param {boolean} active
+   */
+  setRideActive(active) {
+    this._rideActive = !!active;
+    this.rideIk?.setActive(this._rideActive);
+    // Prefer standing idle on the deck (not lotus sit)
+    if (active) this.setPose('idle', settings.walk?.poseBlend ?? 0.35);
+  }
+
+  /**
+   * @param {Record<string, import('three').Vector3|{x:number,y:number,z:number}>} worldSockets
+   */
+  setRideSockets(worldSockets) {
+    this.rideIk?.setTargets(worldSockets);
+  }
+
   setPose(pose, blend = null) {
     this._poseBlend = blend;
     settings.character.pose = pose === 'sitting' ? 'sitting' : 'idle';
@@ -478,10 +501,15 @@ export class CharacterController {
     this.mixer.timeScale = settings.global.animationSpeed;
     this.mixer.update(dt);
 
-    // Hand soft-aim after mixer
-    this.ik?.update();
+    // Hand soft-aim after mixer (cast aim); ride IK takes over feet+hands on board
+    if (this._rideActive && this.rideIk) {
+      this.rideIk.update(dt);
+    } else {
+      this.ik?.update();
+    }
 
-    if (!this.sitting?.valid) return;
+    // Skip lotus sit while riding
+    if (this._rideActive || !this.sitting?.valid) return;
     this._poseTime += dt;
 
     const target = this.isSitting ? 1 : 0;

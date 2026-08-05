@@ -21,7 +21,7 @@ export class HUD {
     root.innerHTML = `
       <div class="hud__panel hud__title">
         Casting Abilities
-        <span data-blurb>Grudge6 · draw a path · release to cast</span>
+        <span data-blurb>Grudge6 · cast · walk = windsurf ride (feet/hand IK)</span>
       </div>
 
       <div class="hud__panel hud__stats">
