@@ -4,7 +4,8 @@ Elemental casting sandbox for **Grudge Studio**: draw a path, release, and Fire 
 
 This is the fleet-owned rebrand of the original bending playground: **Mixamo character models are removed**. The avatar is **grudge6** (Western Kingdoms kit) with **Bip001 magic-pack** idle + cast animations.
 
-**Repo:** [MolochDaGod/CastingAbilitiesThreeJS](https://github.com/MolochDaGod/CastingAbilitiesThreeJS)
+**Repo:** [MolochDaGod/CastingAbilitiesThreeJS](https://github.com/MolochDaGod/CastingAbilitiesThreeJS)  
+**Live:** [casting-abilities-threejs.vercel.app](https://casting-abilities-threejs.vercel.app)
 
 ---
 
