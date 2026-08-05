@@ -326,13 +326,25 @@ export class EquipmentManager {
     let lHand = null;
     let shield = null;
     let pelvis = null;
+    /** Prefer Bone instances after unifySkeletons (same name may exist as Object3D). */
+    const preferBone = (cur, next) => {
+      if (!cur) return next;
+      if (next?.isBone && !cur.isBone) return next;
+      return cur;
+    };
 
     this.root.traverse((n) => {
       const name = n.name || '';
-      if (/R_hand_container/i.test(name) || name === 'Bip001 R Hand') rHand = rHand || n;
-      if (/L_hand_container/i.test(name) || name === 'Bip001 L Hand') lHand = lHand || n;
+      if (/R_hand_container/i.test(name) || /^Bip001[\s_]R[\s_]Hand$/i.test(name)) {
+        rHand = preferBone(rHand, n);
+      }
+      if (/L_hand_container/i.test(name) || /^Bip001[\s_]L[\s_]Hand$/i.test(name)) {
+        lHand = preferBone(lHand, n);
+      }
       if (/L_shield_container/i.test(name)) shield = shield || n;
-      if (/Bip001 Pelvis/i.test(name) || name === 'Bip001 Pelvis') pelvis = pelvis || n;
+      if (/^Bip001[\s_]Pelvis$/i.test(name) || name === 'Bip001 Pelvis') {
+        pelvis = preferBone(pelvis, n);
+      }
     });
 
     return { rHand, lHand, shield, pelvis };

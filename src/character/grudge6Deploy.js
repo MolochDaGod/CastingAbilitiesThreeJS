@@ -2,23 +2,101 @@
  * grudge6 character deploy — Multiverse / grudge-character-correctness SSOT.
  *
  * Order (do not reorder):
- *  1. SkeletonUtils.clone + skeleton.pose
- *  2. SI fit while full kit still visible (bodyBox skips weapons)
+ *  0. unifySkeletons — Toon RTS modular kits ship ~14 disconnected skeletons
+ *  1. skeleton.pose on unified bones
+ *  2. SI fit (bodyBox skips weapons)
  *  3. art-forward +Z once
  *  4. feet ground + pelvis XZ center
  *  5. mesh_ids equip (caller)
- *  6. body-only atlas (caller — never scramble weapon maps if separate)
+ *  6. body-only atlas (caller)
  *  7. re-ground after equip / idle sample
+ *
+ * Without unifySkeletons, idle clips deform only one bone tree → bag-blob /
+ * exploded mesh (what the screenshot showed).
  *
  * Production CDN GLBs are already body-fit ~1.8 m (aabbBody); fitToHuman is no-op
  * when height is already in band.
  */
-import { Box3, DoubleSide, SRGBColorSpace, Vector3 } from 'three';
+import { Box3, DoubleSide, Skeleton, SRGBColorSpace, Vector3 } from 'three';
 import { HUMAN_HEIGHT_M } from '../config/grudge6SSOT.js';
 
 export { HUMAN_HEIGHT_M };
 export const HEIGHT_BAND_MIN = 1.55;
 export const HEIGHT_BAND_MAX = 2.15;
+
+/**
+ * Collapse every SkinnedMesh onto ONE canonical skeleton (shallowest bone per
+ * name, BFS from root). Toon RTS / grudge6 modular FBX→GLB ships each armor
+ * piece with its own disconnected bone instances — AnimationMixer can only
+ * drive one tree, so the rest explode unless unified.
+ *
+ * Port of gameopen `artifacts/animator/src/three/grudge/skeleton.ts`.
+ * @returns {import('three').Skeleton|null} widest skeleton
+ */
+export function unifySkeletons(root) {
+  if (!root) return null;
+  root.updateMatrixWorld(true);
+
+  /** @type {Map<string, import('three').Bone>} */
+  const canon = new Map();
+  const queue = [...root.children];
+  while (queue.length) {
+    const node = queue.shift();
+    if (!node) continue;
+    if (node.isBone && !canon.has(node.name)) canon.set(node.name, node);
+    for (const c of node.children) queue.push(c);
+  }
+  if (canon.size === 0) {
+    // Some GLBs only put bones under Armature not yet walked — full traverse
+    root.traverse((node) => {
+      if (node.isBone && !canon.has(node.name)) canon.set(node.name, node);
+    });
+  }
+  if (canon.size === 0) {
+    console.warn('[grudge6Deploy] unifySkeletons: no Bone nodes found');
+    return null;
+  }
+
+  let widest = null;
+  let unresolved = 0;
+  let rebound = 0;
+  const beforeIds = new Set();
+  root.traverse((node) => {
+    if (node.isSkinnedMesh && node.skeleton) beforeIds.add(node.skeleton.uuid);
+  });
+
+  root.traverse((node) => {
+    if (!node.isSkinnedMesh || !node.skeleton) return;
+    const newBones = node.skeleton.bones.map((b) => {
+      const c = canon.get(b.name);
+      if (!c) unresolved++;
+      return c ?? b;
+    });
+    const newSkel = new Skeleton(newBones, node.skeleton.boneInverses);
+    node.bind(newSkel, node.bindMatrix);
+    rebound++;
+    if (!widest || newSkel.bones.length > widest.bones.length) widest = newSkel;
+  });
+
+  if (unresolved > 0) {
+    console.warn(
+      `[grudge6Deploy] unifySkeletons: ${unresolved} bone(s) had no canonical match`
+    );
+  }
+  console.info(
+    `[grudge6Deploy] unifySkeletons: ${beforeIds.size} skeletons → 1 canon (${canon.size} bones), rebound ${rebound} skins`
+  );
+  return widest;
+}
+
+/** Count unique skeleton UUIDs (diagnose multi-skel bags). */
+export function countSkeletons(root) {
+  const ids = new Set();
+  root.traverse((o) => {
+    if (o.isSkinnedMesh && o.skeleton) ids.add(o.skeleton.uuid);
+  });
+  return ids.size;
+}
 
 /**
  * Skinned body AABB for height/feet.
@@ -203,10 +281,13 @@ export function diagnoseCharacterLook(root, groundY = 0) {
 }
 
 /**
- * Full deploy: pose skeletons → uniform unit normalize → art-forward → feet ground.
+ * Full deploy: unify skeletons → pose → unit normalize → art-forward → feet.
  * Call BEFORE mesh_ids equip.
  */
 export function deployGrudge6Model(model, opts = {}) {
+  // REQUIRED for grudge6 modular kits (multi disconnected skins).
+  if (opts.unify !== false) unifySkeletons(model);
+
   model.traverse((o) => {
     if (o.isSkinnedMesh && o.skeleton) {
       o.skeleton.pose();
@@ -221,10 +302,13 @@ export function deployGrudge6Model(model, opts = {}) {
   groundFeetAndCenterXZ(model, opts.groundY ?? 0);
   const diag = diagnoseCharacterLook(model, opts.groundY ?? 0);
   diag.beforeHeight = beforeH;
+  diag.skeletonCount = countSkeletons(model);
   model.userData.characterDeployed = true;
+  model.userData.skeletonCount = diag.skeletonCount;
   console.info(
     `[grudge6Deploy] before=${beforeH.toFixed(2)}m → after=${diag.height?.toFixed(2)}m ` +
       `factor×${(diag.scaleFactor ?? 1).toFixed(4)} feet=${diag.feetMinY?.toFixed(3)} ` +
+      `skel=${diag.skeletonCount} ` +
       (diag.ok ? 'OK' : diag.errors.join('; '))
   );
   return diag;

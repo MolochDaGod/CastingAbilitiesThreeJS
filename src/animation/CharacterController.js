@@ -25,10 +25,12 @@ import {
 import { EquipmentManager } from '../character/EquipmentManager.js';
 import {
   applyBodyAtlas,
+  countSkeletons,
   deployGrudge6Model,
   diagnoseCharacterLook,
   prepMeshFlags,
-  reGroundAfterAnimSample
+  reGroundAfterAnimSample,
+  unifySkeletons
 } from '../character/grudge6Deploy.js';
 import { HandIK } from '../character/HandIK.js';
 import { RideIK } from '../character/RideIK.js';
@@ -127,12 +129,21 @@ export class CharacterController {
     kit.userData.importPipeline = 'glb-baked';
     kit.userData.importUrl = kitUrl;
 
-    // Multiverse CRITICAL order:
+    // REQUIRED: modular grudge6 kits ship many disconnected skeletons.
+    // Without unify, idle clips only move one bone tree → exploded mesh.
+    const skBefore = countSkeletons(kit);
+    unifySkeletons(kit);
+    const skAfter = countSkeletons(kit);
+    if (skBefore > 1) {
+      console.info(`[CharacterController] skeletons ${skBefore} → ${skAfter} (unify)`);
+    }
+
+    // Multiverse CRITICAL order after unify:
     // 1) SI deploy while full kit still visible (bodyBox skips weapons)
     // 2) body-only atlas (keep weapon embeds)
     // 3) mesh_ids equip
     // 4) re-ground
-    const deploy = deployGrudge6Model(kit, { facePlusZ: true, groundY: 0 });
+    const deploy = deployGrudge6Model(kit, { facePlusZ: true, groundY: 0, unify: false });
     prepMeshFlags(kit);
     if (this.atlas) applyBodyAtlas(kit, this.atlas);
     else applyBodyAtlas(kit, null); // colorSpace fix on embeds only

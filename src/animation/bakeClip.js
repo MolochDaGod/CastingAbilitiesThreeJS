@@ -1,8 +1,9 @@
 import { AnimationClip, PropertyBinding } from 'three';
 
 /**
- * Minimal baked-clip helpers for grudge6 Bip001 JSON packs.
- * Mirrors fleet rules: rotation-only tracks, bone-name rematch, no Mixamo.
+ * Baked-clip helpers for grudge6 Bip001 JSON packs.
+ * Fleet rules: rotation-only, bone-name rematch (space/underscore), no Mixamo.
+ * Port of gameopen grudge/skeleton.ts rematch + normalize.
  */
 
 /** Strip hip/root position & scale tracks so a grounded kit does not float. */
@@ -13,40 +14,71 @@ export function toRotationOnlyClip(clip) {
   return out;
 }
 
-function normalizeBoneKey(name) {
+/** Alnum-only bone key: "Bip001 L UpperArm" / "Bip001_L_UpperArm" → bip001lupperarm */
+export function normalizeBoneKey(name) {
   return String(name || '')
-    .replace(/^mixamorig[:_]?/i, '')
-    .replace(/^Bip001[\s_]?/i, '')
-    .replace(/[:\s]+/g, ' ')
     .trim()
     .toLowerCase()
-    .replace(/\s+/g, ' ');
+    .replace(/^mixamorig\d*:/i, '')
+    .replace(/[^a-z0-9]/g, '');
 }
 
-function buildBoneLookup(root) {
+/**
+ * Alias map: exact name + normalized key + space/underscore variants.
+ * Only includes Bone nodes (and hand containers for attach tracks).
+ */
+export function buildBoneNameLookup(root) {
   const lookup = new Map();
+  const actualByKey = new Map();
+
   root.traverse((node) => {
-    if (!node.isBone && node.type !== 'Bone') return;
-    const name = node.name;
+    const isBone = node.isBone === true;
+    const name = node.name || '';
+    if (!isBone && !/bip001|mixamo|container|hand|pelvis|spine|hips/i.test(name)) return;
     if (!name) return;
+
     lookup.set(name, name);
-    lookup.set(normalizeBoneKey(name), name);
-    // Common aliases
-    const short = normalizeBoneKey(name);
-    if (short === 'pelvis') lookup.set('hips', name);
-    if (short === 'l thigh') lookup.set('leftupleg', name);
-    if (short === 'r thigh') lookup.set('rightupleg', name);
-    if (short === 'l calf') lookup.set('leftleg', name);
-    if (short === 'r calf') lookup.set('rightleg', name);
-    if (short === 'l upperarm') lookup.set('leftarm', name);
-    if (short === 'r upperarm') lookup.set('rightarm', name);
-    if (short === 'l forearm') lookup.set('leftforearm', name);
-    if (short === 'r forearm') lookup.set('rightforearm', name);
-    if (short === 'l clavicle') lookup.set('leftshoulder', name);
-    if (short === 'r clavicle') lookup.set('rightshoulder', name);
-    if (short === 'l toe0') lookup.set('lefttoebase', name);
-    if (short === 'r toe0') lookup.set('righttoebase', name);
+    const key = normalizeBoneKey(name);
+    lookup.set(key, name);
+    if (isBone) actualByKey.set(key, name);
+
+    if (name.includes('_')) {
+      const spaced = name.replace(/^Bip001_/, 'Bip001 ').replace(/_/g, ' ');
+      lookup.set(spaced, name);
+      lookup.set(normalizeBoneKey(spaced), name);
+    }
+    if (name.includes(' ')) {
+      const underscored = name.replace(/ /g, '_');
+      lookup.set(underscored, name);
+      lookup.set(normalizeBoneKey(underscored), name);
+    }
   });
+
+  // Role aliases (clip may say Hips / LeftArm when kit is Bip001)
+  const aliases = [
+    ['bip001pelvis', 'hips'],
+    ['bip001lupperarm', 'leftarm'],
+    ['bip001rupperarm', 'rightarm'],
+    ['bip001lforearm', 'leftforearm'],
+    ['bip001rforearm', 'rightforearm'],
+    ['bip001lhand', 'lefthand'],
+    ['bip001rhand', 'righthand'],
+    ['bip001lthigh', 'leftupleg'],
+    ['bip001rthigh', 'rightupleg'],
+    ['bip001lcalf', 'leftleg'],
+    ['bip001rcalf', 'rightleg'],
+    ['bip001lfoot', 'leftfoot'],
+    ['bip001rfoot', 'rightfoot'],
+    ['bip001lclavicle', 'leftshoulder'],
+    ['bip001rclavicle', 'rightshoulder']
+  ];
+  for (const [a, b] of aliases) {
+    const boneA = actualByKey.get(a);
+    const boneB = actualByKey.get(b);
+    if (boneA) lookup.set(b, boneA);
+    if (boneB) lookup.set(a, boneB);
+  }
+
   return lookup;
 }
 
@@ -55,8 +87,10 @@ function buildBoneLookup(root) {
  * Drops position/scale by default (grounded kits).
  */
 export function rematchClipToSkeleton(root, clip, { stripPositions = true } = {}) {
-  const lookup = buildBoneLookup(root);
+  const lookup = buildBoneNameLookup(root);
   const tracks = [];
+  let rewritten = 0;
+  let dropped = 0;
 
   for (const track of clip.tracks) {
     if (stripPositions && /\.position$|\.scale$/.test(track.name)) continue;
@@ -73,17 +107,33 @@ export function rematchClipToSkeleton(root, clip, { stripPositions = true } = {}
       lookup.get(normalizeBoneKey(nodeName)) ||
       (PropertyBinding.findNode(root, nodeName) ? nodeName : null);
 
-    if (!resolved) continue;
+    if (!resolved) {
+      dropped++;
+      continue;
+    }
 
     if (resolved === nodeName) {
       tracks.push(track);
       continue;
     }
 
+    rewritten++;
     const dot = track.name.indexOf('.');
     const propSuffix = dot >= 0 ? track.name.slice(dot) : `.${parsed.propertyName || 'quaternion'}`;
     const Ctor = track.constructor;
-    tracks.push(new Ctor(`${resolved}${propSuffix}`, track.times, track.values));
+    tracks.push(
+      new Ctor(
+        `${resolved}${propSuffix}`,
+        track.times.slice ? track.times.slice() : track.times,
+        track.values.slice ? track.values.slice() : track.values
+      )
+    );
+  }
+
+  if (rewritten || dropped) {
+    console.info(
+      `[bakeClip] rematch "${clip.name}": keep=${tracks.length} rewrote=${rewritten} dropped=${dropped}`
+    );
   }
 
   return new AnimationClip(clip.name, clip.duration, tracks);
