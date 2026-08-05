@@ -1,12 +1,10 @@
 import {
   AnimationMixer,
-  Box3,
   ClampToEdgeWrapping,
   Group,
   LoopOnce,
   LoopRepeat,
   MathUtils,
-  MeshStandardMaterial,
   SRGBColorSpace,
   Vector3
 } from 'three';
@@ -16,17 +14,25 @@ import {
   DEFAULT_RACE,
   FALLBACK_PRESETS,
   GEAR_PRESETS_URL,
-  RACES,
-  TARGET_HEIGHT_M,
-  atlasUrlForRace,
-  bakedClipUrl,
-  kitUrlForRace
+  bakedClipUrl
 } from '../config/assets.js';
+import {
+  atlasUrlForRace,
+  kitUrlForRace,
+  loadoutToMeshIds,
+  raceDef
+} from '../config/grudge6SSOT.js';
 import { EquipmentManager } from '../character/EquipmentManager.js';
+import {
+  applyBodyAtlas,
+  deployGrudge6Model,
+  diagnoseCharacterLook,
+  prepMeshFlags,
+  reGroundAfterAnimSample
+} from '../character/grudge6Deploy.js';
 import { HandIK } from '../character/HandIK.js';
 import { RideIK } from '../character/RideIK.js';
 import { settings } from '../config/settings.js';
-import { LAYER } from '../core/Layers.js';
 import { disposeObject } from '../utils/dispose.js';
 import { loadBakedClipJson, rematchClipToSkeleton } from './bakeClip.js';
 import { SittingPose } from './SittingPose.js';
@@ -92,7 +98,7 @@ export class CharacterController {
 
     await this._loadPresets();
 
-    const race = RACES[this.raceId] || RACES[DEFAULT_RACE];
+    const race = raceDef(this.raceId);
     const kitUrl = kitUrlForRace(this.raceId);
     const atlasUrl = atlasUrlForRace(this.raceId);
 
@@ -110,38 +116,46 @@ export class CharacterController {
       atlas.flipY = false;
       atlas.wrapS = ClampToEdgeWrapping;
       atlas.wrapT = ClampToEdgeWrapping;
+      atlas.anisotropy = 8;
       atlas.needsUpdate = true;
       this.atlas = atlas;
     }
 
-    // NEVER plain scene.clone() on skinned kits — breaks skinning / bag-blob.
+    // NEVER plain scene.clone() on skinned kits — bag-blob / broken skinning.
     const kit = skeletonClone(gltf.scene);
     kit.name = `${race.id}_Characters`;
+    kit.userData.importPipeline = 'glb-baked';
+    kit.userData.importUrl = kitUrl;
 
-    // Art-forward +Z (Toon RTS export faces +X). Idempotent once.
-    kit.rotation.y = Math.PI / 2;
-    kit.updateMatrixWorld(true);
-    // Force skeleton bind matrices before equip / Box3 (precise skinned bounds).
+    // Multiverse CRITICAL order:
+    // 1) SI deploy while full kit still visible (bodyBox skips weapons)
+    // 2) body-only atlas (keep weapon embeds)
+    // 3) mesh_ids equip
+    // 4) re-ground
+    const deploy = deployGrudge6Model(kit, { facePlusZ: true, groundY: 0 });
+    prepMeshFlags(kit);
+    if (this.atlas) applyBodyAtlas(kit, this.atlas);
+    else applyBodyAtlas(kit, null); // colorSpace fix on embeds only
+    // Contact-shadow casters (Environment depth pass)
     kit.traverse((o) => {
-      if (o.isSkinnedMesh && o.skeleton) o.skeleton.update();
+      if (!o.isMesh && !o.isSkinnedMesh) return;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      for (const m of mats) if (m) this.environment?.registerShadowCaster?.(m);
     });
-
-    this._prepareMaterials(kit);
 
     this.equipment = new EquipmentManager(kit);
     const preset = this.presets.find((p) => p.id === this.presetId) || this.presets[0];
     this.animPackId = this._packFromPreset(preset);
-    // Hide equippable first so height fit uses body armor only (not full kit blob)
-    const report = this.equipment.applyLoadout(preset?.loadout || { body: 'A' });
+    const meshIds = loadoutToMeshIds(race.prefix, preset?.loadout || { body: 'A' });
+    const report = this.equipment.applyMeshIds(meshIds);
     if (report.missing?.length) {
-      console.warn('[CharacterController] equip missing', report);
+      console.warn('[CharacterController] mesh_ids missing', report);
     }
-
-    // SI fit after equip: skinned body ~1.8 m, feet on y=0
-    this._normalizeHeightAndGround(kit);
+    reGroundAfterAnimSample(kit, 0);
 
     this.tilt.add(kit);
     this.model = kit;
+    this.height = deploy.height || kit.userData.deployHeightM || 1.8;
     this.headPosition.set(0, this.height * 0.86, 0);
 
     const bones = this.equipment.findBones();
@@ -162,21 +176,16 @@ export class CharacterController {
     if (this.actions.has('idle')) this.play('idle', 0);
     else if (this.actions.size) this.play([...this.actions.keys()][0], 0);
 
-    // Sample idle so skinned bounds settle, then re-ground (fleet character-correctness)
+    // Sample idle (rotation-only tracks) → re-ground residual hip float
     this.mixer.update(1 / 30);
-    kit.traverse((o) => {
-      if (o.isSkinnedMesh && o.skeleton) o.skeleton.update();
-    });
-    this._reGroundAfterEquip();
-    this._centerOnPelvis(kit);
-    // Re-ground after pelvis XZ shift (height unchanged, but precise bounds may drift)
-    this._reGroundAfterEquip();
+    reGroundAfterAnimSample(kit, 0);
 
     const look = this.diagnoseLook();
     if (!look.ok) console.warn('[CharacterController] look', look);
     else {
       console.info(
-        `[CharacterController] ${this.raceId} ${this.presetId} h=${look.heightM}m feet=${look.feetMinY} equip=${report.matched}`
+        `[CharacterController] ${this.raceId} ${this.presetId} h=${look.heightM}m ` +
+          `feet=${look.feetMinY} meshes=${report.matched}/${meshIds.length}`
       );
     }
 
@@ -188,45 +197,19 @@ export class CharacterController {
    */
   diagnoseLook() {
     if (!this.model) return { ok: false, reason: 'no-model' };
-    this.model.updateMatrixWorld(true);
-    const box = this._bodyBox(this.model);
-    const size = new Vector3();
-    box.getSize(size);
+    const d = diagnoseCharacterLook(this.model, 0);
     const bones = this.equipment?.findBones?.() || {};
-    const h = size.y;
-    const feetOk = Math.abs(box.min.y) < 0.12;
-    const heightOk = h >= 1.55 && h <= 2.15;
     return {
-      ok: heightOk && feetOk && !!bones.pelvis,
-      heightM: +h.toFixed(3),
-      feetMinY: +box.min.y.toFixed(3),
-      heightOk,
-      feetOk,
+      ok: d.ok && !!bones.pelvis,
+      heightM: +(d.height ?? 0).toFixed(3),
+      feetMinY: +(d.feetMinY ?? 0).toFixed(3),
+      heightOk: d.ok,
+      feetOk: Math.abs((d.feetMinY ?? 99) - 0) < 0.12,
       pelvis: !!bones.pelvis,
       rHand: !!bones.rHand,
+      errors: d.errors,
       equipMatched: this.equipment?.loadout || {}
     };
-  }
-
-  /** Shift kit so pelvis sits at local XZ origin (not full prop bbox). */
-  _centerOnPelvis(kit) {
-    const bones = this.equipment?.findBones?.();
-    const pelvis = bones?.pelvis;
-    if (!pelvis || !kit) return;
-    kit.updateMatrixWorld(true);
-    const wp = new Vector3();
-    pelvis.getWorldPosition(wp);
-    // World → kit parent (tilt) local
-    const parent = kit.parent;
-    if (parent) {
-      const local = parent.worldToLocal(wp.clone());
-      kit.position.x -= local.x;
-      kit.position.z -= local.z;
-    } else {
-      kit.position.x -= wp.x - this.root.position.x;
-      kit.position.z -= wp.z - this.root.position.z;
-    }
-    kit.updateMatrixWorld(true);
   }
 
   async _loadPresets() {
@@ -305,10 +288,15 @@ export class CharacterController {
     if (!this.equipment) return { matched: 0, missing: ['no-equipment'] };
     if (meta.presetId) this.presetId = meta.presetId;
     if (meta.pack) this.animPackId = this._packFromPreset({ pack: meta.pack });
-    const report = this.equipment.applyLoadout(loadout);
-    this._reGroundAfterEquip();
+    const race = raceDef(this.raceId);
+    const meshIds = loadoutToMeshIds(race.prefix, loadout);
+    const report = this.equipment.applyMeshIds(meshIds);
+    if (this.model) {
+      reGroundAfterAnimSample(this.model, 0);
+      this.height = this.model.userData.deployHeightM || this.height;
+      this.headPosition.set(0, this.height * 0.86, 0);
+    }
     this.ik?.setBones(this.equipment.findBones());
-    // Prefer idle from current pack
     if (this.actions.has('idle') && this.animState === 'idle') this.play('idle', 0.2);
     return report;
   }
@@ -319,157 +307,6 @@ export class CharacterController {
     this.presetId = presetId;
     this.animPackId = this._packFromPreset(preset);
     return this.applyLoadout(preset.loadout, { pack: preset.pack, presetId });
-  }
-
-  _reGroundAfterEquip() {
-    if (!this.model) return;
-    this.model.updateMatrixWorld(true);
-    const box = this._bodyBox(this.model);
-    if (box.isEmpty()) return;
-    this.model.position.y -= box.min.y;
-    this.model.updateMatrixWorld(true);
-    const size = new Vector3();
-    box.getSize(size);
-    // re-measure
-    const box2 = this._bodyBox(this.model);
-    box2.getSize(size);
-    this.height = size.y;
-    this.headPosition.set(0, this.height * 0.86, 0);
-  }
-
-  /**
-   * Skinned body AABB only (visible body/arms/legs/head). Ignores weapons so
-   * staff length does not distort height fit. Uses precise skinned bounds.
-   */
-  _bodyBox(root) {
-    const box = new Box3();
-    let any = false;
-    root.updateMatrixWorld(true);
-    const armorHint = /body|arms|legs|head|shoulder|units_/i;
-    root.traverse((o) => {
-      if (!o.isSkinnedMesh || !o.visible) return;
-      // Prefer armor pieces for measurement
-      if (o.name && !armorHint.test(o.name) && /weapon|sword|staff|shield|bow|axe|hammer/i.test(o.name)) {
-        return;
-      }
-      try {
-        // three r152+: setFromObject(object, precise) accounts for skinning
-        const b = new Box3().setFromObject(o, true);
-        if (!Number.isFinite(b.min.y) || b.isEmpty()) return;
-        if (!any) {
-          box.copy(b);
-          any = true;
-        } else box.union(b);
-      } catch {
-        o.geometry?.computeBoundingBox?.();
-        if (!o.geometry?.boundingBox) return;
-        const b = o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld);
-        if (!any) {
-          box.copy(b);
-          any = true;
-        } else box.union(b);
-      }
-    });
-    if (!any) box.setFromObject(root, true);
-    return box;
-  }
-
-  _normalizeHeightAndGround(kit) {
-    kit.updateMatrixWorld(true);
-    let box = this._bodyBox(kit);
-    const size = new Vector3();
-    box.getSize(size);
-    let h = Math.max(0.001, size.y);
-
-    // Classic 100× unit fix if raw kit is giant (cm as m)
-    let unitFix = 1;
-    if (h > 12) unitFix = 0.01;
-    else if (h > 4) unitFix = TARGET_HEIGHT_M / h;
-    if (unitFix !== 1) {
-      kit.scale.multiplyScalar(unitFix);
-      kit.updateMatrixWorld(true);
-      box = this._bodyBox(kit);
-      box.getSize(size);
-      h = Math.max(0.001, size.y);
-    }
-
-    // Residual fit to ~1.8 m (clamp aesthetic residual)
-    const fit = TARGET_HEIGHT_M / h;
-    const fitClamped = MathUtils.clamp(fit, 1 / 12, 12);
-    kit.scale.multiplyScalar(fitClamped);
-    kit.updateMatrixWorld(true);
-
-    box = this._bodyBox(kit);
-    box.getSize(size);
-    this.height = size.y;
-
-    // Feet on ground plane relative to kit local (parent at world origin later)
-    kit.position.y -= box.min.y;
-    kit.updateMatrixWorld(true);
-  }
-
-  _prepareMaterials(root) {
-    const converted = new Map();
-
-    root.traverse((node) => {
-      if (!node.isMesh && !node.isSkinnedMesh) return;
-
-      node.castShadow = true;
-      node.receiveShadow = true;
-      node.frustumCulled = false;
-      node.layers.set(LAYER.WORLD);
-      node.layers.enable(LAYER.CONTACT);
-
-      const source = Array.isArray(node.material) ? node.material : [node.material];
-      const result = source.map((material) => {
-        if (!material) return material;
-        if (converted.has(material)) return converted.get(material);
-
-        const hasMap = !!material.map;
-        const map = hasMap ? material.map : this.atlas ?? null;
-        if (map) {
-          map.colorSpace = SRGBColorSpace;
-          if (!hasMap) map.flipY = false;
-        }
-
-        if (material.isMeshStandardMaterial || material.isMeshPhysicalMaterial) {
-          // Always prefer race atlas for grudge6 FBX-path kits (avoid yellow sludge)
-          if (this.atlas) {
-            material.map = this.atlas;
-            material.color.set(0xffffff);
-            material.map.colorSpace = SRGBColorSpace;
-            material.map.flipY = false;
-            material.vertexColors = false;
-            material.needsUpdate = true;
-          } else if (hasMap) {
-            material.map.colorSpace = SRGBColorSpace;
-          }
-          material.metalness = material.metalness ?? 0;
-          material.roughness = material.roughness ?? 0.75;
-          this.environment.registerShadowCaster(material);
-          converted.set(material, material);
-          return material;
-        }
-
-        const standard = new MeshStandardMaterial({
-          name: material.name,
-          color: 0xffffff,
-          map,
-          normalMap: material.normalMap ?? null,
-          roughness: 0.75,
-          metalness: 0,
-          transparent: material.transparent ?? false,
-          opacity: material.opacity ?? 1,
-          side: material.side
-        });
-        this.environment.registerShadowCaster(standard);
-        material.dispose?.();
-        converted.set(material, standard);
-        return standard;
-      });
-
-      node.material = Array.isArray(node.material) ? result : result[0];
-    });
   }
 
   play(name, fadeDuration = 0.35) {

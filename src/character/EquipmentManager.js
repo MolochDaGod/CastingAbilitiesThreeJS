@@ -148,6 +148,66 @@ export class EquipmentManager {
   }
 
   /**
+   * Multiverse path: hide all → show exact mesh_ids (fuzzy name match).
+   * @param {string[]} meshIds e.g. ['WK_Units_Body_D', 'WK_weapon_staff_A']
+   * @returns {{ matched: number, missing: string[], shown: string[] }}
+   */
+  applyMeshIds(meshIds = []) {
+    this.hideAll();
+    this.loadout = {};
+    const wanted = (meshIds || []).map(String).filter(Boolean);
+    const missing = [];
+    const shown = [];
+    let matched = 0;
+
+    for (const id of wanted) {
+      const want = meshKey(id);
+      let hit = null;
+      for (const m of this.equippable) {
+        if (keysMatch(meshKey(m.name), want) || m.name === id) {
+          hit = m;
+          break;
+        }
+      }
+      // Also search non-catalog meshes (rare naming)
+      if (!hit) {
+        this.root.traverse((n) => {
+          if (hit || (!n.isMesh && !n.isSkinnedMesh)) return;
+          if (n.name === id || keysMatch(meshKey(n.name), want)) hit = n;
+        });
+      }
+      if (hit) {
+        hit.visible = true;
+        matched += 1;
+        shown.push(hit.name);
+        const info = classifyMesh(hit.name);
+        if (info) this.loadout[info.slot] = info.variant;
+      } else {
+        missing.push(id);
+      }
+    }
+
+    // Fail-safe: at least one body
+    const anyBody = (this.bySlot.get('body') || []).some((m) => m.visible);
+    if (!anyBody) {
+      const bodies = this.variantsFor('body');
+      if (bodies[0]) {
+        this._show('body', bodies[0]);
+        this.loadout.body = bodies[0];
+        matched += 1;
+      }
+    }
+
+    return {
+      matched,
+      missing,
+      shown,
+      slots: Object.keys(this.loadout),
+      catalogSlots: [...this.bySlot.keys()]
+    };
+  }
+
+  /**
    * Apply loadout: one variant per armor slot; exclusive weapons.
    * @param {Record<string, string>} loadout e.g. { body:'D', staff:'A' }
    * @returns {{ matched: number, missing: string[] }}

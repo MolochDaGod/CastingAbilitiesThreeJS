@@ -1,46 +1,44 @@
 /**
- * Grudge / Toon RTS asset SSOT for this sandbox.
+ * Grudge / Toon RTS asset config for this sandbox.
  *
- * Mesh load: three.js GLTFLoader + DRACO + Meshopt (see AssetLoader).
- * Kit binaries: assets.grudge-studio.com (grudge6-cdn-ssot).
+ * Race kits / atlases: `grudge6SSOT.js` (Multiverse stone SSOT).
+ * Mesh load: GLTFLoader + DRACO + Meshopt (AssetLoader).
  * Baked Bip001 clips: open.grudge-studio.com/anims/baked/…
  */
 
-export const ASSETS_CDN = 'https://assets.grudge-studio.com';
+import {
+  CDN,
+  DEFAULT_RACE,
+  GEAR_PRESETS_URL as SSOT_GEAR_PRESETS,
+  HUMAN_HEIGHT_M,
+  RACES as SSOT_RACES,
+  atlasUrlForRace,
+  kitUrlForRace
+} from './grudge6SSOT.js';
+
+export const ASSETS_CDN = CDN;
 export const OPEN_HOST = 'https://open.grudge-studio.com';
 
 /** Official Draco wasm path (same major as three r185 fleet). */
 export const DRACO_DECODER_PATH =
   'https://www.gstatic.com/draco/versioned/decoders/1.5.7/';
 
-export const GEAR_PRESETS_URL = `${ASSETS_CDN}/api/v1/grudge6-gear-presets.json`;
+export const GEAR_PRESETS_URL = SSOT_GEAR_PRESETS;
+export { DEFAULT_RACE, atlasUrlForRace, kitUrlForRace };
 
-/** Race kits + atlases (production GLB). */
-export const RACES = {
-  WK: {
-    id: 'WK',
-    label: 'Western Kingdoms',
-    prefix: 'WK_',
-    kitUrl: `${ASSETS_CDN}/models/grudge6/races/WK_Characters.glb`,
-    atlasUrl: `${ASSETS_CDN}/textures/grudge6/western-kingdoms/WK_Standard_Units.webp`
-  },
-  ELF: {
-    id: 'ELF',
-    label: 'High Elves',
-    prefix: 'ELF_',
-    kitUrl: `${ASSETS_CDN}/models/grudge6/races/ELF_Characters.glb`,
-    atlasUrl: `${ASSETS_CDN}/textures/grudge6/elves/ELF_HighElves_Texture.webp`
-  },
-  BRB: {
-    id: 'BRB',
-    label: 'Barbarians',
-    prefix: 'BRB_',
-    kitUrl: `${ASSETS_CDN}/models/grudge6/races/BRB_Characters.glb`,
-    atlasUrl: `${ASSETS_CDN}/textures/grudge6/barbarians/BRB_StandardUnits_texture.webp`
-  }
-};
-
-export const DEFAULT_RACE = 'WK';
+/** Race kits + atlases (production GLB) — re-export stone SSOT shape for UI. */
+export const RACES = Object.fromEntries(
+  Object.entries(SSOT_RACES).map(([id, r]) => [
+    id,
+    {
+      id: r.id,
+      label: r.label,
+      prefix: r.prefix,
+      kitUrl: r.kitGlb,
+      atlasUrl: r.atlasUrl
+    }
+  ])
+);
 
 /**
  * Baked pack clip relatives under /anims/baked/.
@@ -128,16 +126,8 @@ export function bakedClipUrl(rel) {
   return `${OPEN_HOST}/anims/baked/${encodeURI(clean)}.json`;
 }
 
-export function kitUrlForRace(raceId) {
-  return (RACES[raceId] || RACES[DEFAULT_RACE]).kitUrl;
-}
-
-export function atlasUrlForRace(raceId) {
-  return (RACES[raceId] || RACES[DEFAULT_RACE]).atlasUrl;
-}
-
 /** SI human target height (metres). */
-export const TARGET_HEIGHT_M = 1.8;
+export const TARGET_HEIGHT_M = HUMAN_HEIGHT_M;
 
 /** Armor / weapon slots used by EquipmentManager + inventory panel. */
 export const EQUIP_SLOTS = [
