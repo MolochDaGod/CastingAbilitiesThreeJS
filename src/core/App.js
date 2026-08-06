@@ -338,9 +338,12 @@ export class App {
 
     this.loading.setProgress(0.45, 'Loading Toon RTS kit (GLTF + Draco)…');
     await this.character.load(assets, { raceId: 'WK', presetId: 'mage' });
+    // Feet at origin; keep model local ground from scaffold
+    this.character.placeAt?.(0, 0, 0);
+    this.character.resetPlacement?.();
     this.inventory.refresh();
 
-    // Ride board only when explicitly requested — not on combat boot path
+    // Ride board only when explicitly requested
     if (/[?&]ride=1\b/.test(location.search)) {
       this.loading.setProgress(0.7, 'Loading windsurf board…');
       try {
@@ -350,7 +353,6 @@ export class App {
       }
     }
 
-    // Optional props: ?props=1
     this.generatedCatalog = null;
     if (/[?&]props=1\b/.test(location.search)) {
       this.loading.setProgress(0.78, 'Generated props catalog…');
@@ -371,9 +373,23 @@ export class App {
     this.loading.setProgress(0.85, 'Compiling shaders…');
     await this.renderer.gl.compileAsync(this.scene, this.camera);
 
-    // Combat-first: DRC session + TPS + skill bar
+    // Game state: combat + physics capsule at feet + TPS camera on hero
     this.drc.setSession('combat');
     this.physics?.setPlayerFeet?.(0, 0, 0);
+    this.character.placeAt?.(0, 0, 0);
+    this.rig.snapToCharacter?.(0, 0, 0, this.character.facing);
+    this.rig.setAnchor(0, 0, 0);
+    this.rig.setCharacterYaw(this.character.facing);
+
+    const vis = this.character._countVisibleSkinned?.() ?? -1;
+    console.info(
+      `[App] spawn visSkinned=${vis} root=`,
+      this.character.position.x,
+      this.character.position.y,
+      this.character.position.z,
+      'height=',
+      this.character.height
+    );
 
     this.loading.setProgress(1, 'Ready — DRC combat');
     this.loading.hide();
@@ -420,24 +436,21 @@ export class App {
 
     this.environment.setFocus(this.character.position.x, this.character.position.z);
     this.environment.update();
-    // DRC combat WASD + skills (equip session skips locomotion)
+    // DRC combat: Rapier CCT → root feet; equip session skips locomotion
     this.drc.update(dt, this.input.keys);
-    // Ride path only when walk mode + ride assets loaded
     if (!this.drc.inCombat && settings.mode === 'walk') this.walk.update(dt);
     this.character.update(dt);
 
     this.ground.update(this.elapsed);
     this.dust.update(this.elapsed, this.character.position);
 
-    this.pathDrawer.update(raw); // the preview keeps animating while paused
+    this.pathDrawer.update(raw);
     this.abilities.update(dt);
 
-    // Cast loop while any ability is in flight; soft-aim at active focus.
     const focusAbility = this.abilities.focus;
     const casting = this.abilities.active.length > 0;
     if (casting && focusAbility?.position) {
-      const p = focusAbility.position;
-      this.character.setCasting?.(true, { aimX: p.x, aimY: p.y, aimZ: p.z });
+      this.character.setCasting?.(true);
     } else {
       this.character.setCasting?.(false);
     }
@@ -447,10 +460,13 @@ export class App {
     this.bursts.update(dt);
     this.lights.update(dt);
 
-    /* ---- camera ---- */
+    /* ---- camera: always track character feet (world root) ---- */
+    const px = this.character.position.x;
+    const py = this.character.position.y;
+    const pz = this.character.position.z;
     const focus = this.abilities.focus;
     if (focus) this.rig.lookAt(focus.position, MathUtils.clamp(1 - focus.u * 0.4, 0, 1));
-    this.rig.setAnchor(this.character.position.x, 0, this.character.position.z);
+    this.rig.setAnchor(px, py, pz);
     this.rig.setCharacterYaw(this.character.facing);
     this.shake.update(raw);
     this.flash.update(raw);

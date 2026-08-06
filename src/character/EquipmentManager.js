@@ -101,8 +101,11 @@ export function classifyMesh(name) {
 export class EquipmentManager {
   /**
    * @param {import('three').Object3D} root kit scene root
+   * @param {{ preserveVisibility?: boolean }} [opts]
+   *   preserveVisibility: true when scaffold already equipped — do NOT hideAll
+   *   (that was wiping the hero to invisible after a correct equip).
    */
-  constructor(root) {
+  constructor(root, opts = {}) {
     this.root = root;
     /** @type {Map<string, import('three').Object3D[]>} slot → meshes */
     this.bySlot = new Map();
@@ -117,8 +120,11 @@ export class EquipmentManager {
     /** When false (default combat), bag/wood/quiver stay hidden. */
     this.carryMode = false;
     this._catalog();
-    // Start clean: nothing equippable visible
-    this.hideAll();
+    // Only nuke visibility on a fresh kit. After scaffoldGrudge6Kit, meshes are
+    // already exclusive-equipped — hideAll here made the character disappear.
+    if (!opts.preserveVisibility) {
+      this.hideAll();
+    }
     this.hideUtility();
   }
 

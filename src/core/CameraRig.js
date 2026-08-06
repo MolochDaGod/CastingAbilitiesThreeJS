@@ -191,14 +191,17 @@ export class CameraRig {
 
   /**
    * Combat TPS: place camera behind character; OrbitControls disabled.
+   * @param {number} dt
+   * @param {object} cam settings.camera
+   * @param {boolean} [snap] skip damping (spawn / mode switch)
    */
-  _updateTps(dt, cam) {
+  _updateTps(dt, cam, snap = false) {
     this.controls.enabled = false;
 
     const yaw = this.characterYaw + this._tpsYawOffset;
     const pitch = this._tpsPitch;
-    const dist = this.distance * (cam.tpsDistanceScale ?? 0.72);
-    const height = cam.targetHeight + Math.sin(pitch) * dist * 0.85;
+    const dist = this.distance * (cam.tpsDistanceScale ?? 0.85);
+    const height = cam.targetHeight + Math.sin(pitch) * dist * 0.9;
 
     _desiredTarget.copy(this.anchor);
     _desiredTarget.y += cam.targetHeight;
@@ -206,21 +209,34 @@ export class CameraRig {
       _desiredTarget.lerp(this.focus, Math.min(0.45, this.focusWeight * cam.autoFrame));
     }
 
-    // Behind character: opposite of facing (+Z local face)
+    // Behind character: opposite of facing (+Z local face when yaw=0)
     _desiredPos.set(
       this.anchor.x - Math.sin(yaw) * dist * Math.cos(pitch),
       this.anchor.y + height,
       this.anchor.z - Math.cos(yaw) * dist * Math.cos(pitch)
     );
 
-    this.camera.position.x = damp(this.camera.position.x, _desiredPos.x, cam.tpsDamping ?? 0.12, dt);
-    this.camera.position.y = damp(this.camera.position.y, _desiredPos.y, cam.tpsDamping ?? 0.12, dt);
-    this.camera.position.z = damp(this.camera.position.z, _desiredPos.z, cam.tpsDamping ?? 0.12, dt);
+    if (snap || dt <= 0) {
+      this.camera.position.copy(_desiredPos);
+    } else {
+      const dampT = cam.tpsDamping ?? 0.14;
+      this.camera.position.x = damp(this.camera.position.x, _desiredPos.x, dampT, dt);
+      this.camera.position.y = damp(this.camera.position.y, _desiredPos.y, dampT, dt);
+      this.camera.position.z = damp(this.camera.position.z, _desiredPos.z, dampT, dt);
+    }
 
     _look.copy(_desiredTarget);
     this.camera.lookAt(_look);
-    // Keep OrbitControls target in sync for mode switch back to orbit
     this.controls.target.copy(_look);
+  }
+
+  /** Instant TPS frame on character (call after load / session enter). */
+  snapToCharacter(x, y, z, yaw = 0) {
+    this.setAnchor(x, y ?? 0, z);
+    this.setCharacterYaw(yaw);
+    this.setViewMode('tps');
+    this.distance = settings.camera.distance;
+    this._updateTps(0, settings.camera, true);
   }
 
   resize(width, height) {

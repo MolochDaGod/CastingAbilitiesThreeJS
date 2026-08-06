@@ -30,7 +30,7 @@ export const settings = {
    * Q toggles. Independent of path cast/walk mode (M).
    */
   drc: {
-    session: 'equip', // 'equip' | 'combat'
+    session: 'combat', // combat-first showcase (Q → equip)
     moveSpeed: 3.6,
     sprintMul: 1.65
   },

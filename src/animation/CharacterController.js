@@ -1,5 +1,6 @@
 import {
   AnimationMixer,
+  Box3,
   ClampToEdgeWrapping,
   Group,
   LoopOnce,
@@ -30,6 +31,7 @@ import {
   reGroundAfterAnimSample,
   scaffoldGrudge6Kit
 } from '../character/grudge6Deploy.js';
+import { LAYER } from '../core/Layers.js';
 import { settings } from '../config/settings.js';
 import { disposeObject } from '../utils/dispose.js';
 import { loadBakedClipJson, rematchClipToSkeleton } from './bakeClip.js';
@@ -142,35 +144,50 @@ export class CharacterController {
     delete cleanLoadout.carry;
     const meshIds = loadoutToMeshIds(race.prefix, cleanLoadout);
 
-    // FULL Open scaffold (was missing exclusive hide-all equip + fit math)
-    //  unify → hide ALL meshes → exclusive mesh_ids → fit 1.8 → face+Z → materials
+    // FULL Open scaffold:
+    //  unify → hide ALL → exclusive mesh_ids → fit 1.8 → face+Z → materials
     const scaffold = scaffoldGrudge6Kit(kit, {
       meshIds,
       atlas: this.atlas,
       facePlusZ: true
     });
 
-    // EquipmentManager for inventory UI re-equip (catalog after scaffold equip)
-    this.equipment = new EquipmentManager(kit);
-    // Re-sync loadout state without re-showing wardrobe
+    // Catalog for inventory UI — MUST preserve scaffold visibility (hideAll was
+    // wiping the hero to invisible after a correct equip).
+    this.equipment = new EquipmentManager(kit, { preserveVisibility: true });
     this.equipment.loadout = { ...cleanLoadout };
-    this.equipment.hideUtility();
     this.equipment.carryMode = false;
+    this.equipment.hideUtility();
 
+    // Hard re-assert exclusive equip in case catalog marked anything wrong
+    const report = applyExclusiveMeshIds(kit, meshIds, { allowUtility: false });
+    this.equipment.hideUtility();
+
+    // Layers: WORLD + CONTACT (contact-shadow pass)
     kit.traverse((o) => {
       if (!o.isMesh && !o.isSkinnedMesh) return;
+      o.layers.set(LAYER.WORLD);
+      o.layers.enable(LAYER.CONTACT);
+      o.castShadow = true;
+      o.receiveShadow = true;
+      if (o.isSkinnedMesh) o.frustumCulled = false;
       const mats = Array.isArray(o.material) ? o.material : [o.material];
       for (const m of mats) if (m) this.environment?.registerShadowCaster?.(m);
     });
 
+    // Hierarchy: root (world feet + yaw) → tilt → model (local scale / art-forward)
     this.tilt.add(kit);
     this.model = kit;
+    this.root.position.set(0, 0, 0);
+    this.root.rotation.y = 0;
+    this.tilt.position.set(0, 0, 0);
+    this.tilt.quaternion.identity();
+
     this.height = scaffold.height || kit.userData.deployHeightM || 1.8;
     this.headPosition.set(0, this.height * 0.86, 0);
     this.bones = this.equipment.findBones();
-    const report = scaffold.equip || { matched: 0, missing: [] };
 
-    // 5) Single mixer — Bip001 packs only
+    // Single mixer — Bip001 packs only
     this.mixer = new AnimationMixer(kit);
     this.actions.clear();
     this._boundPacks.clear();
@@ -184,18 +201,60 @@ export class CharacterController {
 
     this.mixer.update(1 / 30);
     reGroundAfterAnimSample(kit, 0);
+    // Ensure feet still at local 0 after idle sample
+    this.root.position.y = 0;
 
     const look = this.diagnoseLook();
-    if (!look.ok) console.warn('[CharacterController] look', look);
-    else {
+    const vis = this._countVisibleSkinned();
+    if (!look.ok || vis < 3) {
+      console.warn('[CharacterController] look/vis', look, { visibleSkinned: vis, shown: report.shown });
+    } else {
       console.info(
         `[CharacterController] OK ${this.raceId} ${this.presetId} ` +
           `h=${look.heightM}m feet=${look.feetMinY} equip=${report.matched}/${meshIds.length} ` +
-          `pelvis=${look.pelvis} clips=${this.actions.size}`
+          `visSkinned=${vis} pelvis=${look.pelvis} clips=${this.actions.size} ` +
+          `root=(${this.root.position.x.toFixed(2)},${this.root.position.y.toFixed(2)},${this.root.position.z.toFixed(2)})`
       );
     }
 
     return this;
+  }
+
+  /** Visible skinned pieces (body/arms/legs/head should be ≥3–4). */
+  _countVisibleSkinned() {
+    let n = 0;
+    this.model?.traverse((o) => {
+      if (o.isSkinnedMesh && o.visible) n++;
+    });
+    return n;
+  }
+
+  /** World AABB of visible body (for camera / debug). */
+  getWorldBodyBox(out = new Box3()) {
+    if (!this.model) return out.makeEmpty();
+    this.root.updateMatrixWorld(true);
+    out.makeEmpty();
+    let any = false;
+    this.model.traverse((o) => {
+      if (!o.isSkinnedMesh || !o.visible) return;
+      if (/weapon|shield|staff|sword|bow|axe|hammer/i.test(o.name || '')) return;
+      try {
+        const b = new Box3().setFromObject(o, true);
+        if (b.isEmpty()) return;
+        if (!any) {
+          out.copy(b);
+          any = true;
+        } else out.union(b);
+      } catch {
+        /* */
+      }
+    });
+    return out;
+  }
+
+  /** Snap root feet to world XZ (physics / spawn). */
+  placeAt(x, y, z) {
+    this.root.position.set(x, y ?? 0, z);
   }
 
   diagnoseLook() {
