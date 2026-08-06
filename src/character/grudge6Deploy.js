@@ -514,15 +514,16 @@ export function scaffoldGrudge6Kit(kit, opts = {}) {
   // 2) EQUIP FIRST — hide all → exclusive mesh_ids (kills wardrobe blob)
   const equip = applyExclusiveMeshIds(kit, meshIds, { allowUtility: false });
 
-  // 3) Math: identity → fit (GLB bake already ~SI; only fix absurd measures)
-  kit.userData.importPipeline = 'glb-baked';
+  // 3) Math: identity → SI fit (Toon residual ~2.6 mesh scale → ~1.8 m)
+  kit.userData.importPipeline = kit.userData.importPipeline || 'toon-rts-glb';
   kit.userData.grudgeHeightFit = false;
-  const fit = fitCharacterHeight(kit, HUMAN_HEIGHT_M, { pipeline: 'glb-baked' });
+  const fit = fitCharacterHeight(kit, HUMAN_HEIGHT_M, {
+    pipeline: kit.userData.importPipeline,
+  });
   forceUniformScale(kit);
 
-  // 4) Art-forward: GLB production kits often already face correctly via bone
-  // quats. Only force π/2 when explicitly requested (default true for Toon RTS).
-  // Double-yaw = sideways / moonwalk — set facePlusZ:false if still sideways.
+  // 4) Art-forward once: Toon export faces +X → play +Z (π/2 yaw).
+  // Never apply twice (userData.artForwardSet). Double-yaw = sideways.
   if (opts.facePlusZ === true) applyArtForwardPlusZ(kit);
   forceUniformScale(kit);
   reGroundAfterAnimSample(kit, 0);

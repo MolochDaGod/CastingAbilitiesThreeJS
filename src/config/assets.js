@@ -13,6 +13,7 @@ import {
   HUMAN_HEIGHT_M,
   RACES as SSOT_RACES,
   atlasUrlForRace,
+  kitUrlCandidates,
   kitUrlForRace
 } from './grudge6SSOT.js';
 
@@ -24,9 +25,9 @@ export const DRACO_DECODER_PATH =
   'https://www.gstatic.com/draco/versioned/decoders/1.5.7/';
 
 export const GEAR_PRESETS_URL = SSOT_GEAR_PRESETS;
-export { DEFAULT_RACE, atlasUrlForRace, kitUrlForRace };
+export { DEFAULT_RACE, atlasUrlForRace, kitUrlCandidates, kitUrlForRace, HUMAN_HEIGHT_M };
 
-/** Race kits + atlases (production GLB) — re-export stone SSOT shape for UI. */
+/** Race kits + atlases — Toon RTS ★ play URLs. */
 export const RACES = Object.fromEntries(
   Object.entries(SSOT_RACES).map(([id, r]) => [
     id,
@@ -35,9 +36,10 @@ export const RACES = Object.fromEntries(
       label: r.label,
       prefix: r.prefix,
       kitUrl: r.kitGlb,
-      atlasUrl: r.atlasUrl
-    }
-  ])
+      kitFallback: r.kitFallback,
+      atlasUrl: r.atlasUrl,
+    },
+  ]),
 );
 
 /**

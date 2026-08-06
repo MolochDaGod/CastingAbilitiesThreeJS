@@ -19,9 +19,13 @@ import {
 } from '../config/assets.js';
 import {
   atlasUrlForRace,
+  kitUrlCandidates,
   kitUrlForRace,
   loadoutToMeshIds,
-  raceDef
+  logSSOT,
+  isToonRtsKitUrl,
+  raceDef,
+  GRUDGE6_SSOT_VERSION
 } from '../config/grudge6SSOT.js';
 import { EquipmentManager } from '../character/EquipmentManager.js';
 import {
@@ -31,22 +35,27 @@ import {
   reGroundAfterAnimSample,
   scaffoldGrudge6Kit
 } from '../character/grudge6Deploy.js';
+import { RideIK } from '../character/RideIK.js';
 import { LAYER } from '../core/Layers.js';
 import { settings } from '../config/settings.js';
 import { disposeObject } from '../utils/dispose.js';
 import { loadBakedClipJson, rematchClipToSkeleton } from './bakeClip.js';
 
 const _castOrigin = new Vector3();
+const _rideFwd = new Vector3();
+const _rideLeft = new Vector3();
 
 /**
  * Toon RTS / grudge6 combat hero — clean path only:
  *  SkeletonUtils.clone → unifySkeletons (+ prune orphans) → mesh_ids
  *  → SI deploy → body atlas → mixer + gait + one-shots.
  *
- * Purged from this controller (do not re-add without SSOT):
- *  - SittingPose (Mixamo procedural — corrupts Bip001)
- *  - RideIK / windsurf bone writes
- *  - Soft HandIK aim that rewrites hand quaternions every frame
+ * Purged (do not re-add):
+ *  - SittingPose (Mixamo lotus — corrupts Bip001)
+ *  - Soft HandIK that rewrites hands every combat frame
+ *
+ * RideIK is allowed ONLY while WalkController ride is active
+ * (setRideActive true) — post-mixer feet→deck / hands→boom.
  */
 export class CharacterController {
   constructor(environment) {
@@ -82,10 +91,12 @@ export class CharacterController {
     this._gait = 0;
     this._gaitLocked = false;
 
-    // Stubs kept so WalkController / App do not throw if still referenced
     this.sitting = null;
+    /** @type {import('../character/RideIK.js').RideIK|null} */
     this.rideIk = null;
     this._rideActive = false;
+    /** World heading for ride pole vectors (set by WalkController) */
+    this._rideYaw = 0;
     this.ik = null;
   }
 
@@ -96,20 +107,35 @@ export class CharacterController {
   async load(assets, opts = {}) {
     this.raceId = opts.raceId || DEFAULT_RACE;
     this.presetId = opts.presetId || 'mage';
+    logSSOT();
 
     await this._loadPresets();
 
     const race = raceDef(this.raceId);
-    const kitUrl = kitUrlForRace(this.raceId);
+    const candidates = kitUrlCandidates(this.raceId);
     const atlasUrl = atlasUrlForRace(this.raceId);
 
-    const [gltf, atlas] = await Promise.all([
-      assets.loadGLTF(kitUrl),
-      assets.loadTexture(atlasUrl).catch((err) => {
-        console.warn('[CharacterController] atlas failed', err);
-        return null;
-      })
-    ]);
+    // Load Toon RTS ★ first, then legacy races fallback
+    let gltf = null;
+    let kitUrl = candidates[0];
+    let lastErr = null;
+    for (const url of candidates) {
+      try {
+        gltf = await assets.loadGLTF(url);
+        kitUrl = url;
+        break;
+      } catch (err) {
+        lastErr = err;
+        console.warn('[CharacterController] kit try fail', url, err?.message || err);
+      }
+    }
+    if (!gltf) throw lastErr || new Error('No Toon RTS race GLB');
+
+    // Atlas optional — Toon embeds usually enough; only for missing maps
+    const atlas = await assets.loadTexture(atlasUrl).catch((err) => {
+      console.warn('[CharacterController] atlas failed (ok if embeds)', err);
+      return null;
+    });
     await assets.settled();
 
     if (atlas) {
@@ -129,42 +155,43 @@ export class CharacterController {
       disposeObject(c);
     }
 
+    // Three.js best practice: SkeletonUtils.clone for skinned kits (never clone())
     const kit = skeletonClone(gltf.scene);
-    kit.name = `${race.id}_Characters`;
-    kit.userData.importPipeline = 'glb-baked';
+    kit.name = `${race.short}_toon`;
+    kit.userData.importPipeline = 'toon-rts-glb';
     kit.userData.importUrl = kitUrl;
+    kit.userData.playMesh = isToonRtsKitUrl(kitUrl) ? 'toon-rts' : 'legacy-races';
+    kit.userData.ssotVersion = GRUDGE6_SSOT_VERSION;
 
-    // Preset → mesh_ids (no bag/wood/quiver)
+    // Preset → mesh_ids (no bag/wood/quiver in combat showcase)
     const preset = this.presets.find((p) => p.id === this.presetId) || this.presets[0];
     this.animPackId = this._packFromPreset(preset);
-    const cleanLoadout = { ...(preset?.loadout || { body: 'A' }) };
+    const cleanLoadout = { ...(preset?.loadout || { body: 'A', arms: 'A', legs: 'A', head: 'A' }) };
     delete cleanLoadout.bag;
     delete cleanLoadout.wood;
     delete cleanLoadout.quiver;
     delete cleanLoadout.carry;
+    delete cleanLoadout.showUtility;
     const meshIds = loadoutToMeshIds(race.prefix, cleanLoadout);
 
-    // FULL Open scaffold:
-    //  unify → hide ALL → exclusive mesh_ids → fit 1.8 → face+Z → materials
-    // facePlusZ true once for Toon RTS export +X → play +Z
+    // Simple clean scaffold (purge path):
+    // unify → hide ALL → exclusive mesh_ids → SI fit → art-forward +Z → keep embeds
     const scaffold = scaffoldGrudge6Kit(kit, {
       meshIds,
       atlas: this.atlas,
-      facePlusZ: true
+      facePlusZ: true, // Toon FBX/GLB art +X → play +Z once
     });
 
-    // Catalog for inventory UI — MUST preserve scaffold visibility (hideAll was
-    // wiping the hero to invisible after a correct equip).
     this.equipment = new EquipmentManager(kit, { preserveVisibility: true });
     this.equipment.loadout = { ...cleanLoadout };
     this.equipment.carryMode = false;
     this.equipment.hideUtility();
 
-    // Hard re-assert exclusive equip in case catalog marked anything wrong
+    // Re-assert exclusive equip (catalog must not re-show wardrobe)
     const report = applyExclusiveMeshIds(kit, meshIds, { allowUtility: false });
     this.equipment.hideUtility();
 
-    // Layers: WORLD + CONTACT (contact-shadow pass)
+    // Three.js production: layers, shadows, frustumCulled off for skinned
     kit.traverse((o) => {
       if (!o.isMesh && !o.isSkinnedMesh) return;
       o.layers.set(LAYER.WORLD);
@@ -176,11 +203,11 @@ export class CharacterController {
       for (const m of mats) if (m) this.environment?.registerShadowCaster?.(m);
     });
 
-    // Hierarchy: root (world feet + yaw) → tilt → model (local scale / art-forward)
+    // root (world feet + yaw) → tilt → model
     this.tilt.add(kit);
     this.model = kit;
     this.root.position.set(0, 0, 0);
-    this.root.rotation.y = 0;
+    this.root.rotation.set(0, 0, 0);
     this.tilt.position.set(0, 0, 0);
     this.tilt.quaternion.identity();
 
@@ -188,35 +215,39 @@ export class CharacterController {
     this.headPosition.set(0, this.height * 0.86, 0);
     this.bones = this.equipment.findBones();
 
-    // Single mixer — Bip001 packs only
+    // Single AnimationMixer only — Bip001 packs, position tracks stripped
     this.mixer = new AnimationMixer(kit);
     this.actions.clear();
     this._boundPacks.clear();
 
     await this._bindPack(this.animPackId);
-    if (this.animPackId !== 'magic') await this._bindPack('magic');
-    if (this.animPackId !== 'sword_shield') await this._bindPack('sword_shield');
+    // Simple: only bind one combat pack + idle fallback
+    if (this.animPackId !== 'magic' && this.animPackId !== 'sword_shield') {
+      await this._bindPack('magic');
+    } else if (this.animPackId === 'magic') {
+      /* keep magic only — add sword on demand via requestOneShot path */
+    }
 
     if (this.actions.has('idle')) this.play('idle', 0);
     else if (this.actions.size) this.play([...this.actions.keys()][0], 0);
 
     this.mixer.update(1 / 30);
     reGroundAfterAnimSample(kit, 0);
-    // Ensure feet still at local 0 after idle sample
     this.root.position.y = 0;
+
+    // Ride IK only for lab ride mode (not active in combat default)
+    if (this.rideIk) this.rideIk.rebind(kit);
+    else this.rideIk = new RideIK(kit);
+    this._rideActive = false;
 
     const look = this.diagnoseLook();
     const vis = this._countVisibleSkinned();
-    if (!look.ok || vis < 3) {
-      console.warn('[CharacterController] look/vis', look, { visibleSkinned: vis, shown: report.shown });
-    } else {
-      console.info(
-        `[CharacterController] OK ${this.raceId} ${this.presetId} ` +
-          `h=${look.heightM}m feet=${look.feetMinY} equip=${report.matched}/${meshIds.length} ` +
-          `visSkinned=${vis} pelvis=${look.pelvis} clips=${this.actions.size} ` +
-          `root=(${this.root.position.x.toFixed(2)},${this.root.position.y.toFixed(2)},${this.root.position.z.toFixed(2)})`
-      );
-    }
+    console.info(
+      `[CharacterController] ${kit.userData.playMesh} ${this.raceId}/${this.presetId} ` +
+        `kit=${kitUrl.split('/').pop()} h=${look.heightM}m feet=${look.feetMinY} ` +
+        `equip=${report.matched} vis=${vis} clips=${this.actions.size} ` +
+        (look.ok && vis >= 3 ? 'OK' : `WARN ${JSON.stringify(look.errors || [])}`),
+    );
 
     return this;
   }
@@ -481,12 +512,38 @@ export class CharacterController {
     return target;
   }
 
-  // --- stubs: ride / sit purged ---
-  setRideActive(_active) {
-    this._rideActive = false;
+  /**
+   * Enable windsurf deck/boom IK. Only while WalkController ride is live.
+   * DRC combat checks `_rideActive` and yields locomotion.
+   * @param {boolean} active
+   * @param {number} [yaw] board heading for knee/elbow poles
+   */
+  setRideActive(active, yaw) {
+    this._rideActive = !!active;
+    if (Number.isFinite(yaw)) this._rideYaw = yaw;
+    if (this.rideIk) this.rideIk.setActive(this._rideActive);
+    if (this._rideActive) {
+      // Hold idle gait under ride — mixer still runs, IK overrides limbs
+      this.setGait?.(0, false);
+      this._gaitLocked = true;
+    } else {
+      this._gaitLocked = false;
+    }
   }
-  setRideSockets() {}
+
+  /**
+   * World sockets from HoverboardRide.getIkWorldTargets().
+   * @param {Record<string, import('three').Vector3|{x:number,y:number,z:number}>} worldSockets
+   * @param {number} [yaw]
+   */
+  setRideSockets(worldSockets, yaw) {
+    if (Number.isFinite(yaw)) this._rideYaw = yaw;
+    if (!this.rideIk) return;
+    this.rideIk.setTargets(worldSockets);
+  }
+
   setPose(pose) {
+    // Standing stance only on Bip001 (no Mixamo lotus)
     settings.character.pose = 'idle';
     return 'idle';
   }
@@ -502,6 +559,7 @@ export class CharacterController {
 
   setFacing(yaw) {
     this.root.rotation.y = yaw;
+    if (this._rideActive) this._rideYaw = yaw;
   }
 
   get facing() {
@@ -515,39 +573,55 @@ export class CharacterController {
   resetPlacement() {
     this.root.position.y = 0;
     this.setLean(0);
+    this.setRideActive(false);
   }
 
   update(dt) {
     if (!this.mixer) return;
 
-    if (this._oneShotTimer > 0) {
-      this._oneShotTimer -= dt;
-      this._attackTimer = this._oneShotTimer;
-      if (this._oneShotTimer <= 0) {
-        this._gaitLocked = false;
-        if (this._castingExternal && this.actions.has('cast')) {
-          this.animState = 'cast_loop';
-          this.play('cast', 0.2);
-        } else {
-          const g = this._gait;
-          this._gait = -1;
-          this.setGait(g, g >= 2);
+    // While riding, do not run combat one-shot / cast gait machine over limbs
+    if (!this._rideActive) {
+      if (this._oneShotTimer > 0) {
+        this._oneShotTimer -= dt;
+        this._attackTimer = this._oneShotTimer;
+        if (this._oneShotTimer <= 0) {
+          this._gaitLocked = false;
+          if (this._castingExternal && this.actions.has('cast')) {
+            this.animState = 'cast_loop';
+            this.play('cast', 0.2);
+          } else {
+            const g = this._gait;
+            this._gait = -1;
+            this.setGait(g, g >= 2);
+          }
         }
-      }
-    } else if (!this._gaitLocked) {
-      if (this._castingExternal && this.actions.has('cast') && this._gait === 0) {
-        if (this.animState !== 'cast_loop') {
-          this.animState = 'cast_loop';
-          this.play('cast', 0.15);
+      } else if (!this._gaitLocked) {
+        if (this._castingExternal && this.actions.has('cast') && this._gait === 0) {
+          if (this.animState !== 'cast_loop') {
+            this.animState = 'cast_loop';
+            this.play('cast', 0.15);
+          }
+        } else if (this.animState === 'cast_loop' && !this._castingExternal) {
+          this.animState = 'idle';
+          if (this.actions.has('idle')) this.play('idle', 0.25);
         }
-      } else if (this.animState === 'cast_loop' && !this._castingExternal) {
-        this.animState = 'idle';
-        if (this.actions.has('idle')) this.play('idle', 0.25);
       }
     }
 
     this.mixer.timeScale = settings.global.animationSpeed;
     this.mixer.update(dt);
+
+    // Post-mixer: plant feet on deck + grip boom (walk ride only)
+    if (this.rideIk && (this._rideActive || this.rideIk.weight > 1e-3)) {
+      const yaw = this._rideYaw || this.facing;
+      _rideFwd.set(Math.sin(yaw), 0, Math.cos(yaw));
+      _rideLeft.set(Math.cos(yaw), 0, -Math.sin(yaw));
+      this.rideIk.update(dt, {
+        boardForward: _rideFwd,
+        boardLeft: _rideLeft,
+        hipDrop: settings.walk?.hipDrop ?? 0.1
+      });
+    }
   }
 
   get position() {
