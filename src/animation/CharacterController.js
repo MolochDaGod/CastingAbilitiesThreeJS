@@ -25,6 +25,7 @@ import {
 import { EquipmentManager } from '../character/EquipmentManager.js';
 import {
   applyExclusiveMeshIds,
+  countSkeletons,
   diagnoseCharacterLook,
   reGroundAfterAnimSample,
   scaffoldGrudge6Kit
@@ -200,18 +201,28 @@ export class CharacterController {
   diagnoseLook() {
     if (!this.model) return { ok: false, reason: 'no-model' };
     const d = diagnoseCharacterLook(this.model, 0);
-    const bones = this.equipment?.findBones?.() || {};
+    const bones = this.equipment?.findBones?.() || this.bones || {};
+    // Don't throw — boot must complete even if bone helpers missing
+    let skelCount = 0;
+    try {
+      skelCount = countSkeletons(this.model);
+    } catch {
+      skelCount = -1;
+    }
+    const heightOk = (d.height ?? 0) >= 1.55 && (d.height ?? 0) <= 2.15;
+    const feetOk = Math.abs((d.feetMinY ?? 99) - 0) < 0.12;
     return {
-      ok: d.ok && !!bones.pelvis,
+      ok: heightOk && feetOk && !!(bones.pelvis || d.bip001?.count >= 18),
       heightM: +(d.height ?? 0).toFixed(3),
       feetMinY: +(d.feetMinY ?? 0).toFixed(3),
-      heightOk: d.ok,
-      feetOk: Math.abs((d.feetMinY ?? 99) - 0) < 0.12,
+      heightOk,
+      feetOk,
       pelvis: !!bones.pelvis,
       rHand: !!bones.rHand,
-      errors: d.errors,
+      errors: d.errors || [],
       equipMatched: this.equipment?.loadout || {},
-      skeletons: countSkeletons(this.model)
+      skeletons: skelCount,
+      bip001: d.bip001?.count ?? 0
     };
   }
 

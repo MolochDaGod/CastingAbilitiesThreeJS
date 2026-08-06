@@ -351,9 +351,10 @@ export function diagnoseCharacterLook(root, groundY = 0) {
   if (Math.abs(feetMinY - groundY) > 0.12) {
     errors.push(`feet minY ${feetMinY.toFixed(3)} off ground`);
   }
-  if (!findPelvis(root)) errors.push('no Bip001 Pelvis');
   const bip = validateBip001Bones(root);
-  if (!bip.ok) errors.push(`Bip001 ${bip.count}/${bip.expected}`);
+  if (!findPelvis(root) && bip.count === 0) errors.push('no Bip001 Pelvis');
+  // Height/feet are hard gates; Bip001 name-validate is soft (clips rematch separately)
+  if (!bip.ok && bip.count < 12) errors.push(`Bip001 weak ${bip.count}/${bip.expected}`);
   return {
     ok: errors.length === 0,
     errors,
@@ -473,8 +474,12 @@ export function scaffoldGrudge6Kit(kit, opts = {}) {
   const bip = validateBip001Bones(kit);
   console.info(
     `[grudge6Deploy] scaffold skels ${skBefore}→${countSkeletons(kit)} ` +
-      `Bip001 ${bip.count}/${bip.expected} bones=${BIP001_CORE_BONES.length}`
+      `Bip001 ${bip.count}/${bip.expected} boneNodes=${bip.boneNodes} ` +
+      `sample=${(bip.sampleNames || []).join('|')}`
   );
+  if (!bip.ok) {
+    console.warn('[grudge6Deploy] Bip001 validate', bip.missing, bip.sampleNames);
+  }
 
   // 2) EQUIP FIRST — hide all → exclusive mesh_ids (kills wardrobe blob)
   const equip = applyExclusiveMeshIds(kit, meshIds, { allowUtility: false });

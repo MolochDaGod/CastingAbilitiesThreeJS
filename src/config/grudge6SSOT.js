@@ -43,27 +43,48 @@ export const BIP001_BONE_COUNT = BIP001_CORE_BONES.length; // 18
 /** Utility meshes — NEVER show unless carry mode sets them explicitly. */
 export const UTILITY_SLOTS = Object.freeze(['bag', 'wood', 'quiver']);
 
+/** Alnum key so "Bip001 Pelvis" / "Bip001_Pelvis" / "Bip001 R ForeArm" match. */
+export function normalizeBoneKey(name) {
+  return String(name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
+
 /**
+ * Match 18 core joints by normalized name (space/underscore/case tolerant).
  * @param {import('three').Object3D} root
- * @returns {{ ok: boolean, found: string[], missing: string[], count: number }}
  */
 export function validateBip001Bones(root) {
-  const found = [];
-  const byName = new Map();
+  const byKey = new Map(); // norm → actual name
+  const actualNames = [];
   root.traverse((n) => {
-    if (n.isBone && n.name) byName.set(n.name, n);
+    const name = n.name || '';
+    if (!name) return;
+    // GLTF joints are Bone; also accept Bip001-named Object3D (defensive)
+    const isBone = n.isBone === true || n.type === 'Bone';
+    if (!isBone && !/^bip001/i.test(name)) return;
+    actualNames.push(name);
+    const k = normalizeBoneKey(name);
+    if (!byKey.has(k)) byKey.set(k, name);
   });
+
+  const found = [];
   const missing = [];
-  for (const name of BIP001_CORE_BONES) {
-    if (byName.has(name)) found.push(name);
-    else missing.push(name);
+  for (const want of BIP001_CORE_BONES) {
+    const hit = byKey.get(normalizeBoneKey(want));
+    if (hit) found.push(hit);
+    else missing.push(want);
   }
+
   return {
-    ok: missing.length === 0,
+    ok: missing.length === 0 && found.length >= BIP001_BONE_COUNT,
     found,
     missing,
     count: found.length,
-    expected: BIP001_BONE_COUNT
+    expected: BIP001_BONE_COUNT,
+    boneNodes: actualNames.length,
+    sampleNames: actualNames.slice(0, 8)
   };
 }
 
