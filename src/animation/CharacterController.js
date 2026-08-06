@@ -20,18 +20,14 @@ import {
   atlasUrlForRace,
   kitUrlForRace,
   loadoutToMeshIds,
-  raceDef,
-  validateBip001Bones
+  raceDef
 } from '../config/grudge6SSOT.js';
 import { EquipmentManager } from '../character/EquipmentManager.js';
 import {
-  applyBodyAtlas,
-  countSkeletons,
-  deployGrudge6Model,
+  applyExclusiveMeshIds,
   diagnoseCharacterLook,
-  prepMeshFlags,
   reGroundAfterAnimSample,
-  unifySkeletons
+  scaffoldGrudge6Kit
 } from '../character/grudge6Deploy.js';
 import { settings } from '../config/settings.js';
 import { disposeObject } from '../utils/dispose.js';
@@ -135,56 +131,43 @@ export class CharacterController {
     kit.userData.importPipeline = 'glb-baked';
     kit.userData.importUrl = kitUrl;
 
-    // 1) Unify multi-skeleton modular kit + prune orphan bones (mixer bind fix)
-    const skBefore = countSkeletons(kit);
-    unifySkeletons(kit);
-    const bip = validateBip001Bones(kit);
-    console.info(
-      `[CharacterController] skeletons ${skBefore} → ${countSkeletons(kit)}; ` +
-        `Bip001 ${bip.count}/${bip.expected}${bip.ok ? '' : ` missing=${bip.missing.join(',')}`}`
-    );
-    if (!bip.ok) {
-      console.warn('[CharacterController] Bip001 incomplete — expect 18 core joints', bip);
-    }
-
-    // 2) Equip BEFORE fit (wardrobe bomb inflates AABB)
-    //    hideAll + hideUtility: no bag/wood/quiver on combat hero
-    this.equipment = new EquipmentManager(kit);
+    // Preset → mesh_ids (no bag/wood/quiver)
     const preset = this.presets.find((p) => p.id === this.presetId) || this.presets[0];
     this.animPackId = this._packFromPreset(preset);
-    // Strip utility from CDN presets so archers don't force quiver unless carry
     const cleanLoadout = { ...(preset?.loadout || { body: 'A' }) };
     delete cleanLoadout.bag;
     delete cleanLoadout.wood;
     delete cleanLoadout.quiver;
     delete cleanLoadout.carry;
     const meshIds = loadoutToMeshIds(race.prefix, cleanLoadout);
-    const report = this.equipment.applyMeshIds(meshIds);
+
+    // FULL Open scaffold (was missing exclusive hide-all equip + fit math)
+    //  unify → hide ALL meshes → exclusive mesh_ids → fit 1.8 → face+Z → materials
+    const scaffold = scaffoldGrudge6Kit(kit, {
+      meshIds,
+      atlas: this.atlas,
+      facePlusZ: true
+    });
+
+    // EquipmentManager for inventory UI re-equip (catalog after scaffold equip)
+    this.equipment = new EquipmentManager(kit);
+    // Re-sync loadout state without re-showing wardrobe
+    this.equipment.loadout = { ...cleanLoadout };
     this.equipment.hideUtility();
-    if (report.missing?.length) {
-      console.warn('[CharacterController] mesh_ids missing', report);
-    }
+    this.equipment.carryMode = false;
 
-    // 3) SI deploy (fit if needed, art-forward, feet/pelvis)
-    const deploy = deployGrudge6Model(kit, { facePlusZ: true, groundY: 0, unify: false });
-    prepMeshFlags(kit);
-
-    // 4) Body atlas only (weapons keep embeds / colorSpace fix)
-    if (this.atlas) applyBodyAtlas(kit, this.atlas);
-    else applyBodyAtlas(kit, null);
     kit.traverse((o) => {
       if (!o.isMesh && !o.isSkinnedMesh) return;
       const mats = Array.isArray(o.material) ? o.material : [o.material];
       for (const m of mats) if (m) this.environment?.registerShadowCaster?.(m);
     });
 
-    reGroundAfterAnimSample(kit, 0);
-
     this.tilt.add(kit);
     this.model = kit;
-    this.height = deploy.height || kit.userData.deployHeightM || 1.8;
+    this.height = scaffold.height || kit.userData.deployHeightM || 1.8;
     this.headPosition.set(0, this.height * 0.86, 0);
     this.bones = this.equipment.findBones();
+    const report = scaffold.equip || { matched: 0, missing: [] };
 
     // 5) Single mixer — Bip001 packs only
     this.mixer = new AnimationMixer(kit);
@@ -296,18 +279,23 @@ export class CharacterController {
   }
 
   applyLoadout(loadout, meta = {}) {
-    if (!this.equipment) return { matched: 0, missing: ['no-equipment'] };
+    if (!this.model) return { matched: 0, missing: ['no-model'] };
     if (meta.presetId) this.presetId = meta.presetId;
     if (meta.pack) this.animPackId = this._packFromPreset({ pack: meta.pack });
     const race = raceDef(this.raceId);
-    const meshIds = loadoutToMeshIds(race.prefix, loadout);
-    const report = this.equipment.applyMeshIds(meshIds);
-    if (this.model) {
-      reGroundAfterAnimSample(this.model, 0);
-      this.height = this.model.userData.deployHeightM || this.height;
-      this.headPosition.set(0, this.height * 0.86, 0);
-      this.bones = this.equipment.findBones();
-    }
+    const clean = { ...loadout };
+    delete clean.bag;
+    delete clean.wood;
+    delete clean.quiver;
+    const meshIds = loadoutToMeshIds(race.prefix, clean);
+    // Exclusive scaffold equip (hide-all → one body / one weapon)
+    const report = applyExclusiveMeshIds(this.model, meshIds, { allowUtility: false });
+    this.equipment?.hideUtility?.();
+    if (this.equipment) this.equipment.loadout = { ...clean };
+    reGroundAfterAnimSample(this.model, 0);
+    this.height = this.model.userData.deployHeightM || this.height;
+    this.headPosition.set(0, this.height * 0.86, 0);
+    this.bones = this.equipment?.findBones?.() || this.bones;
     if (this.actions.has('idle') && this.animState === 'idle') this.play('idle', 0.2);
     return report;
   }

@@ -1,59 +1,60 @@
 /**
- * grudge6 character deploy — Multiverse / grudge-character-correctness SSOT.
+ * grudge6 kit scaffold — Open/Multiverse SSOT (the step we were missing).
  *
- * Order (do not reorder):
- *  0. unifySkeletons — Toon RTS modular kits ship ~14 disconnected skeletons
- *  1. skeleton.pose on unified bones
- *  2. SI fit (bodyBox skips weapons)
- *  3. art-forward +Z once
- *  4. feet ground + pelvis XZ center
- *  5. mesh_ids equip (caller)
- *  6. body-only atlas (caller)
- *  7. re-ground after equip / idle sample
+ * Production WK GLB structure (convert bake):
+ *   RootNode (y≈1.65)
+ *     Bip001 scale 2.54 + Unity bone quat
+ *       Bip001 Pelvis … 18 skin joints (+ toes/nubs/containers)
+ *     WK_Units_* SkinnedMesh siblings scale 2.54 (partial skins 1–18 joints)
+ *     weapons under hand containers (rigid Mesh, not skinned)
  *
- * Without unifySkeletons, idle clips deform only one bone tree → bag-blob /
- * exploded mesh (what the screenshot showed).
+ * Spiked bag-blob / flying planks = equip skipped or fuzzy multi-match
+ * (applyGearPreset comment in Open loadCharacter.ts).
  *
- * Production CDN GLBs are already body-fit ~1.8 m (aabbBody); fitToHuman is no-op
- * when height is already in band.
+ * Full order (do not reorder):
+ *  1. SkeletonUtils.clone
+ *  2. unifySkeletons (+ prune orphan bone *instances*)
+ *  3. hide ALL kit meshes → exclusive mesh_ids only (no bag/wood)
+ *  4. root scale/pos identity → fitCharacterHeight → forceUniformScale
+ *  5. art-forward +Z once → feet ground + pelvis XZ
+ *  6. materials: neutralize + colorSpace; atlas only if maps missing
+ *  7. re-ground after idle sample (caller)
  */
-import { Box3, DoubleSide, Skeleton, SRGBColorSpace, Vector3 } from 'three';
-import { HUMAN_HEIGHT_M } from '../config/grudge6SSOT.js';
+import {
+  Box3,
+  DoubleSide,
+  MeshStandardMaterial,
+  Skeleton,
+  SRGBColorSpace,
+  Vector3
+} from 'three';
+import {
+  BIP001_CORE_BONES,
+  HUMAN_HEIGHT_M,
+  validateBip001Bones
+} from '../config/grudge6SSOT.js';
 
-export { HUMAN_HEIGHT_M };
+export { HUMAN_HEIGHT_M, validateBip001Bones };
 export const HEIGHT_BAND_MIN = 1.55;
 export const HEIGHT_BAND_MAX = 2.15;
 
-/**
- * Collapse every SkinnedMesh onto ONE canonical skeleton (shallowest bone per
- * name, BFS from root). Toon RTS / grudge6 modular FBX→GLB ships each armor
- * piece with its own disconnected bone instances — AnimationMixer can only
- * drive one tree, so the rest explode unless unified.
- *
- * Port of gameopen `artifacts/animator/src/three/grudge/skeleton.ts`.
- * @returns {import('three').Skeleton|null} widest skeleton
- */
+const _size = new Vector3();
+const _center = new Vector3();
+const _origin = new Vector3();
+const _ax = new Vector3();
+
+// ── skeleton ──────────────────────────────────────────────────────────────
+
 export function unifySkeletons(root) {
   if (!root) return null;
   root.updateMatrixWorld(true);
 
-  /** @type {Map<string, import('three').Bone>} */
   const canon = new Map();
-  const queue = [...root.children];
-  while (queue.length) {
-    const node = queue.shift();
-    if (!node) continue;
-    if (node.isBone && !canon.has(node.name)) canon.set(node.name, node);
-    for (const c of node.children) queue.push(c);
-  }
+  root.traverse((node) => {
+    if (node.isBone && node.name && !canon.has(node.name)) canon.set(node.name, node);
+  });
   if (canon.size === 0) {
-    // Some GLBs only put bones under Armature not yet walked — full traverse
-    root.traverse((node) => {
-      if (node.isBone && !canon.has(node.name)) canon.set(node.name, node);
-    });
-  }
-  if (canon.size === 0) {
-    console.warn('[grudge6Deploy] unifySkeletons: no Bone nodes found');
+    console.warn('[grudge6Deploy] unifySkeletons: no Bone nodes');
     return null;
   }
 
@@ -78,32 +79,22 @@ export function unifySkeletons(root) {
     if (!widest || newSkel.bones.length > widest.bones.length) widest = newSkel;
   });
 
-  // CRITICAL: remove non-canonical Bone nodes from the graph.
-  // PropertyBinding / AnimationMixer finds the *first* node by name. Dead
-  // duplicate Bip001 trees would still receive clip tracks while skins use
-  // canon bones → exploded bag-blob mesh (the screenshot failure).
+  // Drop non-canonical Bone *instances* so AnimationMixer binds the shared tree.
   const canonSet = new Set(canon.values());
   const orphans = [];
   root.traverse((node) => {
     if (node.isBone && !canonSet.has(node)) orphans.push(node);
   });
-  for (const bone of orphans) {
-    bone.parent?.remove(bone);
-  }
+  for (const bone of orphans) bone.parent?.remove(bone);
 
-  if (unresolved > 0) {
-    console.warn(
-      `[grudge6Deploy] unifySkeletons: ${unresolved} bone(s) had no canonical match`
-    );
-  }
   console.info(
-    `[grudge6Deploy] unifySkeletons: ${beforeIds.size} skels → 1 canon (${canon.size} bones), ` +
-      `rebound ${rebound} skins, pruned ${orphans.length} orphan bones`
+    `[grudge6Deploy] unify: ${beforeIds.size} Skeleton objs → 1 tree (${canon.size} named bones), ` +
+      `rebound ${rebound}, pruned ${orphans.length}` +
+      (unresolved ? `, unresolved ${unresolved}` : '')
   );
   return widest;
 }
 
-/** Count unique skeleton UUIDs (diagnose multi-skel bags). */
 export function countSkeletons(root) {
   const ids = new Set();
   root.traverse((o) => {
@@ -112,21 +103,131 @@ export function countSkeletons(root) {
   return ids.size;
 }
 
+// ── equip (Open applyGearPreset) ──────────────────────────────────────────
+
+function meshKey(name) {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/^wk_|^brb_|^orc_|^elf_|^ud_|^dwf_/, '')
+    .replace(/units_/g, '')
+    .replace(/xtra_/g, '')
+    .replace(/weapon_/g, 'weapon')
+    .replace(/[^a-z0-9]/g, '');
+}
+
+function meshRole(key) {
+  if (/weapon|sword|axe|bow|staff|spear|dagger|hammer|mace|pick|shield|quiver|bag|wood/.test(key)) {
+    if (/shield/.test(key)) return 'shield';
+    if (/quiver|bag|wood/.test(key)) return 'utility';
+    return 'weapon';
+  }
+  if (/body/.test(key)) return 'body';
+  if (/head|hat/.test(key)) return 'head';
+  if (/arms/.test(key)) return 'arms';
+  if (/legs/.test(key)) return 'legs';
+  if (/shoulder/.test(key)) return 'shoulders';
+  return null;
+}
+
+/** Nuclear hide: every Mesh/SkinnedMesh (Open hideAllKitMeshes). */
+export function hideAllKitMeshes(group) {
+  group.traverse((node) => {
+    if (!node.isMesh && !node.isSkinnedMesh) return;
+    if (node.isBone) return;
+    node.visible = false;
+  });
+}
+
 /**
- * Skinned body AABB for height/feet.
- * @param {import('three').Object3D} root
- * @param {boolean} [visibleOnly=false] NEVER true for deploy scale
- *   (mesh_ids hide most meshes → sword becomes “height”).
+ * Hide all → exclusive role match for mesh_ids.
+ * Spiked-blob = this was skipped or multi-body shown.
+ * @returns {{ matched: number, shown: string[], missing: string[] }}
  */
-export function bodyBox(root, visibleOnly = false) {
+export function applyExclusiveMeshIds(group, meshIds = [], { allowUtility = false } = {}) {
+  hideAllKitMeshes(group);
+  const wantKeys = (meshIds || []).map(meshKey).filter(Boolean);
+  const missing = [];
+  const shown = [];
+
+  if (!wantKeys.length) {
+    // bare body A fail-safe
+    group.traverse((node) => {
+      if (!node.isSkinnedMesh) return;
+      if (/units_body_a|bodya/i.test(meshKey(node.name))) {
+        node.visible = true;
+        shown.push(node.name);
+      }
+    });
+    return { matched: shown.length, shown, missing: ['empty-loadout'] };
+  }
+
+  const cands = [];
+  group.traverse((node) => {
+    if (!node.isMesh && !node.isSkinnedMesh) return;
+    const key = meshKey(node.name);
+    if (!key) return;
+    let score = 0;
+    for (const w of wantKeys) {
+      if (key === w) score = Math.max(score, 100);
+      else if (key.endsWith(w) || w.endsWith(key)) score = Math.max(score, 70);
+      else if (key.includes(w) || w.includes(key)) score = Math.max(score, 40);
+    }
+    if (score > 0) cands.push({ node, key, score, role: meshRole(key) });
+  });
+  cands.sort((a, b) => b.score - a.score);
+
+  const taken = new Set();
+  for (const c of cands) {
+    const role = c.role || c.key;
+    if (role === 'utility' && !allowUtility) continue;
+    if (role !== 'utility' && taken.has(role)) continue;
+    if (role !== 'utility') taken.add(role);
+    c.node.visible = true;
+    shown.push(c.node.name);
+  }
+
+  for (const w of wantKeys) {
+    if (!cands.some((c) => c.score >= 70 && (c.key === w || c.key.endsWith(w) || w.endsWith(c.key)))) {
+      missing.push(w);
+    }
+  }
+
+  // Fail-safe body
+  if (!shown.some((n) => /body/i.test(n))) {
+    group.traverse((node) => {
+      if (!node.isSkinnedMesh || shown.length > 8) return;
+      if (/body/i.test(node.name) && !/weapon/i.test(node.name)) {
+        node.visible = true;
+        shown.push(node.name);
+      }
+    });
+  }
+
+  // Hard ban utility
+  if (!allowUtility) {
+    group.traverse((n) => {
+      if ((!n.isMesh && !n.isSkinnedMesh) || !n.name) return;
+      if (/xtra_|bag|wood|quiver/i.test(n.name)) n.visible = false;
+    });
+  }
+
+  console.info(
+    `[grudge6Deploy] equip exclusive shown=${shown.length} missing=${missing.length}`,
+    shown.slice(0, 8)
+  );
+  return { matched: shown.length, shown, missing };
+}
+
+// ── measure / fit (Open fitCharacterHeight) ────────────────────────────────
+
+export function bodyBox(root, visibleOnly = true) {
   const box = new Box3();
   let any = false;
   root.updateMatrixWorld(true);
   root.traverse((o) => {
     if (!o.isSkinnedMesh) return;
     if (visibleOnly && !o.visible) return;
-    // Skip pure weapon/shield parts when measuring human height
-    if (!visibleOnly && /weapon|shield|quiver|bag|xtra|sword|staff|bow|axe|hammer|spear/i.test(o.name || '')) {
+    if (/weapon|shield|quiver|bag|xtra|sword|staff|bow|axe|hammer|spear/i.test(o.name || '')) {
       return;
     }
     try {
@@ -137,76 +238,22 @@ export function bodyBox(root, visibleOnly = false) {
         any = true;
       } else box.union(b);
     } catch {
-      /* skip broken skin */
+      /* */
     }
   });
-  if (!any) {
-    root.traverse((o) => {
-      if (!o.isSkinnedMesh) return;
-      try {
-        const b = new Box3().setFromObject(o, true);
-        if (b.isEmpty()) return;
-        if (!any) {
-          box.copy(b);
-          any = true;
-        } else box.union(b);
-      } catch {
-        /* */
-      }
-    });
-  }
   if (!any) box.setFromObject(root, true);
   return box;
 }
 
 export function measureHeight(root) {
-  const size = new Vector3();
-  bodyBox(root).getSize(size);
-  return size.y;
+  bodyBox(root, true).getSize(_size);
+  return _size.y;
 }
 
-/**
- * Uniform unit normalize only. Already SI (1.55–2.15 m) → leave bake alone.
- * Same path for every race including orc.
- */
-export function fitToHuman(root, targetH = HUMAN_HEIGHT_M) {
-  root.updateMatrixWorld(true);
-  let h = measureHeight(root);
-  if (h < 1e-4) return 1;
-
-  let factor = 1;
-
-  if (h > 50) {
-    root.scale.multiplyScalar(0.01);
-    root.updateMatrixWorld(true);
-    h = measureHeight(root);
-    factor *= 0.01;
-  } else if (h < 0.05) {
-    root.scale.multiplyScalar(100);
-    root.updateMatrixWorld(true);
-    h = measureHeight(root);
-    factor *= 100;
-  }
-
-  if (h >= HEIGHT_BAND_MIN && h <= HEIGHT_BAND_MAX) {
-    root.userData.deployScaleFactor = factor;
-    root.userData.deployHeightM = h;
-    root.userData.grudgeHeightFit = true;
-    return factor;
-  }
-
-  if (h > 1e-4) {
-    const s = targetH / h;
-    root.scale.multiplyScalar(s);
-    factor *= s;
-    root.updateMatrixWorld(true);
-    h = measureHeight(root);
-  }
-
-  root.userData.deployScaleFactor = factor;
-  root.userData.deployHeightM = h;
-  root.userData.grudgeHeightFit = true;
-  return factor;
+export function forceUniformScale(root) {
+  const s = (Math.abs(root.scale.x) + Math.abs(root.scale.y) + Math.abs(root.scale.z)) / 3;
+  const u = Number.isFinite(s) && s > 1e-6 ? s : 1;
+  root.scale.set(u, u, u);
 }
 
 export function findPelvis(root) {
@@ -218,37 +265,59 @@ export function findPelvis(root) {
   );
 }
 
-/** Feet on groundY; center XZ on Bip001 Pelvis (NOT pelvis-as-feet). */
-export function groundFeetAndCenterXZ(root, groundY = 0) {
-  root.updateMatrixWorld(true);
-  let box = bodyBox(root);
-  if (Number.isFinite(box.min.y)) {
-    root.position.y += groundY - box.min.y;
-  }
+/**
+ * Open fitCharacterHeight: identity scale → decade unit fix → residual fit →
+ * pelvis XZ center → feet on y=0.
+ */
+export function fitCharacterHeight(model, targetM = HUMAN_HEIGHT_M) {
+  model.scale.set(1, 1, 1);
+  model.position.set(0, 0, 0);
+  model.updateMatrixWorld(true);
 
-  const pelvis = findPelvis(root);
-  if (pelvis) {
-    const wp = new Vector3();
-    pelvis.getWorldPosition(wp);
-    const parent = root.parent;
-    if (parent) {
-      const local = parent.worldToLocal(wp.clone());
-      root.position.x -= local.x;
-      root.position.z -= local.z;
-    } else {
-      root.position.x -= wp.x;
-      root.position.z -= wp.z;
-    }
-  }
+  const nativeHeight = measureHeight(model) || 1;
+  let unitFix = 1;
+  const ratio = nativeHeight / targetM;
+  if (ratio >= 70 && ratio <= 140) unitFix = 0.01;
+  else if (ratio >= 1 / 140 && ratio <= 1 / 70) unitFix = 100;
+  else if (ratio >= 7 && ratio <= 14) unitFix = 0.1;
+  else if (ratio >= 1 / 14 && ratio <= 1 / 7) unitFix = 10;
+  else if (nativeHeight > 15 && nativeHeight < 500) unitFix = 0.01;
+  else if (nativeHeight < 0.05) unitFix = 100;
 
-  root.updateMatrixWorld(true);
-  box = bodyBox(root);
-  if (Number.isFinite(box.min.y)) {
-    root.position.y += groundY - box.min.y;
-  }
+  model.scale.setScalar(unitFix);
+  model.updateMatrixWorld(true);
+  const midH = measureHeight(model) || targetM;
+  let fit = midH > 1e-6 ? targetM / midH : 1;
+  if (!Number.isFinite(fit) || fit <= 0) fit = 1;
+  fit = Math.min(12, Math.max(0.02, fit));
+
+  const finalScale = unitFix * fit;
+  model.scale.setScalar(finalScale);
+  model.updateMatrixWorld(true);
+  model.userData.grudgeUnitFix = unitFix;
+  model.userData.grudgeNativeHeight = nativeHeight;
+  model.userData.grudgeHeightFit = true;
+  model.userData.deployScaleFactor = finalScale;
+  model.userData.deployHeightM = measureHeight(model);
+
+  // Pelvis XZ + feet Y
+  const box2 = bodyBox(model, true);
+  box2.getCenter(_center);
+  const hips = findPelvis(model);
+  if (hips) hips.getWorldPosition(_ax);
+  else _ax.set(_center.x, 0, _center.z);
+  model.getWorldPosition(_origin);
+  model.position.x -= _ax.x - _origin.x;
+  model.position.z -= _ax.z - _origin.z;
+  model.updateMatrixWorld(true);
+  const box3 = bodyBox(model, true);
+  model.position.y -= box3.min.y;
+  model.updateMatrixWorld(true);
+  model.userData.deployHeightM = measureHeight(model);
+
+  return { scale: finalScale, nativeHeight, unitFix, height: model.userData.deployHeightM };
 }
 
-/** Toon RTS art faces +X → local +Z once. Idempotent. */
 export function applyArtForwardPlusZ(model) {
   if (!model || model.userData.artForwardSet) return false;
   model.rotation.y = Math.PI / 2;
@@ -273,9 +342,8 @@ export function reGroundAfterAnimSample(root, groundY = 0) {
 export function diagnoseCharacterLook(root, groundY = 0) {
   const errors = [];
   const box = bodyBox(root, true);
-  const size = new Vector3();
-  box.getSize(size);
-  const height = size.y;
+  box.getSize(_size);
+  const height = _size.y;
   const feetMinY = box.min.y;
   if (height < HEIGHT_BAND_MIN || height > HEIGHT_BAND_MAX) {
     errors.push(`height ${height.toFixed(2)} not in ${HEIGHT_BAND_MIN}–${HEIGHT_BAND_MAX}`);
@@ -284,98 +352,93 @@ export function diagnoseCharacterLook(root, groundY = 0) {
     errors.push(`feet minY ${feetMinY.toFixed(3)} off ground`);
   }
   if (!findPelvis(root)) errors.push('no Bip001 Pelvis');
+  const bip = validateBip001Bones(root);
+  if (!bip.ok) errors.push(`Bip001 ${bip.count}/${bip.expected}`);
   return {
     ok: errors.length === 0,
     errors,
     height,
     feetMinY,
     scaleFactor: root.userData.deployScaleFactor ?? 1,
-    artForward: !!root.userData.artForwardSet
+    artForward: !!root.userData.artForwardSet,
+    bip001: bip
   };
 }
 
-/**
- * Full deploy: unify skeletons → pose → unit normalize → art-forward → feet.
- * Call BEFORE mesh_ids equip.
- */
-export function deployGrudge6Model(model, opts = {}) {
-  // REQUIRED for grudge6 modular kits (multi disconnected skins).
-  if (opts.unify !== false) unifySkeletons(model);
+// ── materials ─────────────────────────────────────────────────────────────
 
-  model.traverse((o) => {
-    if (o.isSkinnedMesh && o.skeleton) {
-      o.skeleton.pose();
-      o.skeleton.update();
+/** Neutralize metal / colorSpace on embedded maps (glb-baked path). */
+export function restoreCharacterMaterials(root) {
+  root.traverse((o) => {
+    if (!o.isMesh && !o.isSkinnedMesh) return;
+    o.castShadow = true;
+    o.receiveShadow = true;
+    if (o.isSkinnedMesh) o.frustumCulled = false;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    for (const m of mats) {
+      if (!m) continue;
+      if (m.map) {
+        m.map.colorSpace = SRGBColorSpace;
+        m.map.flipY = false;
+      }
+      if (m.isMeshStandardMaterial || m.isMeshPhysicalMaterial) {
+        m.metalness = Math.min(m.metalness ?? 0, 0.08);
+        m.roughness = Math.max(m.roughness ?? 0.7, 0.55);
+        if (m.map) m.color?.setHex?.(0xffffff);
+        m.needsUpdate = true;
+      }
     }
   });
-  model.updateMatrixWorld(true);
-
-  const beforeH = measureHeight(model);
-  fitToHuman(model, opts.targetH ?? HUMAN_HEIGHT_M);
-  if (opts.facePlusZ !== false) applyArtForwardPlusZ(model);
-  groundFeetAndCenterXZ(model, opts.groundY ?? 0);
-  const diag = diagnoseCharacterLook(model, opts.groundY ?? 0);
-  diag.beforeHeight = beforeH;
-  diag.skeletonCount = countSkeletons(model);
-  model.userData.characterDeployed = true;
-  model.userData.skeletonCount = diag.skeletonCount;
-  console.info(
-    `[grudge6Deploy] before=${beforeH.toFixed(2)}m → after=${diag.height?.toFixed(2)}m ` +
-      `factor×${(diag.scaleFactor ?? 1).toFixed(4)} feet=${diag.feetMinY?.toFixed(3)} ` +
-      `skel=${diag.skeletonCount} ` +
-      (diag.ok ? 'OK' : diag.errors.join('; '))
-  );
-  return diag;
 }
 
 /**
- * Paint race atlas onto body/armor skinned meshes only.
- * NEVER splat onto weapons/shields (scrambles UVs when materials differ).
- * Production GLB often already embeds WK_atlas.webp — still normalize colorSpace.
- *
- * @returns {number} materials touched
+ * Body/armor atlas only when maps missing. Never force-replace good GLB embeds
+ * (Open: glb-baked scramble risk). Always skip weapons.
  */
-export function applyBodyAtlas(root, atlas) {
-  if (!root) return 0;
+export function applyBodyAtlasIfNeeded(root, atlas) {
+  if (!root || !atlas) {
+    restoreCharacterMaterials(root);
+    return 0;
+  }
+  let mapped = 0;
+  let total = 0;
+  root.traverse((o) => {
+    if (!o.isSkinnedMesh) return;
+    total++;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    if (mats.some((m) => m?.map)) mapped++;
+  });
+  const ratio = total ? mapped / total : 0;
+  restoreCharacterMaterials(root);
+  // If most skins already have maps, keep embeds
+  if (ratio >= 0.5) {
+    console.info(`[grudge6Deploy] keep embedded maps mapRatio=${ratio.toFixed(2)}`);
+    return 0;
+  }
   let n = 0;
   root.traverse((o) => {
     if (!o.isMesh && !o.isSkinnedMesh) return;
-    const name = o.name || '';
-    if (/weapon|shield|quiver|bag|xtra|sword|bow|staff|axe|hammer|spear|pick/i.test(name)) {
-      // Still fix colorSpace on embedded maps
-      const mats = Array.isArray(o.material) ? o.material : [o.material];
-      for (const m of mats) {
-        if (m?.map) {
-          m.map.colorSpace = SRGBColorSpace;
-          m.map.flipY = false;
-          m.needsUpdate = true;
-        }
-      }
+    if (/weapon|shield|quiver|bag|xtra|sword|bow|staff|axe|hammer|spear/i.test(o.name || '')) {
       return;
     }
     const mats = Array.isArray(o.material) ? o.material : [o.material];
     for (const m of mats) {
       if (!m) continue;
-      if (atlas) {
-        m.map = atlas;
-        m.color?.set?.(0xffffff);
-      }
-      if (m.map) {
-        m.map.colorSpace = SRGBColorSpace;
-        m.map.flipY = false;
-      }
-      m.vertexColors = false;
-      m.metalness = Math.min(m.metalness ?? 0.1, 0.2);
-      m.roughness = Math.max(m.roughness ?? 0.75, 0.55);
+      m.map = atlas;
+      m.color?.setHex?.(0xffffff);
+      m.map.colorSpace = SRGBColorSpace;
+      m.map.flipY = false;
+      m.metalness = 0.05;
+      m.roughness = 0.7;
       m.side = DoubleSide;
       m.needsUpdate = true;
       n++;
     }
   });
+  console.info(`[grudge6Deploy] atlas rebound mats=${n} (mapRatio was ${ratio.toFixed(2)})`);
   return n;
 }
 
-/** Shadow + frustum flags after deploy. */
 export function prepMeshFlags(root) {
   root.traverse((o) => {
     if (!o.isMesh && !o.isSkinnedMesh) return;
@@ -383,4 +446,87 @@ export function prepMeshFlags(root) {
     o.receiveShadow = true;
     if (o.isSkinnedMesh) o.frustumCulled = false;
   });
+}
+
+// ── full scaffold (the missing step) ──────────────────────────────────────
+
+/**
+ * Full Open/Multiverse scaffold after SkeletonUtils.clone.
+ * @param {import('three').Object3D} kit
+ * @param {{ meshIds: string[], atlas?: import('three').Texture|null, facePlusZ?: boolean }} opts
+ */
+export function scaffoldGrudge6Kit(kit, opts = {}) {
+  const meshIds = opts.meshIds || [];
+  const atlas = opts.atlas ?? null;
+
+  // 1) Shared Bip001 tree
+  const skBefore = countSkeletons(kit);
+  unifySkeletons(kit);
+  kit.traverse((o) => {
+    if (o.isSkinnedMesh && o.skeleton) {
+      o.skeleton.pose();
+      o.skeleton.update();
+    }
+  });
+  kit.updateMatrixWorld(true);
+
+  const bip = validateBip001Bones(kit);
+  console.info(
+    `[grudge6Deploy] scaffold skels ${skBefore}→${countSkeletons(kit)} ` +
+      `Bip001 ${bip.count}/${bip.expected} bones=${BIP001_CORE_BONES.length}`
+  );
+
+  // 2) EQUIP FIRST — hide all → exclusive mesh_ids (kills wardrobe blob)
+  const equip = applyExclusiveMeshIds(kit, meshIds, { allowUtility: false });
+
+  // 3) Math: identity → fitCharacterHeight (Unity 2.54 residual) → uniform
+  kit.userData.importPipeline = 'glb-baked';
+  kit.userData.grudgeHeightFit = false;
+  const fit = fitCharacterHeight(kit, HUMAN_HEIGHT_M);
+  forceUniformScale(kit);
+
+  // 4) Art-forward once (Toon RTS +X → controller +Z)
+  if (opts.facePlusZ !== false) applyArtForwardPlusZ(kit);
+  forceUniformScale(kit);
+  reGroundAfterAnimSample(kit, 0);
+
+  // 5) Materials
+  applyBodyAtlasIfNeeded(kit, atlas);
+  prepMeshFlags(kit);
+
+  const look = diagnoseCharacterLook(kit, 0);
+  look.beforeHeight = fit.nativeHeight;
+  look.equip = equip;
+  look.fit = fit;
+  kit.userData.characterDeployed = true;
+  kit.userData.scaffold = true;
+
+  console.info(
+    `[grudge6Deploy] scaffold done native=${fit.nativeHeight.toFixed(2)}m ` +
+      `→ ${look.height?.toFixed(2)}m unitFix=${fit.unitFix} scale=${fit.scale.toFixed(4)} ` +
+      `feet=${look.feetMinY?.toFixed(3)} equip=${equip.matched} ` +
+      (look.ok ? 'OK' : look.errors.join('; '))
+  );
+  return look;
+}
+
+/** @deprecated use scaffoldGrudge6Kit */
+export function deployGrudge6Model(model, opts = {}) {
+  if (opts.unify !== false) unifySkeletons(model);
+  model.traverse((o) => {
+    if (o.isSkinnedMesh && o.skeleton) {
+      o.skeleton.pose();
+      o.skeleton.update();
+    }
+  });
+  const fit = fitCharacterHeight(model, opts.targetH ?? HUMAN_HEIGHT_M);
+  if (opts.facePlusZ !== false) applyArtForwardPlusZ(model);
+  reGroundAfterAnimSample(model, opts.groundY ?? 0);
+  const diag = diagnoseCharacterLook(model, opts.groundY ?? 0);
+  diag.beforeHeight = fit.nativeHeight;
+  return diag;
+}
+
+export function applyBodyAtlas(root, atlas) {
+  return applyBodyAtlasIfNeeded(root, atlas);
 }
