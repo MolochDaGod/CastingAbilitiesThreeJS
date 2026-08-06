@@ -1,11 +1,19 @@
 /**
  * Toon RTS / grudge6 equipment = child mesh visibility (never body GLB swap).
  * SSOT: grudge6-modular-characters
+ *
+ * Hard rules:
+ *  - Hide ALL equippable first
+ *  - Show only mesh_ids / loadout slots
+ *  - NEVER show bag / wood / quiver unless carry mode (setCarryVisuals)
  */
 
 import { EQUIP_SLOTS, WEAPON_SLOTS } from '../config/assets.js';
+import { UTILITY_SLOTS } from '../config/grudge6SSOT.js';
 
 const RACE_PREFIX = /^(wk|brb|orc|elf|ud|dwf)_/i;
+/** Author names that must stay off for combat showcase */
+const UTILITY_NAME_RE = /xtra_?(bag|wood|quiver)|bone_bag|bone_wood|quiver/i;
 
 export function meshKey(name) {
   return String(name || '')
@@ -49,7 +57,8 @@ export function classifyMesh(name) {
     { slot: 'bow', re: /^(?:weapon)?bow([a-z0-9])?$/ },
     { slot: 'shield', re: /^shield([a-z0-9])?$/ },
     { slot: 'quiver', re: /^quiver([a-z0-9])?$/ },
-    { slot: 'bag', re: /^(?:xtra)?bag([a-z0-9])?$/ }
+    { slot: 'bag', re: /^(?:xtra)?bag([a-z0-9])?$/ },
+    { slot: 'wood', re: /^(?:xtra)?wood([a-z0-9])?$/ }
   ];
 
   for (const { slot, re } of slotPatterns) {
@@ -76,7 +85,8 @@ export function classifyMesh(name) {
     ['quiver', 'quiver'],
     ['bow', 'bow'],
     ['axe', 'axe'],
-    ['bag', 'bag']
+    ['bag', 'bag'],
+    ['wood', 'wood']
   ];
   for (const [frag, slot] of contains) {
     if (!key.includes(frag)) continue;
@@ -100,20 +110,42 @@ export class EquipmentManager {
     this.bySlotVariant = new Map();
     /** @type {import('three').Object3D[]} */
     this.equippable = [];
+    /** @type {import('three').Object3D[]} bag/wood/quiver always tracked */
+    this.utilityMeshes = [];
     /** @type {Record<string, string>} */
     this.loadout = {};
+    /** When false (default combat), bag/wood/quiver stay hidden. */
+    this.carryMode = false;
     this._catalog();
+    // Start clean: nothing equippable visible
+    this.hideAll();
+    this.hideUtility();
   }
 
   _catalog() {
     this.bySlot.clear();
     this.bySlotVariant.clear();
     this.equippable = [];
+    this.utilityMeshes = [];
 
     this.root.traverse((node) => {
       if (!node.isMesh && !node.isSkinnedMesh) return;
-      const info = classifyMesh(node.name);
-      if (!info) return;
+      const name = node.name || '';
+
+      // Always track utility by name even if classify misses
+      if (UTILITY_NAME_RE.test(name)) {
+        this.utilityMeshes.push(node);
+      }
+
+      const info = classifyMesh(name);
+      if (!info) {
+        // Unclassified mesh that looks like gear → hide by default
+        if (/weapon|shield|units_|xtra_/i.test(name)) {
+          node.visible = false;
+          this.equippable.push(node);
+        }
+        return;
+      }
 
       this.equippable.push(node);
       if (!this.bySlot.has(info.slot)) this.bySlot.set(info.slot, []);
@@ -123,11 +155,30 @@ export class EquipmentManager {
       const vm = this.bySlotVariant.get(info.slot);
       if (!vm.has(info.variant)) vm.set(info.variant, []);
       vm.get(info.variant).push(node);
+    });
+  }
 
-      // index bare letter variants as A when author used unlettered names
-      if (info.variant === '_default' && !vm.has('A')) {
-        // keep _default only
-      }
+  /** RTS worker carry visuals — bag/wood only while carrying. */
+  setCarryVisuals({ bag = false, wood = false, quiver = false } = {}) {
+    this.carryMode = !!(bag || wood || quiver);
+    this.hideUtility();
+    if (bag) this._show('bag', this.variantsFor('bag')[0] || '_default');
+    if (wood) this._show('wood', this.variantsFor('wood')[0] || '_default');
+    if (quiver) this._show('quiver', this.variantsFor('quiver')[0] || '_default');
+  }
+
+  /** Force bag / wood / quiver off (combat default). */
+  hideUtility() {
+    for (const m of this.utilityMeshes) m.visible = false;
+    for (const slot of UTILITY_SLOTS) {
+      const list = this.bySlot.get(slot) || [];
+      for (const m of list) m.visible = false;
+      delete this.loadout[slot];
+    }
+    // Name fallback for any that skipped catalog
+    this.root.traverse((n) => {
+      if ((!n.isMesh && !n.isSkinnedMesh) || !n.name) return;
+      if (UTILITY_NAME_RE.test(n.name)) n.visible = false;
     });
   }
 
@@ -198,10 +249,13 @@ export class EquipmentManager {
       }
     }
 
+    // Combat default: never leave bag/wood/quiver on unless carryMode
+    if (!this.carryMode) this.hideUtility();
+
     return {
       matched,
       missing,
-      shown,
+      shown: shown.filter((n) => !UTILITY_NAME_RE.test(n)),
       slots: Object.keys(this.loadout),
       catalogSlots: [...this.bySlot.keys()]
     };
@@ -254,6 +308,8 @@ export class EquipmentManager {
         matched += 1;
       }
     }
+
+    if (!this.carryMode) this.hideUtility();
 
     return {
       matched,

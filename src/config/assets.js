@@ -93,15 +93,14 @@ export const FALLBACK_PRESETS = [
   {
     id: 'archer',
     label: 'Archer',
-    description: 'Cloth + leather, bow & quiver.',
+    description: 'Cloth + leather, bow (quiver only via carry).',
     pack: 'longbow',
     loadout: {
       body: 'A',
       arms: 'A',
       legs: 'A',
       head: 'A',
-      bow: '_default',
-      quiver: '_default'
+      bow: '_default'
     }
   },
   {
@@ -130,6 +129,7 @@ export function bakedClipUrl(rel) {
 export const TARGET_HEIGHT_M = HUMAN_HEIGHT_M;
 
 /** Armor / weapon slots used by EquipmentManager + inventory panel. */
+/** Inventory UI slots — utility listed last (carry-only, hidden by default). */
 export const EQUIP_SLOTS = [
   'body',
   'arms',
@@ -142,9 +142,8 @@ export const EQUIP_SLOTS = [
   'spear',
   'staff',
   'bow',
-  'shield',
-  'quiver',
-  'bag'
+  'shield'
+  // bag / wood / quiver intentionally omitted from default equip UI
 ];
 
 export const WEAPON_SLOTS = ['sword', 'axe', 'hammer', 'spear', 'staff', 'bow'];

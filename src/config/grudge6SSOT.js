@@ -13,6 +13,61 @@ export const GEAR_PRESETS_URL = `${CDN}/api/v1/grudge6-gear-presets.json`;
 export const RACE_MODELS_URL = `${CDN}/asset-packs/toon-rts-characters/race-models.json`;
 
 /**
+ * Canonical Bip001 joint set on production race kits (verified WK GLB skins).
+ * 18 joints — no Spine1/Spine2/Toe0 on these modular bakes.
+ * Clips may still reference Spine1/Spine2/Toe0; rematch drops missing tracks.
+ */
+export const BIP001_CORE_BONES = Object.freeze([
+  'Bip001 Pelvis',
+  'Bip001 Spine',
+  'Bip001 Neck',
+  'Bip001 Head',
+  'Bip001 L Clavicle',
+  'Bip001 L UpperArm',
+  'Bip001 L Forearm',
+  'Bip001 L Hand',
+  'Bip001 R Clavicle',
+  'Bip001 R UpperArm',
+  'Bip001 R Forearm',
+  'Bip001 R Hand',
+  'Bip001 L Thigh',
+  'Bip001 L Calf',
+  'Bip001 L Foot',
+  'Bip001 R Thigh',
+  'Bip001 R Calf',
+  'Bip001 R Foot'
+]);
+
+export const BIP001_BONE_COUNT = BIP001_CORE_BONES.length; // 18
+
+/** Utility meshes — NEVER show unless carry mode sets them explicitly. */
+export const UTILITY_SLOTS = Object.freeze(['bag', 'wood', 'quiver']);
+
+/**
+ * @param {import('three').Object3D} root
+ * @returns {{ ok: boolean, found: string[], missing: string[], count: number }}
+ */
+export function validateBip001Bones(root) {
+  const found = [];
+  const byName = new Map();
+  root.traverse((n) => {
+    if (n.isBone && n.name) byName.set(n.name, n);
+  });
+  const missing = [];
+  for (const name of BIP001_CORE_BONES) {
+    if (byName.has(name)) found.push(name);
+    else missing.push(name);
+  }
+  return {
+    ok: missing.length === 0,
+    found,
+    missing,
+    count: found.length,
+    expected: BIP001_BONE_COUNT
+  };
+}
+
+/**
  * @typedef {{
  *   id: string,
  *   short: string,
@@ -134,7 +189,12 @@ export function loadoutToMeshIds(prefix, loadout = {}) {
     const v = loadout.shield === '_default' ? 'A' : String(loadout.shield).toUpperCase();
     ids.push(`${p}Shield_${v}`);
   }
-  if (loadout.quiver && loadout.quiver !== 'none') ids.push(`${p}Xtra_quiver`);
-  if (loadout.bag && loadout.bag !== 'none') ids.push(`${p}Xtra_bag`);
+  // Utility (bag / wood / quiver) only when loadout.carry === true OR explicit carry flag
+  const allowUtility = loadout.carry === true || loadout.showUtility === true;
+  if (allowUtility) {
+    if (loadout.quiver && loadout.quiver !== 'none') ids.push(`${p}Xtra_quiver`);
+    if (loadout.bag && loadout.bag !== 'none') ids.push(`${p}Xtra_bag`);
+    if (loadout.wood && loadout.wood !== 'none') ids.push(`${p}Xtra_wood`);
+  }
   return ids;
 }

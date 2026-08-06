@@ -20,7 +20,8 @@ import {
   atlasUrlForRace,
   kitUrlForRace,
   loadoutToMeshIds,
-  raceDef
+  raceDef,
+  validateBip001Bones
 } from '../config/grudge6SSOT.js';
 import { EquipmentManager } from '../character/EquipmentManager.js';
 import {
@@ -137,14 +138,29 @@ export class CharacterController {
     // 1) Unify multi-skeleton modular kit + prune orphan bones (mixer bind fix)
     const skBefore = countSkeletons(kit);
     unifySkeletons(kit);
-    console.info(`[CharacterController] skeletons ${skBefore} → ${countSkeletons(kit)}`);
+    const bip = validateBip001Bones(kit);
+    console.info(
+      `[CharacterController] skeletons ${skBefore} → ${countSkeletons(kit)}; ` +
+        `Bip001 ${bip.count}/${bip.expected}${bip.ok ? '' : ` missing=${bip.missing.join(',')}`}`
+    );
+    if (!bip.ok) {
+      console.warn('[CharacterController] Bip001 incomplete — expect 18 core joints', bip);
+    }
 
     // 2) Equip BEFORE fit (wardrobe bomb inflates AABB)
+    //    hideAll + hideUtility: no bag/wood/quiver on combat hero
     this.equipment = new EquipmentManager(kit);
     const preset = this.presets.find((p) => p.id === this.presetId) || this.presets[0];
     this.animPackId = this._packFromPreset(preset);
-    const meshIds = loadoutToMeshIds(race.prefix, preset?.loadout || { body: 'A' });
+    // Strip utility from CDN presets so archers don't force quiver unless carry
+    const cleanLoadout = { ...(preset?.loadout || { body: 'A' }) };
+    delete cleanLoadout.bag;
+    delete cleanLoadout.wood;
+    delete cleanLoadout.quiver;
+    delete cleanLoadout.carry;
+    const meshIds = loadoutToMeshIds(race.prefix, cleanLoadout);
     const report = this.equipment.applyMeshIds(meshIds);
+    this.equipment.hideUtility();
     if (report.missing?.length) {
       console.warn('[CharacterController] mesh_ids missing', report);
     }
