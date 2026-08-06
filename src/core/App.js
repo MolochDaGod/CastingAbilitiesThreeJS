@@ -94,14 +94,15 @@ export class App {
     this.character = new CharacterController(this.environment);
     this.scene.add(this.character.root);
 
-    // Walk mode: the same drawn path, ridden instead of cast.
+    // Walk mode: drawn path → windsurf ride (HoverboardRide + RideIK).
     this.walk = new WalkController(this.character, {
       scene: this.scene,
       particles: this.particles,
       lights: this.lights,
       decals: this.decals,
       bursts: this.bursts,
-      shake: this.shake
+      shake: this.shake,
+      assets: null // filled in load()
     });
 
     /* ---- input ---- */
@@ -195,25 +196,24 @@ export class App {
       }
     });
 
-    // One gesture, two meanings — the mode decides what a finished stroke does.
+    // Path stroke: walk mode always rides; combat free-casts; casting mode casts.
     this.pathDrawer.on('cast', (curve) => {
+      if (settings.mode === 'walk') {
+        if (!this.walk.begin(curve)) this.hud.showToast('Path too short to ride');
+        return;
+      }
       if (this.drc.inCombat) {
-        // Combat: path still casts selected element as free aim skill
         this.abilities.cast(curve);
         this.character.requestOneShot?.('cast') || this.character.playCastFlourish?.();
         return;
       }
-      if (settings.mode === 'walk') {
-        if (!this.walk.begin(curve)) this.hud.showToast('Path too short to ride');
+      this.abilities.cast(curve);
+      this.character.playCastFlourish?.();
+      const end = curve?.getPoint?.(1) || curve?.points?.[curve.points.length - 1];
+      if (end) {
+        this.character.setCasting?.(true, { aimX: end.x, aimY: end.y + 0.2, aimZ: end.z });
       } else {
-        this.abilities.cast(curve);
-        this.character.playCastFlourish?.();
-        const end = curve?.getPoint?.(1) || curve?.points?.[curve.points.length - 1];
-        if (end) {
-          this.character.setCasting?.(true, { aimX: end.x, aimY: end.y + 0.2, aimZ: end.z });
-        } else {
-          this.character.setCasting?.(true);
-        }
+        this.character.setCasting?.(true);
       }
     });
 
@@ -298,7 +298,17 @@ export class App {
     this._mode = next;
     settings.mode = next;
 
-    if (next !== 'walk') this.walk.cancel();
+    if (next !== 'walk') {
+      this.walk.cancel();
+    } else {
+      // Path-ride: leave combat WASD, use orbit for draw; keep inventory closed
+      if (this.drc.inCombat) this.drc.setSession('equip');
+      this.inventory?.setOpen?.(false);
+      this.rig.setViewMode('orbit');
+      if (this._assets && !this.walk.scooter?.ready) {
+        this.walk.load(this._assets).catch(() => {});
+      }
+    }
     this.hud.setMode(next);
     if (changed) this.hud.showToast(`${MODE_META[next].hint} — ${MODE_META[next].blurb}`);
     this.editor.refresh();
@@ -343,14 +353,15 @@ export class App {
     this.character.resetPlacement?.();
     this.inventory.refresh();
 
-    // Ride board only when explicitly requested
-    if (/[?&]ride=1\b/.test(location.search)) {
-      this.loading.setProgress(0.7, 'Loading windsurf board…');
-      try {
-        await this.walk.load(assets);
-      } catch (err) {
-        console.warn('[App] ride asset load failed', err);
-      }
+    // Windsurf package always available for walk mode (RideIK + deck sockets)
+    this._assets = assets;
+    this.walk.ctx.assets = assets;
+    this.loading.setProgress(0.7, 'Loading windsurf board…');
+    try {
+      await this.walk.load(assets);
+      console.info('[App] windsurf ready=', this.walk.scooter?.ready);
+    } catch (err) {
+      console.warn('[App] ride asset load failed', err);
     }
 
     this.generatedCatalog = null;
@@ -436,9 +447,10 @@ export class App {
 
     this.environment.setFocus(this.character.position.x, this.character.position.z);
     this.environment.update();
-    // DRC combat: Rapier CCT → root feet; equip session skips locomotion
+    // Walk ride owns root while active; DRC yields when character._rideActive
+    if (settings.mode === 'walk' || this.walk.active) this.walk.update(dt);
     this.drc.update(dt, this.input.keys);
-    if (!this.drc.inCombat && settings.mode === 'walk') this.walk.update(dt);
+    // Mixer then RideIK (CharacterController.update runs post-mixer IK)
     this.character.update(dt);
 
     this.ground.update(this.elapsed);

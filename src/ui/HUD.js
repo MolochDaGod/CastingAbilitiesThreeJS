@@ -38,7 +38,7 @@ export class HUD {
         <div><kbd>1</kbd>–<kbd>4</kbd> weapon skills · <kbd>F</kbd> blade strike</div>
         <div><kbd>Q</kbd> equip / inventory · <kbd>I</kbd> panel</div>
         <div><kbd>C</kbd> clear VFX · <kbd>P</kbd> pause · <kbd>G</kbd> editor</div>
-        <div style="margin-top:6px;opacity:.75">Sandbox: hold LMB draw path to free-cast</div>
+        <div style="margin-top:6px;opacity:.75">Sandbox: LMB draw path free-cast · <kbd>M</kbd> walk = windsurf (feet/hands IK)</div>
       </div>
 
       <div class="hud__modes">

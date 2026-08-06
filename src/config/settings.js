@@ -133,6 +133,8 @@ export const settings = {
     /* --- how he rides (windsurf / hoverboard deck) --- */
     hover: 0.06, // deck height above floor when pack deckY missing
     standOffset: 0.02, // rider root above deck (standing, not lotus sink)
+    hipDrop: 0.1, // RideIK pelvis drop so knees bend onto foot straps
+    debugSockets: false, // true = blue spheres on deck/boom IK points
     seatSink: 0.0, // legacy air-ball sink — unused for board
     debugSockets: false, // true = blue spheres on footL/footR/sailRail…
     bob: 0.035, // vertical bounce while riding, metres

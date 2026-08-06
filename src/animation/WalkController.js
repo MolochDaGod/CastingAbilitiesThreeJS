@@ -37,7 +37,7 @@ export class WalkController {
     this.character = character;
     this.ctx = ctx;
 
-    this.scooter = new HoverboardRide(ctx);
+    this.scooter = new HoverboardRide(ctx, ctx.assets || null);
     ctx.scene.add(this.scooter.group);
 
     this.phase = Phase.IDLE;
@@ -87,6 +87,11 @@ export class WalkController {
 
     this.scooter.cancel();
     this.character.setRideActive?.(false);
+
+    // Lazy-load board if boot skipped it
+    if (!this.scooter.ready && this.ctx.assets) {
+      this.scooter.load(this.ctx.assets).catch((err) => console.warn('[Walk] board load', err));
+    }
 
     this.curve = curve;
     this.length = length;
@@ -146,9 +151,9 @@ export class WalkController {
         this._turnRate
       );
 
-      // Feed IK sockets every frame while riding
-      if (this.phase === Phase.RIDE && this.scooter.ready) {
-        this.character.setRideSockets?.(this.scooter.getIkWorldTargets());
+      // Feed IK sockets every frame while board is up (ride + late leap blend)
+      if (this.scooter.ready && (this.phase === Phase.RIDE || this.phase === Phase.LEAP)) {
+        this.character.setRideSockets?.(this.scooter.getIkWorldTargets(), this._yaw);
       }
     }
   }
@@ -205,9 +210,12 @@ export class WalkController {
 
     this._anchor.set(this._target.x, this.seatHeight, this._target.z);
     this.scooter.spawn(this._anchor);
-    this.character.setRideActive?.(true);
+    this.character.setRideActive?.(true, this._yaw);
     if (this.scooter.ready) {
-      this.character.setRideSockets?.(this.scooter.getIkWorldTargets());
+      this.character.setRideSockets?.(this.scooter.getIkWorldTargets(), this._yaw);
+    } else {
+      // Board still loading — IK will start once sockets exist next frames
+      console.warn('[Walk] windsurf board not ready yet — ride without mesh until load finishes');
     }
     this.phase = Phase.RIDE;
     this._rideTime = 0;
