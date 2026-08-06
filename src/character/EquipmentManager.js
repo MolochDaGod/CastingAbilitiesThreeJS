@@ -119,13 +119,17 @@ export class EquipmentManager {
     this.loadout = {};
     /** When false (default combat), bag/wood/quiver stay hidden. */
     this.carryMode = false;
+    this._preserveVisibility = !!opts.preserveVisibility;
     this._catalog();
     // Only nuke visibility on a fresh kit. After scaffoldGrudge6Kit, meshes are
     // already exclusive-equipped — hideAll here made the character disappear.
-    if (!opts.preserveVisibility) {
+    if (!this._preserveVisibility) {
       this.hideAll();
+      this.hideUtility();
+    } else {
+      // Never hide armor/weapons during catalog; only strip utility
+      this.hideUtility();
     }
-    this.hideUtility();
   }
 
   _catalog() {
@@ -145,9 +149,9 @@ export class EquipmentManager {
 
       const info = classifyMesh(name);
       if (!info) {
-        // Unclassified mesh that looks like gear → hide by default
+        // Unclassified gear — only hide when building a fresh kit
         if (/weapon|shield|units_|xtra_/i.test(name)) {
-          node.visible = false;
+          if (!this._preserveVisibility) node.visible = false;
           this.equippable.push(node);
         }
         return;

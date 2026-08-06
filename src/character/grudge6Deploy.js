@@ -220,10 +220,19 @@ export function applyExclusiveMeshIds(group, meshIds = [], { allowUtility = fals
 
 // ── measure / fit (Open fitCharacterHeight) ────────────────────────────────
 
+/**
+ * Body AABB for height/feet. Prefer non-precise box first — precise skinned
+ * bounds on multi-skin Toon kits often inflate (~12m) and wreck SI fit.
+ */
 export function bodyBox(root, visibleOnly = true) {
   const box = new Box3();
   let any = false;
   root.updateMatrixWorld(true);
+  root.traverse((o) => {
+    if (o.isSkinnedMesh && o.skeleton) o.skeleton.update();
+  });
+  root.updateMatrixWorld(true);
+
   root.traverse((o) => {
     if (!o.isSkinnedMesh) return;
     if (visibleOnly && !o.visible) return;
@@ -231,7 +240,8 @@ export function bodyBox(root, visibleOnly = true) {
       return;
     }
     try {
-      const b = new Box3().setFromObject(o, true);
+      // Non-precise first (world matrix * geometry bbox) — stable for grudge6
+      const b = new Box3().setFromObject(o, false);
       if (b.isEmpty() || !Number.isFinite(b.min.y)) return;
       if (!any) {
         box.copy(b);
@@ -241,7 +251,7 @@ export function bodyBox(root, visibleOnly = true) {
       /* */
     }
   });
-  if (!any) box.setFromObject(root, true);
+  if (!any) box.setFromObject(root, false);
   return box;
 }
 
@@ -266,30 +276,45 @@ export function findPelvis(root) {
 }
 
 /**
- * Open fitCharacterHeight: identity scale → decade unit fix → residual fit →
- * pelvis XZ center → feet on y=0.
+ * Fit kit to ~1.8 m. Production GLBs already body-bake to SI (~1.8 m); only
+ * re-scale when measure is outside a sane band (avoids 12m false measure → 0.15×).
  */
-export function fitCharacterHeight(model, targetM = HUMAN_HEIGHT_M) {
+export function fitCharacterHeight(model, targetM = HUMAN_HEIGHT_M, opts = {}) {
   model.scale.set(1, 1, 1);
   model.position.set(0, 0, 0);
   model.updateMatrixWorld(true);
+  model.traverse((o) => {
+    if (o.isSkinnedMesh && o.skeleton) o.skeleton.update();
+  });
+  model.updateMatrixWorld(true);
 
   const nativeHeight = measureHeight(model) || 1;
-  let unitFix = 1;
-  const ratio = nativeHeight / targetM;
-  if (ratio >= 70 && ratio <= 140) unitFix = 0.01;
-  else if (ratio >= 1 / 140 && ratio <= 1 / 70) unitFix = 100;
-  else if (ratio >= 7 && ratio <= 14) unitFix = 0.1;
-  else if (ratio >= 1 / 14 && ratio <= 1 / 7) unitFix = 10;
-  else if (nativeHeight > 15 && nativeHeight < 500) unitFix = 0.01;
-  else if (nativeHeight < 0.05) unitFix = 100;
+  const pipeline = opts.pipeline || model.userData.importPipeline || 'glb-baked';
 
-  model.scale.setScalar(unitFix);
-  model.updateMatrixWorld(true);
-  const midH = measureHeight(model) || targetM;
-  let fit = midH > 1e-6 ? targetM / midH : 1;
-  if (!Number.isFinite(fit) || fit <= 0) fit = 1;
-  fit = Math.min(12, Math.max(0.02, fit));
+  let unitFix = 1;
+  let fit = 1;
+
+  // Already human-scale (convert bake) — do not shrink further
+  if (nativeHeight >= 1.2 && nativeHeight <= 3.5) {
+    unitFix = 1;
+    fit = 1;
+  } else if (nativeHeight >= 70 && nativeHeight <= 250) {
+    // classic cm-as-m (~180)
+    unitFix = 0.01;
+    model.scale.setScalar(unitFix);
+    model.updateMatrixWorld(true);
+    const midH = measureHeight(model) || targetM;
+    fit = Math.min(12, Math.max(0.02, targetM / midH));
+  } else if (nativeHeight > 3.5 && nativeHeight < 40) {
+    // inflated measure / leftover Unity residual — one residual fit
+    fit = Math.min(12, Math.max(0.02, targetM / nativeHeight));
+  } else if (nativeHeight < 0.4) {
+    unitFix = 100;
+    model.scale.setScalar(unitFix);
+    model.updateMatrixWorld(true);
+    const midH = measureHeight(model) || targetM;
+    fit = Math.min(12, Math.max(0.02, targetM / midH));
+  }
 
   const finalScale = unitFix * fit;
   model.scale.setScalar(finalScale);
@@ -314,6 +339,11 @@ export function fitCharacterHeight(model, targetM = HUMAN_HEIGHT_M) {
   model.position.y -= box3.min.y;
   model.updateMatrixWorld(true);
   model.userData.deployHeightM = measureHeight(model);
+
+  console.info(
+    `[grudge6Deploy] fit pipeline=${pipeline} native=${nativeHeight.toFixed(2)}m ` +
+      `scale=${finalScale.toFixed(4)} → h=${model.userData.deployHeightM.toFixed(2)}m`
+  );
 
   return { scale: finalScale, nativeHeight, unitFix, height: model.userData.deployHeightM };
 }
@@ -484,14 +514,16 @@ export function scaffoldGrudge6Kit(kit, opts = {}) {
   // 2) EQUIP FIRST — hide all → exclusive mesh_ids (kills wardrobe blob)
   const equip = applyExclusiveMeshIds(kit, meshIds, { allowUtility: false });
 
-  // 3) Math: identity → fitCharacterHeight (Unity 2.54 residual) → uniform
+  // 3) Math: identity → fit (GLB bake already ~SI; only fix absurd measures)
   kit.userData.importPipeline = 'glb-baked';
   kit.userData.grudgeHeightFit = false;
-  const fit = fitCharacterHeight(kit, HUMAN_HEIGHT_M);
+  const fit = fitCharacterHeight(kit, HUMAN_HEIGHT_M, { pipeline: 'glb-baked' });
   forceUniformScale(kit);
 
-  // 4) Art-forward once (Toon RTS +X → controller +Z)
-  if (opts.facePlusZ !== false) applyArtForwardPlusZ(kit);
+  // 4) Art-forward: GLB production kits often already face correctly via bone
+  // quats. Only force π/2 when explicitly requested (default true for Toon RTS).
+  // Double-yaw = sideways / moonwalk — set facePlusZ:false if still sideways.
+  if (opts.facePlusZ === true) applyArtForwardPlusZ(kit);
   forceUniformScale(kit);
   reGroundAfterAnimSample(kit, 0);
 

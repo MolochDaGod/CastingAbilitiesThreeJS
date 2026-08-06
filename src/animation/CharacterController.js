@@ -146,6 +146,7 @@ export class CharacterController {
 
     // FULL Open scaffold:
     //  unify → hide ALL → exclusive mesh_ids → fit 1.8 → face+Z → materials
+    // facePlusZ true once for Toon RTS export +X → play +Z
     const scaffold = scaffoldGrudge6Kit(kit, {
       meshIds,
       atlas: this.atlas,
