@@ -1,5 +1,5 @@
 import { CatmullRomCurve3, MathUtils, Vector3 } from 'three';
-import { DRC_WEAPON_SKILLS, skillBySlot } from './drcSkills.js';
+import { DRC_WEAPON_SKILLS, getActiveSkills, setActiveSkillTree, skillBySlot } from './drcSkills.js';
 import { settings } from '../config/settings.js';
 
 const _origin = new Vector3();
@@ -40,7 +40,12 @@ export class DrcCombatController {
 
     /** @type {'equip'|'combat'} — combat-first showcase (Q toggles equip) */
     this.session = 'combat';
-    this.skills = DRC_WEAPON_SKILLS;
+    this.skills = getActiveSkills();
+    // ?arcane=1 → purple arcane tree (Warlords staff migrate preview)
+    if (typeof location !== 'undefined' && /[?&]arcane=1\b/.test(location.search)) {
+      setActiveSkillTree('arcane');
+      this.skills = getActiveSkills();
+    }
     /** @type {Map<string, number>} skillId → readyAt elapsed */
     this._cdUntil = new Map();
     this.stamina = 100;
