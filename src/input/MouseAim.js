@@ -71,7 +71,8 @@ export class MouseAim {
     }
     this.forward.set(dx / len, 0, dz / len);
     this.yaw = Math.atan2(this.forward.x, this.forward.z);
-    // right = cross(forward, up)
+    // Body local right for facing (sin,0,cos): (cos, 0, −sin) = (fz, 0, −fx)
+    // A = −right (strafe left), D = +right (strafe right)
     this.right.set(this.forward.z, 0, -this.forward.x);
   }
 

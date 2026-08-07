@@ -167,10 +167,11 @@ export class DrcCombatController {
       return;
     }
 
-    // ── WASD relative to mouse aim (or camera fallback) ───────────────
-    // W = toward crosshair · S = away · A/D = strafe on aim right
-    let ix = 0; // −1 = left (A), +1 = right (D)
-    let iz = 0; // −1 = forward (W), +1 = back (S)  [input space]
+    // ── WASD: W/S along look, A/D pure strafe left/right ─────────────
+    // Body faces mouse aim; strafe is body-local so A = left, D = right
+    // of where you look (not inverted camera-right).
+    let ix = 0; // −1 = strafe left (A), +1 = strafe right (D)
+    let iz = 0; // −1 = forward (W), +1 = back (S)
     if (keys.has('KeyW') || keys.has('ArrowUp')) iz -= 1;
     if (keys.has('KeyS') || keys.has('ArrowDown')) iz += 1;
     if (keys.has('KeyA') || keys.has('ArrowLeft')) ix -= 1;
@@ -183,6 +184,7 @@ export class DrcCombatController {
       iz /= len;
     }
 
+    // Forward basis: aim when valid, else body facing, else camera
     const useAim =
       settings.aim?.enabled !== false &&
       settings.aim?.moveRelativeToAim !== false &&
@@ -190,21 +192,29 @@ export class DrcCombatController {
 
     if (useAim) {
       _fwd.copy(this.aim.forward);
-      // aim.right already = cross(forward, up) style
     } else {
-      const cam = this.camera;
-      cam.getWorldDirection(_fwd);
-      _fwd.y = 0;
-      if (_fwd.lengthSq() < 1e-6) _fwd.set(0, 0, 1);
-      else _fwd.normalize();
+      // Prefer body facing so A/D stay true strafe even without aim hit
+      const yaw = this.character.facing;
+      _fwd.set(Math.sin(yaw), 0, Math.cos(yaw));
+      if (_fwd.lengthSq() < 1e-6) {
+        this.camera.getWorldDirection(_fwd);
+        _fwd.y = 0;
+        if (_fwd.lengthSq() < 1e-6) _fwd.set(0, 0, 1);
+        else _fwd.normalize();
+      }
     }
-    const rx = useAim ? this.aim.right.x : -_fwd.z;
-    const rz = useAim ? this.aim.right.z : _fwd.x;
 
-    // World wish: forward * (−iz) so W (iz=-1) walks along +aim/look
+    // Character local +X right when facing yaw: (cos(y), 0, −sin(y))
+    // Matches forward (sin(y), 0, cos(y)) used elsewhere on this hero.
+    const fx = _fwd.x;
+    const fz = _fwd.z;
+    const rx = fz; // right.x
+    const rz = -fx; // right.z
+
+    // W (iz=-1) → +forward · A (ix=-1) → −right · D (ix=+1) → +right
     _move.set(0, 0, 0);
-    _move.x = _fwd.x * -iz + rx * ix;
-    _move.z = _fwd.z * -iz + rz * ix;
+    _move.x = fx * -iz + rx * ix;
+    _move.z = fz * -iz + rz * ix;
     if (_move.lengthSq() > 1e-6) _move.normalize();
 
     const speed = this.moveSpeed * (this._sprinting ? this.sprintMul : 1) * (settings.global?.animationSpeed || 1);
@@ -750,18 +760,15 @@ export class DrcCombatController {
       this._cdUntil.set('dodge', this.elapsed + cd);
       this._cdMax.set('dodge', cd);
 
-      // Prefer aim-relative dodge (same as move); fallback camera
+      // Same basis as move: face/aim forward, A=left D=right
       if (this.aim?.valid && settings.aim?.enabled !== false) {
         _fwd.copy(this.aim.forward);
       } else {
-        const cam = this.camera;
-        cam.getWorldDirection(_fwd);
-        _fwd.y = 0;
-        if (_fwd.lengthSq() < 1e-6) _fwd.set(0, 0, 1);
-        else _fwd.normalize();
+        const yaw = this.character.facing;
+        _fwd.set(Math.sin(yaw), 0, Math.cos(yaw));
       }
-      const rx = this.aim?.valid ? this.aim.right.x : -_fwd.z;
-      const rz = this.aim?.valid ? this.aim.right.z : _fwd.x;
+      const rx = _fwd.z;
+      const rz = -_fwd.x;
 
       let wx = 0;
       let wz = 0;
@@ -775,6 +782,7 @@ export class DrcCombatController {
         wx = -rx;
         wz = -rz;
       } else {
+        // right
         wx = rx;
         wz = rz;
       }
