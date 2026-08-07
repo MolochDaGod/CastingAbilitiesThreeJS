@@ -25,22 +25,24 @@ export function normalizeBoneKey(name) {
 
 /**
  * Alias map: exact name + normalized key + space/underscore variants.
- * Only includes Bone nodes (and hand containers for attach tracks).
+ * HARD: only real Bone nodes. Never SkinnedMesh (WK_Units_head_* would steal Head tracks → head at feet).
  */
 export function buildBoneNameLookup(root) {
   const lookup = new Map();
   const actualByKey = new Map();
 
   root.traverse((node) => {
-    const isBone = node.isBone === true;
+    // Bones only — containers are Object3D and must not receive bone quaternion tracks
+    if (node.isBone !== true) return;
     const name = node.name || '';
-    if (!isBone && !/bip001|mixamo|container|hand|pelvis|spine|hips/i.test(name)) return;
     if (!name) return;
+    // Never treat mesh-like names as bones (defense if mis-typed)
+    if (/units_|weapon_|xtra_|shield_/i.test(name)) return;
 
     lookup.set(name, name);
     const key = normalizeBoneKey(name);
     lookup.set(key, name);
-    if (isBone) actualByKey.set(key, name);
+    actualByKey.set(key, name);
 
     if (name.includes('_')) {
       const spaced = name.replace(/^Bip001_/, 'Bip001 ').replace(/_/g, ' ');
@@ -102,10 +104,24 @@ export function rematchClipToSkeleton(root, clip, { stripPositions = true } = {}
       continue;
     }
 
-    const resolved =
-      lookup.get(nodeName) ||
-      lookup.get(normalizeBoneKey(nodeName)) ||
-      (PropertyBinding.findNode(root, nodeName) ? nodeName : null);
+    // Never bind anim tracks to equip meshes (Units_head / Body / weapon)
+    if (/units_|weapon_|xtra_|shield_/i.test(nodeName)) {
+      dropped++;
+      continue;
+    }
+    // Drop Spine1/2 etc. when kit only has Bip001 Spine (common Toon RTS)
+    // Prefer lookup; do NOT use PropertyBinding.findNode (can hit non-bones)
+
+    let resolved =
+      lookup.get(nodeName) || lookup.get(normalizeBoneKey(nodeName)) || null;
+
+    // Exact bone only via findNode if it is really a Bone
+    if (!resolved) {
+      const found = PropertyBinding.findNode(root, nodeName);
+      if (found && found.isBone === true && !/units_|weapon_|xtra_/i.test(found.name || '')) {
+        resolved = found.name;
+      }
+    }
 
     if (!resolved) {
       dropped++;

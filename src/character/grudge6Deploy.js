@@ -59,6 +59,7 @@ export function unifySkeletons(root) {
   }
 
   let widest = null;
+  let widestMesh = null;
   let unresolved = 0;
   let rebound = 0;
   const beforeIds = new Set();
@@ -76,7 +77,10 @@ export function unifySkeletons(root) {
     const newSkel = new Skeleton(newBones, node.skeleton.boneInverses);
     node.bind(newSkel, node.bindMatrix);
     rebound++;
-    if (!widest || newSkel.bones.length > widest.bones.length) widest = newSkel;
+    if (!widest || newSkel.bones.length > widest.bones.length) {
+      widest = newSkel;
+      widestMesh = node;
+    }
   });
 
   // Drop non-canonical Bone *instances* so AnimationMixer binds the shared tree.
@@ -87,9 +91,17 @@ export function unifySkeletons(root) {
   });
   for (const bone of orphans) bone.parent?.remove(bone);
 
+  // CRITICAL: never pose() every mesh. Head skins are 1-joint (Bip001 Head only).
+  // pose() on a partial skeleton after unify rewrites shared bone matrices → head at feet.
+  // Pose once from the widest body skeleton only (or skip — GLTF already in bind pose).
+  if (widest) {
+    widest.pose();
+    widest.update();
+  }
+
   console.info(
     `[grudge6Deploy] unify: ${beforeIds.size} Skeleton objs → 1 tree (${canon.size} named bones), ` +
-      `rebound ${rebound}, pruned ${orphans.length}` +
+      `rebound ${rebound}, pruned ${orphans.length}, poseFrom=${widestMesh?.name || '—'}(${widest?.bones.length || 0})` +
       (unresolved ? `, unresolved ${unresolved}` : '')
   );
   return widest;
@@ -490,14 +502,11 @@ export function scaffoldGrudge6Kit(kit, opts = {}) {
   const meshIds = opts.meshIds || [];
   const atlas = opts.atlas ?? null;
 
-  // 1) Shared Bip001 tree
+  // 1) Shared Bip001 tree — unifySkeletons poses widest body skin ONCE (not each head skin)
   const skBefore = countSkeletons(kit);
   unifySkeletons(kit);
   kit.traverse((o) => {
-    if (o.isSkinnedMesh && o.skeleton) {
-      o.skeleton.pose();
-      o.skeleton.update();
-    }
+    if (o.isSkinnedMesh && o.skeleton) o.skeleton.update();
   });
   kit.updateMatrixWorld(true);
 
@@ -552,13 +561,11 @@ export function scaffoldGrudge6Kit(kit, opts = {}) {
 export function deployGrudge6Model(model, opts = {}) {
   if (opts.unify !== false) unifySkeletons(model);
   model.traverse((o) => {
-    if (o.isSkinnedMesh && o.skeleton) {
-      o.skeleton.pose();
-      o.skeleton.update();
-    }
+    if (o.isSkinnedMesh && o.skeleton) o.skeleton.update();
   });
   const fit = fitCharacterHeight(model, opts.targetH ?? HUMAN_HEIGHT_M);
-  if (opts.facePlusZ !== false) applyArtForwardPlusZ(model);
+  // Toon RTS play GLB: do not force facePlusZ (caller opts.facePlusZ === true only)
+  if (opts.facePlusZ === true) applyArtForwardPlusZ(model);
   reGroundAfterAnimSample(model, opts.groundY ?? 0);
   const diag = diagnoseCharacterLook(model, opts.groundY ?? 0);
   diag.beforeHeight = fit.nativeHeight;
