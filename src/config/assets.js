@@ -61,14 +61,17 @@ export const ANIM_PACKS = {
   }
 };
 
-/** Fallback loadouts if CDN presets fail (mage-first for casting). */
+/** Fallback loadouts if CDN presets fail (mage-first for casting).
+ *  Letters match Toon RTS human kit: Body A–E, Arms A–D, Legs A–C, head A–I, staff A–C.
+ */
 export const FALLBACK_PRESETS = [
   {
     id: 'mage',
     label: 'Mage',
     description: 'Robes and a staff.',
     pack: 'magic',
-    loadout: { body: 'D', arms: 'D', legs: 'C', head: 'E', staff: 'A' }
+    // Conservative A/B set so every race kit has matching mesh_ids
+    loadout: { body: 'A', arms: 'A', legs: 'A', head: 'A', staff: 'A' }
   },
   {
     id: 'knight',

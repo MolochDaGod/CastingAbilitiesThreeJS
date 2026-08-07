@@ -1,17 +1,17 @@
 /**
  * grudge6 STONE SSOT — CastingAbilities + Multiverse parity.
  *
- * ★ PLAY MESH only:
+ * ★ PLAY MESH only (browser):
  *   assets.grudge-studio.com/asset-packs/toon-rts-characters/glb/characters/{race}.glb
  *
- * Atlas: textures/grudge6/{folder}/*.webp
+ * Atlas: textures/grudge6/{folder}/*.webp (optional rebind; Toon keeps embeds)
  * Anims: open.grudge-studio.com/anims/baked/*
  *
- * FORBIDDEN primary: models/grudge6/metaverse/*, inventing hosts, Meshy heroes
- * Legacy races/*_Characters.glb = fallback only
+ * NOT play defaults (keep on CDN for lab/author, do not load as player):
+ *   models/grudge6/races/*_Characters.glb | .fbx | metaverse/*
  */
 
-export const GRUDGE6_SSOT_VERSION = '2026-08-06.4-toon';
+export const GRUDGE6_SSOT_VERSION = '2026-08-07.1-toon-only';
 
 export const CDN = 'https://assets.grudge-studio.com';
 export const CDN_MIRROR_OPEN = 'https://open.grudge-studio.com';
@@ -180,9 +180,12 @@ export function kitUrlForRace(raceId) {
   return raceDef(raceId).kitGlb;
 }
 
+/**
+ * Play candidates = Toon RTS only.
+ * Do not chain races bake / metaverse — those hide broken Toon loads behind wrong models.
+ */
 export function kitUrlCandidates(raceId) {
-  const r = raceDef(raceId);
-  return [r.kitGlb, r.kitFallback].filter(Boolean);
+  return [kitUrlForRace(raceId)].filter(Boolean);
 }
 
 export function atlasUrlForRace(raceId) {

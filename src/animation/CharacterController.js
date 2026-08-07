@@ -19,7 +19,6 @@ import {
 } from '../config/assets.js';
 import {
   atlasUrlForRace,
-  kitUrlCandidates,
   kitUrlForRace,
   loadoutToMeshIds,
   logSSOT,
@@ -112,24 +111,21 @@ export class CharacterController {
     await this._loadPresets();
 
     const race = raceDef(this.raceId);
-    const candidates = kitUrlCandidates(this.raceId);
+    // PLAY: Toon RTS GLB only — no races-bake / metaverse / FBX fallback
+    const kitUrl = kitUrlForRace(this.raceId);
     const atlasUrl = atlasUrlForRace(this.raceId);
 
-    // Load Toon RTS ★ first, then legacy races fallback
     let gltf = null;
-    let kitUrl = candidates[0];
-    let lastErr = null;
-    for (const url of candidates) {
-      try {
-        gltf = await assets.loadGLTF(url);
-        kitUrl = url;
-        break;
-      } catch (err) {
-        lastErr = err;
-        console.warn('[CharacterController] kit try fail', url, err?.message || err);
-      }
+    try {
+      gltf = await assets.loadGLTF(kitUrl);
+    } catch (err) {
+      console.error('[CharacterController] Toon RTS kit failed (no fallback)', kitUrl, err);
+      throw err;
     }
-    if (!gltf) throw lastErr || new Error('No Toon RTS race GLB');
+    if (!gltf) throw new Error(`No Toon RTS race GLB: ${kitUrl}`);
+    if (!isToonRtsKitUrl(kitUrl)) {
+      throw new Error(`[CharacterController] refuse non-Toon play kit: ${kitUrl}`);
+    }
 
     // Atlas optional — Toon embeds usually enough; only for missing maps
     const atlas = await assets.loadTexture(atlasUrl).catch((err) => {
@@ -174,12 +170,13 @@ export class CharacterController {
     delete cleanLoadout.showUtility;
     const meshIds = loadoutToMeshIds(race.prefix, cleanLoadout);
 
-    // Simple clean scaffold (purge path):
-    // unify → hide ALL → exclusive mesh_ids → SI fit → art-forward +Z → keep embeds
+    // Simple clean scaffold:
+    // unify → exclusive mesh_ids → SI fit → keep embeds.
+    // facePlusZ: Toon RTS play GLBs are already game-facing; only force +X→+Z for FBX author path.
     const scaffold = scaffoldGrudge6Kit(kit, {
       meshIds,
       atlas: this.atlas,
-      facePlusZ: true, // Toon FBX/GLB art +X → play +Z once
+      facePlusZ: false,
     });
 
     this.equipment = new EquipmentManager(kit, { preserveVisibility: true });
