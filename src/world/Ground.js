@@ -3,6 +3,7 @@ import { settings } from '../config/settings.js';
 import { getColor } from '../utils/color.js';
 import { noiseGLSL } from '../shaders/lib/noise.glsl.js';
 import { LAYER } from '../core/Layers.js';
+import { WORLD } from '../config/worldScale.js';
 
 /**
  * The stage floor.
@@ -83,10 +84,11 @@ export class Ground {
              base *= 1.0 + fbm3(wp * 0.09 + 11.0) * 0.05;
              base *= 1.0 + (snoise01(wp * 0.7) - 0.5) * 0.06;
 
-             // Radial light pool: the stage centre stays readable and the floor
-             // sinks toward the backdrop long before the plane's edge.
+             // Radial light pool — extents from WORLD SI scale (2 m hero yardstick)
              float dist = length(wp.xz);
-             float pool = mix(1.0, smoothstep(40.0, 5.0, dist), clamp(uPool, 0.0, 1.0));
+             float poolOuter = ${WORLD.floorPoolOuter.toFixed(1)};
+             float poolInner = ${WORLD.floorPoolInner.toFixed(1)};
+             float pool = mix(1.0, smoothstep(poolOuter, poolInner, dist), clamp(uPool, 0.0, 1.0));
              base *= mix(0.18, 1.0, pool);
 
              diffuseColor.rgb *= base;
@@ -104,7 +106,8 @@ export class Ground {
         );
     });
 
-    this.mesh = new Mesh(new PlaneGeometry(400, 400, 1, 1), this.material);
+    const gSize = WORLD.groundSize;
+    this.mesh = new Mesh(new PlaneGeometry(gSize, gSize, 1, 1), this.material);
     this.mesh.rotation.x = -Math.PI / 2;
     this.mesh.receiveShadow = true;
     this.mesh.castShadow = false;

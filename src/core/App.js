@@ -7,8 +7,10 @@ import { frame } from './FrameUniforms.js';
 
 import { Environment } from '../world/Environment.js';
 import { Ground } from '../world/Ground.js';
+import { StageWater } from '../world/StageWater.js';
 import { DustMotes } from '../world/DustMotes.js';
 import { ContactShadows } from '../world/ContactShadows.js';
+import { WORLD } from '../config/worldScale.js';
 
 import { AssetLoader } from '../loaders/AssetLoader.js';
 import { CharacterController } from '../animation/CharacterController.js';
@@ -62,13 +64,28 @@ export class App {
     this.environment = new Environment(this.renderer, this.camera);
     this.scene = this.environment.scene;
 
-    /* ---- world ---- */
-    this.ground = new Ground(this.environment);
-    this.dust = new DustMotes();
-    this.contactShadows = new ContactShadows(this.renderer, { size: 2.6, height: 2.4, blur: 2.0 });
+    /* ---- world (SI: ~2 m hero → map scale 1.5× original stage) ---- */
+    // Apply world fog / camera extents once at boot
+    settings.environment.fogNear = WORLD.fogNear;
+    settings.environment.fogFar = WORLD.fogFar;
+    settings.camera.distance = WORLD.cameraDistance;
+    settings.camera.maxDistance = WORLD.cameraMaxDistance;
+    settings.camera.minDistance = WORLD.cameraMinDistance;
 
-    this.scene.add(this.ground.mesh, this.dust.points, this.contactShadows.group);
+    this.ground = new Ground(this.environment);
+    this.water = new StageWater();
+    this.dust = new DustMotes();
+    this.contactShadows = new ContactShadows(this.renderer, {
+      size: 2.6 * Math.sqrt(WORLD.mapScale),
+      height: 2.4,
+      blur: 2.0
+    });
+
+    this.scene.add(this.water.mesh, this.ground.mesh, this.dust.points, this.contactShadows.group);
     this.dust.setPixelRatio(this.renderer.gl.getPixelRatio());
+    console.info(
+      `[App] world SI mapScale=${WORLD.mapScale} ground=${WORLD.groundSize}m fogFar=${WORLD.fogFar}m water=${WORLD.waterSize}m`
+    );
 
     /* ---- shared VFX services ---- */
     this.particles = new ParticleEngine(this.scene);
@@ -455,6 +472,7 @@ export class App {
     this.character.update(dt);
 
     this.ground.update(this.elapsed);
+    this.water?.update?.(this.elapsed);
     this.dust.update(this.elapsed, this.character.position);
 
     this.pathDrawer.update(raw);
@@ -519,6 +537,7 @@ export class App {
     this.lights.dispose();
     this.walk.dispose();
     this.character.dispose();
+    this.water?.dispose?.();
     this.ground.dispose();
     this.dust.dispose();
     this.contactShadows.dispose();

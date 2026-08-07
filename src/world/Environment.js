@@ -12,11 +12,12 @@ import {
 import { settings } from '../config/settings.js';
 import { getColor } from '../utils/color.js';
 import { patchOnBeforeCompile } from '../utils/shaderPatch.js';
+import { WORLD } from '../config/worldScale.js';
 
 const _sunDir = new Vector3();
 
-/** Half-width of the shadowed area, in metres, centred on the action. */
-const SHADOW_EXTENT = 26;
+/** Half-width of the shadowed area, in metres, centred on the action (SI). */
+const SHADOW_EXTENT = WORLD.shadowExtent;
 
 /**
  * Scene, atmosphere and lighting.

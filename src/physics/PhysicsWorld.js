@@ -1,4 +1,5 @@
 import RAPIER from '@dimforge/rapier3d-compat';
+import { PLAYER_CAPSULE, WORLD } from '../config/worldScale.js';
 
 /**
  * Fleet-style Rapier world for Casting Abilities.
@@ -7,8 +8,8 @@ import RAPIER from '@dimforge/rapier3d-compat';
  */
 
 export const FIXED_DT = 1 / 60;
-/** Human capsule: r≈0.32, halfH≈0.55 → ~1.8 m tall */
-export const HUMAN_CAPSULE = { radius: 0.32, halfHeight: 0.55 };
+/** Human capsule ~1.8–2.0 m hero (fleet SI) */
+export const HUMAN_CAPSULE = { radius: PLAYER_CAPSULE.radius, halfHeight: PLAYER_CAPSULE.halfHeight };
 
 let _initPromise = null;
 
@@ -48,8 +49,9 @@ export class PhysicsWorld {
 
     // Infinite ground plane at y=0 (fixed cuboid thin slab)
     const groundBody = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, -0.05, 0));
+    const half = WORLD.physicsGroundHalf;
     const groundCol = this.world.createCollider(
-      RAPIER.ColliderDesc.cuboid(80, 0.05, 80).setFriction(0.9).setRestitution(0.05),
+      RAPIER.ColliderDesc.cuboid(half, 0.05, half).setFriction(0.9).setRestitution(0.05),
       groundBody
     );
     this.bodies.set('ground', { body: groundBody, collider: groundCol, kind: 'ground' });
