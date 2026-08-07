@@ -31,7 +31,9 @@ learn source → isolate primitive → edit knobs → bind skill → smoke → e
 | Toon character + packs | SI, hands-on idle, jump/double/backflip, cast |
 | DRC combat UX | TPS, 1–4 spells, stamina, Q equip/combat |
 | **Lab Panel (I)** | Left tabs: Character · Equipment · Weapon · Race · Mesh · Mount · Anims · Skills · API |
-| **HUD frames** | Player / target / allies + action bar (1–4 + F) |
+| **HUD frames** | Player / target / allies |
+| **Tight bar (Danger)** | threejs-rapier 6+6 + avatar + HP/STA orbs + menu buttons |
+| **Combat hotkeys** | X roll · C parry · E guard · R heavy · F/1–4 · J/H/V · Q mode |
 | **6 races** | Toon RTS GLB via Race tab (`setRace`) |
 | **Fleet API client** | `src/api/fleetApi.js` → Railway health + characters |
 | World SI | `worldScale.js` MAP_SCALE 1.5 + StageWater |

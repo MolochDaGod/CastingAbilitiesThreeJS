@@ -2,22 +2,29 @@ import { Vector2 } from 'three';
 import { EventEmitter } from '../utils/EventEmitter.js';
 
 /**
- * Normalises pointer + keyboard input into a small event vocabulary.
+ * Pointer + keyboard → events.
  *
- * Events: `draw:start`, `draw:move`, `draw:end`, `element`, `action`.
- * Pointer events that begin on top of DOM UI (the editor, the HUD) are ignored
- * so dragging a slider never starts drawing a path.
+ * Combat hotkeys mirror Danger Room / threejs-rapier quickActions SSOT:
+ *   1–4 skills · F residual · X roll · C parry · E guard · R heavy
+ *   J heal · H bomb · V kick · Q mode · Space jump
+ *   Shift+C clear VFX · G editor · I lab panel · Alt+V/B/F/G/T/C sandbox VFX
  */
 export class InputManager extends EventEmitter {
   constructor(domElement) {
     super();
     this.dom = domElement;
-    this.pointer = new Vector2(); // NDC
+    this.pointer = new Vector2();
     this.isDrawing = false;
     this.keys = new Set();
     this.enabled = true;
+    /** When true, fleet combat keys win over sandbox (clear→Shift+C, etc.) */
+    this.combatKeys = true;
 
     this._bind();
+  }
+
+  setCombatKeys(on) {
+    this.combatKeys = !!on;
   }
 
   _bind() {
@@ -39,8 +46,8 @@ export class InputManager extends EventEmitter {
 
   _onPointerDown = (event) => {
     if (!this.enabled) return;
-    if (event.button !== 0) return; // left button draws; right orbits
-    if (event.target !== this.dom) return; // started on UI
+    if (event.button !== 0) return;
+    if (event.target !== this.dom) return;
 
     this._updatePointer(event);
     this.isDrawing = true;
@@ -64,16 +71,16 @@ export class InputManager extends EventEmitter {
   _onKeyDown = (event) => {
     if (event.repeat) return;
     const target = event.target;
-    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable))
+      return;
 
     this.keys.add(event.code);
 
-    // Combat jump — don't scroll the page
     if (event.code === 'Space') {
       event.preventDefault();
     }
 
-    // Alt+V/B/F/G/T/C → vfxgrudge.puter.site sandbox beauty previews
+    // Alt+sandbox VFX (never steal bare combat keys)
     if (event.altKey) {
       const map = {
         KeyV: 'ice_lightning_burst',
@@ -90,34 +97,67 @@ export class InputManager extends EventEmitter {
       }
     }
 
+    // Shift+C = clear VFX (combat C is parry)
+    if (event.shiftKey && event.code === 'KeyC') {
+      event.preventDefault();
+      this.emit('action', 'clear');
+      return;
+    }
+
+    // Digit skills always (combat + equip free-cast)
+    if (event.code === 'Digit1') {
+      this.emit('element', 0);
+      return;
+    }
+    if (event.code === 'Digit2') {
+      this.emit('element', 1);
+      return;
+    }
+    if (event.code === 'Digit3') {
+      this.emit('element', 2);
+      return;
+    }
+    if (event.code === 'Digit4') {
+      this.emit('element', 3);
+      return;
+    }
+
+    // Danger Room combat actions when combatKeys
+    if (this.combatKeys) {
+      const combatMap = {
+        KeyF: 'fskill',
+        KeyX: 'dodge',
+        KeyC: 'parry',
+        KeyE: 'block',
+        KeyR: 'heavy',
+        KeyV: 'kick',
+        KeyJ: 'heal',
+        KeyH: 'bomb'
+      };
+      if (combatMap[event.code]) {
+        event.preventDefault();
+        this.emit('combatAction', combatMap[event.code]);
+        return;
+      }
+    }
+
     switch (event.code) {
-      case 'Digit1':
-        this.emit('element', 0);
-        break;
-      case 'Digit2':
-        this.emit('element', 1);
-        break;
-      case 'Digit3':
-        this.emit('element', 2);
-        break;
-      case 'Digit4':
-        this.emit('element', 3);
-        break;
       case 'KeyQ':
-        // DRC: equip ↔ combat (was prevElement)
         this.emit('action', 'toggleDrcSession');
         break;
       case 'KeyE':
-        this.emit('action', 'nextElement');
+        // Equip mode only: cycle element (combat uses E as guard)
+        if (!this.combatKeys) this.emit('action', 'nextElement');
         break;
+      case 'Slash':
       case 'KeyH':
-        this.emit('action', 'toggleHelp');
+        if (!this.combatKeys) this.emit('action', 'toggleHelp');
         break;
       case 'KeyG':
         this.emit('action', 'toggleEditor');
         break;
       case 'KeyC':
-        this.emit('action', 'clear');
+        if (!this.combatKeys) this.emit('action', 'clear');
         break;
       case 'KeyP':
         this.emit('action', 'togglePause');
@@ -132,7 +172,11 @@ export class InputManager extends EventEmitter {
         this.emit('action', 'toggleInventory');
         break;
       case 'KeyF':
-        this.emit('action', 'weaponAttack');
+        if (!this.combatKeys) this.emit('action', 'weaponAttack');
+        break;
+      case 'F1':
+        event.preventDefault();
+        this.emit('action', 'toggleHelp');
         break;
       default:
         break;

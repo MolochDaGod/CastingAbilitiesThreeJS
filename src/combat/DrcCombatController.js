@@ -75,6 +75,8 @@ export class DrcCombatController {
     /** After backflip, keep reverse dash until land */
     this._backflipBoostT = 0;
     this._backflipDir = new Vector3();
+    /** @type {Map<string, number>} utility action max CD for HUD */
+    this._cdMax = new Map();
   }
 
   setPhysics(physics) {
@@ -480,11 +482,157 @@ export class DrcCombatController {
     return new CatmullRomCurve3(pts, false, 'catmullrom', 0.5);
   }
 
-  /** Cooldown fraction 0..1 remaining for HUD */
+  /** Cooldown fraction 0..1 remaining for HUD (skill id or utility action id). */
   cooldown01(skillId) {
     const readyAt = this._cdUntil.get(skillId) || 0;
-    const skill = this.skills.find((s) => s.id === skillId);
-    if (!skill || this.elapsed >= readyAt) return 0;
-    return MathUtils.clamp((readyAt - this.elapsed) / Math.max(0.01, skill.cooldown), 0, 1);
+    if (this.elapsed >= readyAt) return 0;
+    const skill =
+      this.skills.find((s) => s.id === skillId) ||
+      (skillId === 'drc_melee_strike' ? getMeleeStrikeSkill() : null);
+    const cdMax = skill?.cooldown ?? this._cdMax.get(skillId) ?? 1;
+    if (!skill && !this._cdUntil.has(skillId)) return 0;
+    return MathUtils.clamp((readyAt - this.elapsed) / Math.max(0.01, cdMax), 0, 1);
+  }
+
+  /**
+   * Danger Room / tight-bar quick action (parry, dodge, heavy, bag, skills…).
+   * Lab implementations: real skill fire where wired; mobility stubs with CD toast.
+   * @param {string} actionId QuickActionId
+   * @returns {boolean}
+   */
+  performQuickAction(actionId) {
+    if (!this.inCombat && actionId !== 'mode') {
+      this.onToast('Enter combat (Q)');
+      return false;
+    }
+    if (this.character._rideActive) return false;
+
+    switch (actionId) {
+      case 'primary':
+        return this.useMeleeStrike() || this.character.playWeaponAttack?.() || false;
+      case 'fskill':
+        return this.useMeleeStrike();
+      case 'sig1':
+        return this.useSkill(0);
+      case 'sig2':
+        return this.useSkill(1);
+      case 'sig3':
+        return this.useSkill(2);
+      case 'sig4':
+        return this.useSkill(3);
+      case 'dodge':
+        return this._utilityAction('dodge', 0.85, 8, () => {
+          const yaw = this.character.facing;
+          const sp = 7.5;
+          const vx = Math.sin(yaw) * sp;
+          const vz = Math.cos(yaw) * sp;
+          if (this.physics?.ready) {
+            this.physics.movePlayer?.(vx, vz, 0.12);
+          } else {
+            this.character.root.position.x += vx * 0.12;
+            this.character.root.position.z += vz * 0.12;
+          }
+          this.character.requestOneShot?.('jump') || this.character.playJump?.(0.05);
+          this.onToast('Roll (X)');
+        });
+      case 'parry':
+        return this._utilityAction('parry', 0.7, 6, () => {
+          this.character.requestOneShot?.('block') || this.character.play?.('block', 0.1);
+          _fwd.set(Math.sin(this.character.facing), 0, Math.cos(this.character.facing));
+          this.vfx?.deploy?.('arcane_swirl', {
+            origin: this.character.position.clone(),
+            forward: _fwd.clone(),
+            intensity: 0.7
+          });
+          this.onToast('Parry (C)');
+        });
+      case 'block':
+        return this._utilityAction('block', 0.4, 4, () => {
+          this.character.requestOneShot?.('block') || this.character.play?.('block', 0.1);
+          this.onToast('Guard (E)');
+        });
+      case 'heavy':
+        return this._utilityAction('heavy', 1.4, 14, () => {
+          this.useMeleeStrike();
+          _fwd.set(Math.sin(this.character.facing), 0, Math.cos(this.character.facing));
+          this.vfx?.deploy?.('getsuga_slash', {
+            origin: this.character.position.clone(),
+            forward: _fwd.clone(),
+            fromTip: true,
+            intensity: 1.35,
+            size: 1.2
+          });
+          this.onToast('Heavy (R)');
+        });
+      case 'kick':
+        return this._utilityAction('kick', 0.9, 6, () => {
+          this.character.playWeaponAttack?.();
+          this.onToast('Kick (V)');
+        });
+      case 'heal':
+        return this._utilityAction('heal', 4.0, 0, () => {
+          this.stamina = Math.min(this.maxStamina, this.stamina + 35);
+          _fwd.set(Math.sin(this.character.facing), 0, Math.cos(this.character.facing));
+          this.vfx?.deploy?.('moon_beam', {
+            origin: this.character.position.clone(),
+            forward: _fwd.clone(),
+            intensity: 0.8
+          });
+          this.onToast('Heal tonic (J)');
+        });
+      case 'bomb':
+        return this._utilityAction('bomb', 5.0, 10, () => {
+          _fwd.set(Math.sin(this.character.facing), 0, Math.cos(this.character.facing));
+          const origin = this.character.position.clone().addScaledVector(_fwd, 2.5);
+          this.vfx?.deploy?.('inferno', {
+            origin,
+            forward: _fwd.clone(),
+            intensity: 1.1
+          });
+          this.onToast('Bomb (H)');
+        });
+      case 'mode':
+        this.toggleSession();
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * @param {string} id
+   * @param {number} cooldown
+   * @param {number} staminaCost
+   * @param {() => void} fn
+   */
+  _utilityAction(id, cooldown, staminaCost, fn) {
+    if (!this._cdMax) this._cdMax = new Map();
+    this._cdMax.set(id, cooldown);
+    const readyAt = this._cdUntil.get(id) || 0;
+    if (this.elapsed < readyAt) {
+      this.onToast(`${id} CD`);
+      return false;
+    }
+    if (this.stamina < staminaCost) {
+      this.onToast('Low stamina');
+      return false;
+    }
+    this.stamina -= staminaCost;
+    this._cdUntil.set(id, this.elapsed + cooldown);
+    fn();
+    return true;
+  }
+
+  /** Map quick-action id → CD fraction for tight bar. */
+  quickCd01(actionId) {
+    if (actionId === 'fskill' || actionId === 'primary') {
+      return this.cooldown01('drc_melee_strike');
+    }
+    if (actionId?.startsWith('sig')) {
+      const slot = Number(actionId.slice(3)) - 1;
+      const skill = this.skills.find((s) => s.slot === slot);
+      return skill ? this.cooldown01(skill.id) : 0;
+    }
+    return this.cooldown01(actionId);
   }
 }

@@ -1,0 +1,239 @@
+/* ============================================================
+   HUD Tight — Danger Room / threejs-rapier (HUD.psd 3800×726)
+   Port of gameopen tightBar.css for Casting lab
+   ============================================================ */
+
+.tightbar-root {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 28;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.tightbar-root.is-hidden {
+  display: none !important;
+}
+
+.tightbar {
+  position: relative;
+  width: min(96vw, 1160px);
+  aspect-ratio: 3800 / 726;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  background-position: center bottom;
+  pointer-events: none;
+  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.55));
+}
+
+.tb-orb {
+  position: absolute;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.tb-orb-drain {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: rgba(8, 8, 12, 0.86);
+  transition: height 160ms linear;
+}
+.tb-orb-val {
+  position: relative;
+  font-size: clamp(11px, 1.4vw, 17px);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #f2ecdf;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 8px rgba(0, 0, 0, 0.6);
+}
+
+.tb-slot {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #cfe2ff;
+  border-radius: 4px;
+  pointer-events: auto;
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+}
+.tb-slot:hover {
+  filter: brightness(1.15);
+}
+.tb-slot:focus-visible {
+  outline: 1px solid #6fe0ff;
+}
+.tb-glyph {
+  font-size: clamp(14px, 1.8vw, 22px);
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9));
+  pointer-events: none;
+}
+.tb-slot.tb-accent .tb-glyph {
+  color: #ffd27a;
+}
+.tb-slot.tb-empty {
+  opacity: 0.4;
+  pointer-events: none;
+}
+.tb-slot .tb-key {
+  position: absolute;
+  right: 5%;
+  bottom: 3%;
+  font-size: clamp(7px, 0.75vw, 10px);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: rgba(235, 240, 250, 0.8);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+}
+.tb-sweep {
+  position: absolute;
+  inset: 6%;
+  border-radius: 4px;
+  pointer-events: none;
+}
+.tb-cd {
+  position: absolute;
+  font-size: clamp(9px, 1vw, 13px);
+  font-weight: 700;
+  color: #ffe9b0;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
+  pointer-events: none;
+}
+.tb-slot.on-cd .tb-glyph {
+  opacity: 0.45;
+}
+
+.tb-avatar {
+  position: absolute;
+  left: 45.947%;
+  top: 38.6%;
+  width: 7.789%;
+  height: 55.1%;
+  border-radius: 48% 48% 6% 6% / 34% 34% 4% 4%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 50% 30%, rgba(58, 66, 84, 0.55), rgba(10, 12, 18, 0.65));
+  pointer-events: none;
+}
+.tb-avatar-letter {
+  font-size: clamp(12px, 1.6vw, 20px);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #e8dcc2;
+  text-shadow: 0 1px 3px #000;
+}
+.tb-avatar-name {
+  position: absolute;
+  bottom: 2%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: clamp(7px, 0.8vw, 11px);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #e8dcc2;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
+}
+
+.tb-poise {
+  position: absolute;
+  left: 45.947%;
+  top: 95%;
+  width: 7.789%;
+  height: 3%;
+  border-radius: 3px;
+  background: rgba(10, 8, 8, 0.72);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  pointer-events: none;
+}
+.tb-poise-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #b9924e, #e8c979);
+  transition: width 120ms linear;
+}
+
+/* Menu buttons under / beside bar */
+.tb-menus {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+  margin-bottom: 6px;
+  pointer-events: auto;
+  z-index: 2;
+}
+.tb-menu-btn {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(12, 16, 22, 0.88);
+  color: rgba(230, 238, 255, 0.9);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+}
+.tb-menu-btn:hover {
+  border-color: rgba(127, 214, 255, 0.55);
+  color: #fff;
+}
+
+.tb-keychips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: center;
+  margin-bottom: 8px;
+  pointer-events: none;
+  opacity: 0.65;
+}
+.tb-chip {
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(200, 214, 230, 0.85);
+  letter-spacing: 0.04em;
+}
+
+/* Hide legacy bottom action bar when tight is live */
+.hud--tight .hud__actionbar {
+  display: none !important;
+}
+.hud--tight .hud__modes {
+  bottom: auto;
+  top: 12px;
+  right: 16px;
+  left: auto;
+}
+
+@media (max-width: 720px) {
+  .tightbar {
+    width: 100vw;
+  }
+  .tb-menus {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+}

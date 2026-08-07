@@ -1,6 +1,8 @@
 import { ELEMENTS, ELEMENT_META, MODES, MODE_META } from '../config/settings.js';
 import { ELEMENT_SIGILS } from './glyphs.js';
 import { getActiveSkills, DRC_MELEE_STRIKE } from '../combat/drcSkills.js';
+import { TightBar } from './TightBar.js';
+import './tightBar.css';
 
 /**
  * Production-style combat HUD for casting lab:
@@ -20,6 +22,10 @@ export class HUD {
     this.onMode = null;
     this.onSkillSlot = null;
     this.onMelee = null;
+    /** @type {((actionId: string) => void)|null} */
+    this.onQuickAction = null;
+    /** @type {((menuId: string) => void)|null} */
+    this.onMenu = null;
     this._toastTimer = 0;
     this._statsAccumulator = 0;
     this._frames = 0;
@@ -78,10 +84,11 @@ export class HUD {
       </div>
 
       <div class="hud__panel hud__help">
-        <div><strong>Combat HUD lab</strong></div>
+        <div><strong>Danger Room HUD (tight 6+6)</strong></div>
         <div><kbd>WASD</kbd> · <kbd>Space</kbd> jump · <kbd>1</kbd>–<kbd>4</kbd> skills · <kbd>F</kbd> residual</div>
-        <div><kbd>Q</kbd>/<kbd>I</kbd> Lab Panel · <kbd>G</kbd> VFX editor · <kbd>M</kbd> walk/mount</div>
-        <div style="margin-top:6px;opacity:.75">Frames = player / target / allies · bar = weapon skills</div>
+        <div><kbd>X</kbd> roll · <kbd>C</kbd> parry · <kbd>E</kbd> guard · <kbd>R</kbd> heavy</div>
+        <div><kbd>J</kbd> heal · <kbd>H</kbd> bomb · <kbd>V</kbd> kick · <kbd>Q</kbd> mode</div>
+        <div><kbd>I</kbd> Lab · <kbd>G</kbd> VFX · <kbd>Shift</kbd>+<kbd>C</kbd> clear · <kbd>F1</kbd> help</div>
       </div>
 
       <div class="hud__modes">
@@ -163,6 +170,14 @@ export class HUD {
     this._targetHpText = root.querySelector('[data-target-hp-text]');
     this._meleeCd = root.querySelector('[data-cd-melee]');
 
+    // Danger Room / threejs-rapier tight bar (6+6 + avatar + orbs)
+    root.classList.add('hud--tight');
+    this.tightBar = new TightBar({
+      host: root,
+      onAction: (id) => this.onQuickAction?.(id),
+      onMenu: (id) => this.onMenu?.(id)
+    });
+
     this.refreshSkillLabels();
   }
 
@@ -176,6 +191,7 @@ export class HUD {
       if (lab && sk) lab.textContent = sk.label;
       i++;
     }
+    this.tightBar?.refreshLabels?.();
   }
 
   /**
@@ -195,6 +211,14 @@ export class HUD {
       if (this._mpText) this._mpText.textContent = `${Math.round(this._sta * 100)}`;
       if (this.stats.stamina) this.stats.stamina.textContent = String(Math.round(this._sta * 100));
     }
+    this.tightBar?.setState({
+      character: info.name || this.tightBar.state.character,
+      raceId: info.raceId || this.tightBar.state.raceId,
+      health: (info.hp01 != null ? info.hp01 : this._hp) * 100,
+      maxHealth: 100,
+      stamina: (info.sta01 != null ? info.sta01 : this._sta) * 100,
+      maxStamina: 100
+    });
   }
 
   /**
@@ -253,12 +277,15 @@ export class HUD {
   setDrcSession(session) {
     this._drcSession = session;
     if (session === 'combat') {
-      this.blurb.textContent = 'DRC combat · WASD · 1–4 · F residual · I lab panel';
+      this.blurb.textContent = 'Danger HUD · 6+6 · X/C/E/R · 1–4 · F · Q mode';
       this.actionbar?.classList.remove('is-dimmed');
+      this.tightBar?.setVisible(true);
       this.refreshSkillLabels();
     } else {
       this.blurb.textContent = 'Equip / Lab Panel · race · mesh · packs';
       this.actionbar?.classList.add('is-dimmed');
+      // Keep tight bar visible for reference; dim via class
+      this.tightBar?.setVisible(true);
     }
   }
 
@@ -312,6 +339,18 @@ export class HUD {
     }
     if (info.player) this.setPlayerFrame(info.player);
     if (info.target !== undefined) this.setTargetFrame(info.target);
+
+    // Sync tight bar orbs + CDs every stats tick
+    if (this.tightBar && info.stamina != null) {
+      this.tightBar.setState({
+        stamina: info.stamina,
+        maxStamina: 100,
+        health: (info.player?.hp01 ?? this._hp) * 100,
+        character: info.player?.name || this.tightBar.state.character,
+        raceId: info.player?.raceId || this.tightBar.state.raceId,
+        cd01: info.quickCd01 || (() => 0)
+      });
+    }
   }
 }
 

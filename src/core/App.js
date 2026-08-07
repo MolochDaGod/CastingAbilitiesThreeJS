@@ -194,6 +194,7 @@ export class App {
     settings.drc.session = session;
     // Combat → TPS follow (OrbitControls off). Equip → orbit + inventory.
     this.rig.setViewMode(session === 'combat' ? 'tps' : 'orbit');
+    this.input.setCombatKeys?.(session === 'combat');
     if (session === 'equip') {
       this.inventory.setOpen(true);
       this.walk?.cancel?.();
@@ -259,7 +260,40 @@ export class App {
     this.hud.onMelee = () => {
       if (this.drc.inCombat) this.drc.useMeleeStrike?.();
     };
+    this.hud.onQuickAction = (actionId) => {
+      this.drc.performQuickAction?.(actionId);
+    };
+    this.hud.onMenu = (menuId) => this._handleHudMenu(menuId);
     this.hud.onMode = (mode) => this.setMode(mode);
+
+    // Danger Room combat hotkeys (X/C/E/R/F/J/H/V)
+    this.input.on('combatAction', (actionId) => {
+      this.drc.performQuickAction?.(actionId);
+    });
+  }
+
+  _handleHudMenu(menuId) {
+    switch (menuId) {
+      case 'lab':
+      case 'inventory':
+        this.inventory.toggle();
+        break;
+      case 'editor':
+        this.editor.toggle();
+        break;
+      case 'help':
+        this.hud.toggleHelp();
+        break;
+      case 'clear':
+        this.clearEffects();
+        this.hud.showToast('Effects cleared');
+        break;
+      case 'mainpanel':
+        window.open('https://ui.grudge-studio.com/main-panel.html?era=warlords', '_blank', 'noopener');
+        break;
+      default:
+        break;
+    }
   }
 
   _handleAction(action) {
@@ -551,6 +585,7 @@ export class App {
         return skill ? this.drc.cooldown01(skill.id) : 0;
       },
       meleeCd01: this.drc.cooldown01?.('drc_melee_strike') ?? 0,
+      quickCd01: (actionId) => this.drc.quickCd01?.(actionId) ?? 0,
       player: {
         name: this.character.presetId || 'Hero',
         raceId: this.character.raceId,
