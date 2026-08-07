@@ -14,7 +14,7 @@ import {
   DEFAULT_RACE,
   FALLBACK_PRESETS,
   GEAR_PRESETS_URL,
-  bakedClipUrl
+  bakedClipUrlsForRole
 } from '../config/assets.js';
 import {
   atlasUrlForRace,
@@ -339,17 +339,48 @@ export class CharacterController {
     for (const [role, rel] of Object.entries(pack)) {
       const name =
         this.actions.has(role) && packId !== this.animPackId ? `${packId}:${role}` : role;
-      try {
-        const raw = await loadBakedClipJson(bakedClipUrl(rel));
-        raw.name = name;
-        const matched = rematchClipToSkeleton(this.model, raw, { stripPositions: true });
-        if (!matched.tracks.length) {
-          console.warn(`[CharacterController] empty tracks: ${rel}`);
-          continue;
+      const urls = bakedClipUrlsForRole(rel);
+      let loaded = false;
+      /** @type {{ url: string, matched: import('three').AnimationClip }|null} */
+      let fallbackNoHands = null;
+      for (const url of urls) {
+        try {
+          const raw = await loadBakedClipJson(url);
+          raw.name = name;
+          const matched = rematchClipToSkeleton(this.model, raw, { stripPositions: true });
+          if (!matched.tracks.length) {
+            console.warn(`[CharacterController] empty tracks: ${url}`);
+            continue;
+          }
+          // Prefer clips that drive hands for idle (prod standing-idle has hands;
+          // open magic/standing idle does not → broken bind-pose hands on Toon).
+          if (role === 'idle') {
+            const hasHand = matched.tracks.some((t) => /Hand\.quaternion$/i.test(t.name));
+            if (!hasHand) {
+              if (!fallbackNoHands) fallbackNoHands = { url, matched };
+              console.warn(
+                `[CharacterController] idle without Hand tracks (try next): ${url}`
+              );
+              continue;
+            }
+          }
+          this._registerClip(name, matched, roleMap[role] ?? LoopRepeat);
+          console.info(`[CharacterController] clip ${name} ← ${url} tracks=${matched.tracks.length}`);
+          loaded = true;
+          break;
+        } catch {
+          /* try next URL */
         }
-        this._registerClip(name, matched, roleMap[role] ?? LoopRepeat);
-      } catch (err) {
-        console.warn(`[CharacterController] clip fail ${rel}`, err);
+      }
+      if (!loaded && fallbackNoHands) {
+        this._registerClip(name, fallbackNoHands.matched, roleMap[role] ?? LoopRepeat);
+        console.warn(
+          `[CharacterController] idle fallback (no hands) ← ${fallbackNoHands.url}`
+        );
+        loaded = true;
+      }
+      if (!loaded) {
+        console.warn(`[CharacterController] clip fail role=${role}`, rel);
       }
     }
 

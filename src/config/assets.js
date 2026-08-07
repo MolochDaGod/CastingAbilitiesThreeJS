@@ -42,21 +42,33 @@ export const RACES = Object.fromEntries(
 );
 
 /**
- * Baked pack clip relatives under /anims/baked/.
- * magic = casting sandbox default; sword_shield = melee attack.
+ * Baked pack clips — each role is a candidate list (first URL that loads wins).
+ *
+ * HARD idle lesson (2026-08): open `magic/standing idle` is rotation-only but
+ * **has no Hand tracks** and drives Spine1/Spine2. Toon bind leaves hands in a
+ * broken rest while cast (`…1h cast spell…`) animates hands → cast looks formed,
+ * idle does not. Prefer **prod** magic idle (hands + same bone set as cast).
  */
 export const ANIM_PACKS = {
   magic: {
-    idle: 'magic/standing idle',
-    cast: 'magic/standing 1h cast spell 01',
-    walk: 'magic/Standing Walk Forward',
-    run: 'magic/Standing Run Forward'
+    // Prefer prod (has L/R Hand). Open standing idle is hand-less — avoid as primary.
+    idle: [
+      'prod:magic/standing-idle',
+      'magic/standing idle' // last resort only
+    ],
+    cast: [
+      'prod:magic/standing-1h-cast-spell-01',
+      'magic/standing 1h cast spell 01',
+      'magic/standing 2h cast spell 01'
+    ],
+    walk: ['prod:magic/standing-walk-forward', 'magic/Standing Walk Forward'],
+    run: ['prod:magic/standing-run-forward', 'magic/Standing Run Forward']
   },
   sword_shield: {
-    idle: 'sword_shield/sword and shield idle',
-    attack: 'sword_shield/sword and shield attack',
-    block: 'sword_shield/sword and shield block',
-    run: 'sword_shield/sword and shield run'
+    idle: ['sword_shield/sword and shield idle'],
+    attack: ['sword_shield/sword and shield attack'],
+    block: ['sword_shield/sword and shield block'],
+    run: ['sword_shield/sword and shield run']
   }
 };
 
@@ -124,9 +136,66 @@ export const FALLBACK_PRESETS = [
   }
 ];
 
+/**
+ * Resolve one relative path (or `prod:pack/file`) to absolute URL candidates.
+ * @param {string} rel
+ * @returns {string[]}
+ */
 export function bakedClipUrl(rel) {
-  const clean = String(rel).replace(/^\/+/, '').replace(/\.json$/i, '');
-  return `${OPEN_HOST}/anims/baked/${encodeURI(clean)}.json`;
+  return bakedClipUrls(rel)[0];
+}
+
+/**
+ * Absolute URL candidates for a baked clip.
+ * - `prod:magic/standing-idle` → assets…/prod/anims/magic/standing-idle.json
+ * - `magic/standing idle` → open…/anims/baked/magic/standing%20idle.json (+ assets mirror)
+ * @param {string} rel
+ * @returns {string[]}
+ */
+export function bakedClipUrls(rel) {
+  const raw = String(rel || '').replace(/^\/+/, '').replace(/\.json$/i, '');
+  if (!raw) return [];
+
+  if (raw.startsWith('prod:')) {
+    const path = raw.slice(5).replace(/^\/+/, '');
+    const enc = path
+      .split('/')
+      .map((s) => encodeURIComponent(s))
+      .join('/');
+    return [
+      `${ASSETS_CDN}/prod/anims/${enc}.json`,
+      // dash→space open fallback for same logical clip
+      `${OPEN_HOST}/anims/baked/${enc.replace(/-/g, '%20')}.json`
+    ];
+  }
+
+  const enc = raw
+    .split('/')
+    .map((s) => encodeURIComponent(s))
+    .join('/');
+  return [
+    `${OPEN_HOST}/anims/baked/${enc}.json`,
+    `${ASSETS_CDN}/anims/baked/${enc}.json`
+  ];
+}
+
+/**
+ * Flatten pack role value (string | string[]) into ordered absolute URLs.
+ * @param {string|string[]} roleEntry
+ * @returns {string[]}
+ */
+export function bakedClipUrlsForRole(roleEntry) {
+  const list = Array.isArray(roleEntry) ? roleEntry : [roleEntry];
+  const out = [];
+  const seen = new Set();
+  for (const rel of list) {
+    for (const url of bakedClipUrls(rel)) {
+      if (seen.has(url)) continue;
+      seen.add(url);
+      out.push(url);
+    }
+  }
+  return out;
 }
 
 /** SI human target height (metres). */
