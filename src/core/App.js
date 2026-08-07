@@ -139,7 +139,25 @@ export class App {
     });
     this.inventory = new InventoryPanel({
       character: this.character,
-      onToast: (message) => this.hud.showToast(message)
+      onToast: (message) => this.hud.showToast(message),
+      onEquip: () => {
+        this.hud.setPlayerFrame?.({
+          raceId: this.character.raceId,
+          name: this.character.presetId || 'Hero'
+        });
+        this.hud.refreshSkillLabels?.();
+      },
+      onRace: async (raceId) => {
+        await this.character.setRace(raceId);
+        this.hud.setPlayerFrame?.({
+          raceId,
+          name: this.character.presetId || raceId
+        });
+        this.hud.showToast(`Race · ${raceId}`);
+      },
+      onMode: (mode) => this.setMode(mode),
+      onMountToggle: () => {},
+      getDrc: () => this.drc
     });
 
     this.physics = new PhysicsWorld();
@@ -237,6 +255,9 @@ export class App {
     this.hud.onSelect = (element) => this.selectElement(element);
     this.hud.onSkillSlot = (slot) => {
       if (this.drc.inCombat) this.drc.useSkill(slot);
+    };
+    this.hud.onMelee = () => {
+      if (this.drc.inCombat) this.drc.useMeleeStrike?.();
     };
     this.hud.onMode = (mode) => this.setMode(mode);
   }
@@ -370,6 +391,13 @@ export class App {
     // Feet at origin; keep model local ground from scaffold
     this.character.placeAt?.(0, 0, 0);
     this.character.resetPlacement?.();
+    this.hud.setPlayerFrame?.({
+      name: this.character.presetId || 'Hero',
+      raceId: this.character.raceId,
+      hp01: 1,
+      sta01: 1
+    });
+    this.hud.refreshSkillLabels?.();
     this.inventory.refresh();
 
     // Windsurf package always available for walk mode (RideIK + deck sockets)
@@ -521,7 +549,15 @@ export class App {
       cooldown01: (slot) => {
         const skill = this.drc.skills.find((s) => s.slot === slot);
         return skill ? this.drc.cooldown01(skill.id) : 0;
-      }
+      },
+      meleeCd01: this.drc.cooldown01?.('drc_melee_strike') ?? 0,
+      player: {
+        name: this.character.presetId || 'Hero',
+        raceId: this.character.raceId,
+        hp01: 1,
+        sta01: (this.drc.stamina ?? 100) / 100
+      },
+      target: null
     }));
   }
 

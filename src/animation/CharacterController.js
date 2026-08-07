@@ -112,6 +112,7 @@ export class CharacterController {
    * @param {{ raceId?: string, presetId?: string }} [opts]
    */
   async load(assets, opts = {}) {
+    this.assets = assets;
     this.raceId = opts.raceId || DEFAULT_RACE;
     this.presetId = opts.presetId || 'mage';
     logSSOT();
@@ -325,8 +326,92 @@ export class CharacterController {
     const pack = preset?.pack || 'magic';
     if (pack === 'magic' || pack.startsWith('magic')) return 'magic';
     if (pack.includes('sword') || pack.includes('shield') || pack === '2h_melee') return 'sword_shield';
-    if (pack.includes('bow')) return 'magic';
+    if (pack.includes('bow') || pack === 'longbow') return 'longbow';
     return ANIM_PACKS[pack] ? pack : 'magic';
+  }
+
+  /**
+   * Swap Toon RTS race kit (all 6 races) — full reload, same preset when possible.
+   * @param {string} raceId WK|ELF|BRB|ORC|UD|DWF
+   */
+  async setRace(raceId) {
+    if (!this.assets) throw new Error('CharacterController.setRace: call load() first');
+    const next = raceId || DEFAULT_RACE;
+    if (next === this.raceId && this.model) return this;
+    await this.load(this.assets, { raceId: next, presetId: this.presetId });
+    return this;
+  }
+
+  /**
+   * Bind / activate a weapon locomotion + skill anim pack.
+   * @param {string} packId magic | sword_shield | longbow | locomotion_8way
+   */
+  async setAnimPack(packId) {
+    const id = ANIM_PACKS[packId] ? packId : 'magic';
+    this.animPackId = id;
+    // Re-bind so primary role names (idle/walk/attack) match this pack
+    this._boundPacks.delete(id);
+    const pack = ANIM_PACKS[id];
+    if (pack) {
+      for (const role of Object.keys(pack)) {
+        const prev = this.actions.get(role);
+        if (prev) {
+          try {
+            prev.stop();
+          } catch {
+            /* ignore */
+          }
+          this.actions.delete(role);
+        }
+      }
+    }
+    await this._bindPack(id);
+    if (this.actions.has('idle')) this.play('idle', 0.25);
+    else if (this.actions.has(`${id}:idle`)) this.play(`${id}:idle`, 0.25);
+    return id;
+  }
+
+  /** Bound clip roles for anim library UI. */
+  listAnimRoles() {
+    return [...this.actions.keys()].sort();
+  }
+
+  /** Play a library clip by role name (one-shot for attack/block/jump). */
+  playLibraryClip(role) {
+    if (!role || !this.actions.has(role)) return false;
+    const once = /attack|block|jump|cast/i.test(role);
+    this.play(role, once ? 0.12 : 0.25);
+    if (once) {
+      const act = this.actions.get(role);
+      const dur = act?.getClip?.()?.duration ?? 0.6;
+      this._oneShotTimer = Math.max(this._oneShotTimer, dur * 0.95);
+      this.animState = /attack/i.test(role) ? 'attack' : this.animState;
+    }
+    return true;
+  }
+
+  /** Summary for lab Character tab. */
+  getLabSummary() {
+    const race = raceDef(this.raceId);
+    const loadout = this.equipment?.loadout || {};
+    const weaponSlot = ['sword', 'axe', 'hammer', 'spear', 'staff', 'bow'].find(
+      (s) => loadout[s] && loadout[s] !== 'none'
+    );
+    return {
+      raceId: this.raceId,
+      raceLabel: race?.label || this.raceId,
+      raceShort: race?.short || '',
+      kitUrl: kitUrlForRace(this.raceId),
+      atlasUrl: atlasUrlForRace(this.raceId),
+      presetId: this.presetId,
+      animPackId: this.animPackId,
+      heightM: this.height,
+      weaponSlot: weaponSlot || null,
+      weaponVariant: weaponSlot ? loadout[weaponSlot] : null,
+      loadout: { ...loadout },
+      clips: this.listAnimRoles(),
+      rideActive: !!this._rideActive
+    };
   }
 
   async _bindPack(packId) {

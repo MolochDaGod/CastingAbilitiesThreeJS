@@ -49,6 +49,11 @@ export const RACES = Object.fromEntries(
  * broken rest while cast (`…1h cast spell…`) animates hands → cast looks formed,
  * idle does not. Prefer **prod** magic idle (hands + same bone set as cast).
  */
+/**
+ * Weapon locomotion + skill packs (Bip001 baked JSON).
+ * Lab binds one active pack; skills fire roles (cast/attack/block).
+ * Expand roles only when CDN clips exist — do not invent paths.
+ */
 export const ANIM_PACKS = {
   magic: {
     // Prefer prod (has L/R Hand). Open standing idle is hand-less — avoid as primary.
@@ -70,8 +75,32 @@ export const ANIM_PACKS = {
     idle: ['sword_shield/sword and shield idle'],
     attack: ['sword_shield/sword and shield attack'],
     block: ['sword_shield/sword and shield block'],
-    run: ['sword_shield/sword and shield run']
+    walk: ['sword_shield/sword and shield walk', 'prod:magic/standing-walk-forward'],
+    run: ['sword_shield/sword and shield run'],
+    jump: ['prod:magic/standing-jump', 'locomotion/jump']
+  },
+  longbow: {
+    idle: ['longbow/standing idle', 'bow/standing idle', 'prod:magic/standing-idle'],
+    attack: ['longbow/standing draw arrow', 'bow/draw arrow', 'sword_shield/sword and shield attack'],
+    walk: ['longbow/standing walk forward', 'prod:magic/standing-walk-forward'],
+    run: ['longbow/standing run forward', 'prod:magic/standing-run-forward'],
+    jump: ['prod:magic/standing-jump', 'locomotion/jump']
+  },
+  /** Optional 8-way locomotion overlay (binds extra roles if CDN has clips) */
+  locomotion_8way: {
+    idle: ['prod:magic/standing-idle'],
+    walk: ['locomotion/walk-forward', 'prod:magic/standing-walk-forward'],
+    run: ['locomotion/run-forward', 'prod:magic/standing-run-forward'],
+    jump: ['locomotion/jump', 'prod:magic/standing-jump']
   }
+};
+
+/** UI labels for pack picker (weapon locomotion + skills). */
+export const ANIM_PACK_META = {
+  magic: { label: 'Magic / staff', skills: 'cast', locomotion: 'walk·run·jump' },
+  sword_shield: { label: 'Sword & shield', skills: 'attack·block', locomotion: 'walk·run·jump' },
+  longbow: { label: 'Longbow', skills: 'attack (draw)', locomotion: 'walk·run·jump' },
+  locomotion_8way: { label: 'Locomotion 8-way', skills: '—', locomotion: 'walk·run·jump' }
 };
 
 /** Fallback loadouts if CDN presets fail (mage-first for casting).

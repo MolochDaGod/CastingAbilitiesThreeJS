@@ -1,11 +1,17 @@
 import { ELEMENTS, ELEMENT_META, MODES, MODE_META } from '../config/settings.js';
 import { ELEMENT_SIGILS } from './glyphs.js';
-
-const SKILL_LABELS = ['Fire Bolt', 'Water Lash', 'Earth Spike', 'Blade'];
+import { getActiveSkills, DRC_MELEE_STRIKE } from '../combat/drcSkills.js';
 
 /**
- * HUD: DRC combat action bar (default) + sandbox mode switch + stats.
- * Plain DOM — no framework.
+ * Production-style combat HUD for casting lab:
+ *  - Player frame (self) top-left
+ *  - Target frame top-right (lab placeholder until targeting wired)
+ *  - Ally strip under player frame
+ *  - Bottom action bar (1–4 + F residual) with CD overlays
+ *  - Mode switch + compact help
+ *
+ * CraftPix / HYDRA layouts are the art SSOT — this is functional chrome
+ * for the lab (no invented Main Panel).
  */
 export class HUD {
   constructor(root) {
@@ -13,16 +19,55 @@ export class HUD {
     this.onSelect = null;
     this.onMode = null;
     this.onSkillSlot = null;
+    this.onMelee = null;
     this._toastTimer = 0;
     this._statsAccumulator = 0;
     this._frames = 0;
     this._fps = 0;
     this._drcSession = 'combat';
+    this._hp = 1;
+    this._mp = 1;
+    this._sta = 1;
 
     root.innerHTML = `
       <div class="hud__panel hud__title">
-        Grudge Casting · Toon RTS
-        <span data-blurb>DRC combat · Toon CDN kits · windsurf ride</span>
+        Grudge Casting · Warlords lab
+        <span data-blurb>DRC · Toon RTS · Lab Panel (I)</span>
+      </div>
+
+      <!-- Player unit frame -->
+      <div class="hud-frame hud-frame--player" data-player-frame>
+        <div class="hud-frame__portrait" data-portrait>WK</div>
+        <div class="hud-frame__body">
+          <div class="hud-frame__name" data-player-name>Hero</div>
+          <div class="hud-frame__bar hud-frame__bar--hp">
+            <div class="hud-frame__fill" data-hp-fill style="width:100%"></div>
+            <span class="hud-frame__val" data-hp-text>100%</span>
+          </div>
+          <div class="hud-frame__bar hud-frame__bar--mp">
+            <div class="hud-frame__fill" data-mp-fill style="width:100%"></div>
+            <span class="hud-frame__val" data-mp-text>STA</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ally strip -->
+      <div class="hud-allies" data-allies>
+        <div class="hud-ally is-empty" title="Ally slot (lab)"><span>A1</span></div>
+        <div class="hud-ally is-empty" title="Ally slot (lab)"><span>A2</span></div>
+        <div class="hud-ally is-empty" title="Ally slot (lab)"><span>A3</span></div>
+      </div>
+
+      <!-- Target unit frame -->
+      <div class="hud-frame hud-frame--target" data-target-frame>
+        <div class="hud-frame__body">
+          <div class="hud-frame__name" data-target-name>No target</div>
+          <div class="hud-frame__bar hud-frame__bar--hp hud-frame__bar--hostile">
+            <div class="hud-frame__fill" data-target-hp style="width:0%"></div>
+            <span class="hud-frame__val" data-target-hp-text>—</span>
+          </div>
+        </div>
+        <div class="hud-frame__portrait hud-frame__portrait--target" data-target-portrait>?</div>
       </div>
 
       <div class="hud__panel hud__stats">
@@ -33,13 +78,10 @@ export class HUD {
       </div>
 
       <div class="hud__panel hud__help">
-        <div><strong>Combat (default)</strong></div>
-        <div><kbd>WASD</kbd> move (A left · D right) · <kbd>Shift</kbd> sprint · TPS</div>
-        <div><kbd>Space</kbd> jump · <kbd>S</kbd>+<kbd>Space</kbd> air backflip · double-jump</div>
-        <div><kbd>1</kbd>–<kbd>4</kbd> weapon skills · <kbd>F</kbd> blade strike</div>
-        <div><kbd>Q</kbd> equip / inventory · <kbd>I</kbd> panel</div>
-        <div><kbd>C</kbd> clear VFX · <kbd>P</kbd> pause · <kbd>G</kbd> editor</div>
-        <div style="margin-top:6px;opacity:.75">Sandbox: LMB draw path free-cast · <kbd>M</kbd> walk = windsurf (feet/hands IK)</div>
+        <div><strong>Combat HUD lab</strong></div>
+        <div><kbd>WASD</kbd> · <kbd>Space</kbd> jump · <kbd>1</kbd>–<kbd>4</kbd> skills · <kbd>F</kbd> residual</div>
+        <div><kbd>Q</kbd>/<kbd>I</kbd> Lab Panel · <kbd>G</kbd> VFX editor · <kbd>M</kbd> walk/mount</div>
+        <div style="margin-top:6px;opacity:.75">Frames = player / target / allies · bar = weapon skills</div>
       </div>
 
       <div class="hud__modes">
@@ -61,16 +103,22 @@ export class HUD {
               <div class="action-slot__cd" data-cd></div>
               <div class="action-slot__key">${index + 1}</div>
               <div class="action-slot__glyph">${ELEMENT_SIGILS[element] ?? meta.glyph}</div>
-              <div class="action-slot__label">${SKILL_LABELS[index] || meta.label}</div>
+              <div class="action-slot__label" data-skill-label>${meta.label}</div>
             </div>`;
         }).join('')}
+        <div class="action-slot action-slot--melee" data-melee="1" style="--accent:#7dd3fc">
+          <div class="action-slot__cd" data-cd-melee></div>
+          <div class="action-slot__key">F</div>
+          <div class="action-slot__glyph">⚔</div>
+          <div class="action-slot__label">${DRC_MELEE_STRIKE.label}</div>
+        </div>
       </div>
 
       <div class="hud__toast" data-toast></div>
     `;
 
     this.cards = new Map();
-    for (const card of root.querySelectorAll('.action-slot')) {
+    for (const card of root.querySelectorAll('.action-slot[data-slot]')) {
       this.cards.set(card.dataset.element, card);
       card.addEventListener('pointerdown', (event) => {
         event.stopPropagation();
@@ -78,6 +126,10 @@ export class HUD {
         this.onSkillSlot?.(Number(card.dataset.slot));
       });
     }
+    root.querySelector('[data-melee]')?.addEventListener('pointerdown', (event) => {
+      event.stopPropagation();
+      this.onMelee?.();
+    });
 
     this.modeCards = new Map();
     for (const card of root.querySelectorAll('.mode-card')) {
@@ -99,6 +151,88 @@ export class HUD {
     this.blurb = root.querySelector('[data-blurb]');
     this.actionbar = root.querySelector('[data-actionbar]');
     this.elements = this.actionbar;
+
+    this._hpFill = root.querySelector('[data-hp-fill]');
+    this._mpFill = root.querySelector('[data-mp-fill]');
+    this._hpText = root.querySelector('[data-hp-text]');
+    this._mpText = root.querySelector('[data-mp-text]');
+    this._playerName = root.querySelector('[data-player-name]');
+    this._portrait = root.querySelector('[data-portrait]');
+    this._targetName = root.querySelector('[data-target-name]');
+    this._targetHp = root.querySelector('[data-target-hp]');
+    this._targetHpText = root.querySelector('[data-target-hp-text]');
+    this._meleeCd = root.querySelector('[data-cd-melee]');
+
+    this.refreshSkillLabels();
+  }
+
+  /** Pull labels from active DRC skill tree. */
+  refreshSkillLabels() {
+    const skills = getActiveSkills();
+    let i = 0;
+    for (const card of this.cards.values()) {
+      const lab = card.querySelector('[data-skill-label]');
+      const sk = skills.find((s) => s.slot === i);
+      if (lab && sk) lab.textContent = sk.label;
+      i++;
+    }
+  }
+
+  /**
+   * @param {{ name?: string, raceId?: string, hp01?: number, sta01?: number }} info
+   */
+  setPlayerFrame(info = {}) {
+    if (info.name && this._playerName) this._playerName.textContent = info.name;
+    if (info.raceId && this._portrait) this._portrait.textContent = String(info.raceId).slice(0, 3);
+    if (info.hp01 != null) {
+      this._hp = Math.max(0, Math.min(1, info.hp01));
+      if (this._hpFill) this._hpFill.style.width = `${Math.round(this._hp * 100)}%`;
+      if (this._hpText) this._hpText.textContent = `${Math.round(this._hp * 100)}%`;
+    }
+    if (info.sta01 != null) {
+      this._sta = Math.max(0, Math.min(1, info.sta01));
+      if (this._mpFill) this._mpFill.style.width = `${Math.round(this._sta * 100)}%`;
+      if (this._mpText) this._mpText.textContent = `${Math.round(this._sta * 100)}`;
+      if (this.stats.stamina) this.stats.stamina.textContent = String(Math.round(this._sta * 100));
+    }
+  }
+
+  /**
+   * @param {{ name?: string, hp01?: number, present?: boolean }|null} info
+   */
+  setTargetFrame(info) {
+    if (!info || info.present === false) {
+      if (this._targetName) this._targetName.textContent = 'No target';
+      if (this._targetHp) this._targetHp.style.width = '0%';
+      if (this._targetHpText) this._targetHpText.textContent = '—';
+      this.root.querySelector('[data-target-frame]')?.classList.add('is-empty');
+      return;
+    }
+    this.root.querySelector('[data-target-frame]')?.classList.remove('is-empty');
+    if (info.name && this._targetName) this._targetName.textContent = info.name;
+    const hp = Math.max(0, Math.min(1, info.hp01 ?? 1));
+    if (this._targetHp) this._targetHp.style.width = `${Math.round(hp * 100)}%`;
+    if (this._targetHpText) this._targetHpText.textContent = `${Math.round(hp * 100)}%`;
+  }
+
+  /**
+   * @param {{ id: string, name: string, hp01?: number }[]} allies
+   */
+  setAllies(allies = []) {
+    const host = this.root.querySelector('[data-allies]');
+    if (!host) return;
+    const slots = host.querySelectorAll('.hud-ally');
+    slots.forEach((el, i) => {
+      const a = allies[i];
+      if (!a) {
+        el.classList.add('is-empty');
+        el.innerHTML = `<span>A${i + 1}</span>`;
+        return;
+      }
+      el.classList.remove('is-empty');
+      const pct = Math.round(Math.max(0, Math.min(1, a.hp01 ?? 1)) * 100);
+      el.innerHTML = `<span>${a.name || a.id}</span><i style="width:${pct}%"></i>`;
+    });
   }
 
   setElement(element) {
@@ -119,23 +253,18 @@ export class HUD {
   setDrcSession(session) {
     this._drcSession = session;
     if (session === 'combat') {
-      this.blurb.textContent = 'DRC combat · WASD · 1–4 skills · TPS · F strike';
+      this.blurb.textContent = 'DRC combat · WASD · 1–4 · F residual · I lab panel';
       this.actionbar?.classList.remove('is-dimmed');
-      let i = 0;
-      for (const card of this.cards.values()) {
-        const lab = card.querySelector('.action-slot__label');
-        if (lab && SKILL_LABELS[i]) lab.textContent = SKILL_LABELS[i];
-        i++;
-      }
+      this.refreshSkillLabels();
     } else {
-      this.blurb.textContent = 'Equip · I inventory · mesh loadout';
+      this.blurb.textContent = 'Equip / Lab Panel · race · mesh · packs';
       this.actionbar?.classList.add('is-dimmed');
     }
   }
 
-  setCombatHud(cd01Fn, stamina) {
-    if (this.stats.stamina && stamina != null) {
-      this.stats.stamina.textContent = String(Math.round(stamina));
+  setCombatHud(cd01Fn, stamina, meleeCd01) {
+    if (stamina != null) {
+      this.setPlayerFrame({ sta01: stamina / 100 });
     }
     if (!cd01Fn) return;
     for (const card of this.cards.values()) {
@@ -144,6 +273,10 @@ export class HUD {
       const el = card.querySelector('[data-cd]');
       if (el) el.style.setProperty('--cd', String(cd));
       card.classList.toggle('is-cooling', cd > 0.02);
+    }
+    if (this._meleeCd && meleeCd01 != null) {
+      this._meleeCd.style.setProperty('--cd', String(meleeCd01));
+      this.root.querySelector('[data-melee]')?.classList.toggle('is-cooling', meleeCd01 > 0.02);
     }
   }
 
@@ -171,12 +304,14 @@ export class HUD {
     this.stats.fps.textContent = this._fps;
     this.stats.particles.textContent = info.particles;
     this.stats.calls.textContent = info.calls;
-    if (info.stamina != null && this.stats.stamina) {
-      this.stats.stamina.textContent = String(Math.round(info.stamina));
+    if (info.stamina != null) {
+      this.setPlayerFrame({ sta01: info.stamina / 100 });
     }
     if (info.cooldown01 && this._drcSession === 'combat') {
-      this.setCombatHud(info.cooldown01, info.stamina);
+      this.setCombatHud(info.cooldown01, info.stamina, info.meleeCd01);
     }
+    if (info.player) this.setPlayerFrame(info.player);
+    if (info.target !== undefined) this.setTargetFrame(info.target);
   }
 }
 
@@ -196,10 +331,5 @@ export class LoadingScreen {
   hide() {
     this.setProgress(1);
     setTimeout(() => this.element.classList.add('is-hidden'), 220);
-  }
-
-  fail(message) {
-    this.status.textContent = message;
-    this.status.style.color = '#ff7a6a';
   }
 }

@@ -30,7 +30,20 @@ learn source → isolate primitive → edit knobs → bind skill → smoke → e
 | **F = melee residual** | Attack anim + tip spawn + `settings.residual` knobs |
 | Toon character + packs | SI, hands-on idle, jump/double/backflip, cast |
 | DRC combat UX | TPS, 1–4 spells, stamina, Q equip/combat |
+| **Lab Panel (I)** | Left tabs: Character · Equipment · Weapon · Race · Mesh · Mount · Anims · Skills · API |
+| **HUD frames** | Player / target / allies + action bar (1–4 + F) |
+| **6 races** | Toon RTS GLB via Race tab (`setRace`) |
+| **Fleet API client** | `src/api/fleetApi.js` → Railway health + characters |
 | World SI | `worldScale.js` MAP_SCALE 1.5 + StageWater |
+
+### Lab Panel vs Main Panel
+
+| Surface | Host | Role |
+|---------|------|------|
+| **Lab Panel** | casting.* | Dev/tester: race kits, mesh_ids, packs, skills, API ping |
+| **Main Panel** | ui.grudge-studio.com / Open | Production account inventory + equipment SSOT |
+
+Do **not** fork Main Panel UI inside casting — link out + exercise contracts.
 
 ---
 
