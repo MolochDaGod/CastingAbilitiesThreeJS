@@ -121,13 +121,21 @@ export class PhysicsWorld {
     return { x: t.x, y: Math.max(0, feetY), z: t.z, grounded };
   }
 
-  /** Teleport kinematic player (spawn / reset). */
+  /**
+   * Teleport kinematic player (spawn / reset / ride mount glue).
+   * Does not apply CCT gravity — keeps capsule under the board while mounted.
+   */
   setPlayerFeet(x, y, z) {
     if (!this.playerBody) return;
     const entry = this.bodies.get('player');
     const centerY = y + entry.radius + entry.halfHeight;
-    this.playerBody.setNextKinematicTranslation({ x, y: centerY, z });
-    this.world.step();
+    // Instant kinematic snap (no step) so ride mount is not knocked by gravity
+    if (typeof this.playerBody.setTranslation === 'function') {
+      this.playerBody.setTranslation({ x, y: centerY, z }, true);
+    } else {
+      this.playerBody.setNextKinematicTranslation({ x, y: centerY, z });
+      this.world.step();
+    }
   }
 
   getPlayerFeet() {

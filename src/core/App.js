@@ -336,6 +336,7 @@ export class App {
     try {
       await this.physics.init();
       this.drc.setPhysics(this.physics);
+      this.walk.setPhysics?.(this.physics);
       this.physics.setPlayerFeet(0, 0, 0);
     } catch (err) {
       console.warn('[App] Rapier init failed — kinematic fallback', err);

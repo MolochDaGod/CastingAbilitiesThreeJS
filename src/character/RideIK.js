@@ -108,10 +108,10 @@ export class RideIK {
     this.enabled = false;
     this.weight = 0;
     /** 0..1 how hard feet plant / hands grip */
-    this.footWeight = 0.92;
-    this.handWeight = 0.85;
+    this.footWeight = 0.98;
+    this.handWeight = 0.92;
     /** Blend rate toward enabled target (higher = snappier mount) */
-    this.blendRate = 7;
+    this.blendRate = 10;
 
     this.chains = {
       leftLeg: { upper: null, mid: null, end: null },

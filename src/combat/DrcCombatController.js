@@ -99,7 +99,12 @@ export class DrcCombatController {
     // stamina regen
     this.stamina = Math.min(this.maxStamina, this.stamina + dt * 18);
 
-    if (!this.inCombat || this.character._rideActive) {
+    // Yield fully while mounted on windsurf (WalkController owns root + physics glue)
+    if (this.character._rideActive || this.character.root?.parent?.name?.startsWith?.('socket_')) {
+      this.character.setGait?.(0, false);
+      return;
+    }
+    if (!this.inCombat) {
       this.character.setGait?.(0, false);
       return;
     }

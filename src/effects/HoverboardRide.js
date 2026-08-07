@@ -160,6 +160,15 @@ export class HoverboardRide {
       this.socketGroup.add(g);
       this.sockets[name] = g;
     }
+    // Rider seat: parent character root here so bank/sway/bob stick until dismount
+    if (!this.sockets.deckCenter) {
+      const deck = new Group();
+      deck.name = 'socket_deckCenter';
+      deck.position.set(0, pack.deckY ?? 0.06, 0);
+      this.socketGroup.add(deck);
+      this.sockets.deckCenter = deck;
+    }
+    this.seat = this.sockets.deckCenter;
     this.pack = pack;
     this._ready = true;
 
@@ -204,6 +213,19 @@ export class HoverboardRide {
   /** Deck / seat height above world ground for the rider root. */
   get deckHeight() {
     return this.pack?.deckY ?? settings.walk.hover ?? 0.06;
+  }
+
+  /** Seat Object3D for mounting the character (world-banked with board). */
+  getSeat() {
+    return this.seat || this.sockets.deckCenter || this.boardRoot;
+  }
+
+  /**
+   * Current board bank about local Z (radians), for matching character lean
+   * when not reparented.
+   */
+  get bank() {
+    return this._bank || 0;
   }
 
   /**

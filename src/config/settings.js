@@ -132,14 +132,14 @@ export const settings = {
 
     /* --- how he rides (windsurf / hoverboard deck) --- */
     hover: 0.06, // deck height above floor when pack deckY missing
-    standOffset: 0.02, // rider root above deck (standing, not lotus sink)
-    hipDrop: 0.1, // RideIK pelvis drop so knees bend onto foot straps
-    debugSockets: false, // true = blue spheres on deck/boom IK points
+    standOffset: 0.02, // rider root above deck seat (standing, not lotus)
+    hipDrop: 0.12, // RideIK pelvis drop so knees bend onto foot straps
+    debugSockets: false, // true = blue spheres on footL/footR/sailRail
     seatSink: 0.0, // legacy air-ball sink — unused for board
-    debugSockets: false, // true = blue spheres on footL/footR/sailRail…
-    bob: 0.035, // vertical bounce while riding, metres
-    bobRate: 2.3, // bounces per second
-    lean: 26, // degrees of bank at a full-rate turn
+    bob: 0.04, // vertical bounce while riding (board + parented rider)
+    bobRate: 2.1, // bounces per second
+    rideShake: 0.05, // continuous camera shake while riding (× speed)
+    lean: 22, // degrees of bank at a full-rate turn
     leanRate: 2.0, // radians/second of yaw that counts as a full-rate turn
     leanDamping: 0.004, // how quickly the bank follows the turn (damp rate)
     turnDamping: 0.0001, // how quickly the body swings onto the new heading
