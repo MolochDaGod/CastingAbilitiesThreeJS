@@ -77,6 +77,14 @@ export class DrcCombatController {
     this._backflipDir = new Vector3();
     /** @type {Map<string, number>} utility action max CD for HUD */
     this._cdMax = new Map();
+
+    /** Double-tap dodge: AA left · DD right · WW forward · X back */
+    this._lastTap = { KeyA: 0, KeyD: 0, KeyW: 0, KeyS: 0 };
+    this._keyWasDown = new Set();
+    /** Active dodge slide (world XZ) */
+    this._dodgeT = 0;
+    this._dodgeDur = 0;
+    this._dodgeVel = new Vector3();
   }
 
   setPhysics(physics) {
@@ -105,7 +113,11 @@ export class DrcCombatController {
     settings.drc = settings.drc || {};
     settings.drc.session = next;
     this.onSession(next);
-    this.onToast(next === 'combat' ? 'DRC Combat — WASD · 1–4 skills · F strike' : 'Equip — I inventory · mesh loadout');
+    this.onToast(
+      next === 'combat'
+        ? 'Combat · AA/DD/WW dodge · X back · C parry · LMB path cast'
+        : 'Equip — I inventory · mesh loadout'
+    );
   }
 
   /**
@@ -124,6 +136,28 @@ export class DrcCombatController {
     }
     if (!this.inCombat) {
       this.character.setGait?.(0, false);
+      return;
+    }
+
+    // Double-tap AA / DD / WW → directional dodge (longbow clips)
+    this._pollDoubleTapDodge(keys);
+
+    // Active dodge slide overrides move
+    if (this._dodgeT > 0) {
+      this._dodgeT -= dt;
+      const vx = this._dodgeVel.x;
+      const vz = this._dodgeVel.z;
+      if (this.physics?.ready && this._usePhysics) {
+        const pose = this.physics.movePlayer(vx, vz, dt);
+        this.character.root.position.set(pose.x, pose.y, pose.z);
+        this._grounded = !!pose.grounded;
+      } else {
+        this.character.root.position.x += vx * dt;
+        this.character.root.position.z += vz * dt;
+      }
+      if (this._dodgeT <= 0) {
+        this._dodgeVel.set(0, 0, 0);
+      }
       return;
     }
 
@@ -521,34 +555,13 @@ export class DrcCombatController {
       case 'sig4':
         return this.useSkill(3);
       case 'dodge':
-        return this._utilityAction('dodge', 0.85, 8, () => {
-          const yaw = this.character.facing;
-          const sp = 7.5;
-          const vx = Math.sin(yaw) * sp;
-          const vz = Math.cos(yaw) * sp;
-          if (this.physics?.ready) {
-            this.physics.movePlayer?.(vx, vz, 0.12);
-          } else {
-            this.character.root.position.x += vx * 0.12;
-            this.character.root.position.z += vz * 0.12;
-          }
-          this.character.requestOneShot?.('jump') || this.character.playJump?.(0.05);
-          this.onToast('Roll (X)');
-        });
+        // X = back dodge (Danger Room)
+        return this.dodge('back');
       case 'parry':
-        return this._utilityAction('parry', 0.7, 6, () => {
-          this.character.requestOneShot?.('block') || this.character.play?.('block', 0.1);
-          _fwd.set(Math.sin(this.character.facing), 0, Math.cos(this.character.facing));
-          this.vfx?.deploy?.('arcane_swirl', {
-            origin: this.character.position.clone(),
-            forward: _fwd.clone(),
-            intensity: 0.7
-          });
-          this.onToast('Parry (C)');
-        });
+        return this.parry();
       case 'block':
-        return this._utilityAction('block', 0.4, 4, () => {
-          this.character.requestOneShot?.('block') || this.character.play?.('block', 0.1);
+        return this._utilityAction('block', 0.4, settings.drc?.parryStamina ?? 4, () => {
+          this.character.playParry?.() || this.character.requestOneShot?.('block');
           this.onToast('Guard (E)');
         });
       case 'heavy':
@@ -633,6 +646,170 @@ export class DrcCombatController {
       const skill = this.skills.find((s) => s.slot === slot);
       return skill ? this.cooldown01(skill.id) : 0;
     }
+    if (actionId === 'dodge') return this.cooldown01('dodge');
     return this.cooldown01(actionId);
+  }
+
+  /**
+   * Edge-detect double-tap A/D/W for left/right/forward dodge.
+   * @param {Set<string>} keys
+   */
+  _pollDoubleTapDodge(keys) {
+    if (this._dodgeT > 0) return;
+    const windowMs = settings.drc?.doubleTapMs ?? 280;
+    const now = performance.now();
+    const pairs = [
+      ['KeyA', 'left'],
+      ['KeyD', 'right'],
+      ['KeyW', 'forward']
+    ];
+    for (const [code, dir] of pairs) {
+      const down = keys.has(code);
+      const was = this._keyWasDown.has(code);
+      if (down && !was) {
+        const last = this._lastTap[code] || 0;
+        if (now - last < windowMs && last > 0) {
+          this.dodge(dir);
+          this._lastTap[code] = 0;
+        } else {
+          this._lastTap[code] = now;
+        }
+      }
+      if (down) this._keyWasDown.add(code);
+      else this._keyWasDown.delete(code);
+    }
+  }
+
+  /**
+   * Directional dodge with longbow standing dodge clips.
+   * @param {'left'|'right'|'forward'|'back'} dir
+   */
+  dodge(dir) {
+    const d = dir === 'left' || dir === 'right' || dir === 'forward' || dir === 'back' ? dir : 'back';
+    const stam = settings.drc?.dodgeStamina ?? 10;
+    const cd = 0.75;
+    return this._utilityAction(`dodge_${d}`, cd, stam, () => {
+      // Also put shared 'dodge' on CD for tight-bar X slot
+      this._cdUntil.set('dodge', this.elapsed + cd);
+      this._cdMax.set('dodge', cd);
+
+      const cam = this.camera;
+      cam.getWorldDirection(_fwd);
+      _fwd.y = 0;
+      if (_fwd.lengthSq() < 1e-6) _fwd.set(0, 0, 1);
+      else _fwd.normalize();
+      // camera right
+      const rx = -_fwd.z;
+      const rz = _fwd.x;
+
+      // Wish in camera space: W=-iz forward, A=-ix left
+      let wx = 0;
+      let wz = 0;
+      if (d === 'forward') {
+        wx = _fwd.x;
+        wz = _fwd.z;
+      } else if (d === 'back') {
+        wx = -_fwd.x;
+        wz = -_fwd.z;
+      } else if (d === 'left') {
+        wx = -rx;
+        wz = -rz;
+      } else {
+        wx = rx;
+        wz = rz;
+      }
+      const dist = settings.drc?.dodgeDistance ?? 2.4;
+      const dur = settings.drc?.dodgeDuration ?? 0.42;
+      const speed = dist / Math.max(0.12, dur);
+      this._dodgeVel.set(wx * speed, 0, wz * speed);
+      this._dodgeT = dur;
+      this._dodgeDur = dur;
+
+      const played = this.character.playDodge?.(d);
+      const labels = { left: 'AA left', right: 'DD right', forward: 'WW forward', back: 'X back' };
+      this.onToast(`${labels[d] || d} dodge${played ? '' : ' (no clip)'}`);
+    });
+  }
+
+  /** Parry with block/parry clip. */
+  parry() {
+    const stam = settings.drc?.parryStamina ?? 8;
+    return this._utilityAction('parry', 0.65, stam, () => {
+      this.character.playParry?.() || this.character.requestOneShot?.('block');
+      _fwd.set(Math.sin(this.character.facing), 0, Math.cos(this.character.facing));
+      this.vfx?.deploy?.('arcane_swirl', {
+        origin: this.character.position.clone(),
+        forward: _fwd.clone(),
+        intensity: 0.75
+      });
+      this.onToast('Parry (C)');
+    });
+  }
+
+  /**
+   * Staff / combat path cast: classify stroke → aoe | spikes | wall | stream.
+   * @param {import('three').CatmullRomCurve3} curve
+   * @param {number} length
+   * @param {number} [holdSec]
+   * @returns {{ kind: string, element: string }|null}
+   */
+  castPathAbility(curve, length, holdSec = 0) {
+    if (!curve) return null;
+    const sc = settings.staffCast || {};
+    if (sc.enabled === false) {
+      this.abilities.cast(curve);
+      return { kind: 'stream', element: this.abilities.selected };
+    }
+
+    const aoeMax = sc.aoeMaxLength ?? 3.2;
+    const spikesMax = sc.spikesMaxLength ?? 9;
+    const wallHold = sc.wallHoldSec ?? 0.85;
+
+    let kind = 'stream';
+    if (length <= aoeMax || holdSec < 0.2) kind = 'aoe';
+    else if (holdSec >= wallHold || length >= (sc.wallMinLength ?? 9)) kind = 'wall';
+    else if (length <= spikesMax) kind = 'spikes';
+
+    let element = this.abilities.selected;
+    if (kind === 'aoe' && sc.aoeElement) element = sc.aoeElement;
+    if (kind === 'spikes' && sc.spikesElement) element = sc.spikesElement;
+    if (kind === 'wall' && sc.wallElement) element = sc.wallElement;
+    if (kind === 'stream' && sc.streamElement) element = sc.streamElement;
+
+    // AOE: compress path to short arc at endpoint for impact placement
+    if (kind === 'aoe') {
+      const end = curve.getPoint(1);
+      const mid = end.clone();
+      mid.y += 0.4;
+      const start = end.clone().add(new Vector3(0.01, 0.8, 0.01));
+      const short = new CatmullRomCurve3([start, mid, end], false, 'catmullrom', 0.5);
+      this.abilities.select(element);
+      this.abilities.cast(short, element);
+      this.vfx?.deployElementImpact?.(element, {
+        origin: end.clone(),
+        forward: _fwd.set(Math.sin(this.character.facing), 0, Math.cos(this.character.facing)).clone()
+      });
+    } else {
+      this.abilities.select(element);
+      this.abilities.cast(curve, element);
+      if (kind === 'wall') {
+        this.vfx?.deploy?.('earth_surge', {
+          origin: curve.getPoint(0.5),
+          forward: _fwd.set(Math.sin(this.character.facing), 0, Math.cos(this.character.facing)).clone(),
+          intensity: 1.2
+        });
+      } else if (kind === 'spikes') {
+        this.vfx?.deploy?.('frost_wave', {
+          origin: curve.getPoint(0.5),
+          forward: _fwd.clone(),
+          intensity: 1.0
+        });
+      }
+    }
+
+    this.character.requestOneShot?.('cast') || this.character.playCastFlourish?.();
+    const labels = { aoe: 'AOE place', spikes: 'Spikes', wall: 'Wall', stream: 'Stream' };
+    this.onToast(`Staff · ${labels[kind]} (${element})`);
+    return { kind, element };
   }
 }

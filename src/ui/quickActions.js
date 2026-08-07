@@ -30,7 +30,7 @@ export const QUICK_ACTIONS = {
   heavy: { id: 'heavy', label: 'Heavy', glyph: '◆', key: 'R', kind: 'action' },
   parry: { id: 'parry', label: 'Parry', glyph: '⛨', key: 'C', kind: 'action' },
   block: { id: 'block', label: 'Guard', glyph: '▣', key: 'E', kind: 'action' },
-  dodge: { id: 'dodge', label: 'Roll', glyph: '⟳', key: 'X', kind: 'action' },
+  dodge: { id: 'dodge', label: 'Back dodge', glyph: '⟳', key: 'X', kind: 'action' },
   kick: { id: 'kick', label: 'Kick', glyph: '▹', key: 'V', kind: 'action' },
   bomb: { id: 'bomb', label: 'Bomb', glyph: '◉', key: 'H', kind: 'item' },
   heal: { id: 'heal', label: 'Heal', glyph: '✚', key: 'J', kind: 'item' },
@@ -72,15 +72,14 @@ export function rightWingSlots(slots = defaultQuickSlots()) {
 }
 
 export const COMBAT_KEY_LEGEND =
-  'Q mode · 1–4 skills · F residual · X roll · C parry · E guard · R heavy · Space jump';
+  'AA/DD/WW dodge · X back · C parry · LMB path cast · 1–4 · F · Space jump';
 
 export const COMBAT_KEY_CHIPS = Object.freeze([
-  'Q: Mode',
+  'AA/DD/WW: Dodge',
+  'X: Back dodge',
+  'C: Parry',
+  'LMB: Staff path',
   '1–4: Skills',
   'F: Residual',
-  'X: Roll',
-  'C: Parry',
-  'E: Guard',
-  'R: Heavy',
   'Space: Jump'
 ]);

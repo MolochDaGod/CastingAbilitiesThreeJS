@@ -80,11 +80,18 @@ export const ANIM_PACKS = {
     jump: ['prod:magic/standing-jump', 'locomotion/jump']
   },
   longbow: {
-    idle: ['longbow/standing idle', 'bow/standing idle', 'prod:magic/standing-idle'],
-    attack: ['longbow/standing draw arrow', 'bow/draw arrow', 'sword_shield/sword and shield attack'],
+    idle: ['longbow/standing idle', 'longbow/standing idle 01', 'bow/standing idle', 'prod:magic/standing-idle'],
+    attack: ['longbow/standing draw arrow', 'longbow/standing aim recoil', 'bow/draw arrow', 'sword_shield/sword and shield attack'],
     walk: ['longbow/standing walk forward', 'prod:magic/standing-walk-forward'],
     run: ['longbow/standing run forward', 'prod:magic/standing-run-forward'],
-    jump: ['prod:magic/standing-jump', 'locomotion/jump']
+    jump: ['prod:magic/standing-jump', 'locomotion/jump'],
+    // Directional dodges (Danger Room AA/DD/WW/X) — longbow pack primary
+    dodgeL: ['longbow/standing dodge left', 'locomotion/dodge_l'],
+    dodgeR: ['longbow/standing dodge right', 'locomotion/dodge_r'],
+    dodgeF: ['longbow/standing dodge forward', 'locomotion/dodge_fwd'],
+    dodgeB: ['longbow/standing dodge backward', 'locomotion/dodge_back'],
+    block: ['sword_shield/sword and shield block'],
+    parry: ['sword_shield/sword and shield block']
   },
   /** Optional 8-way locomotion overlay (binds extra roles if CDN has clips) */
   locomotion_8way: {
@@ -92,6 +99,18 @@ export const ANIM_PACKS = {
     walk: ['locomotion/walk-forward', 'prod:magic/standing-walk-forward'],
     run: ['locomotion/run-forward', 'prod:magic/standing-run-forward'],
     jump: ['locomotion/jump', 'prod:magic/standing-jump']
+  },
+  /**
+   * Shared combat mobility — always bound on hero load.
+   * Prefer longbow standing dodges (verified CDN), locomotion fallbacks.
+   */
+  combat_mobility: {
+    dodgeL: ['longbow/standing dodge left', 'locomotion/dodge_l'],
+    dodgeR: ['longbow/standing dodge right', 'locomotion/dodge_r'],
+    dodgeF: ['longbow/standing dodge forward', 'locomotion/dodge_fwd'],
+    dodgeB: ['longbow/standing dodge backward', 'locomotion/dodge_back'],
+    parry: ['sword_shield/sword and shield block'],
+    block: ['sword_shield/sword and shield block']
   }
 };
 
@@ -99,9 +118,18 @@ export const ANIM_PACKS = {
 export const ANIM_PACK_META = {
   magic: { label: 'Magic / staff', skills: 'cast', locomotion: 'walk·run·jump' },
   sword_shield: { label: 'Sword & shield', skills: 'attack·block', locomotion: 'walk·run·jump' },
-  longbow: { label: 'Longbow', skills: 'attack (draw)', locomotion: 'walk·run·jump' },
-  locomotion_8way: { label: 'Locomotion 8-way', skills: '—', locomotion: 'walk·run·jump' }
+  longbow: { label: 'Longbow', skills: 'attack · dodge L/R/F/B', locomotion: 'walk·run·jump' },
+  locomotion_8way: { label: 'Locomotion 8-way', skills: '—', locomotion: 'walk·run·jump' },
+  combat_mobility: { label: 'Shared dodges / parry', skills: 'dodge·parry', locomotion: '—' }
 };
+
+/** Dodge role by direction for AA/DD/WW/X. */
+export const DODGE_ROLE = Object.freeze({
+  left: 'dodgeL',
+  right: 'dodgeR',
+  forward: 'dodgeF',
+  back: 'dodgeB'
+});
 
 /** Fallback loadouts if CDN presets fail (mage-first for casting).
  *  Letters match Toon RTS human kit: Body A–E, Arms A–D, Legs A–C, head A–I, staff A–C.

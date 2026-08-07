@@ -44,7 +44,40 @@ export const settings = {
     /** Seconds for procedural backflip spin */
     backflipDuration: 0.55,
     /** Coyote / buffer feel */
-    jumpBufferMs: 120
+    jumpBufferMs: 120,
+    /** Double-tap window for AA / DD / WW dodges (ms) */
+    doubleTapMs: 280,
+    /** Dodge slide distance (m) */
+    dodgeDistance: 2.4,
+    /** Dodge duration (s) — also one-shot lock */
+    dodgeDuration: 0.42,
+    /** Stamina cost per dodge */
+    dodgeStamina: 10,
+    /** Parry stamina */
+    parryStamina: 8
+  },
+
+  /**
+   * Staff / path cast from LMB draw (combat + casting modes).
+   * Hold-drag classifies placement: aoe · spikes · wall · stream
+   */
+  staffCast: {
+    enabled: true,
+    /** Short path or tap-place → AOE at endpoint */
+    aoeMaxLength: 3.2,
+    /** Medium stroke → ice spikes / earth spikes along path */
+    spikesMaxLength: 9,
+    /** Longer stroke → wall / barrier along path */
+    wallMinLength: 9,
+    /** Hold seconds that bias toward wall even if path medium */
+    wallHoldSec: 0.85,
+    /** Combat allows shorter paths than sandbox free-cast */
+    combatMinPathLength: 0.9,
+    /** Element override per placement kind (null = selected element) */
+    aoeElement: null,
+    spikesElement: 'water',
+    wallElement: 'earth',
+    streamElement: null
   },
 
   /* ------------------------------------------------------------------ */

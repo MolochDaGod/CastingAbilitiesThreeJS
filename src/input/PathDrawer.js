@@ -32,6 +32,11 @@ export class PathDrawer extends EventEmitter {
 
     this.trail = new PathTrail(240);
     this.active = false;
+    /** performance.now() at begin — hold duration for staff wall/spikes */
+    this._holdStart = 0;
+    /** Last projected point (AOE place on short cancel) */
+    this.lastHit = new Vector3();
+    this._combatMinLength = null;
 
     this._hit = new Vector3();
     this._smoothed = new Vector3();
@@ -39,6 +44,11 @@ export class PathDrawer extends EventEmitter {
 
     // Pre-allocate the resample buffer so drawing never allocates.
     for (let i = 0; i < 320; i++) this.resampled.push(new Vector3());
+  }
+
+  /** Combat staff casts allow shorter paths (AOE place). */
+  setCombatMinLength(m) {
+    this._combatMinLength = Number.isFinite(m) ? m : null;
   }
 
   get object3D() {
@@ -56,7 +66,9 @@ export class PathDrawer extends EventEmitter {
     this.samples.length = 0;
     this._smoothed.copy(this._hit);
     this.samples.push(this._hit.clone());
+    this.lastHit.copy(this._hit);
     this.active = true;
+    this._holdStart = performance.now();
     this.trail.hide();
     this.emit('start', this._hit);
   }
@@ -75,6 +87,7 @@ export class PathDrawer extends EventEmitter {
     if (this.samples.length >= input.maxPoints) return;
 
     this.samples.push(this._smoothed.clone());
+    this.lastHit.copy(this._smoothed);
     this._rebuild();
   }
 
@@ -83,16 +96,32 @@ export class PathDrawer extends EventEmitter {
     this.active = false;
 
     const length = this.pathLength();
-    if (this.samples.length < 3 || length < settings.input.minPathLength) {
+    const holdSec = this._holdStart ? (performance.now() - this._holdStart) / 1000 : 0;
+    const minLen =
+      this._combatMinLength != null
+        ? this._combatMinLength
+        : settings.input.minPathLength;
+
+    // Short stroke / tap: still emit cast when combat min allows AOE place
+    if (this.samples.length < 2 || length < minLen) {
       this.trail.hide();
+      if (this.samples.length >= 1 && minLen <= 1.2) {
+        // Synthetic micro-curve at last hit for AOE placement
+        const p = this.lastHit.clone();
+        const a = p.clone().add(new Vector3(0.05, 0.2, 0));
+        const b = p.clone().add(new Vector3(0, 0.5, 0.05));
+        const curve = new CatmullRomCurve3([a, b, p], false, 'catmullrom', 0.5);
+        this.emit('cast', curve, [p], 1, Math.max(length, 0.5), holdSec);
+      } else {
+        this.emit('cancel');
+      }
       this.samples.length = 0;
-      this.emit('cancel');
       return;
     }
 
     const curve = this._buildCurve();
     this.trail.release(); // burn the preview away
-    this.emit('cast', curve, this.resampled, this.resampledCount, length);
+    this.emit('cast', curve, this.resampled, this.resampledCount, length, holdSec);
     this.samples.length = 0;
   }
 

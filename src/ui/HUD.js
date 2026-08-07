@@ -86,9 +86,9 @@ export class HUD {
       <div class="hud__panel hud__help">
         <div><strong>Danger Room HUD (tight 6+6)</strong></div>
         <div><kbd>WASD</kbd> · <kbd>Space</kbd> jump · <kbd>1</kbd>–<kbd>4</kbd> skills · <kbd>F</kbd> residual</div>
-        <div><kbd>X</kbd> roll · <kbd>C</kbd> parry · <kbd>E</kbd> guard · <kbd>R</kbd> heavy</div>
-        <div><kbd>J</kbd> heal · <kbd>H</kbd> bomb · <kbd>V</kbd> kick · <kbd>Q</kbd> mode</div>
-        <div><kbd>I</kbd> Lab · <kbd>G</kbd> VFX · <kbd>Shift</kbd>+<kbd>C</kbd> clear · <kbd>F1</kbd> help</div>
+        <div><kbd>AA</kbd>/<kbd>DD</kbd>/<kbd>WW</kbd> dodge · <kbd>X</kbd> back · <kbd>C</kbd> parry</div>
+        <div><kbd>LMB</kbd> hold-draw staff: AOE · spikes · wall · stream</div>
+        <div><kbd>E</kbd> guard · <kbd>R</kbd> heavy · <kbd>Q</kbd> mode · <kbd>I</kbd> Lab · <kbd>G</kbd> VFX</div>
       </div>
 
       <div class="hud__modes">

@@ -11,6 +11,7 @@ import {
 } from 'three';
 import {
   ANIM_PACKS,
+  DODGE_ROLE,
   DEFAULT_RACE,
   FALLBACK_PRESETS,
   GEAR_PRESETS_URL,
@@ -217,6 +218,12 @@ export class CharacterController {
     if (this.animPackId !== 'magic' && this.animPackId !== 'sword_shield') {
       await this._bindPack('magic');
     }
+    // Shared longbow directional dodges + parry (Danger Room AA/DD/WW/X)
+    await this._bindPack('combat_mobility');
+    if (this.animPackId !== 'longbow') {
+      // Prefer longbow pack dodge roles when combat_mobility already set names
+      await this._bindPack('longbow');
+    }
 
     if (this.actions.has('idle')) this.play('idle', 0);
     else if (this.actions.size) this.play([...this.actions.keys()][0], 0);
@@ -379,15 +386,66 @@ export class CharacterController {
   /** Play a library clip by role name (one-shot for attack/block/jump). */
   playLibraryClip(role) {
     if (!role || !this.actions.has(role)) return false;
-    const once = /attack|block|jump|cast/i.test(role);
+    const once = /attack|block|parry|jump|cast|dodge/i.test(role);
     this.play(role, once ? 0.12 : 0.25);
     if (once) {
       const act = this.actions.get(role);
       const dur = act?.getClip?.()?.duration ?? 0.6;
       this._oneShotTimer = Math.max(this._oneShotTimer, dur * 0.95);
-      this.animState = /attack/i.test(role) ? 'attack' : this.animState;
+      this._gaitLocked = true;
+      this.animState = /attack/i.test(role)
+        ? 'attack'
+        : /dodge/i.test(role)
+          ? 'dodge'
+          : this.animState;
     }
     return true;
+  }
+
+  /**
+   * Directional dodge one-shot — longbow standing dodge L/R/F/B preferred.
+   * @param {'left'|'right'|'forward'|'back'} dir
+   * @returns {boolean}
+   */
+  playDodge(dir) {
+    const role = DODGE_ROLE[dir] || 'dodgeB';
+    const candidates = [role, `longbow:${role}`, `combat_mobility:${role}`];
+    for (const name of candidates) {
+      if (this.actions.has(name)) {
+        this.play(name, 0.08);
+        const act = this.actions.get(name);
+        const dur = act?.getClip?.()?.duration ?? settings.drc?.dodgeDuration ?? 0.42;
+        this._oneShotTimer = Math.max(this._oneShotTimer, dur * 0.92);
+        this._gaitLocked = true;
+        this.animState = 'dodge';
+        return true;
+      }
+    }
+    // Fallback: jump clip as mobility tell
+    if (this.actions.has('jump')) {
+      this.play('jump', 0.08);
+      this._oneShotTimer = 0.35;
+      this._gaitLocked = true;
+      this.animState = 'dodge';
+      return true;
+    }
+    return false;
+  }
+
+  /** Parry / block one-shot (sword_shield block clip as longbow has no parry bake). */
+  playParry() {
+    for (const name of ['parry', 'block', 'sword_shield:block', 'combat_mobility:parry']) {
+      if (this.actions.has(name)) {
+        this.play(name, 0.08);
+        const act = this.actions.get(name);
+        const dur = act?.getClip?.()?.duration ?? 0.45;
+        this._oneShotTimer = Math.max(this._oneShotTimer, dur * 0.9);
+        this._gaitLocked = true;
+        this.animState = 'parry';
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Summary for lab Character tab. */
@@ -424,9 +482,14 @@ export class CharacterController {
       cast: LoopRepeat,
       attack: LoopOnce,
       block: LoopOnce,
+      parry: LoopOnce,
       walk: LoopRepeat,
       run: LoopRepeat,
-      jump: LoopOnce
+      jump: LoopOnce,
+      dodgeL: LoopOnce,
+      dodgeR: LoopOnce,
+      dodgeF: LoopOnce,
+      dodgeB: LoopOnce
     };
 
     for (const [role, rel] of Object.entries(pack)) {

@@ -195,6 +195,9 @@ export class App {
     // Combat → TPS follow (OrbitControls off). Equip → orbit + inventory.
     this.rig.setViewMode(session === 'combat' ? 'tps' : 'orbit');
     this.input.setCombatKeys?.(session === 'combat');
+    this.pathDrawer.setCombatMinLength?.(
+      session === 'combat' ? settings.staffCast?.combatMinPathLength ?? 0.9 : null
+    );
     if (session === 'equip') {
       this.inventory.setOpen(true);
       this.walk?.cancel?.();
@@ -232,15 +235,16 @@ export class App {
       }
     });
 
-    // Path stroke: walk mode always rides; combat free-casts; casting mode casts.
-    this.pathDrawer.on('cast', (curve) => {
+    // Path stroke: walk = ride; combat = staff place/stream; casting = free element cast.
+    this.pathDrawer.on('cast', (curve, _pts, _n, length = 0, holdSec = 0) => {
       if (settings.mode === 'walk') {
         if (!this.walk.begin(curve)) this.hud.showToast('Path too short to ride');
         return;
       }
       if (this.drc.inCombat) {
-        this.abilities.cast(curve);
-        this.character.requestOneShot?.('cast') || this.character.playCastFlourish?.();
+        // LMB hold-draw: AOE place · ice spikes · wall · stream (staffCast SSOT)
+        this.pathDrawer.setCombatMinLength?.(settings.staffCast?.combatMinPathLength ?? 0.9);
+        this.drc.castPathAbility?.(curve, length || curve?.getLength?.() || 0, holdSec);
         return;
       }
       this.abilities.cast(curve);

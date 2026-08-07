@@ -33,7 +33,9 @@ learn source → isolate primitive → edit knobs → bind skill → smoke → e
 | **Lab Panel (I)** | Left tabs: Character · Equipment · Weapon · Race · Mesh · Mount · Anims · Skills · API |
 | **HUD frames** | Player / target / allies |
 | **Tight bar (Danger)** | threejs-rapier 6+6 + avatar + HP/STA orbs + menu buttons |
-| **Combat hotkeys** | X roll · C parry · E guard · R heavy · F/1–4 · J/H/V · Q mode |
+| **Combat hotkeys** | AA/DD/WW dodge · X back · C parry · LMB staff path · F/1–4 · Q mode |
+| **Dodge clips** | longbow standing dodge L/R/F/B (+ locomotion fallbacks) |
+| **Staff path cast** | LMB hold-draw → AOE place · spikes · wall · stream (`settings.staffCast`) |
 | **6 races** | Toon RTS GLB via Race tab (`setRace`) |
 | **Fleet API client** | `src/api/fleetApi.js` → Railway health + characters |
 | World SI | `worldScale.js` MAP_SCALE 1.5 + StageWater |
