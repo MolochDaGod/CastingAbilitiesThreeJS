@@ -3,8 +3,25 @@
 Elemental casting sandbox for **Grudge Studio**: draw a path, release, and Fire / Water / Earth / Air travel the spline and detonate. Live VFX editor, DRC combat, Toon RTS hero, windsurf ride.
 
 **Repo:** [MolochDaGod/CastingAbilitiesThreeJS](https://github.com/MolochDaGod/CastingAbilitiesThreeJS)  
-**Live:** [casting-abilities-threejs.vercel.app](https://casting-abilities-threejs.vercel.app)  
+**Live (Vercel):** [casting-abilities-threejs.vercel.app](https://casting-abilities-threejs.vercel.app)  
+**Live (fleet):** [casting.grudge-studio.com](https://casting.grudge-studio.com) — requires Cloudflare DNS below  
 **Team:** Vercel `grudgenexus` · project `casting-abilities-threejs`
+
+### DNS for `casting.grudge-studio.com` (Cloudflare)
+
+Apex `grudge-studio.com` NS → Cloudflare. Vercel project already has the domain + production alias.
+
+In **Cloudflare → grudge-studio.com → DNS → Add record**:
+
+| Type | Name | Target | Proxy |
+|------|------|--------|-------|
+| **CNAME** | `casting` | `0788085f42cc3574.vercel-dns-016.com` | **DNS only** (grey) first |
+| or **A** | `casting` | `76.76.21.21` | DNS only first |
+
+One-click Domain Connect (approve in Cloudflare):  
+https://vercel.com/api/v9/projects/prj_UqrvF6d04qmAFGF7N2cpzPKLoYE/domains/casting.grudge-studio.com/domain-connect/apply?teamId=team_VZ7uiFGiR9QBdqtzne04xygG
+
+Then: `vercel domains verify casting.grudge-studio.com` → SSL issues automatically.
 
 ---
 
