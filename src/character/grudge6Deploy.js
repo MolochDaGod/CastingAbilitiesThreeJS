@@ -1,24 +1,11 @@
 /**
- * grudge6 kit scaffold — Open/Multiverse SSOT (the step we were missing).
+ * @deprecated PLAY heroes use src/character/toonKitPlay.js (ObjectStore loadRaceKit parity).
  *
- * Production WK GLB structure (convert bake):
- *   RootNode (y≈1.65)
- *     Bip001 scale 2.54 + Unity bone quat
- *       Bip001 Pelvis … 18 skin joints (+ toes/nubs/containers)
- *     WK_Units_* SkinnedMesh siblings scale 2.54 (partial skins 1–18 joints)
- *     weapons under hand containers (rigid Mesh, not skinned)
+ * This file kept for diagnoseCharacterLook helpers only.
+ * Do NOT use scaffoldGrudge6Kit / unifySkeletons for Toon RTS play —
+ * partial head skins + pose() and unskinned mesh AABB caused head-at-feet.
  *
- * Spiked bag-blob / flying planks = equip skipped or fuzzy multi-match
- * (applyGearPreset comment in Open loadCharacter.ts).
- *
- * Full order (do not reorder):
- *  1. SkeletonUtils.clone
- *  2. unifySkeletons (+ prune orphan bone *instances*)
- *  3. hide ALL kit meshes → exclusive mesh_ids only (no bag/wood)
- *  4. root scale/pos identity → fitCharacterHeight → forceUniformScale
- *  5. art-forward +Z once → feet ground + pelvis XZ
- *  6. materials: neutralize + colorSpace; atlas only if maps missing
- *  7. re-ground after idle sample (caller)
+ * RIGHT SOURCE: info.grudge-studio.com/js/grudge6-kit.js
  */
 import {
   Box3,

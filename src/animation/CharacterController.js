@@ -9,7 +9,6 @@ import {
   SRGBColorSpace,
   Vector3
 } from 'three';
-import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import {
   ANIM_PACKS,
   DEFAULT_RACE,
@@ -27,13 +26,12 @@ import {
   GRUDGE6_SSOT_VERSION
 } from '../config/grudge6SSOT.js';
 import { EquipmentManager } from '../character/EquipmentManager.js';
+import { diagnoseCharacterLook } from '../character/grudge6Deploy.js';
 import {
-  applyExclusiveMeshIds,
-  countSkeletons,
-  diagnoseCharacterLook,
-  reGroundAfterAnimSample,
-  scaffoldGrudge6Kit
-} from '../character/grudge6Deploy.js';
+  deployToonPlayKit,
+  reGroundToonKit,
+  applyMeshIdsExclusive
+} from '../character/toonKitPlay.js';
 import { RideIK } from '../character/RideIK.js';
 import { LAYER } from '../core/Layers.js';
 import { settings } from '../config/settings.js';
@@ -45,16 +43,19 @@ const _rideFwd = new Vector3();
 const _rideLeft = new Vector3();
 
 /**
- * Toon RTS / grudge6 combat hero — clean path only:
- *  SkeletonUtils.clone → unifySkeletons (+ prune orphans) → mesh_ids
- *  → SI deploy → body atlas → mixer + gait + one-shots.
+ * Toon RTS / grudge6 combat hero — ObjectStore loadRaceKit parity ONLY.
  *
- * Purged (do not re-add):
- *  - SittingPose (Mixamo lotus — corrupts Bip001)
- *  - Soft HandIK that rewrites hands every combat frame
+ * RIGHT SOURCE: info.grudge-studio.com/js/grudge6-kit.js + race-scenes
+ *   Toon GLB → clone → mesh_ids → bone SI fit → yaw 0 → one mixer
  *
- * RideIK is allowed ONLY while WalkController ride is active
- * (setRideActive true) — post-mixer feet→deck / hands→boom.
+ * Purged (wrong paths that keep breaking Warlords heroes):
+ *  - unifySkeletons + pose() on partial head skins → head at feet
+ *  - setFromObject skinned mesh SI fit → explode / under-scale
+ *  - facePlusZ π/2 on Toon play GLB
+ *  - races bake / metaverse / FBX play fallback
+ *  - SittingPose Mixamo / soft HandIK every frame
+ *
+ * RideIK only while WalkController ride is active.
  */
 export class CharacterController {
   constructor(environment) {
@@ -151,14 +152,6 @@ export class CharacterController {
       disposeObject(c);
     }
 
-    // Three.js best practice: SkeletonUtils.clone for skinned kits (never clone())
-    const kit = skeletonClone(gltf.scene);
-    kit.name = `${race.short}_toon`;
-    kit.userData.importPipeline = 'toon-rts-glb';
-    kit.userData.importUrl = kitUrl;
-    kit.userData.playMesh = isToonRtsKitUrl(kitUrl) ? 'toon-rts' : 'legacy-races';
-    kit.userData.ssotVersion = GRUDGE6_SSOT_VERSION;
-
     // Preset → mesh_ids (no bag/wood/quiver in combat showcase)
     const preset = this.presets.find((p) => p.id === this.presetId) || this.presets[0];
     this.animPackId = this._packFromPreset(preset);
@@ -170,25 +163,20 @@ export class CharacterController {
     delete cleanLoadout.showUtility;
     const meshIds = loadoutToMeshIds(race.prefix, cleanLoadout);
 
-    // Simple clean scaffold:
-    // unify → exclusive mesh_ids → SI fit → keep embeds.
-    // facePlusZ: Toon RTS play GLBs are already game-facing; only force +X→+Z for FBX author path.
-    const scaffold = scaffoldGrudge6Kit(kit, {
-      meshIds,
-      atlas: this.atlas,
-      facePlusZ: false,
-    });
+    // ★ ObjectStore loadRaceKit parity — no unify/pose, bone SI fit, yaw 0
+    const deployed = deployToonPlayKit(gltf.scene, { meshIds });
+    const kit = deployed.root;
+    kit.name = `${race.short}_toon`;
+    kit.userData.importUrl = kitUrl;
+    kit.userData.playMesh = 'toon-rts';
+    kit.userData.ssotVersion = GRUDGE6_SSOT_VERSION;
+    const report = deployed.equip;
 
     this.equipment = new EquipmentManager(kit, { preserveVisibility: true });
     this.equipment.loadout = { ...cleanLoadout };
     this.equipment.carryMode = false;
     this.equipment.hideUtility();
 
-    // Re-assert exclusive equip (catalog must not re-show wardrobe)
-    const report = applyExclusiveMeshIds(kit, meshIds, { allowUtility: false });
-    this.equipment.hideUtility();
-
-    // Three.js production: layers, shadows, frustumCulled off for skinned
     kit.traverse((o) => {
       if (!o.isMesh && !o.isSkinnedMesh) return;
       o.layers.set(LAYER.WORLD);
@@ -208,42 +196,41 @@ export class CharacterController {
     this.tilt.position.set(0, 0, 0);
     this.tilt.quaternion.identity();
 
-    this.height = scaffold.height || kit.userData.deployHeightM || 1.8;
+    this.height = deployed.height || kit.userData.deployHeightM || 1.8;
     this.headPosition.set(0, this.height * 0.86, 0);
     this.bones = this.equipment.findBones();
 
-    // Single AnimationMixer only — Bip001 packs, position tracks stripped
+    // Single AnimationMixer — Bip001 packs, position tracks stripped, bones-only rematch
     this.mixer = new AnimationMixer(kit);
     this.actions.clear();
     this._boundPacks.clear();
 
     await this._bindPack(this.animPackId);
-    // Simple: only bind one combat pack + idle fallback
     if (this.animPackId !== 'magic' && this.animPackId !== 'sword_shield') {
       await this._bindPack('magic');
-    } else if (this.animPackId === 'magic') {
-      /* keep magic only — add sword on demand via requestOneShot path */
     }
 
     if (this.actions.has('idle')) this.play('idle', 0);
     else if (this.actions.size) this.play([...this.actions.keys()][0], 0);
 
     this.mixer.update(1 / 30);
-    reGroundAfterAnimSample(kit, 0);
+    reGroundToonKit(kit, 0);
     this.root.position.y = 0;
+    this.height = kit.userData.deployHeightM || this.height;
 
-    // Ride IK only for lab ride mode (not active in combat default)
     if (this.rideIk) this.rideIk.rebind(kit);
     else this.rideIk = new RideIK(kit);
     this._rideActive = false;
 
     const look = this.diagnoseLook();
     const vis = this._countVisibleSkinned();
+    const uprightOk = deployed.upright !== false;
     console.info(
-      `[CharacterController] ${kit.userData.playMesh} ${this.raceId}/${this.presetId} ` +
-        `kit=${kitUrl.split('/').pop()} h=${look.heightM}m feet=${look.feetMinY} ` +
-        `equip=${report.matched} vis=${vis} clips=${this.actions.size} ` +
-        (look.ok && vis >= 3 ? 'OK' : `WARN ${JSON.stringify(look.errors || [])}`),
+      `[CharacterController] toon-rts★ ${this.raceId}/${this.presetId} ` +
+        `kit=${kitUrl.split('/').pop()} path=objectstore-parity ` +
+        `h=${this.height.toFixed(2)}m equip=${report.matched} vis=${vis} clips=${this.actions.size} ` +
+        `upright=${deployed.upright} headY=${deployed.headY?.toFixed(2)} footY=${deployed.footY?.toFixed(2)} ` +
+        (uprightOk && vis >= 3 ? 'OK' : `WARN ${JSON.stringify(look.errors || [])}`),
     );
 
     return this;
@@ -387,11 +374,10 @@ export class CharacterController {
     delete clean.wood;
     delete clean.quiver;
     const meshIds = loadoutToMeshIds(race.prefix, clean);
-    // Exclusive scaffold equip (hide-all → one body / one weapon)
-    const report = applyExclusiveMeshIds(this.model, meshIds, { allowUtility: false });
+    const report = applyMeshIdsExclusive(this.model, meshIds);
     this.equipment?.hideUtility?.();
     if (this.equipment) this.equipment.loadout = { ...clean };
-    reGroundAfterAnimSample(this.model, 0);
+    reGroundToonKit(this.model, 0);
     this.height = this.model.userData.deployHeightM || this.height;
     this.headPosition.set(0, this.height * 0.86, 0);
     this.bones = this.equipment?.findBones?.() || this.bones;

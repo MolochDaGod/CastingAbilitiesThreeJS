@@ -11,7 +11,7 @@
  *   models/grudge6/races/*_Characters.glb | .fbx | metaverse/*
  */
 
-export const GRUDGE6_SSOT_VERSION = '2026-08-07.2-head-feet-fix';
+export const GRUDGE6_SSOT_VERSION = '2026-08-07.3-objectstore-parity';
 
 export const CDN = 'https://assets.grudge-studio.com';
 export const CDN_MIRROR_OPEN = 'https://open.grudge-studio.com';
