@@ -100,12 +100,11 @@ export function legacyRaceKitUrl(prefixFile) {
  *   prefix: string,
  *   label: string,
  *   kitGlb: string,
- *   kitFallback: string,
- *   kitFbx: string,
  *   atlasUrl: string,
  * }} RaceDef
  */
 
+/** PLAY races — Toon RTS kitGlb only (no kitFallback / FBX fields for play). */
 /** @type {Record<string, RaceDef>} */
 export const RACES = {
   WK: {
@@ -114,8 +113,6 @@ export const RACES = {
     prefix: 'WK_',
     label: 'Western Kingdoms',
     kitGlb: toonRtsKitUrl('human'),
-    kitFallback: legacyRaceKitUrl('WK_Characters.glb'),
-    kitFbx: `${CDN}/models/grudge6/races/WK_Characters.fbx`,
     atlasUrl: `${CDN}/textures/grudge6/western-kingdoms/WK_Standard_Units.webp`,
   },
   ELF: {
@@ -124,8 +121,6 @@ export const RACES = {
     prefix: 'ELF_',
     label: 'High Elves',
     kitGlb: toonRtsKitUrl('elf'),
-    kitFallback: legacyRaceKitUrl('ELF_Characters.glb'),
-    kitFbx: `${CDN}/models/grudge6/races/ELF_Characters.fbx`,
     atlasUrl: `${CDN}/textures/grudge6/elves/ELF_HighElves_Texture.webp`,
   },
   BRB: {
@@ -134,8 +129,6 @@ export const RACES = {
     prefix: 'BRB_',
     label: 'Barbarians',
     kitGlb: toonRtsKitUrl('barbarian'),
-    kitFallback: legacyRaceKitUrl('BRB_Characters.glb'),
-    kitFbx: `${CDN}/models/grudge6/races/BRB_Characters.fbx`,
     atlasUrl: `${CDN}/textures/grudge6/barbarians/BRB_StandardUnits_texture.webp`,
   },
   ORC: {
@@ -144,8 +137,6 @@ export const RACES = {
     prefix: 'ORC_',
     label: 'Orcs',
     kitGlb: toonRtsKitUrl('orc'),
-    kitFallback: legacyRaceKitUrl('ORC_Characters.glb'),
-    kitFbx: `${CDN}/models/grudge6/races/ORC_Characters.fbx`,
     atlasUrl: `${CDN}/textures/grudge6/orcs/ORC_StandardUnits.webp`,
   },
   UD: {
@@ -154,8 +145,6 @@ export const RACES = {
     prefix: 'UD_',
     label: 'Undead',
     kitGlb: toonRtsKitUrl('undead'),
-    kitFallback: legacyRaceKitUrl('UD_Characters.glb'),
-    kitFbx: `${CDN}/models/grudge6/races/UD_Characters.fbx`,
     atlasUrl: `${CDN}/textures/grudge6/undead/UD_Standard_Units.webp`,
   },
   DWF: {
@@ -164,8 +153,6 @@ export const RACES = {
     prefix: 'DWF_',
     label: 'Dwarves',
     kitGlb: toonRtsKitUrl('dwarf'),
-    kitFallback: legacyRaceKitUrl('DWF_Characters.glb'),
-    kitFbx: `${CDN}/models/grudge6/races/DWF_Characters.fbx`,
     atlasUrl: `${CDN}/textures/grudge6/dwarves/DWF_Standard_Units.webp`,
   },
 };

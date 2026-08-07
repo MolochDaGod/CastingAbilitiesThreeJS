@@ -36,7 +36,6 @@ export const RACES = Object.fromEntries(
       label: r.label,
       prefix: r.prefix,
       kitUrl: r.kitGlb,
-      kitFallback: r.kitFallback,
       atlasUrl: r.atlasUrl,
     },
   ]),

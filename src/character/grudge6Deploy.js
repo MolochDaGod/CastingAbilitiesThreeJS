@@ -481,82 +481,21 @@ export function prepMeshFlags(root) {
 // ── full scaffold (the missing step) ──────────────────────────────────────
 
 /**
- * Full Open/Multiverse scaffold after SkeletonUtils.clone.
- * @param {import('three').Object3D} kit
- * @param {{ meshIds: string[], atlas?: import('three').Texture|null, facePlusZ?: boolean }} opts
+ * @deprecated PURGED for play. Use toonKitPlay.deployToonPlayKit (ObjectStore parity).
+ * Calling this throws so wrong systems cannot re-enter Casting production path.
  */
-export function scaffoldGrudge6Kit(kit, opts = {}) {
-  const meshIds = opts.meshIds || [];
-  const atlas = opts.atlas ?? null;
-
-  // 1) Shared Bip001 tree — unifySkeletons poses widest body skin ONCE (not each head skin)
-  const skBefore = countSkeletons(kit);
-  unifySkeletons(kit);
-  kit.traverse((o) => {
-    if (o.isSkinnedMesh && o.skeleton) o.skeleton.update();
-  });
-  kit.updateMatrixWorld(true);
-
-  const bip = validateBip001Bones(kit);
-  console.info(
-    `[grudge6Deploy] scaffold skels ${skBefore}→${countSkeletons(kit)} ` +
-      `Bip001 ${bip.count}/${bip.expected} boneNodes=${bip.boneNodes} ` +
-      `sample=${(bip.sampleNames || []).join('|')}`
+export function scaffoldGrudge6Kit(_kit, _opts = {}) {
+  throw new Error(
+    '[grudge6Deploy] scaffoldGrudge6Kit PURGED — use toonKitPlay.deployToonPlayKit ' +
+      '(ObjectStore loadRaceKit parity). unify+pose/mesh-AABB/facePlusZ path is banned for play.',
   );
-  if (!bip.ok) {
-    console.warn('[grudge6Deploy] Bip001 validate', bip.missing, bip.sampleNames);
-  }
-
-  // 2) EQUIP FIRST — hide all → exclusive mesh_ids (kills wardrobe blob)
-  const equip = applyExclusiveMeshIds(kit, meshIds, { allowUtility: false });
-
-  // 3) Math: identity → SI fit (Toon residual ~2.6 mesh scale → ~1.8 m)
-  kit.userData.importPipeline = kit.userData.importPipeline || 'toon-rts-glb';
-  kit.userData.grudgeHeightFit = false;
-  const fit = fitCharacterHeight(kit, HUMAN_HEIGHT_M, {
-    pipeline: kit.userData.importPipeline,
-  });
-  forceUniformScale(kit);
-
-  // 4) Art-forward once: Toon export faces +X → play +Z (π/2 yaw).
-  // Never apply twice (userData.artForwardSet). Double-yaw = sideways.
-  if (opts.facePlusZ === true) applyArtForwardPlusZ(kit);
-  forceUniformScale(kit);
-  reGroundAfterAnimSample(kit, 0);
-
-  // 5) Materials
-  applyBodyAtlasIfNeeded(kit, atlas);
-  prepMeshFlags(kit);
-
-  const look = diagnoseCharacterLook(kit, 0);
-  look.beforeHeight = fit.nativeHeight;
-  look.equip = equip;
-  look.fit = fit;
-  kit.userData.characterDeployed = true;
-  kit.userData.scaffold = true;
-
-  console.info(
-    `[grudge6Deploy] scaffold done native=${fit.nativeHeight.toFixed(2)}m ` +
-      `→ ${look.height?.toFixed(2)}m unitFix=${fit.unitFix} scale=${fit.scale.toFixed(4)} ` +
-      `feet=${look.feetMinY?.toFixed(3)} equip=${equip.matched} ` +
-      (look.ok ? 'OK' : look.errors.join('; '))
-  );
-  return look;
 }
 
-/** @deprecated use scaffoldGrudge6Kit */
-export function deployGrudge6Model(model, opts = {}) {
-  if (opts.unify !== false) unifySkeletons(model);
-  model.traverse((o) => {
-    if (o.isSkinnedMesh && o.skeleton) o.skeleton.update();
-  });
-  const fit = fitCharacterHeight(model, opts.targetH ?? HUMAN_HEIGHT_M);
-  // Toon RTS play GLB: do not force facePlusZ (caller opts.facePlusZ === true only)
-  if (opts.facePlusZ === true) applyArtForwardPlusZ(model);
-  reGroundAfterAnimSample(model, opts.groundY ?? 0);
-  const diag = diagnoseCharacterLook(model, opts.groundY ?? 0);
-  diag.beforeHeight = fit.nativeHeight;
-  return diag;
+/** @deprecated PURGED for play. Use toonKitPlay.deployToonPlayKit. */
+export function deployGrudge6Model(_model, _opts = {}) {
+  throw new Error(
+    '[grudge6Deploy] deployGrudge6Model PURGED — use toonKitPlay.deployToonPlayKit.',
+  );
 }
 
 export function applyBodyAtlas(root, atlas) {
