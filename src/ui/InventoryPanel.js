@@ -14,6 +14,12 @@ import {
   setActiveSkillTree
 } from '../combat/drcSkills.js';
 import { allElementWeaponSkillTrees } from '../combat/elementWeaponSkills.js';
+import {
+  animPackForLoadout,
+  activeWeaponSlot,
+  packCombatBlurb,
+  WEAPON_SLOT_TO_PACK
+} from '../config/weaponAnimPack.js';
 
 /**
  * Left-side Lab Panel — Main Panel / character production tester (not a fork).
@@ -175,6 +181,9 @@ export class InventoryPanel {
     const host = this.el.querySelector('[data-panel="character"]');
     if (!host || this._tab !== 'character') return;
     const s = this.character.getLabSummary?.() || {};
+    const loadout = this.character.equipment?.loadout || {};
+    const wSlot = activeWeaponSlot(loadout);
+    const pack = animPackForLoadout(loadout, s.animPackId);
     const presets = this.character.presets || [];
     const presetOpts = presets
       .map(
@@ -188,10 +197,12 @@ export class InventoryPanel {
         <div class="inv-card__row"><span>Race</span><b>${s.raceLabel || s.raceId || '—'}</b></div>
         <div class="inv-card__row"><span>Height</span><b>${(s.heightM ?? 0).toFixed(2)} m</b></div>
         <div class="inv-card__row"><span>Preset</span><b>${s.presetId || '—'}</b></div>
-        <div class="inv-card__row"><span>Anim pack</span><b>${s.animPackId || '—'}</b></div>
-        <div class="inv-card__row"><span>Weapon</span><b>${s.weaponSlot ? `${s.weaponSlot}:${s.weaponVariant}` : '—'}</b></div>
+        <div class="inv-card__row"><span>Weapon</span><b>${wSlot || s.weaponSlot || '—'}</b></div>
+        <div class="inv-card__row"><span>Anim pack</span><b>${pack || s.animPackId || '—'}</b></div>
+        <div class="inv-card__row"><span>Combat roles</span><b>${packCombatBlurb(pack).split(': ')[1] || '—'}</b></div>
         <div class="inv-card__row"><span>Clips</span><b>${(s.clips || []).length}</b></div>
       </div>
+      <p class="inv-hint">Weapon → pack: staff=magic · bow=longbow · sword/axe/hammer=sword_shield</p>
       <label class="inv-row">
         <span>Class preset</span>
         <select data-preset>${presetOpts}</select>
@@ -324,21 +335,21 @@ export class InventoryPanel {
         this._busyGuard(async () => {
           const slot = sel.dataset.wslot;
           const variant = sel.value;
-          // Clear other weapons for exclusive
+          // Exclusive weapon + mesh_ids
           for (const w of WEAPON_SLOTS) {
             if (w !== slot) c.equipment?.setSlot(w, null);
           }
           c.equipment?.setSlot(slot, variant === 'none' ? null : variant);
           c._reGroundAfterEquip?.();
-          // Auto pack: staff → magic, bow → longbow, melee → sword_shield
-          let pack = c.animPackId;
-          if (variant !== 'none') {
-            if (slot === 'staff') pack = 'magic';
-            else if (slot === 'bow') pack = 'longbow';
-            else pack = 'sword_shield';
-          }
+          // Weapon slot → attack/cast pack (weaponAnimPack SSOT)
+          const pack =
+            variant === 'none'
+              ? 'magic'
+              : WEAPON_SLOT_TO_PACK[slot] || animPackForLoadout(c.equipment?.loadout || {});
           await c.setAnimPack?.(pack);
-          this.onToast(`${slot} → ${variant} · pack ${pack}`);
+          // Keep mobility dodges bound
+          await c._bindPack?.('combat_mobility');
+          this.onToast(`${slot} → ${variant} · ${packCombatBlurb(pack)}`);
         })
       );
     });

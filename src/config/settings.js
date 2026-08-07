@@ -268,6 +268,26 @@ export const settings = {
   },
 
   /* ------------------------------------------------------------------ */
+  /* Combat aim — mouse ground crosshair · body + camera follow          */
+  /* ------------------------------------------------------------------ */
+  aim: {
+    /** Face character toward mouse ground hit in combat */
+    enabled: true,
+    /** Turn rate (rad/s) toward aim — snappy but not instant */
+    turnSpeed: 14,
+    /** Move WASD relative to aim (W = toward crosshair) */
+    moveRelativeToAim: true,
+    /** TPS camera follows body yaw (mouse aim) */
+    cameraFollowAim: true,
+    /** Soft yaw lag for camera behind body (0 = hard lock) */
+    cameraYawLag: 0.12,
+    /** Show ground aim ring under cursor */
+    groundMarker: true,
+    /** Screen crosshair DOM */
+    crosshair: true
+  },
+
+  /* ------------------------------------------------------------------ */
   /* Camera rig                                                          */
   /* ------------------------------------------------------------------ */
   camera: {

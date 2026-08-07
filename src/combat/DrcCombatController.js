@@ -32,6 +32,7 @@ export class DrcCombatController {
    *   camera: import('three').Camera,
    *   physics?: import('../physics/PhysicsWorld.js').PhysicsWorld|null,
    *   vfx?: import('../vfx/VfxDirector.js').VfxDirector|null,
+   *   aim?: import('../input/MouseAim.js').MouseAim|null,
    *   onToast?: (msg: string) => void,
    *   onSession?: (session: 'equip'|'combat') => void
    * }} opts
@@ -42,6 +43,7 @@ export class DrcCombatController {
     this.camera = opts.camera;
     this.physics = opts.physics || null;
     this.vfx = opts.vfx || null;
+    this.aim = opts.aim || null;
     this.onToast = opts.onToast || (() => {});
     this.onSession = opts.onSession || (() => {});
 
@@ -93,6 +95,10 @@ export class DrcCombatController {
 
   setVfx(vfx) {
     this.vfx = vfx;
+  }
+
+  setAim(aim) {
+    this.aim = aim;
   }
 
   get inCombat() {
@@ -161,9 +167,8 @@ export class DrcCombatController {
       return;
     }
 
-    // ── Camera-relative WASD (SI) ─────────────────────────────────────
-    // W/S along camera look on XZ; A/D along camera RIGHT (cross(fwd, up)).
-    // Previous code used (-right) → A/D were reversed.
+    // ── WASD relative to mouse aim (or camera fallback) ───────────────
+    // W = toward crosshair · S = away · A/D = strafe on aim right
     let ix = 0; // −1 = left (A), +1 = right (D)
     let iz = 0; // −1 = forward (W), +1 = back (S)  [input space]
     if (keys.has('KeyW') || keys.has('ArrowUp')) iz -= 1;
@@ -178,16 +183,25 @@ export class DrcCombatController {
       iz /= len;
     }
 
-    const cam = this.camera;
-    cam.getWorldDirection(_fwd);
-    _fwd.y = 0;
-    if (_fwd.lengthSq() < 1e-6) _fwd.set(0, 0, 1);
-    else _fwd.normalize();
-    // right = normalize(cross(forward, worldUp)) = (-fz, 0, fx)
-    const rx = -_fwd.z;
-    const rz = _fwd.x;
+    const useAim =
+      settings.aim?.enabled !== false &&
+      settings.aim?.moveRelativeToAim !== false &&
+      this.aim?.valid;
 
-    // World wish: forward * (−iz) so W (iz=-1) walks along +look
+    if (useAim) {
+      _fwd.copy(this.aim.forward);
+      // aim.right already = cross(forward, up) style
+    } else {
+      const cam = this.camera;
+      cam.getWorldDirection(_fwd);
+      _fwd.y = 0;
+      if (_fwd.lengthSq() < 1e-6) _fwd.set(0, 0, 1);
+      else _fwd.normalize();
+    }
+    const rx = useAim ? this.aim.right.x : -_fwd.z;
+    const rz = useAim ? this.aim.right.z : _fwd.x;
+
+    // World wish: forward * (−iz) so W (iz=-1) walks along +aim/look
     _move.set(0, 0, 0);
     _move.x = _fwd.x * -iz + rx * ix;
     _move.z = _fwd.z * -iz + rz * ix;
@@ -197,6 +211,9 @@ export class DrcCombatController {
     const moving = _move.lengthSq() > 1e-6;
     let vx = moving ? _move.x * speed : 0;
     let vz = moving ? _move.z * speed : 0;
+
+    // Face mouse aim (or move dir if aim disabled)
+    this._updateFacingToAim(dt, moving);
 
     // ── Jump / double-jump / S+Space backflip ─────────────────────────
     this._handleJump(dt, keys, moving);
@@ -230,16 +247,6 @@ export class DrcCombatController {
       this._integrateKinematicJump(dt, keys);
     }
 
-    // Face move wish on ground; keep facing during air unless backflip dash
-    if (moving && this._grounded && this._backflipBoostT <= 0) {
-      this._yaw = Math.atan2(_move.x, _move.z);
-      this.character.setFacing(this._yaw);
-    } else if (this._backflipBoostT > 0 && this._backflipDir.lengthSq() > 1e-6) {
-      // Face the flip direction of travel (backward)
-      this._yaw = Math.atan2(this._backflipDir.x, this._backflipDir.z);
-      this.character.setFacing(this._yaw);
-    }
-
     // Gait: lock during jump/flip one-shots
     if (!this.character._gaitLocked && this._grounded) {
       this.character.setGait?.(moving ? (this._sprinting ? 2 : 1) : 0, this._sprinting);
@@ -247,6 +254,41 @@ export class DrcCombatController {
       // Air: keep last gait weight low — jump clip owns pose when present
       this.character.setGait?.(0, false);
     }
+  }
+
+  /**
+   * Rotate body toward mouse aim (crosshair). Backflip owns facing while active.
+   * @param {number} dt
+   * @param {boolean} moving
+   */
+  _updateFacingToAim(dt, moving) {
+    if (this._backflipBoostT > 0 && this._backflipDir.lengthSq() > 1e-6) {
+      this._yaw = Math.atan2(this._backflipDir.x, this._backflipDir.z);
+      this.character.setFacing(this._yaw);
+      return;
+    }
+    if (this._dodgeT > 0) return;
+    if (this.character._gaitLocked && this.character.animState === 'dodge') return;
+
+    let targetYaw = this.character.facing;
+    if (settings.aim?.enabled !== false && this.aim?.valid) {
+      targetYaw = this.aim.yaw;
+    } else if (moving) {
+      targetYaw = Math.atan2(_move.x, _move.z);
+    } else {
+      return;
+    }
+
+    const turn = settings.aim?.turnSpeed ?? 14;
+    let cur = this.character.facing;
+    let diff = targetYaw - cur;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    const maxStep = turn * dt;
+    if (Math.abs(diff) <= maxStep) cur = targetYaw;
+    else cur += Math.sign(diff) * maxStep;
+    this._yaw = cur;
+    this.character.setFacing(cur);
   }
 
   /**
@@ -350,11 +392,15 @@ export class DrcCombatController {
     this.stamina -= skill.staminaCost;
     this._cdUntil.set(skill.id, this.elapsed + skill.cooldown);
 
-    // Animation one-shot
+    // Animation one-shot from equipped weapon pack (magic cast · sword attack · bow attack)
     if (skill.animRole === 'attack') {
-      this.character.playWeaponAttack?.() || this.character.requestOneShot?.('attack');
+      this.character.playWeaponCombat?.('attack') ||
+        this.character.playWeaponAttack?.() ||
+        this.character.requestOneShot?.('attack');
     } else {
-      this.character.requestOneShot?.(skill.animRole) || this.character.playCastFlourish?.();
+      this.character.playWeaponCombat?.('cast') ||
+        this.character.requestOneShot?.(skill.animRole) ||
+        this.character.playCastFlourish?.();
     }
 
     const yaw = this.character.facing;
@@ -421,10 +467,17 @@ export class DrcCombatController {
     this.stamina -= skill.staminaCost;
     this._cdUntil.set(skill.id, this.elapsed + skill.cooldown);
 
-    this.character.playWeaponAttack?.() || this.character.requestOneShot?.('attack');
+    this.character.playWeaponCombat?.('attack') ||
+      this.character.playWeaponAttack?.() ||
+      this.character.requestOneShot?.('attack');
 
-    const yaw = this.character.facing;
-    _fwd.set(Math.sin(yaw), 0, Math.cos(yaw));
+    // Residual aims along mouse aim when available
+    if (this.aim?.valid) {
+      _fwd.copy(this.aim.forward);
+    } else {
+      const yaw = this.character.facing;
+      _fwd.set(Math.sin(yaw), 0, Math.cos(yaw));
+    }
     const pose = {
       origin: this.character.position.clone(),
       forward: _fwd.clone()
@@ -543,7 +596,11 @@ export class DrcCombatController {
 
     switch (actionId) {
       case 'primary':
-        return this.useMeleeStrike() || this.character.playWeaponAttack?.() || false;
+        // Weapon pack attack (melee swing or staff cast flourish)
+        if (this.character.animPackId === 'magic') {
+          return this.character.playWeaponCombat?.('cast') || this.useMeleeStrike();
+        }
+        return this.useMeleeStrike() || this.character.playWeaponCombat?.('attack') || false;
       case 'fskill':
         return this.useMeleeStrike();
       case 'sig1':
@@ -693,16 +750,19 @@ export class DrcCombatController {
       this._cdUntil.set('dodge', this.elapsed + cd);
       this._cdMax.set('dodge', cd);
 
-      const cam = this.camera;
-      cam.getWorldDirection(_fwd);
-      _fwd.y = 0;
-      if (_fwd.lengthSq() < 1e-6) _fwd.set(0, 0, 1);
-      else _fwd.normalize();
-      // camera right
-      const rx = -_fwd.z;
-      const rz = _fwd.x;
+      // Prefer aim-relative dodge (same as move); fallback camera
+      if (this.aim?.valid && settings.aim?.enabled !== false) {
+        _fwd.copy(this.aim.forward);
+      } else {
+        const cam = this.camera;
+        cam.getWorldDirection(_fwd);
+        _fwd.y = 0;
+        if (_fwd.lengthSq() < 1e-6) _fwd.set(0, 0, 1);
+        else _fwd.normalize();
+      }
+      const rx = this.aim?.valid ? this.aim.right.x : -_fwd.z;
+      const rz = this.aim?.valid ? this.aim.right.z : _fwd.x;
 
-      // Wish in camera space: W=-iz forward, A=-ix left
       let wx = 0;
       let wz = 0;
       if (d === 'forward') {

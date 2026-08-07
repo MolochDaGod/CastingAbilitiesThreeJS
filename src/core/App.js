@@ -18,6 +18,8 @@ import { WalkController } from '../animation/WalkController.js';
 
 import { InputManager } from '../input/InputManager.js';
 import { PathDrawer } from '../input/PathDrawer.js';
+import { MouseAim } from '../input/MouseAim.js';
+import { Mesh, MeshBasicMaterial, RingGeometry, DoubleSide } from 'three';
 
 import { ParticleEngine } from '../particles/ParticleEngine.js';
 import { LightPool } from '../effects/LightPool.js';
@@ -126,6 +128,21 @@ export class App {
     this.input = new InputManager(canvas);
     this.pathDrawer = new PathDrawer(this.camera);
     this.scene.add(this.pathDrawer.object3D);
+    this.mouseAim = new MouseAim(this.camera);
+    // Ground aim ring under crosshair (combat)
+    const ringGeo = new RingGeometry(0.18, 0.32, 32);
+    const ringMat = new MeshBasicMaterial({
+      color: 0x7fd6ff,
+      transparent: true,
+      opacity: 0.75,
+      side: DoubleSide,
+      depthWrite: false
+    });
+    this.aimMarker = new Mesh(ringGeo, ringMat);
+    this.aimMarker.rotation.x = -Math.PI / 2;
+    this.aimMarker.position.y = 0.04;
+    this.aimMarker.visible = false;
+    this.scene.add(this.aimMarker);
 
     /* ---- post ---- */
     this.post = new PostProcessing(this.renderer, this.scene, this.camera);
@@ -177,6 +194,7 @@ export class App {
       camera: this.camera,
       physics: null,
       vfx: this.vfxDirector,
+      aim: this.mouseAim,
       onToast: (message) => this.hud.showToast(message),
       onSession: (session) => this._onDrcSession(session)
     });
@@ -532,6 +550,28 @@ export class App {
 
     this.environment.setFocus(this.character.position.x, this.character.position.z);
     this.environment.update();
+
+    // Mouse aim → ground crosshair + body face (combat)
+    const aimOn = this.drc.inCombat && settings.aim?.enabled !== false;
+    if (aimOn) {
+      this.mouseAim.updateFromNdc(this.input.pointer, this.character.position);
+      if (this.aimMarker && settings.aim?.groundMarker !== false) {
+        this.aimMarker.visible = this.mouseAim.valid;
+        if (this.mouseAim.valid) {
+          this.aimMarker.position.x = this.mouseAim.point.x;
+          this.aimMarker.position.z = this.mouseAim.point.z;
+          // Pulse scale by distance
+          const d = this.mouseAim.distanceTo(this.character.position);
+          const s = MathUtils.clamp(0.7 + d * 0.04, 0.7, 1.6);
+          this.aimMarker.scale.setScalar(s);
+        }
+      }
+      this.hud.setCrosshairVisible?.(settings.aim?.crosshair !== false);
+    } else {
+      if (this.aimMarker) this.aimMarker.visible = false;
+      this.hud.setCrosshairVisible?.(false);
+    }
+
     // Walk ride owns root while active; DRC yields when character._rideActive
     if (settings.mode === 'walk' || this.walk.active) this.walk.update(dt);
     this.drc.update(dt, this.input.keys);

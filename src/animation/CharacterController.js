@@ -17,6 +17,7 @@ import {
   GEAR_PRESETS_URL,
   bakedClipUrlsForRole
 } from '../config/assets.js';
+import { animPackForLoadout, activeWeaponSlot, packCombatBlurb } from '../config/weaponAnimPack.js';
 import {
   atlasUrlForRace,
   kitUrlForRace,
@@ -554,7 +555,6 @@ export class CharacterController {
   applyLoadout(loadout, meta = {}) {
     if (!this.model) return { matched: 0, missing: ['no-model'] };
     if (meta.presetId) this.presetId = meta.presetId;
-    if (meta.pack) this.animPackId = this._packFromPreset({ pack: meta.pack });
     const race = raceDef(this.raceId);
     const clean = { ...loadout };
     delete clean.bag;
@@ -568,8 +568,32 @@ export class CharacterController {
     this.height = this.model.userData.deployHeightM || this.height;
     this.headPosition.set(0, this.height * 0.86, 0);
     this.bones = this.equipment?.findBones?.() || this.bones;
-    if (this.actions.has('idle') && this.animState === 'idle') this.play('idle', 0.2);
+
+    // Weapon mesh → anim pack (staff→magic, bow→longbow, melee→sword_shield)
+    const wantPack = animPackForLoadout(clean, meta.pack || this.animPackId);
+    if (wantPack !== this.animPackId || meta.forcePack) {
+      // Fire-and-forget bind; callers can await syncAnimPackFromLoadout
+      this._pendingPack = wantPack;
+      this.syncAnimPackFromLoadout({ packHint: meta.pack }).catch(() => {});
+    } else if (this.actions.has('idle') && this.animState === 'idle') {
+      this.play('idle', 0.2);
+    }
     return report;
+  }
+
+  /**
+   * Bind anim pack from current equipment loadout (weapon slot SSOT).
+   * @param {{ packHint?: string }} [opts]
+   */
+  async syncAnimPackFromLoadout(opts = {}) {
+    const loadout = this.equipment?.loadout || {};
+    const pack = animPackForLoadout(loadout, opts.packHint || this.animPackId);
+    const slot = activeWeaponSlot(loadout);
+    await this.setAnimPack(pack);
+    console.info(
+      `[CharacterController] weapon pack ${pack} slot=${slot || 'none'} · ${packCombatBlurb(pack)}`
+    );
+    return pack;
   }
 
   applyPreset(presetId) {
@@ -577,7 +601,20 @@ export class CharacterController {
     if (!preset) return null;
     this.presetId = presetId;
     this.animPackId = this._packFromPreset(preset);
-    return this.applyLoadout(preset.loadout, { pack: preset.pack, presetId });
+    return this.applyLoadout(preset.loadout, { pack: preset.pack, presetId, forcePack: true });
+  }
+
+  /**
+   * Combat one-shot for equipped weapon pack (attack vs cast).
+   * @param {'attack'|'cast'|'block'} intent
+   */
+  playWeaponCombat(intent = 'attack') {
+    const pack = this.animPackId || 'magic';
+    if (intent === 'block') return this.playParry() || this.requestOneShot('block');
+    if (pack === 'magic' || intent === 'cast') {
+      return this.requestOneShot('cast') || this.requestOneShot('attack');
+    }
+    return this.requestOneShot('attack') || this.requestOneShot('cast');
   }
 
   play(name, fadeDuration = 0.35) {

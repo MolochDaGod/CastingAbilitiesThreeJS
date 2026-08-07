@@ -86,9 +86,9 @@ export class HUD {
       <div class="hud__panel hud__help">
         <div><strong>Danger Room HUD (tight 6+6)</strong></div>
         <div><kbd>WASD</kbd> · <kbd>Space</kbd> jump · <kbd>1</kbd>–<kbd>4</kbd> skills · <kbd>F</kbd> residual</div>
+        <div>Mouse aim · body + camera face crosshair · <kbd>W</kbd> toward aim</div>
         <div><kbd>AA</kbd>/<kbd>DD</kbd>/<kbd>WW</kbd> dodge · <kbd>X</kbd> back · <kbd>C</kbd> parry</div>
-        <div><kbd>LMB</kbd> hold-draw staff: AOE · spikes · wall · stream</div>
-        <div><kbd>E</kbd> guard · <kbd>R</kbd> heavy · <kbd>Q</kbd> mode · <kbd>I</kbd> Lab · <kbd>G</kbd> VFX</div>
+        <div><kbd>LMB</kbd> path cast · weapon equip → anim pack (attack/cast)</div>
       </div>
 
       <div class="hud__modes">
@@ -119,6 +119,11 @@ export class HUD {
           <div class="action-slot__glyph">⚔</div>
           <div class="action-slot__label">${DRC_MELEE_STRIKE.label}</div>
         </div>
+      </div>
+
+      <div class="hud__crosshair" data-crosshair aria-hidden="true">
+        <span class="hud__crosshair-dot"></span>
+        <span class="hud__crosshair-ring"></span>
       </div>
 
       <div class="hud__toast" data-toast></div>
@@ -169,6 +174,7 @@ export class HUD {
     this._targetHp = root.querySelector('[data-target-hp]');
     this._targetHpText = root.querySelector('[data-target-hp-text]');
     this._meleeCd = root.querySelector('[data-cd-melee]');
+    this._crosshair = root.querySelector('[data-crosshair]');
 
     // Danger Room / threejs-rapier tight bar (6+6 + avatar + orbs)
     root.classList.add('hud--tight');
@@ -277,16 +283,21 @@ export class HUD {
   setDrcSession(session) {
     this._drcSession = session;
     if (session === 'combat') {
-      this.blurb.textContent = 'Danger HUD · 6+6 · X/C/E/R · 1–4 · F · Q mode';
+      this.blurb.textContent = 'Aim mouse · WASD to crosshair · AA/DD dodge · LMB path';
       this.actionbar?.classList.remove('is-dimmed');
       this.tightBar?.setVisible(true);
+      this.setCrosshairVisible(true);
       this.refreshSkillLabels();
     } else {
-      this.blurb.textContent = 'Equip / Lab Panel · race · mesh · packs';
+      this.blurb.textContent = 'Equip / Lab Panel · race · mesh · weapon packs';
       this.actionbar?.classList.add('is-dimmed');
-      // Keep tight bar visible for reference; dim via class
       this.tightBar?.setVisible(true);
+      this.setCrosshairVisible(false);
     }
+  }
+
+  setCrosshairVisible(on) {
+    this._crosshair?.classList.toggle('is-visible', !!on);
   }
 
   setCombatHud(cd01Fn, stamina, meleeCd01) {

@@ -41,6 +41,61 @@ body {
   cursor: crosshair;
 }
 
+/* Screen-center aim reticle (combat mouse aim) */
+.hud__crosshair {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  z-index: 26;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.hud__crosshair.is-visible {
+  opacity: 1;
+}
+.hud__crosshair-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  border-radius: 50%;
+  background: #e8f4ff;
+  box-shadow: 0 0 6px rgba(127, 214, 255, 0.9);
+}
+.hud__crosshair-ring {
+  position: absolute;
+  inset: 0;
+  border: 1.5px solid rgba(127, 214, 255, 0.75);
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.45);
+}
+.hud__crosshair-ring::before,
+.hud__crosshair-ring::after {
+  content: '';
+  position: absolute;
+  background: rgba(232, 244, 255, 0.7);
+}
+.hud__crosshair-ring::before {
+  left: 50%;
+  top: -5px;
+  width: 1px;
+  height: 5px;
+  margin-left: -0.5px;
+}
+.hud__crosshair-ring::after {
+  left: 50%;
+  bottom: -5px;
+  width: 1px;
+  height: 5px;
+  margin-left: -0.5px;
+}
+
 /* ------------------------------------------------------------------ *
  * Loading veil
  * ------------------------------------------------------------------ */
