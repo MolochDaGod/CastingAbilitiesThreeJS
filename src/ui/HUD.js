@@ -22,7 +22,7 @@ export class HUD {
     root.innerHTML = `
       <div class="hud__panel hud__title">
         Grudge Casting · Toon RTS
-        <span data-blurb>DRC combat · Bip001 · weapon skills</span>
+        <span data-blurb>DRC combat · Toon CDN kits · windsurf ride</span>
       </div>
 
       <div class="hud__panel hud__stats">

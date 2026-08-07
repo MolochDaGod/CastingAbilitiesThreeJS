@@ -1,58 +1,100 @@
 # Grudge Casting Abilities (Three.js)
 
-Elemental casting sandbox for **Grudge Studio**: draw a path, release, and Fire / Water / Earth / Air travel the spline and detonate. Every visual parameter is live-editable in the in-game VFX editor.
-
-This is the fleet-owned rebrand of the original bending playground: **Mixamo character models are removed**. The avatar is **grudge6** (Western Kingdoms kit) with **Bip001 magic-pack** idle + cast animations.
+Elemental casting sandbox for **Grudge Studio**: draw a path, release, and Fire / Water / Earth / Air travel the spline and detonate. Live VFX editor, DRC combat, Toon RTS hero, windsurf ride.
 
 **Repo:** [MolochDaGod/CastingAbilitiesThreeJS](https://github.com/MolochDaGod/CastingAbilitiesThreeJS)  
-**Live:** [casting-abilities-threejs.vercel.app](https://casting-abilities-threejs.vercel.app)
-
-### Stack (fleet package gate)
-
-| Package | Role |
-|---------|------|
-| `three` ^0.185 | Renderer / GLTF / AnimationMixer |
-| `@dimforge/rapier3d-compat` ^0.19 | Ground + human CCT (SI capsule) |
-| VFX beauty | [vfxgrudge.puter.site](https://vfxgrudge.puter.site/) catalog → `src/vfx/VfxDirector.js` |
-
-**Alt+V/B/F/G/T/C** — sandbox VFX (Ice Serpent, Moon Beam, Frost Wave, Aura, Earth Surge, Fireball).  
-**Q** equip ↔ DRC combat · **1–4** weapon skills with layered cast/impact VFX.
-
-### Stack (fleet package gate)
-
-| Package | Role |
-|---------|------|
-| `three` ^0.185 | Renderer / GLTF / AnimationMixer |
-| `@dimforge/rapier3d-compat` ^0.19 | Ground + human CCT (SI capsule) |
-| VFX | [vfxgrudge.puter.site](https://vfxgrudge.puter.site/) catalog → `VfxDirector` beauty layers |
-
-**Alt+V/B/F/G/T/C** — sandbox VFX previews (Ice Serpent, Moon Beam, Frost Wave, Aura, Earth Surge, Fireball).  
-**Q** equip ↔ DRC combat · **1–4** weapon skills with layered cast/impact VFX.
+**Live:** [casting-abilities-threejs.vercel.app](https://casting-abilities-threejs.vercel.app)  
+**Team:** Vercel `grudgenexus` · project `casting-abilities-threejs`
 
 ---
 
-## About
+## Stack (fleet package gate)
 
-| | |
-|---|---|
-| **Product** | Casting Abilities — elemental VFX sandbox (not a full MMO shell) |
-| **Engine** | Three.js `^0.185` + Vite + hand-written GLSL |
-| **Character** | grudge6 race kit `WK_Characters.glb` from `assets.grudge-studio.com` |
-| **Animations** | Bip001 JSON under `open.grudge-studio.com/anims/baked/magic/…` |
-| **Scale** | SI units — hero fitted to ~**1.8 m**, feet grounded from skinned body min.y |
-| **VFX** | Fire / Water / Earth / Air abilities + path ride (air scooter) |
+| Package | Role |
+|---------|------|
+| `three` ^0.185 | Renderer / GLTF / AnimationMixer |
+| `@dimforge/rapier3d-compat` ^0.19 | Ground + human CCT (SI capsule) |
+| VFX beauty | [vfxgrudge.puter.site](https://vfxgrudge.puter.site/) → `src/vfx/VfxDirector.js` |
 
-### What changed (this version)
+**Do not** reintroduce Mixamo FBX, Meshy heroes, dual mixers, or OrbitControls during combat TPS.
 
-- Removed `public/models/Standing Idle.fbx` (Mixamo) and local pixel albedo atlas
-- Character + atlas load from **Grudge CDN** (R2); clips from **Open** baked anims (CORS `*`)
-- Single `AnimationMixer`, rotation-only tracks, art-forward **+Z**, grudge6 bone-aware sit pose
-- Cast flourishes play `magic/standing 1h cast spell 01` when an ability is released
-- README / branding updated for Grudge Studio fleet deploy on **Vercel**
+---
 
-### What stayed
+## Assets (SSOT)
 
-- Path-draw casting, walk/ride mode, lil-gui VFX editor, HDRI environment, post stack
+### Character (runtime CDN — not bundled)
+
+| Resource | URL |
+| --- | --- |
+| **Play kit ★** | `https://assets.grudge-studio.com/asset-packs/toon-rts-characters/glb/characters/{human\|barbarian\|elf\|orc\|undead\|dwarf}.glb` |
+| Race atlas (optional) | `https://assets.grudge-studio.com/textures/grudge6/…/*.webp` |
+| Gear presets | `https://assets.grudge-studio.com/api/v1/grudge6-gear-presets.json` |
+| Idle clip | `https://open.grudge-studio.com/anims/baked/magic/standing%20idle.json` |
+| Cast clip | `https://open.grudge-studio.com/anims/baked/magic/standing%201h%20cast%20spell%2001.json` |
+| Walk clip | `https://open.grudge-studio.com/anims/baked/magic/Standing%20Walk%20Forward.json` |
+
+Code: `src/config/grudge6SSOT.js` + `src/config/assets.js`  
+Deploy path: `deployToonPlayKit` (`src/character/toonKitPlay.js`) — bone SI fit, **yaw 0**, mesh_ids equip.
+
+**Not play defaults** (author/lab only): `models/grudge6/races/*_Characters.glb` / `.fbx`
+
+### Windsurf ride (shipped with site)
+
+| Resource | Path |
+| --- | --- |
+| Package GLB | `public/models/ride/windsurf_package.glb` (~11.7 MB) |
+| Hoverboard fallback | `public/models/ride/hoverboard.glb` |
+| IK sockets | `public/models/ride/ride.manifest.json` |
+| IK reference | `public/models/ride/ik-reference.png` |
+
+Live: `https://casting-abilities-threejs.vercel.app/models/ride/…`  
+Code: `HoverboardRide.js` + `RideIK.js` (feet → deck, hands → boom/`sailRail`)
+
+### Local only
+
+| Resource | Path |
+| --- | --- |
+| HDRI | `public/hdri/spruit_sunrise.hdr` |
+
+---
+
+## Controls
+
+| Input | Action |
+| --- | --- |
+| **Hold LMB + drag** | Draw path |
+| **Release** | Cast element — or **windsurf ride** in walk mode |
+| **RMB + drag** | Orbit (equip/sandbox) · TPS yaw offset in combat |
+| **M** | Cast ↔ **walk** (windsurf) |
+| **WASD** | Move (DRC combat) · Shift sprint |
+| **1–4** | Weapon skills (combat) / elements (equip) |
+| **Q** | Equip ↔ combat session |
+| **I** | Inventory panel |
+| **F** | Blade / attack skill |
+| **G** | VFX editor |
+| **C** | Clear effects / cancel ride |
+| **P** | Pause |
+| **H** | Help |
+| **Alt+V/B/F/G/T/C** | Sandbox VFX previews |
+
+---
+
+## Character + ride stack
+
+- **Loader:** GLTFLoader + DRACO + Meshopt  
+- **Clone:** SkeletonUtils / deployToonPlayKit  
+- **Equip:** mesh_ids visibility (`EquipmentManager`)  
+- **Anims:** Bip001 magic + sword_shield packs (Open baked JSON)  
+- **Combat:** `DrcCombatController` + Rapier CCT + TPS camera  
+- **Ride:** walk mode → leap → board sockets → **RideIK** post-mixer  
+
+```
+[ ] Height ~1.55–2.05 m (bone SI fit)
+[ ] Feet grounded (structural min.y / bone feet), not pelvis-as-feet
+[ ] Toon play GLB only (asset-packs/toon-rts-characters/…)
+[ ] One AnimationMixer; RideIK only while `_rideActive`
+[ ] windsurf_package.glb 200 on prod + manifest sockets
+```
 
 ---
 
@@ -63,58 +105,28 @@ npm install
 npm run dev
 ```
 
-Open the URL Vite prints (default <http://127.0.0.1:5173>).
-
 ```bash
 npm run build
 npm run preview
 ```
 
-**Network:** first boot fetches the race kit + atlas from `assets.grudge-studio.com` and magic clips from `open.grudge-studio.com`. Offline boot without those hosts will fail character load.
+First boot needs network for race kits + baked clips.
 
 ---
 
-## Assets (SSOT)
+## Deploy (Vercel)
 
-| Resource | URL |
+```bash
+npm run build
+vercel --prod
+```
+
+Linked project: **casting-abilities-threejs** (`grudgenexus`).  
+`vercel.json`: Vite · `dist` · COOP header.
+
+| What ships in `dist` | What loads at runtime |
 | --- | --- |
-| Race kit (GLB) | `https://assets.grudge-studio.com/models/grudge6/races/WK_Characters.glb` |
-| Race atlas | `https://assets.grudge-studio.com/textures/grudge6/western-kingdoms/WK_Standard_Units.webp` |
-| Idle clip | `https://open.grudge-studio.com/anims/baked/magic/standing%20idle.json` |
-| Cast clip | `https://open.grudge-studio.com/anims/baked/magic/standing%201h%20cast%20spell%2001.json` |
-| Local HDRI | `public/hdri/spruit_sunrise.hdr` |
-
-Code SSOT: `src/config/assets.js`.
-
-**Do not** reintroduce Mixamo FBX, Meshy heroes, or a second physics/mixer stack.
-
----
-
-## Controls
-
-| Input | Action |
-| --- | --- |
-| **Hold LMB + drag** | Draw a path on the ground |
-| **Release** | Cast the selected element — or ride the path in walk mode |
-| **RMB + drag** | Orbit camera |
-| **M** | Toggle **cast** / **walk** mode |
-| **1 / 2 / 3 / 4** | Fire / Water / Earth / Air |
-| **Q / E** | Cycle elements |
-| **I** | Inventory / equipment / ability outputs panel |
-| **F** | Weapon attack (sword_shield pack or cast flourish) |
-| **G** | Show/hide VFX editor |
-| **C** | Clear effects (cancel ride) |
-| **P** | Pause / resume |
-| **T** | Toggle standing idle ↔ meditation sit |
-| **H** | Hide help |
-
-### Character stack (Toon RTS)
-
-- **Loader:** three.js `GLTFLoader` + `DRACOLoader` + `MeshoptDecoder` ([examples](https://threejs.org/examples/?q=loader%20gltf))
-- **Clone:** `SkeletonUtils.clone` (never plain `scene.clone` on skinned kits)
-- **Equip:** mesh visibility via `EquipmentManager` (presets from CDN gear_presets)
-- **Anims:** Bip001 magic cast **loop while abilities active**; sword_shield **attack** on **F**
-- **IK:** hand cast origin + soft aim toward ability focus (`HandIK`)
+| App JS/CSS, HDRI, **ride GLBs** | Toon RTS kits, atlases, anim JSON (CDN / Open) |
 
 ---
 
@@ -122,51 +134,16 @@ Code SSOT: `src/config/assets.js`.
 
 ```
 src/
-  abilities/      Element abilities + pool manager
-  animation/      grudge6 CharacterController, SittingPose, bakeClip, walk ride
-  assets/         Procedural rocks / plates / shards
-  config/         settings.js + assets.js (CDN SSOT)
-  core/           App, renderer, camera, time
-  effects/        Trails, scooter, bursts, shadows
-  loaders/        AssetLoader (GLTF + HDR + textures)
-  materials/      GLSL materials
-  postprocessing/ Grade + distortion stack
-  ui/             HUD + lil-gui editor
+  abilities/      Element abilities + pool
+  animation/      CharacterController, WalkController, bakeClip
+  character/      toonKitPlay, RideIK, EquipmentManager, grudge6Deploy
+  combat/         DrcCombatController, skill trees
+  config/         settings, assets, grudge6SSOT
+  effects/        HoverboardRide, trails, bursts
+  physics/        Rapier world
+  ui/             HUD, inventory, editor
+  vfx/            VfxDirector
 public/
-  hdri/           Local environment probe only
+  models/ride/    windsurf_package.glb + manifest
+  hdri/
 ```
-
----
-
-## Deploy (Vercel)
-
-```bash
-# from repo root (linked to a Vercel project)
-npm run build
-vercel --prod
-```
-
-`vercel.json` uses Vite framework, `dist` output. Character bytes are **not** bundled — CDN + Open at runtime.
-
-Suggested project name: **`casting-abilities-threejs`** under the Grudge Vercel team (`grudgenexus`).
-
----
-
-## Character correctness checklist
-
-```
-[ ] Height ~1.55–2.05 m after fit
-[ ] Feet on ground (body min.y), not pelvis-as-feet
-[ ] Facing +Z when root yaw = 0 (art-forward π/2 on kit)
-[ ] Idle from magic/standing idle (Bip001), not mixamorig
-[ ] One AnimationMixer only
-[ ] Cast one-shot returns to idle
-```
-
-Skills: `grudge6-cdn-ssot`, `grudge-character-correctness`, `grudge-studio`.
-
----
-
-## License
-
-See [LICENSE](./LICENSE). HDR probe and third-party packs keep their original terms. grudge6 race kits and baked anims are Grudge Studio production assets served from fleet CDN/Open hosts.
