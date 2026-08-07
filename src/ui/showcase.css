@@ -1,0 +1,253 @@
+/* Showcase panel — race / weapon / anim / master skill bind */
+
+.showcase-panel {
+  position: fixed;
+  top: 56px;
+  right: 16px;
+  width: min(400px, calc(100vw - 24px));
+  max-height: calc(100vh - 100px);
+  z-index: 42;
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto;
+  background: var(--ui-bg-solid);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  box-shadow: var(--ui-shadow);
+  backdrop-filter: blur(12px);
+  color: var(--ui-text);
+  overflow: hidden;
+}
+
+.showcase-panel[hidden] {
+  display: none !important;
+}
+
+.showcase-panel__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px 8px;
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.showcase-panel__head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.showcase-panel__sub {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--ui-text-dim);
+}
+
+.showcase-panel__close {
+  border: 0;
+  background: transparent;
+  color: var(--ui-text-dim);
+  font-size: 22px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.showcase-panel__body {
+  overflow: auto;
+  padding: 10px 14px 14px;
+  flex: 1;
+}
+
+.showcase-panel__foot {
+  padding: 8px 12px;
+  border-top: 1px solid var(--ui-border);
+  font-size: 11px;
+  color: var(--ui-text-dim);
+}
+
+.showcase-panel__foot a {
+  color: var(--ui-accent);
+  text-decoration: none;
+}
+
+.showcase-block {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.showcase-block h3 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ui-accent);
+}
+
+.showcase-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--ui-text-dim);
+}
+
+.showcase-row select,
+.showcase-row input {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--ui-text);
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 12px;
+}
+
+.showcase-hint {
+  font-size: 11px;
+  color: var(--ui-text-dim);
+  margin: 0 0 8px;
+  line-height: 1.4;
+}
+
+.showcase-btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.showcase-btn {
+  border: 1px solid var(--ui-border);
+  background: rgba(127, 214, 255, 0.14);
+  color: var(--ui-text);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.showcase-btn--ghost {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.showcase-btn--tiny {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+.showcase-btn:hover {
+  border-color: var(--ui-accent);
+}
+
+.showcase-clip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.showcase-clip {
+  border: 1px solid var(--ui-border);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--ui-text);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.showcase-skill-list {
+  max-height: 220px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0;
+}
+
+.showcase-skill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--ui-border);
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--ui-text);
+  border-radius: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 11px;
+}
+
+.showcase-skill.is-selected {
+  border-color: var(--ui-accent);
+  background: rgba(127, 214, 255, 0.12);
+}
+
+.showcase-skill img {
+  border-radius: 4px;
+  object-fit: cover;
+  background: rgba(0, 0, 0, 0.4);
+  flex-shrink: 0;
+}
+
+.showcase-skill__glyph {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.showcase-skill__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.showcase-skill__meta b {
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.showcase-skill__meta i {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--ui-text-dim);
+}
+
+.showcase-binds {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.showcase-bind-row {
+  display: grid;
+  grid-template-columns: 28px 1fr 28px;
+  gap: 8px;
+  align-items: center;
+  font-size: 11px;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.showcase-bind-key {
+  font-weight: 700;
+  color: var(--ui-accent);
+}
+
+.showcase-bind-name {
+  color: var(--ui-text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

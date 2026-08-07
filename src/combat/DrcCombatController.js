@@ -7,6 +7,8 @@ import {
 } from './drcSkills.js';
 import { settings } from '../config/settings.js';
 import { residualFromSettings } from '../vfx/effectPrefab.js';
+import { getSkillBinding } from './skillBindings.js';
+import { vfxIdForSkill, animRoleForSkill } from '../api/weaponSkillsCatalog.js';
 
 const _origin = new Vector3();
 const _tip = new Vector3();
@@ -402,8 +404,21 @@ export class DrcCombatController {
     this.stamina -= skill.staminaCost;
     this._cdUntil.set(skill.id, this.elapsed + skill.cooldown);
 
+    // Catalog binding (Showcase) — true master-weaponSkills id when set
+    const bound = getSkillBinding(slot);
+    const boundName = bound?.name || skill.label;
+
     // Animation one-shot from equipped weapon pack (magic cast · sword attack · bow attack)
-    if (skill.animRole === 'attack') {
+    const animRole = bound
+      ? animRoleForSkill({
+          labStyle: bound.labPack === 'magic' ? 'spell' : skill.style,
+          animation: null,
+          id: bound.skillId,
+          name: bound.name,
+          slotType: 'ability'
+        })
+      : skill.animRole;
+    if (animRole === 'attack' || skill.animRole === 'attack') {
       this.character.playWeaponCombat?.('attack') ||
         this.character.playWeaponAttack?.() ||
         this.character.requestOneShot?.('attack');
@@ -414,7 +429,8 @@ export class DrcCombatController {
     }
 
     const yaw = this.character.facing;
-    _fwd.set(Math.sin(yaw), 0, Math.cos(yaw));
+    if (this.aim?.valid) _fwd.copy(this.aim.forward);
+    else _fwd.set(Math.sin(yaw), 0, Math.cos(yaw));
     this.character.getCastOrigin(_origin);
     const pose = {
       origin: this.character.position.clone(),
@@ -422,8 +438,19 @@ export class DrcCombatController {
       aim: _end.copy(_origin).addScaledVector(_fwd, skill.rangeM * 0.65)
     };
 
-    // High-beauty cast tell (vfxgrudge catalog)
-    this.vfx?.deploySkill?.(skill.id, pose, 'cast');
+    // Catalog VFX when bound; else DRC skill beauty
+    if (bound) {
+      const vfxId = vfxIdForSkill({
+        id: bound.skillId,
+        name: bound.name,
+        description: '',
+        damageType: bound.damageType,
+        labStyle: bound.labPack === 'magic' ? 'spell' : skill.style
+      });
+      this.vfx?.deploy?.(vfxId, { ...pose, intensity: 1.1 });
+    } else {
+      this.vfx?.deploySkill?.(skill.id, pose, 'cast');
+    }
 
     // VFX: spell → elemental ability along forward curve; melee → short slash + residual
     if (skill.style === 'spell' && skill.element) {
@@ -440,13 +467,20 @@ export class DrcCombatController {
       setTimeout(() => {
         this.vfx?.deploySkill?.(skill.id, { ...pose, origin: pose.aim, aim: pose.aim }, 'impact');
       }, impactAt * 1000);
-      this.onToast(skill.label);
+      this.onToast(bound ? `${boundName} · ${bound.skillId}` : skill.label);
       return true;
     }
 
     if (skill.style === 'melee') {
       this._fireMeleeResidual(skill, pose);
-      this.onToast(skill.label);
+      this.onToast(bound ? `${boundName} · ${bound.skillId}` : skill.label);
+      return true;
+    }
+
+    // Bound catalog skill on a spell-less bar slot — still fire residual / path
+    if (bound) {
+      this._fireMeleeResidual(skill, pose);
+      this.onToast(`${boundName} · ${bound.skillId}`);
       return true;
     }
 

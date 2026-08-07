@@ -11,6 +11,7 @@ import {
   defaultQuickSlots
 } from './quickActions.js';
 import { getActiveSkills, DRC_MELEE_STRIKE } from '../combat/drcSkills.js';
+import { getSkillBinding } from '../combat/skillBindings.js';
 
 const TB_W = 3800;
 const TB_H = 726;
@@ -97,12 +98,17 @@ export class TightBar {
 
   _skillLabels() {
     const bar = getActiveSkills();
+    const b0 = getSkillBinding(0);
+    const b1 = getSkillBinding(1);
+    const b2 = getSkillBinding(2);
+    const b3 = getSkillBinding(3);
+    const bf = getSkillBinding('f');
     return {
-      fskill: DRC_MELEE_STRIKE.label,
-      sig1: bar.find((s) => s.slot === 0)?.label || 'Fire Bolt',
-      sig2: bar.find((s) => s.slot === 1)?.label || 'Water Lash',
-      sig3: bar.find((s) => s.slot === 2)?.label || 'Earth Spike',
-      sig4: bar.find((s) => s.slot === 3)?.label || 'Wind Tempest'
+      fskill: bf?.name || DRC_MELEE_STRIKE.label,
+      sig1: b0?.name || bar.find((s) => s.slot === 0)?.label || 'Fire Bolt',
+      sig2: b1?.name || bar.find((s) => s.slot === 1)?.label || 'Water Lash',
+      sig3: b2?.name || bar.find((s) => s.slot === 2)?.label || 'Earth Spike',
+      sig4: b3?.name || bar.find((s) => s.slot === 3)?.label || 'Wind Tempest'
     };
   }
 
@@ -181,9 +187,10 @@ export class TightBar {
         </div>
       </div>
       <nav class="tb-menus" data-menus>
+        <button type="button" class="tb-menu-btn" data-menu="showcase" title="Showcase · race/weapon/anim/skills">Show</button>
         <button type="button" class="tb-menu-btn" data-menu="lab" title="Lab Panel (I)">Lab</button>
         <button type="button" class="tb-menu-btn" data-menu="editor" title="VFX Editor (G)">VFX</button>
-        <button type="button" class="tb-menu-btn" data-menu="help" title="Help (H hold? · ?)">?</button>
+        <button type="button" class="tb-menu-btn" data-menu="help" title="Help (F1)">?</button>
         <button type="button" class="tb-menu-btn" data-menu="clear" title="Clear VFX (Shift+C)">Clr</button>
         <button type="button" class="tb-menu-btn" data-menu="inventory" title="Inventory / equip">Bag</button>
         <button type="button" class="tb-menu-btn" data-menu="mainpanel" title="Main Panel production">MP</button>

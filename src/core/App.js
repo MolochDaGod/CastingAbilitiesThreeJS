@@ -34,7 +34,10 @@ import { PostProcessing } from '../postprocessing/PostProcessing.js';
 import { HUD, LoadingScreen } from '../ui/HUD.js';
 import { Editor } from '../ui/Editor.js';
 import { InventoryPanel } from '../ui/InventoryPanel.js';
+import { ShowcasePanel } from '../ui/ShowcasePanel.js';
 import { DrcCombatController } from '../combat/DrcCombatController.js';
+import { loadWeaponSkillsCatalog } from '../api/weaponSkillsCatalog.js';
+import { loadSkillBindings } from '../combat/skillBindings.js';
 import { PhysicsWorld } from '../physics/PhysicsWorld.js';
 import { VfxDirector } from '../vfx/VfxDirector.js';
 import { loadGeneratedCatalog, spawnGeneratedProp } from '../assets/generatedCatalog.js';
@@ -177,6 +180,28 @@ export class App {
       getDrc: () => this.drc
     });
 
+    this.showcase = new ShowcasePanel({
+      character: this.character,
+      getDrc: () => this.drc,
+      onToast: (message) => this.hud.showToast(message),
+      onRace: async (raceId) => {
+        await this.character.setRace(raceId);
+        this.hud.setPlayerFrame?.({ raceId, name: this.character.presetId || raceId });
+      },
+      onShowcaseMode: (on) => {
+        // Orbit for review; combat returns to TPS when closed if still in combat
+        if (on) {
+          this.rig.setViewMode('orbit');
+          this.drc.setSession?.('equip');
+          this.inventory.setOpen?.(false);
+        } else if (this.drc.session === 'combat') {
+          this.rig.setViewMode('tps');
+        }
+        this.hud.refreshSkillLabels?.();
+      },
+      onBindingsChanged: () => this.hud.refreshSkillLabels?.()
+    });
+
     this.physics = new PhysicsWorld();
     this.vfxDirector = new VfxDirector({
       scene: this.scene,
@@ -298,7 +323,12 @@ export class App {
     switch (menuId) {
       case 'lab':
       case 'inventory':
+        this.showcase?.setOpen?.(false);
         this.inventory.toggle();
+        break;
+      case 'showcase':
+        this.inventory.setOpen?.(false);
+        this.showcase?.toggle?.();
         break;
       case 'editor':
         this.editor.toggle();
@@ -339,9 +369,15 @@ export class App {
       case 'toggleInventory':
         if (this.drc.inCombat) this.drc.setSession('equip');
         else {
+          this.showcase?.setOpen?.(false);
           this.inventory.toggle();
           this.hud.showToast(this.inventory.open ? 'Inventory open' : 'Inventory closed');
         }
+        break;
+      case 'toggleShowcase':
+        this.inventory.setOpen?.(false);
+        this.showcase?.toggle?.();
+        this.hud.showToast(this.showcase?.open ? 'Showcase open' : 'Showcase closed');
         break;
       case 'weaponAttack':
         // F = melee residual (attack + Getsuga from tip) — not digit slot 4 / not Space
@@ -455,6 +491,14 @@ export class App {
     });
     this.hud.refreshSkillLabels?.();
     this.inventory.refresh();
+    // Prefetch master weapon skills for Showcase (non-blocking)
+    loadWeaponSkillsCatalog()
+      .then((cat) => {
+        console.info(`[App] weapon skills catalog v${cat.version} · ${cat.totalSkills} skills`);
+        const binds = loadSkillBindings();
+        console.info('[App] skill bindings', binds);
+      })
+      .catch((err) => console.warn('[App] weapon skills catalog', err));
 
     // Windsurf package always available for walk mode (RideIK + deck sockets)
     this._assets = assets;

@@ -1,8 +1,10 @@
 import { ELEMENTS, ELEMENT_META, MODES, MODE_META } from '../config/settings.js';
 import { ELEMENT_SIGILS } from './glyphs.js';
 import { getActiveSkills, DRC_MELEE_STRIKE } from '../combat/drcSkills.js';
+import { getSkillBinding } from '../combat/skillBindings.js';
 import { TightBar } from './TightBar.js';
 import './tightBar.css';
+import './showcase.css';
 
 /**
  * Production-style combat HUD for casting lab:
@@ -187,16 +189,21 @@ export class HUD {
     this.refreshSkillLabels();
   }
 
-  /** Pull labels from active DRC skill tree. */
+  /** Pull labels from catalog bindings (preferred) or active DRC tree. */
   refreshSkillLabels() {
     const skills = getActiveSkills();
     let i = 0;
     for (const card of this.cards.values()) {
       const lab = card.querySelector('[data-skill-label]');
+      const bound = getSkillBinding(i);
       const sk = skills.find((s) => s.slot === i);
-      if (lab && sk) lab.textContent = sk.label;
+      if (lab) lab.textContent = bound?.name || sk?.label || lab.textContent;
       i++;
     }
+    // F slot label
+    const fLab = this.root.querySelector('[data-melee] .action-slot__label');
+    const fBound = getSkillBinding('f');
+    if (fLab) fLab.textContent = fBound?.name || DRC_MELEE_STRIKE.label;
     this.tightBar?.refreshLabels?.();
   }
 

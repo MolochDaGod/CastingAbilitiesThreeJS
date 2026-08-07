@@ -50,6 +50,8 @@ learn source → isolate primitive → edit knobs → bind skill → smoke → e
 | **Combat hotkeys** | AA/DD/WW dodge · X back · C parry · LMB staff path · F/1–4 · Q mode |
 | **Dodge clips** | longbow standing dodge L/R/F/B (+ locomotion fallbacks) |
 | **Staff path cast** | LMB hold-draw → AOE place · spikes · wall · stream (`settings.staffCast`) |
+| **Showcase (O / Show)** | Race · mesh · weapon type · anims · bind master skills to 1–4 / F |
+| **Weapon skills SSOT** | `info…/api/v1/master-weaponSkills.json` v3.1 · 268 skills · WEAPON_SKILLS.html |
 | **6 races** | Toon RTS GLB via Race tab (`setRace`) |
 | **Fleet API client** | `src/api/fleetApi.js` → Railway health + characters |
 | World SI | `worldScale.js` MAP_SCALE 1.5 + StageWater |
