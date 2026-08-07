@@ -34,6 +34,10 @@ export class PhysicsWorld {
     this.playerBody = null;
     this.ready = false;
     this.debug = typeof location !== 'undefined' && /[?&]physicsDebug=1/.test(location.search);
+    /** Vertical velocity for jumps (m/s). Gravity integrates each step. */
+    this.vy = 0;
+    this.grounded = true;
+    this.gravity = -9.81;
   }
 
   async init(opts = {}) {
@@ -79,32 +83,56 @@ export class PhysicsWorld {
   }
 
   /**
-   * Move player CCT with desired XZ velocity + gravity.
+   * Apply jump impulse (m/s). Call once per jump press.
+   * @param {number} impulseVy
+   */
+  jump(impulseVy) {
+    if (!this.ready) return;
+    this.vy = Math.max(this.vy, impulseVy);
+    this.grounded = false;
+  }
+
+  /**
+   * Move player CCT with desired XZ velocity + integrated vertical jump.
    * @param {number} vx
    * @param {number} vz
    * @param {number} dt
-   * @returns {{ x: number, y: number, z: number, grounded: boolean }}
+   * @returns {{ x: number, y: number, z: number, grounded: boolean, vy: number }}
    */
   movePlayer(vx, vz, dt) {
     if (!this.ready || !this.playerBody || !this.characterController) {
-      return { x: 0, y: 0, z: 0, grounded: true };
+      return { x: 0, y: 0, z: 0, grounded: true, vy: 0 };
     }
     const entry = this.bodies.get('player');
     const r = entry.radius;
     const hh = entry.halfHeight;
+    const g = this.gravity;
 
-    // Accumulate fixed steps
     this.accumulator += Math.min(dt, 0.05);
-    let grounded = false;
+    let grounded = this.grounded;
     while (this.accumulator >= FIXED_DT) {
+      // Integrate vertical velocity (SI: m/s²)
+      this.vy += g * FIXED_DT;
+      // Slight ground snap when nearly landed and falling
+      let dy = this.vy * FIXED_DT;
+      if (grounded && this.vy <= 0) {
+        this.vy = 0;
+        dy = -0.35 * FIXED_DT; // keep CCT grounded settle
+      }
+
       const desired = {
         x: vx * FIXED_DT,
-        y: -9.81 * FIXED_DT * FIXED_DT * 0.5 - 0.35 * FIXED_DT, // settle + gravity bias
+        y: dy,
         z: vz * FIXED_DT
       };
       this.characterController.computeColliderMovement(this.playerCollider, desired);
       const mv = this.characterController.computedMovement();
       grounded = this.characterController.computedGrounded();
+      // If we hit ceiling, kill upward velocity
+      if (this.vy > 0 && mv.y < desired.y * 0.5) this.vy = 0;
+      // Landed
+      if (grounded && this.vy <= 0) this.vy = 0;
+
       const t = this.playerBody.translation();
       this.playerBody.setNextKinematicTranslation({
         x: t.x + mv.x,
@@ -115,10 +143,16 @@ export class PhysicsWorld {
       this.accumulator -= FIXED_DT;
     }
 
+    this.grounded = grounded;
     const t = this.playerBody.translation();
-    // Feet y for character root
     const feetY = t.y - hh - r;
-    return { x: t.x, y: Math.max(0, feetY), z: t.z, grounded };
+    return {
+      x: t.x,
+      y: Math.max(0, feetY),
+      z: t.z,
+      grounded,
+      vy: this.vy
+    };
   }
 
   /**

@@ -68,6 +68,11 @@ export class InputManager extends EventEmitter {
 
     this.keys.add(event.code);
 
+    // Combat jump — don't scroll the page
+    if (event.code === 'Space') {
+      event.preventDefault();
+    }
+
     // Alt+V/B/F/G/T/C → vfxgrudge.puter.site sandbox beauty previews
     if (event.altKey) {
       const map = {

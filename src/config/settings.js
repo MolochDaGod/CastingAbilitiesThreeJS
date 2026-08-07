@@ -32,7 +32,19 @@ export const settings = {
   drc: {
     session: 'combat', // combat-first showcase (Q → equip)
     moveSpeed: 3.6,
-    sprintMul: 1.65
+    sprintMul: 1.65,
+    /** Jump (Space) — SI m/s */
+    jumpVelocity: 5.4,
+    /** Second air jump strength */
+    doubleJumpVelocity: 5.0,
+    /** Max jumps before needing ground (1 = single, 2 = double) */
+    maxJumps: 2,
+    /** Backflip (S+Space on 2nd jump): reverse dash m/s */
+    backflipSpeed: 4.2,
+    /** Seconds for procedural backflip spin */
+    backflipDuration: 0.55,
+    /** Coyote / buffer feel */
+    jumpBufferMs: 120
   },
 
   /* ------------------------------------------------------------------ */

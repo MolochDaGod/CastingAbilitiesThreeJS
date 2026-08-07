@@ -62,7 +62,9 @@ export const ANIM_PACKS = {
       'magic/standing 2h cast spell 01'
     ],
     walk: ['prod:magic/standing-walk-forward', 'magic/Standing Walk Forward'],
-    run: ['prod:magic/standing-run-forward', 'magic/Standing Run Forward']
+    run: ['prod:magic/standing-run-forward', 'magic/Standing Run Forward'],
+    /** Jump one-shot (blend with locomotion) */
+    jump: ['prod:magic/standing-jump', 'locomotion/jump']
   },
   sword_shield: {
     idle: ['sword_shield/sword and shield idle'],

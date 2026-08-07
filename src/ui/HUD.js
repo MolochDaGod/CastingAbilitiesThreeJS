@@ -34,7 +34,8 @@ export class HUD {
 
       <div class="hud__panel hud__help">
         <div><strong>Combat (default)</strong></div>
-        <div><kbd>WASD</kbd> move · <kbd>Shift</kbd> sprint · TPS camera</div>
+        <div><kbd>WASD</kbd> move (A left · D right) · <kbd>Shift</kbd> sprint · TPS</div>
+        <div><kbd>Space</kbd> jump · <kbd>S</kbd>+<kbd>Space</kbd> air backflip · double-jump</div>
         <div><kbd>1</kbd>–<kbd>4</kbd> weapon skills · <kbd>F</kbd> blade strike</div>
         <div><kbd>Q</kbd> equip / inventory · <kbd>I</kbd> panel</div>
         <div><kbd>C</kbd> clear VFX · <kbd>P</kbd> pause · <kbd>G</kbd> editor</div>

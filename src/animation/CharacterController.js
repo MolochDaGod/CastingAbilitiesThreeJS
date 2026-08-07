@@ -41,6 +41,8 @@ import { loadBakedClipJson, rematchClipToSkeleton } from './bakeClip.js';
 const _castOrigin = new Vector3();
 const _rideFwd = new Vector3();
 const _rideLeft = new Vector3();
+/** Local +X on tilt — backflip spin axis (pitch) */
+const _flipAxis = new Vector3(1, 0, 0);
 
 /**
  * Toon RTS / grudge6 combat hero — ObjectStore loadRaceKit parity ONLY.
@@ -98,6 +100,11 @@ export class CharacterController {
     /** World heading for ride pole vectors (set by WalkController) */
     this._rideYaw = 0;
     this.ik = null;
+
+    /** Procedural backflip on tilt (S+Space double jump) */
+    this._flipActive = false;
+    this._flipTime = 0;
+    this._flipDuration = 0.55;
   }
 
   /**
@@ -333,7 +340,8 @@ export class CharacterController {
       attack: LoopOnce,
       block: LoopOnce,
       walk: LoopRepeat,
-      run: LoopRepeat
+      run: LoopRepeat,
+      jump: LoopOnce
     };
 
     for (const [role, rel] of Object.entries(pack)) {
@@ -511,6 +519,47 @@ export class CharacterController {
     this.requestOneShot('cast');
   }
 
+  /**
+   * Jump one-shot (blend from gait). Falls back to short gait lock if no clip.
+   * @param {number} [fade=0.08]
+   */
+  playJump(fade = 0.08) {
+    if (this.actions.has('jump')) {
+      this._gaitLocked = true;
+      this.animState = 'jump';
+      this.play('jump', fade);
+      const duration = this.actions.get('jump')?.getClip()?.duration ?? 0.55;
+      this._oneShotTimer = Math.min(duration, 0.7) + 0.02;
+      this._attackTimer = this._oneShotTimer;
+      return true;
+    }
+    // No clip: brief gait lock so feet don't moonwalk mid-air
+    this._gaitLocked = true;
+    this.animState = 'jump';
+    this._oneShotTimer = 0.45;
+    return false;
+  }
+
+  /**
+   * Procedural backflip on tilt joint (no second mixer).
+   * @param {number} duration seconds for full 360° spin about local X
+   */
+  playBackflip(duration = 0.55) {
+    this._flipTime = 0;
+    this._flipDuration = Math.max(0.2, duration);
+    this._flipActive = true;
+    // Prefer jump clip as body pose during flip
+    this.playJump(0.05);
+    return true;
+  }
+
+  /** Cancel procedural flip (land). */
+  clearFlip() {
+    this._flipActive = false;
+    this._flipTime = 0;
+    this.setLean(0);
+  }
+
   /** World-space cast / projectile origin (hand container or approx chest). */
   getCastOrigin(out) {
     const target = out || _castOrigin;
@@ -581,6 +630,7 @@ export class CharacterController {
   }
 
   setLean(angle) {
+    if (this._flipActive) return; // backflip owns tilt
     this.tilt.quaternion.setFromAxisAngle(this.forwardAxis, angle);
   }
 
@@ -624,6 +674,19 @@ export class CharacterController {
 
     this.mixer.timeScale = settings.global.animationSpeed;
     this.mixer.update(dt);
+
+    // Procedural backflip: full revolution about local right (X) on tilt
+    if (this._flipActive) {
+      this._flipTime += dt;
+      const u = MathUtils.clamp(this._flipTime / this._flipDuration, 0, 1);
+      // Spin backward (negative pitch about local +X / right)
+      const angle = -u * Math.PI * 2;
+      this.tilt.quaternion.setFromAxisAngle(_flipAxis, angle);
+      if (u >= 1) {
+        this._flipActive = false;
+        this.setLean(0);
+      }
+    }
 
     // Post-mixer: plant feet on deck + grip boom (walk ride only)
     if (this.rideIk && (this._rideActive || this.rideIk.weight > 1e-3)) {

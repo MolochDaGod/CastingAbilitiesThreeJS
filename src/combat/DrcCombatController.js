@@ -59,6 +59,15 @@ export class DrcCombatController {
     this._sprinting = false;
     this._yaw = 0;
     this._usePhysics = true;
+
+    /** Jump state machine */
+    this._jumpsLeft = settings.drc?.maxJumps ?? 2;
+    this._wasJumpDown = false;
+    this._grounded = true;
+    this._airborne = false;
+    /** After backflip, keep reverse dash until land */
+    this._backflipBoostT = 0;
+    this._backflipDir = new Vector3();
   }
 
   setPhysics(physics) {
@@ -109,9 +118,11 @@ export class DrcCombatController {
       return;
     }
 
-    // WASD relative to camera yaw (flat)
-    let ix = 0;
-    let iz = 0;
+    // ── Camera-relative WASD (SI) ─────────────────────────────────────
+    // W/S along camera look on XZ; A/D along camera RIGHT (cross(fwd, up)).
+    // Previous code used (-right) → A/D were reversed.
+    let ix = 0; // −1 = left (A), +1 = right (D)
+    let iz = 0; // −1 = forward (W), +1 = back (S)  [input space]
     if (keys.has('KeyW') || keys.has('ArrowUp')) iz -= 1;
     if (keys.has('KeyS') || keys.has('ArrowDown')) iz += 1;
     if (keys.has('KeyA') || keys.has('ArrowLeft')) ix -= 1;
@@ -124,18 +135,16 @@ export class DrcCombatController {
       iz /= len;
     }
 
-    // Camera-relative XZ
     const cam = this.camera;
-    _fwd.set(cam.position.x - this.character.position.x, 0, cam.position.z - this.character.position.z);
-    // Actually face opposite camera forward on ground: use camera look direction
     cam.getWorldDirection(_fwd);
     _fwd.y = 0;
     if (_fwd.lengthSq() < 1e-6) _fwd.set(0, 0, 1);
     else _fwd.normalize();
-    // right = cross(up, fwd) wait standard: right = normalize(cross(fwd, up))
-    const rx = _fwd.z;
-    const rz = -_fwd.x;
+    // right = normalize(cross(forward, worldUp)) = (-fz, 0, fx)
+    const rx = -_fwd.z;
+    const rz = _fwd.x;
 
+    // World wish: forward * (−iz) so W (iz=-1) walks along +look
     _move.set(0, 0, 0);
     _move.x = _fwd.x * -iz + rx * ix;
     _move.z = _fwd.z * -iz + rz * ix;
@@ -143,24 +152,131 @@ export class DrcCombatController {
 
     const speed = this.moveSpeed * (this._sprinting ? this.sprintMul : 1) * (settings.global?.animationSpeed || 1);
     const moving = _move.lengthSq() > 1e-6;
-    const vx = moving ? _move.x * speed : 0;
-    const vz = moving ? _move.z * speed : 0;
+    let vx = moving ? _move.x * speed : 0;
+    let vz = moving ? _move.z * speed : 0;
+
+    // ── Jump / double-jump / S+Space backflip ─────────────────────────
+    this._handleJump(dt, keys, moving);
+
+    // Backflip reverse dash override (second jump with S held)
+    if (this._backflipBoostT > 0) {
+      this._backflipBoostT -= dt;
+      const sp = settings.drc?.backflipSpeed ?? 4.2;
+      vx = this._backflipDir.x * sp;
+      vz = this._backflipDir.z * sp;
+    }
 
     if (this.physics?.ready && this._usePhysics) {
       const pose = this.physics.movePlayer(vx, vz, dt);
       this.character.root.position.set(pose.x, pose.y, pose.z);
-    } else if (moving) {
-      this.character.root.position.x += vx * dt;
-      this.character.root.position.z += vz * dt;
-      this.character.root.position.y = 0;
+      this._grounded = !!pose.grounded;
+      if (this._grounded) {
+        this._jumpsLeft = settings.drc?.maxJumps ?? 2;
+        this._airborne = false;
+        this._backflipBoostT = 0;
+        this.character.clearFlip?.();
+      } else {
+        this._airborne = true;
+      }
+    } else {
+      // Kinematic fallback (no Rapier)
+      if (moving || this._backflipBoostT > 0) {
+        this.character.root.position.x += vx * dt;
+        this.character.root.position.z += vz * dt;
+      }
+      this._integrateKinematicJump(dt, keys);
     }
 
-    if (moving) {
+    // Face move wish on ground; keep facing during air unless backflip dash
+    if (moving && this._grounded && this._backflipBoostT <= 0) {
       this._yaw = Math.atan2(_move.x, _move.z);
+      this.character.setFacing(this._yaw);
+    } else if (this._backflipBoostT > 0 && this._backflipDir.lengthSq() > 1e-6) {
+      // Face the flip direction of travel (backward)
+      this._yaw = Math.atan2(this._backflipDir.x, this._backflipDir.z);
       this.character.setFacing(this._yaw);
     }
 
-    this.character.setGait?.(moving ? (this._sprinting ? 2 : 1) : 0, this._sprinting);
+    // Gait: lock during jump/flip one-shots
+    if (!this.character._gaitLocked && this._grounded) {
+      this.character.setGait?.(moving ? (this._sprinting ? 2 : 1) : 0, this._sprinting);
+    } else if (!this._grounded && !this.character._gaitLocked) {
+      // Air: keep last gait weight low — jump clip owns pose when present
+      this.character.setGait?.(0, false);
+    }
+  }
+
+  /**
+   * Edge-detect Space: ground jump, air double-jump, S+Space → backflip.
+   * @param {number} dt
+   * @param {Set<string>} keys
+   * @param {boolean} moving
+   */
+  _handleJump(dt, keys, moving) {
+    const jumpDown = keys.has('Space');
+    const pressed = jumpDown && !this._wasJumpDown;
+    this._wasJumpDown = jumpDown;
+    if (!pressed) return;
+    if (this.character._rideActive) return;
+
+    const cfg = settings.drc || {};
+    const maxJ = cfg.maxJumps ?? 2;
+    const holdS = keys.has('KeyS') || keys.has('ArrowDown');
+
+    // Ground / coyote: refresh jumps when grounded
+    if (this._grounded) this._jumpsLeft = maxJ;
+
+    if (this._jumpsLeft <= 0) return;
+
+    const isSecond = this._jumpsLeft < maxJ || !this._grounded;
+    const wantBackflip = isSecond && holdS;
+
+    if (wantBackflip) {
+      // Double jump backflip: reverse along current facing, spin, jump up
+      const yaw = this.character.facing;
+      this._backflipDir.set(-Math.sin(yaw), 0, -Math.cos(yaw));
+      this._backflipBoostT = cfg.backflipDuration ?? 0.55;
+      const jv = cfg.doubleJumpVelocity ?? 5.0;
+      if (this.physics?.ready) this.physics.jump(jv);
+      else this._kinVy = jv;
+      this.character.playBackflip?.(cfg.backflipDuration ?? 0.55);
+      this._jumpsLeft = 0;
+      this._grounded = false;
+      this.onToast?.('Backflip');
+      return;
+    }
+
+    // Normal jump (1st) or air hop (2nd without S)
+    const jv = isSecond ? cfg.doubleJumpVelocity ?? 5.0 : cfg.jumpVelocity ?? 5.4;
+    if (this.physics?.ready) this.physics.jump(jv);
+    else this._kinVy = jv;
+    this.character.playJump?.(0.08);
+    this._jumpsLeft -= 1;
+    this._grounded = false;
+  }
+
+  /** Simple ballistic Y when Rapier unavailable. */
+  _integrateKinematicJump(dt) {
+    if (this._kinVy === undefined) this._kinVy = 0;
+    const g = -9.81;
+    if (this._grounded && this._kinVy <= 0) {
+      this.character.root.position.y = 0;
+      this._kinVy = 0;
+      this._jumpsLeft = settings.drc?.maxJumps ?? 2;
+      return;
+    }
+    this._kinVy += g * dt;
+    this.character.root.position.y += this._kinVy * dt;
+    if (this.character.root.position.y <= 0) {
+      this.character.root.position.y = 0;
+      this._kinVy = 0;
+      this._grounded = true;
+      this._jumpsLeft = settings.drc?.maxJumps ?? 2;
+      this._backflipBoostT = 0;
+      this.character.clearFlip?.();
+    } else {
+      this._grounded = false;
+    }
   }
 
   /**
