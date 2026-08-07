@@ -1,8 +1,9 @@
 /**
- * Warlords / grudge6 PLAY path — mirrors ObjectStore js/grudge6-kit.js loadRaceKit.
+ * Warlords / grudge6 PLAY path — HARDENED parity of ObjectStore loadRaceKit.
  *
  * RIGHT SOURCE (do not invent another):
- *   info.grudge-studio.com/js/grudge6-kit.js
+ *   info.grudge-studio.com/js/grudge6-kit.js  (loadRaceKit)
+ *   api/v1/grudge6-warlords-play-contract.json
  *   info.grudge-studio.com/grudge6-race-scenes.html
  *
  * Pipeline:
@@ -10,13 +11,12 @@
  *   → normalize embeds (never forceAtlas)
  *   → fitRootUniformSi via BONE structural box (not unskinned mesh AABB)
  *   → face camera yaw 0
+ *   → stamp warlordsPlayContract on root.userData
  *
- * REMOVED from play (these keep rendering wrong):
- *   unifySkeletons + pose() on every partial head skin
- *   setFromObject(SkinnedMesh) SI fit
- *   facePlusZ π/2 on Toon play GLB
- *   races bake / metaverse / FBX as play default
+ * BANNED (throw / never reintroduce): multi-pose, mesh AABB SI, facePlusZ default,
+ * races/metaverse/FBX play defaults, forceAtlas on good embeds.
  */
+export const WARLORDS_PLAY_CONTRACT_VERSION = '2026-08-07.harden.1';
 import {
   Box3,
   ClampToEdgeWrapping,
@@ -276,6 +276,16 @@ export function deployToonPlayKit(gltfScene, opts = {}) {
   const kit = skeletonClone(gltfScene);
   kit.userData.importPipeline = 'toon-rts-glb';
   kit.userData.playPath = 'objectstore-loadRaceKit-parity';
+  kit.userData.grudge6Play = true;
+  kit.userData.warlordsPlayContract = WARLORDS_PLAY_CONTRACT_VERSION;
+
+  // Bind pose as loaded — never multi-pose
+  kit.traverse((o) => {
+    if (o.isSkinnedMesh && o.skeleton) {
+      o.skeleton.update();
+      o.frustumCulled = false;
+    }
+  });
 
   const meshIds = opts.meshIds || [];
   const equip = applyMeshIdsExclusive(kit, meshIds);
