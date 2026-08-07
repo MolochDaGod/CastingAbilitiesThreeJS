@@ -34,7 +34,30 @@ const W = CASTING_ELEMENT_PHASE_VFX.water;
 const E = CASTING_ELEMENT_PHASE_VFX.earth;
 const A = CASTING_ELEMENT_PHASE_VFX.wind;
 
-/** Default combat bar: 3 elements + melee residual (classic DRC). */
+/**
+ * Melee residual (Getsuga-class) — F strike / attack frame.
+ * Not a free hotkey; not Space. Profile knobs: settings.residual.
+ * Open SSOT: meleeStrikeFx.ts · MELEE_SLASH_FX.md
+ */
+/** @type {DrcWeaponSkill} */
+export const DRC_MELEE_STRIKE = {
+  id: 'drc_melee_strike',
+  label: 'Blade Residual',
+  slot: -1, // F key — not digit bar
+  style: 'melee',
+  animRole: 'attack',
+  rangeM: 3.2,
+  cooldown: 0.55,
+  castDuration: 0.45,
+  staminaCost: 8,
+  castEffectId: 'getsuga_slash',
+  impactEffectId: 'getsuga_slash',
+  attachToHand: true,
+  weaponId: 'sword',
+  hint: 'F — attack anim + residual from weapon tip (edit settings.residual)'
+};
+
+/** Default combat bar: 3 elements + wind ultimate (classic DRC digits). F = melee residual. */
 /** @type {DrcWeaponSkill[]} */
 export const DRC_WEAPON_SKILLS = [
   {
@@ -130,11 +153,17 @@ export function skillBySlot(slot) {
 }
 
 export function skillById(id) {
+  if (id === DRC_MELEE_STRIKE.id) return DRC_MELEE_STRIKE;
   return (
     DRC_WEAPON_SKILLS.find((s) => s.id === id) ||
     DRC_ARCANE_SKILLS.find((s) => s.id === id) ||
     null
   );
+}
+
+/** F-key / light attack residual skill (always available in combat). */
+export function getMeleeStrikeSkill() {
+  return DRC_MELEE_STRIKE;
 }
 
 /**

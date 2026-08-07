@@ -62,18 +62,36 @@ export class VfxDirector {
    */
   deploy(effectId, opts) {
     const entry = vfxCatalogById(effectId);
-    const color = entry?.color ?? 0xffffff;
+    // Live editor knobs (settings.effect) override catalog defaults when set
+    const e = settings.effect || {};
+    let color = entry?.color ?? 0xffffff;
+    if (opts.color) {
+      color = typeof opts.color === 'number' ? opts.color : new Color(opts.color).getHex();
+    } else if (e.color && effectId === 'getsuga_slash') {
+      color = new Color(e.color).getHex();
+    }
     const origin = opts.origin.clone();
     const fwd = (opts.forward || new Vector3(0, 0, 1)).clone();
     fwd.y = 0;
     if (fwd.lengthSq() < 1e-6) fwd.set(0, 0, 1);
     else fwd.normalize();
 
-    const cast = origin.clone().setY(origin.y + 1.15);
-    const front = cast.clone().addScaledVector(fwd, 1.15);
+    const sizeMul = opts.size ?? e.size ?? 1;
+    const aoeMul = opts.aoe ?? e.aoe ?? 1;
+    const cast = origin.clone();
+    // When origin is already weapon tip (residual), do not lift to chest
+    if (opts.fromTip) {
+      /* keep cast = tip */
+    } else if (effectId !== 'getsuga_slash') {
+      cast.y = origin.y + 1.15;
+    }
+    const front = cast.clone().addScaledVector(fwd, 1.15 * sizeMul);
     const ground = new Vector3(origin.x, 0.04, origin.z);
     const aim = opts.aim?.clone() || front.clone().addScaledVector(fwd, 6);
-    const intensity = (opts.intensity ?? 1) * (settings.global?.glow ?? 1);
+    const intensity =
+      (opts.intensity ?? e.intensity ?? 1) *
+      (settings.global?.glow ?? 1) *
+      (settings.global?.explosionIntensity ?? 1);
 
     switch (effectId) {
       case 'ice_lightning_burst':
@@ -130,11 +148,19 @@ export class VfxDirector {
         this._auraRing(ground, color, 1.9, intensity * 0.85);
         this._motes(cast, color, 40, intensity);
         break;
-      case 'getsuga_slash':
-        this._slashArc(cast, fwd, color, intensity);
-        this._burst(front, color, 18, 2.8, intensity);
-        this.ctx.shake?.add(0.08 * intensity, 0.5, 30);
+      case 'getsuga_slash': {
+        // Residual: tip-spawned slash + optional ground AOE from settings.residual
+        const r = settings.residual || {};
+        const rInt = intensity * (r.intensity ?? 1) * sizeMul;
+        this._slashArc(cast, fwd, color, rInt);
+        this._burst(front, color, 18, 2.8 * (opts.speed ? opts.speed / 12 : 1), rInt);
+        const aoeR = (opts.aoe ?? r.aoeRadius ?? aoeMul) * sizeMul;
+        if (aoeR > 0.05) {
+          this._shockwave(ground, color, Math.max(1.2, aoeR * 2.2), rInt * 0.85);
+        }
+        this.ctx.shake?.add(0.08 * rInt, 0.5, 30);
         break;
+      }
       case 'fire_hand':
         this._castAura(cast, color, intensity * 1.1);
         this._embers(cast, 36, intensity);

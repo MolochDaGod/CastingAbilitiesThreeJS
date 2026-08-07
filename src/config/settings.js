@@ -48,6 +48,58 @@ export const settings = {
   },
 
   /* ------------------------------------------------------------------ */
+  /* Shared effect primitives — isolatable edit knobs (lab → JSON prefab) */
+  /* intensity · aoe · speed · size · color · mesh — used by VfxDirector, */
+  /* residual melee, and Ability path layers. Do not fork per-skill code. */
+  /* ------------------------------------------------------------------ */
+  effect: {
+    /** 0..2 multiplies glow / particle / burst strength */
+    intensity: 1.0,
+    /** metres — impact / residual contact radius scale */
+    aoe: 1.2,
+    /** m/s travel or residual wave speed */
+    speed: 12,
+    /** SI mesh / burst radius scale */
+    size: 1.0,
+    /** #rrggbb override (empty = catalog color) */
+    color: '#7dd3fc',
+    /** mesh id: none | slashblue | slashred | slashpurple | slashyellow | orb-fire | orb-ember | orb-core | orb-flare */
+    meshId: 'slashblue',
+    /** seconds for residual / impact life */
+    duration: 0.45,
+    /** cast tell attach */
+    attach: 'R_hand',
+    /** which primitive the editor is currently authoring */
+    activeKind: 'residual'
+  },
+
+  /**
+   * Melee residual (Getsuga-class) — attack-frame only, from weapon tip.
+   * Mirrors Open meleeStrikeFx projectile + aoe knobs. Space is jump, not this.
+   */
+  residual: {
+    enabled: true,
+    /** metres travel from tip (1 light … ~10 finisher) */
+    range: 3.2,
+    /** m/s wave speed */
+    speed: 14,
+    /** visual mesh scale 0.5…2 */
+    meshScale: 0.9,
+    /** path hit radius m */
+    contactRadius: 0.65,
+    /** ground AoE on connect m (0 = none) */
+    aoeRadius: 0.8,
+    intensity: 1.05,
+    color: '#7dd3fc',
+    /** slashred | slashblue | slashpurple | slashyellow */
+    variant: 'slashblue',
+    /** tip offset along grip→tip approx (m) when no blade mesh measure */
+    tipOffset: 0.55,
+    /** hit-frame delay after attack start (s) */
+    hitFrameDelay: 0.18
+  },
+
+  /* ------------------------------------------------------------------ */
   /* Global multipliers — apply to every ability simultaneously          */
   /* ------------------------------------------------------------------ */
   global: {

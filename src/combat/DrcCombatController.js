@@ -1,8 +1,15 @@
 import { CatmullRomCurve3, MathUtils, Vector3 } from 'three';
-import { DRC_WEAPON_SKILLS, getActiveSkills, setActiveSkillTree, skillBySlot } from './drcSkills.js';
+import {
+  getActiveSkills,
+  getMeleeStrikeSkill,
+  setActiveSkillTree,
+  skillBySlot
+} from './drcSkills.js';
 import { settings } from '../config/settings.js';
+import { residualFromSettings } from '../vfx/effectPrefab.js';
 
 const _origin = new Vector3();
+const _tip = new Vector3();
 const _fwd = new Vector3();
 const _end = new Vector3();
 const _mid = new Vector3();
@@ -346,15 +353,100 @@ export class DrcCombatController {
     }
 
     if (skill.style === 'melee') {
-      const curve = this._aimCurve(Math.min(skill.rangeM, 3.2));
-      const el = this.abilities.selected || 'wind';
-      this.abilities.cast(curve, el === 'earth' ? 'wind' : el);
-      this.vfx?.deploySkill?.(skill.id, pose, 'full');
+      this._fireMeleeResidual(skill, pose);
       this.onToast(skill.label);
       return true;
     }
 
     return false;
+  }
+
+  /**
+   * F-key / light attack: attack anim + Getsuga residual from weapon tip.
+   * Uses settings.residual knobs (intensity, aoe, speed, size, color, mesh).
+   * Space is jump only — never bind residual here.
+   */
+  useMeleeStrike() {
+    if (!this.inCombat) {
+      this.onToast('Enter combat (Q) to strike');
+      return false;
+    }
+    if (this.character._rideActive) return false;
+    const skill = getMeleeStrikeSkill();
+    const readyAt = this._cdUntil.get(skill.id) || 0;
+    if (this.elapsed < readyAt) {
+      this.onToast(`${skill.label} CD`);
+      return false;
+    }
+    if (this.stamina < skill.staminaCost) {
+      this.onToast('Low stamina');
+      return false;
+    }
+    this.stamina -= skill.staminaCost;
+    this._cdUntil.set(skill.id, this.elapsed + skill.cooldown);
+
+    this.character.playWeaponAttack?.() || this.character.requestOneShot?.('attack');
+
+    const yaw = this.character.facing;
+    _fwd.set(Math.sin(yaw), 0, Math.cos(yaw));
+    const pose = {
+      origin: this.character.position.clone(),
+      forward: _fwd.clone()
+    };
+    this._fireMeleeResidual(skill, pose);
+    this.onToast(skill.label);
+    return true;
+  }
+
+  /**
+   * Spawn residual after hit-frame delay: tip origin + short path + VfxDirector.
+   * @param {import('./drcSkills.js').DrcWeaponSkill} skill
+   * @param {{ origin: Vector3, forward: Vector3 }} pose
+   */
+  _fireMeleeResidual(skill, pose) {
+    const prim = residualFromSettings();
+    const delayMs = Math.max(0, (prim.hitFrameDelay ?? 0.18) * 1000);
+    const range = prim.range ?? skill.rangeM ?? 3.2;
+    const intensity = (prim.intensity ?? 1) * (settings.effect?.intensity ?? 1);
+
+    const fire = () => {
+      const tipOff = prim.tipOffset ?? settings.residual?.tipOffset ?? 0.55;
+      if (typeof this.character.getWeaponTip === 'function') {
+        this.character.getWeaponTip(_tip, tipOff);
+      } else {
+        this.character.getCastOrigin(_tip);
+        _tip.addScaledVector(pose.forward, tipOff);
+      }
+      // Short residual path along blade dir (Open: grip→tip travel 1–10 m)
+      const pathRange = MathUtils.clamp(range, 1, 10);
+      _end.copy(_tip).addScaledVector(pose.forward, pathRange);
+      _end.y = Math.max(0.12, _tip.y * 0.4);
+      _mid.lerpVectors(_tip, _end, 0.45);
+      _mid.y = Math.max(_tip.y, _mid.y) + pathRange * 0.04;
+      const curve = new CatmullRomCurve3([_tip.clone(), _mid.clone(), _end.clone()], false, 'catmullrom', 0.5);
+
+      // Beauty residual (catalog getsuga) with live knobs — origin is weapon tip
+      this.vfx?.deploy?.('getsuga_slash', {
+        origin: _tip.clone(),
+        forward: pose.forward.clone(),
+        aim: _end.clone(),
+        fromTip: true,
+        intensity,
+        aoe: prim.aoe,
+        size: prim.size,
+        speed: prim.speed,
+        color: prim.color
+      });
+
+      // Short elemental ribbon as travel residual (shared trail primitive)
+      if (settings.residual?.enabled !== false) {
+        const el = this.abilities.selected || 'wind';
+        this.abilities.cast(curve, el === 'earth' ? 'wind' : el);
+      }
+    };
+
+    if (delayMs > 4) setTimeout(fire, delayMs);
+    else fire();
   }
 
   /** Alt+sandbox hotkey from vfxgrudge.puter.site */

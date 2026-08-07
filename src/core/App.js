@@ -267,8 +267,9 @@ export class App {
         }
         break;
       case 'weaponAttack':
+        // F = melee residual (attack + Getsuga from tip) — not digit slot 4 / not Space
         if (this.drc.inCombat) {
-          this.drc.useSkill(3);
+          this.drc.useMeleeStrike?.() || this.drc.useSkill(3);
         } else if (this.character.playWeaponAttack?.()) {
           this.hud.showToast('Weapon attack');
         } else this.hud.showToast('No attack clip');

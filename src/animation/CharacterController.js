@@ -576,6 +576,23 @@ export class CharacterController {
   }
 
   /**
+   * Approx weapon tip: R_hand + offset along facing (grip→tip proxy).
+   * Used for melee residual / Getsuga spawn (Open meleeStrikeFx pattern).
+   * @param {import('three').Vector3} [out]
+   * @param {number} [tipOffsetM] metres along blade from grip
+   */
+  getWeaponTip(out, tipOffsetM = 0.55) {
+    const target = out || _castOrigin;
+    this.getCastOrigin(target);
+    const off = Number.isFinite(tipOffsetM) ? tipOffsetM : 0.55;
+    // Blade roughly forward + slight up from hand (SI)
+    target.x += Math.sin(this.facing) * off;
+    target.z += Math.cos(this.facing) * off;
+    target.y += off * 0.15;
+    return target;
+  }
+
+  /**
    * Enable windsurf deck/boom IK. Only while WalkController ride is live.
    * DRC combat checks `_rideActive` and yields locomotion.
    * @param {boolean} active

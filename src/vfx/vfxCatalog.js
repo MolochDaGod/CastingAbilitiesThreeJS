@@ -136,5 +136,11 @@ export const SKILL_VFX_BIND = Object.freeze({
   drc_fire_bolt: { cast: 'fire_hand', travel: 'fireball', impact: 'inferno' },
   drc_water_lash: { cast: 'arcane_swirl', travel: 'moon_beam', impact: 'frost_wave' },
   drc_earth_spike: { cast: 'earth_surge', travel: 'earth_surge', impact: 'earth_surge' },
-  drc_melee_strike: { cast: 'getsuga_slash', travel: null, impact: 'getsuga_slash' }
+  drc_wind_tempest: { cast: 'arcane_swirl', travel: 'chain_lightning', impact: 'ice_lightning_burst' },
+  drc_melee_strike: { cast: 'getsuga_slash', travel: null, impact: 'getsuga_slash' },
+  // Arcane tree (optional)
+  arcane_bolt: { cast: 'arcane_swirl', travel: 'chain_lightning', impact: 'arcane_swirl' },
+  arcane_gale: { cast: 'arcane_swirl', travel: 'chain_lightning', impact: 'ice_lightning_burst' },
+  void_burst: { cast: 'arcane_swirl', travel: 'fireball', impact: 'inferno' },
+  storm_arcane: { cast: 'chain_lightning', travel: 'chain_lightning', impact: 'inferno' }
 });

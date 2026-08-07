@@ -1,6 +1,15 @@
 import GUI from 'lil-gui';
 import { settings, ELEMENTS, ELEMENT_META, MODES } from '../config/settings.js';
 import { PresetManager } from './PresetManager.js';
+import {
+  EFFECT_KINDS,
+  EFFECT_MESH_IDS,
+  buildActiveKindPrefab,
+  buildEffectPrefab,
+  downloadJson,
+  STRAWBERRY_MODE_PRESETS,
+  applyPrimitiveToSettings
+} from '../vfx/effectPrefab.js';
 
 /**
  * Real-time VFX editor.
@@ -25,6 +34,7 @@ export class Editor {
     this._presetState = { name: 'My preset', selected: this.presets.names[0] ?? '' };
 
     this._buildPresets();
+    this._buildEffectPrefab();
     this._buildGlobal();
     this._buildTrail();
     for (const element of ELEMENTS) this._buildElement(element);
@@ -173,6 +183,126 @@ export class Editor {
       .name('Reset to defaults');
 
     this.presetFolder = folder;
+  }
+
+  /**
+   * Shared effect primitives — intensity / AOE / speed / size / color / mesh.
+   * Export JSON prefabs for Warlords skill import. Melee residual = F strike.
+   */
+  _buildEffectPrefab() {
+    const folder = this.gui.addFolder('⚡ Effect Prefab');
+    const e = settings.effect;
+    const r = settings.residual;
+    const R = Editor.range;
+
+    folder
+      .add(e, 'activeKind', EFFECT_KINDS)
+      .name('active kind')
+      .onChange(() => this.hooks.onToast?.(`Authoring · ${e.activeKind}`));
+
+    R(folder, e, 'intensity', 0, 2, 0.01, 'intensity');
+    R(folder, e, 'aoe', 0, 8, 0.05, 'aoe (m)');
+    R(folder, e, 'speed', 0, 40, 0.1, 'speed (m/s)');
+    R(folder, e, 'size', 0.1, 3, 0.01, 'size (SI)');
+    folder.addColor(e, 'color').name('color');
+    folder.add(e, 'meshId', EFFECT_MESH_IDS).name('mesh id');
+    R(folder, e, 'duration', 0.05, 4, 0.01, 'duration (s)');
+    folder.add(e, 'attach', ['R_hand', 'L_hand', 'root', 'feet', 'weapon_tip']).name('attach');
+
+    const residual = folder.addFolder('Melee residual (F)');
+    residual.add(r, 'enabled').name('enabled');
+    R(residual, r, 'range', 1, 10, 0.05, 'range (m)');
+    R(residual, r, 'speed', 4, 30, 0.1, 'wave speed');
+    R(residual, r, 'meshScale', 0.35, 2.2, 0.01, 'mesh scale');
+    R(residual, r, 'contactRadius', 0.2, 2.5, 0.05, 'contact radius');
+    R(residual, r, 'aoeRadius', 0, 4, 0.05, 'aoe radius');
+    R(residual, r, 'intensity', 0, 2, 0.01, 'intensity');
+    residual.addColor(r, 'color').name('color');
+    residual.add(r, 'variant', ['slashblue', 'slashred', 'slashpurple', 'slashyellow']).name('slash mesh');
+    R(residual, r, 'tipOffset', 0.15, 1.4, 0.01, 'tip offset (m)');
+    R(residual, r, 'hitFrameDelay', 0, 0.5, 0.01, 'hit frame delay');
+
+    const berry = folder.addFolder('Strawberry modes (learn)');
+    for (const [mode, preset] of Object.entries(STRAWBERRY_MODE_PRESETS)) {
+      berry
+        .add(
+          {
+            apply: () => {
+              applyPrimitiveToSettings({ ...preset, color: preset.color || e.color });
+              this.refresh();
+              this.hooks.onToast?.(`Strawberry · ${mode}`);
+            }
+          },
+          'apply'
+        )
+        .name(`Apply ${mode}`);
+    }
+
+    folder
+      .add(
+        {
+          exportSolo: () => {
+            const prefab = buildActiveKindPrefab();
+            downloadJson(prefab, `${prefab.id}.json`);
+            this.hooks.onToast?.(`Exported ${prefab.id}`);
+          }
+        },
+        'exportSolo'
+      )
+      .name('Export active kind JSON');
+
+    folder
+      .add(
+        {
+          exportMelee: () => {
+            const prefab = buildEffectPrefab('drc_melee_strike');
+            downloadJson(prefab, 'prefab_drc_melee_strike.json');
+            this.hooks.onToast?.('Exported melee residual prefab');
+          }
+        },
+        'exportMelee'
+      )
+      .name('Export melee residual JSON');
+
+    folder
+      .add(
+        {
+          exportFire: () => {
+            const prefab = buildEffectPrefab('drc_fire_bolt');
+            downloadJson(prefab, 'prefab_drc_fire_bolt.json');
+            this.hooks.onToast?.('Exported fire bolt prefab');
+          }
+        },
+        'exportFire'
+      )
+      .name('Export fire bolt JSON');
+
+    folder
+      .add(
+        {
+          exportAll: () => {
+            const ids = [
+              'drc_melee_strike',
+              'drc_fire_bolt',
+              'drc_water_lash',
+              'drc_earth_spike',
+              'drc_wind_tempest'
+            ];
+            const pack = {
+              source: 'casting-lab',
+              version: '1.0.0',
+              exportedAt: new Date().toISOString(),
+              prefabs: ids.map((id) => buildEffectPrefab(id))
+            };
+            downloadJson(pack, 'casting-effect-prefabs.json');
+            this.hooks.onToast?.(`Exported ${pack.prefabs.length} prefabs`);
+          }
+        },
+        'exportAll'
+      )
+      .name('Export all skill prefabs');
+
+    this.effectFolder = folder;
   }
 
   _buildGlobal() {
