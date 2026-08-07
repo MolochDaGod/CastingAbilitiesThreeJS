@@ -15,8 +15,9 @@
  *
  * BANNED (throw / never reintroduce): multi-pose, mesh AABB SI, facePlusZ default,
  * races/metaverse/FBX play defaults, forceAtlas on good embeds.
+ *
+ * Live proof: https://casting-abilities-threejs.vercel.app/
  */
-export const WARLORDS_PLAY_CONTRACT_VERSION = '2026-08-07.harden.1';
 import {
   Box3,
   ClampToEdgeWrapping,
@@ -26,6 +27,8 @@ import {
 } from 'three';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { HUMAN_HEIGHT_M } from '../config/grudge6SSOT.js';
+
+export const WARLORDS_PLAY_CONTRACT_VERSION = '2026-08-07.harden.1';
 
 const _p = new Vector3();
 
@@ -342,4 +345,54 @@ export function reGroundToonKit(root, groundY = 0) {
   if (Math.abs(dy) > 1e-5) root.position.y += dy;
   root.userData.deployHeightM = box.max.y - box.min.y;
   return dy;
+}
+
+export function countSkeletons(root) {
+  const ids = new Set();
+  root?.traverse((o) => {
+    if (o.isSkinnedMesh && o.skeleton) ids.add(o.skeleton.uuid);
+  });
+  return ids.size;
+}
+
+/** Diagnose height/feet/Bip001 after Toon play deploy (bone structural). */
+export function diagnoseCharacterLook(root, groundY = 0) {
+  const errors = [];
+  if (!root) return { ok: false, errors: ['no-root'], height: 0, feetMinY: 0 };
+  root.updateMatrixWorld(true);
+  root.traverse((o) => {
+    if (o.isSkinnedMesh && o.skeleton) o.skeleton.update();
+  });
+  const box = measureBoneStructuralBBox(root);
+  if (!box) {
+    return { ok: false, errors: ['no-bone-bbox'], height: 0, feetMinY: 0 };
+  }
+  const height = box.max.y - box.min.y;
+  const feetMinY = box.min.y;
+  if (height < 1.55 || height > 2.15) {
+    errors.push(`height ${height.toFixed(2)} not in 1.55–2.15`);
+  }
+  if (Math.abs(feetMinY - groundY) > 0.12) {
+    errors.push(`feet minY ${feetMinY.toFixed(3)} off ground`);
+  }
+  const head = root.getObjectByName('Bip001 Head');
+  const pelvis = root.getObjectByName('Bip001 Pelvis');
+  if (!pelvis) errors.push('no Bip001 Pelvis');
+  if (head && pelvis) {
+    const hp = new Vector3();
+    const pp = new Vector3();
+    head.getWorldPosition(hp);
+    pelvis.getWorldPosition(pp);
+    if (hp.y < pp.y) errors.push('head below pelvis (inverted rig)');
+  }
+  return {
+    ok: errors.length === 0,
+    errors,
+    height,
+    feetMinY,
+    scaleFactor: root.userData.deployScaleFactor ?? 1,
+    artForward: !!root.userData.artForwardSet,
+    warlordsPlayContract: root.userData.warlordsPlayContract || null,
+    grudge6Play: !!root.userData.grudge6Play,
+  };
 }

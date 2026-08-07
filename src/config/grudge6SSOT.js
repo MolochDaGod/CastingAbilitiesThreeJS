@@ -1,19 +1,20 @@
 /**
- * grudge6 STONE SSOT — CastingAbilities + Multiverse parity.
+ * Warlords character SSOT for this lab — matches live deploy:
+ *   https://casting-abilities-threejs.vercel.app/
  *
- * ★ PLAY MESH only (browser):
- *   assets.grudge-studio.com/asset-packs/toon-rts-characters/glb/characters/{race}.glb
+ * Code: toonKitPlay.deployToonPlayKit · ObjectStore loadRaceKit parity
+ * Mesh: assets…/toon-rts-characters/glb/characters/{race}.glb ONLY
+ * Contract: WARLORDS_PLAY_CONTRACT_VERSION (same as ObjectStore)
  *
- * Atlas: textures/grudge6/{folder}/*.webp (optional rebind; Toon keeps embeds)
- * Anims: open.grudge-studio.com/anims/baked/*
- *
- * NOT play defaults (keep on CDN for lab/author, do not load as player):
- *   models/grudge6/races/*_Characters.glb | .fbx | metaverse/*
+ * Do not add races bake / metaverse / FBX play loaders here.
  */
 
-export const GRUDGE6_SSOT_VERSION = '2026-08-07.4-warlords-hardened';
+export const GRUDGE6_SSOT_VERSION = '2026-08-07.5-casting-deploy-ssot';
 /** Must match ObjectStore WARLORDS_PLAY_CONTRACT_VERSION */
 export const WARLORDS_PLAY_CONTRACT_VERSION = '2026-08-07.harden.1';
+
+/** Live lab that owns Warlords character + ability UX proof */
+export const CASTING_LAB_LIVE = 'https://casting-abilities-threejs.vercel.app/';
 
 export const CDN = 'https://assets.grudge-studio.com';
 export const CDN_MIRROR_OPEN = 'https://open.grudge-studio.com';
@@ -86,13 +87,9 @@ export function validateBip001Bones(root) {
   };
 }
 
-/** ★ Toon RTS play URL */
+/** ★ Toon RTS play URL — only play mesh family */
 export function toonRtsKitUrl(libraryId) {
   return `${CDN}/asset-packs/toon-rts-characters/glb/characters/${libraryId}.glb`;
-}
-
-export function legacyRaceKitUrl(prefixFile) {
-  return `${CDN}/models/grudge6/races/${prefixFile}`;
 }
 
 /**

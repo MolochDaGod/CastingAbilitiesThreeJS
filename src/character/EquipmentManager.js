@@ -121,7 +121,7 @@ export class EquipmentManager {
     this.carryMode = false;
     this._preserveVisibility = !!opts.preserveVisibility;
     this._catalog();
-    // Only nuke visibility on a fresh kit. After scaffoldGrudge6Kit, meshes are
+    // Only nuke visibility on a fresh kit. After toonKitPlay deploy, meshes are
     // already exclusive-equipped — hideAll here made the character disappear.
     if (!this._preserveVisibility) {
       this.hideAll();
@@ -392,7 +392,7 @@ export class EquipmentManager {
     let lHand = null;
     let shield = null;
     let pelvis = null;
-    /** Prefer Bone instances after unifySkeletons (same name may exist as Object3D). */
+    /** Prefer Bone instances (same name may exist as Object3D). */
     const preferBone = (cur, next) => {
       if (!cur) return next;
       if (next?.isBone && !cur.isBone) return next;

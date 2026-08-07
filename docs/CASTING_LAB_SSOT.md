@@ -1,8 +1,22 @@
-# Casting Lab SSOT — Warlords UX / ability effects
+# Casting Lab SSOT — Warlords UX / ability effects + character path
 
 **Hosts:** https://casting-abilities-threejs.vercel.app · https://casting.grudge-studio.com (when DNS live)  
 **Agent skill:** `~/.grok/skills/casting-warlords-lab/SKILL.md`  
 **Repo:** `C:\Users\nugye\Documents\CastingAbilitiesThreeJS`
+
+## Character path (deployed reference — do not fork)
+
+| Concern | Value |
+|---------|--------|
+| **Live proof** | https://casting-abilities-threejs.vercel.app/ |
+| **Code** | `src/character/toonKitPlay.js` → `deployToonPlayKit` |
+| **Mesh** | Toon RTS `assets…/toon-rts-characters/glb/characters/{race}.glb` only |
+| **Contract** | `warlordsPlayContract = 2026-08-07.harden.1` (ObjectStore same) |
+| **ObjectStore** | `js/grudge6-kit.js#loadRaceKit` — same rules, fleet SSOT module |
+| **Removed** | races bake / metaverse / FBX play, multi-pose unify, scaffoldGrudge6Kit |
+
+Other Warlords apps should **copy this path**, not invent loaders.  
+CDN may still host races/metaverse for author/compare — **not** play defaults.
 
 ## Purpose
 

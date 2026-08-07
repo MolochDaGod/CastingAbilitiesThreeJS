@@ -28,11 +28,12 @@ import {
   GRUDGE6_SSOT_VERSION
 } from '../config/grudge6SSOT.js';
 import { EquipmentManager } from '../character/EquipmentManager.js';
-import { diagnoseCharacterLook } from '../character/grudge6Deploy.js';
 import {
   deployToonPlayKit,
   reGroundToonKit,
-  applyMeshIdsExclusive
+  applyMeshIdsExclusive,
+  diagnoseCharacterLook,
+  countSkeletons
 } from '../character/toonKitPlay.js';
 import { RideIK } from '../character/RideIK.js';
 import { LAYER } from '../core/Layers.js';
