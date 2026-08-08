@@ -3,6 +3,7 @@ import {
   getActiveSkills,
   getMeleeStrikeSkill,
   setActiveSkillTree,
+  setSkillKitPage,
   skillBySlot
 } from './drcSkills.js';
 import { settings } from '../config/settings.js';
@@ -53,10 +54,18 @@ export class DrcCombatController {
     /** @type {'equip'|'combat'} — combat-first showcase (Q toggles equip) */
     this.session = 'combat';
     this.skills = getActiveSkills();
-    // ?arcane=1 → purple arcane tree (Warlords staff migrate preview)
-    if (typeof location !== 'undefined' && /[?&]arcane=1\b/.test(location.search)) {
-      setActiveSkillTree('arcane');
-      this.skills = getActiveSkills();
+    /** Focus buff: until elapsed, spell damage mul (T0 Apprentice Wand Focus) */
+    this._focusUntil = 0;
+    this._focusMul = 1;
+    // ?arcane=1 → purple arcane tree · ?wand=1 → T0 Apprentice Wand
+    if (typeof location !== 'undefined') {
+      if (/[?&]wand=1\b/.test(location.search)) {
+        setActiveSkillTree('wand');
+        this.skills = getActiveSkills();
+      } else if (/[?&]arcane=1\b/.test(location.search)) {
+        setActiveSkillTree('arcane');
+        this.skills = getActiveSkills();
+      }
     }
     /** @type {Map<string, number>} skillId → readyAt elapsed */
     this._cdUntil = new Map();
@@ -148,9 +157,13 @@ export class DrcCombatController {
     // stamina regen
     this.stamina = Math.min(this.maxStamina, this.stamina + dt * 18);
 
-    // Yield fully while mounted on windsurf (WalkController owns root + physics glue)
-    if (this.character._rideActive || this.character.root?.parent?.name?.startsWith?.('socket_')) {
+    // Windsurf freeride: WalkController owns WASD / board; still tick invuln only
+    const riding =
+      this.character._rideActive || this.character.root?.parent?.name?.startsWith?.('socket_');
+    if (riding) {
       this.character.setGait?.(0, false);
+      if (this.invuln > 0) this.invuln = Math.max(0, this.invuln - dt);
+      // Skills fire via useSkill while skillsWhileRide — no land locomotion
       return;
     }
     if (!this.inCombat) {
@@ -434,7 +447,8 @@ export class DrcCombatController {
       this.onToast('Enter combat (Q) to use DRC skills');
       return false;
     }
-    if (this.character._rideActive) return false;
+    // Windsurf freeride: allow ranged/staff skills (tslda boat combat feel)
+    if (this.character._rideActive && !this._allowRideSkill()) return false;
 
     const skill = skillBySlot(slot);
     if (!skill) return false;
@@ -500,22 +514,77 @@ export class DrcCombatController {
       this.vfx?.deploySkill?.(skill.id, pose, 'cast');
     }
 
-    // VFX: spell → elemental ability along forward curve; melee → short slash + residual
-    if (skill.style === 'spell' && skill.element) {
-      const curve = this._aimCurve(skill.rangeM);
-      this.abilities.select(skill.element);
-      this.abilities.cast(curve, skill.element);
+    // T0 Focus buff — channel, no projectile
+    if (skill.isFocus || skill.skillKind === 'buff') {
+      const dur = skill.focusDurationSec || 3;
+      this._focusUntil = this.elapsed + dur;
+      this._focusMul = skill.focusDamageMul || 1.35;
+      if (skill.castEffectId) {
+        this.vfx?.deploy?.(skill.castEffectId, { ...pose, intensity: 0.85 });
+      }
+      this.character.setCasting?.(true, {
+        aimX: pose.origin.x,
+        aimY: pose.origin.y + 1.2,
+        aimZ: pose.origin.z
+      });
+      this.onToast(`Focus · next spell +${Math.round((this._focusMul - 1) * 100)}% (${dur}s)`);
+      return true;
+    }
+
+    // VFX: spell → elemental ability along forward curve (pathMode from kit / T0 wand)
+    if (skill.style === 'spell' && (skill.element || skill.abilityElement)) {
+      const el = skill.abilityElement || skill.element;
+      // Arcane uses wind Ability path + beauty VFX (no separate Ability class)
+      const abilityEl = el === 'arcane' ? 'wind' : el === 'frost' ? 'water' : el;
+      const curve = this._curveForPathMode(skill.pathMode || 'stream', skill.rangeM);
+      this.abilities.select(abilityEl);
+      this.abilities.cast(curve, abilityEl);
+
+      const focusOn = this.elapsed < this._focusUntil;
+      const focusMul = focusOn ? this._focusMul || 1.35 : 1;
+      const intensity = focusOn ? 1.0 * focusMul : 1.0;
+      if (focusOn) {
+        // Consume focus on first damaging spell
+        this._focusUntil = 0;
+      }
+
+      // Kit beauty: cast → travel → impact effect ids
+      if (skill.castEffectId) {
+        this.vfx?.deploy?.(skill.castEffectId, { ...pose, intensity });
+      }
+      if (skill.travelEffectId && skill.travelEffectId !== skill.castEffectId) {
+        this.vfx?.deploy?.(skill.travelEffectId, {
+          ...pose,
+          origin: pose.origin.clone().addScaledVector(_fwd, 1.2),
+          intensity: intensity * 0.95
+        });
+      }
+
       this.character.setCasting?.(true, {
         aimX: _end.x,
         aimY: _end.y,
         aimZ: _end.z
       });
-      // Delayed impact beauty at curve end
       const impactAt = skill.castDuration * 0.55;
+      const impactId = skill.impactEffectId || skill.id;
       setTimeout(() => {
+        this.vfx?.deploy?.(impactId, {
+          ...pose,
+          origin: pose.aim,
+          aim: pose.aim,
+          intensity: intensity * 1.15
+        });
         this.vfx?.deploySkill?.(skill.id, { ...pose, origin: pose.aim, aim: pose.aim }, 'impact');
       }, impactAt * 1000);
-      this.onToast(bound ? `${boundName} · ${bound.skillId}` : skill.label);
+
+      const dmg = skill.damage ? ` · ${Math.round(skill.damage * focusMul)} dmg` : '';
+      const cat = skill.catalogSkillId ? ` → ${skill.catalogSkillId}` : '';
+      const focusTag = focusOn ? ' · FOCUSED' : '';
+      this.onToast(
+        bound
+          ? `${boundName} · ${bound.skillId}`
+          : `${skill.label}${skill.pathMode ? ` · ${skill.pathMode}` : ''}${dmg}${focusTag}${cat}`
+      );
       return true;
     }
 
@@ -536,16 +605,23 @@ export class DrcCombatController {
   }
 
   /**
-   * F-key / light attack: attack anim + Getsuga residual from weapon tip.
-   * Uses settings.residual knobs (intensity, aoe, speed, size, color, mesh).
-   * Space is jump only — never bind residual here.
+   * Standard attack: anim + Getsuga residual from weapon tip.
+   * Used as F best-next-action fallback (after pickup/harvest).
+   * Uses settings.residual knobs. Space is jump only — never residual.
    */
+  /** Skills while on windsurf: staff / bow packs only (settings.walk.skillsWhileRide). */
+  _allowRideSkill() {
+    if (settings.walk?.skillsWhileRide === false) return false;
+    const pack = this.character.animPackId || '';
+    return pack === 'longbow' || pack === 'magic' || pack.includes('bow') || pack.includes('magic');
+  }
+
   useMeleeStrike() {
     if (!this.inCombat) {
       this.onToast('Enter combat (Q) to strike');
       return false;
     }
-    if (this.character._rideActive) return false;
+    if (this.character._rideActive && !this._allowRideSkill()) return false;
     const skill = getMeleeStrikeSkill();
     const readyAt = this._cdUntil.get(skill.id) || 0;
     if (this.elapsed < readyAt) {
@@ -645,20 +721,75 @@ export class DrcCombatController {
   /** Build CatmullRom from hand → aim point for Ability.spawn */
   _aimCurve(rangeM) {
     this.character.getCastOrigin(_origin);
-    // Aim along character facing on ground, slight arc up
-    const yaw = this.character.facing;
-    _fwd.set(Math.sin(yaw), 0, Math.cos(yaw));
+    // Prefer mouse aim forward when available
+    if (this.aim?.valid) _fwd.copy(this.aim.forward);
+    else {
+      const yaw = this.character.facing;
+      _fwd.set(Math.sin(yaw), 0, Math.cos(yaw));
+    }
     _end.copy(_origin).addScaledVector(_fwd, rangeM);
     _end.y = Math.max(0.15, _origin.y * 0.35);
     _mid.lerpVectors(_origin, _end, 0.5);
     _mid.y = Math.max(_origin.y, _mid.y) + rangeM * 0.06;
 
-    const pts = [
-      _origin.clone(),
-      _mid.clone(),
-      _end.clone()
-    ];
+    const pts = [_origin.clone(), _mid.clone(), _end.clone()];
     return new CatmullRomCurve3(pts, false, 'catmullrom', 0.5);
+  }
+
+  /**
+   * Curve shaped by kit pathMode (stream · aoe · spikes · wall).
+   * @param {'stream'|'aoe'|'spikes'|'wall'} pathMode
+   * @param {number} rangeM
+   */
+  _curveForPathMode(pathMode, rangeM) {
+    const mode = pathMode || 'stream';
+    if (mode === 'aoe') {
+      // Short hop into aim point — FireAbility / impact place
+      this.character.getCastOrigin(_origin);
+      if (this.aim?.valid) _fwd.copy(this.aim.forward);
+      else _fwd.set(Math.sin(this.character.facing), 0, Math.cos(this.character.facing));
+      _end.copy(_origin).addScaledVector(_fwd, Math.min(rangeM, 4.5));
+      _end.y = Math.max(0.12, _origin.y * 0.25);
+      _mid.copy(_end).add(new Vector3(0, 0.9, 0));
+      const start = _end.clone().add(new Vector3(0.05, 1.1, 0.05));
+      return new CatmullRomCurve3([start, _mid.clone(), _end.clone()], false, 'catmullrom', 0.5);
+    }
+    if (mode === 'wall') {
+      // Wider lateral stroke for barrier feel
+      this.character.getCastOrigin(_origin);
+      if (this.aim?.valid) _fwd.copy(this.aim.forward);
+      else _fwd.set(Math.sin(this.character.facing), 0, Math.cos(this.character.facing));
+      const right = new Vector3(-_fwd.z, 0, _fwd.x);
+      const len = Math.max(rangeM * 0.85, 8);
+      const a = _origin.clone().addScaledVector(right, -len * 0.35).addScaledVector(_fwd, 1.2);
+      const b = _origin.clone().addScaledVector(_fwd, len * 0.55);
+      const c = _origin.clone().addScaledVector(right, len * 0.35).addScaledVector(_fwd, 1.2);
+      a.y = b.y = c.y = Math.max(0.15, _origin.y * 0.3);
+      return new CatmullRomCurve3([a, b, c], false, 'catmullrom', 0.5);
+    }
+    if (mode === 'spikes') {
+      // Medium ground-hugging path
+      const curve = this._aimCurve(Math.min(rangeM, 10));
+      const pts = curve.getPoints(4).map((p, i) => {
+        const q = p.clone();
+        q.y = 0.12 + i * 0.08;
+        return q;
+      });
+      return new CatmullRomCurve3(pts, false, 'catmullrom', 0.5);
+    }
+    // stream — full range arc
+    return this._aimCurve(rangeM);
+  }
+
+  /**
+   * Switch 10-spell kit page for 1–4 bar (0=1–4, 1=5–8, 2=9–10).
+   * @param {number} page
+   */
+  setSpellKitPage(page) {
+    setSkillKitPage(page);
+    this.skills = getActiveSkills();
+    this.onToast(`Spell kit page ${page + 1}/3 · ${this.skills.map((s) => s.label).join(' · ')}`);
+    return this.skills;
   }
 
   /** Cooldown fraction 0..1 remaining for HUD (skill id or utility action id). */
@@ -684,7 +815,11 @@ export class DrcCombatController {
       this.onToast('Enter combat (Q)');
       return false;
     }
-    if (this.character._rideActive) return false;
+    // Mobility utilities blocked on board; combat skills ok if ride skill allowed
+    if (this.character._rideActive) {
+      if (actionId === 'dodge' || actionId === 'parry' || actionId === 'block') return false;
+      if (!this._allowRideSkill() && actionId !== 'mode') return false;
+    }
 
     switch (actionId) {
       case 'primary':
@@ -693,7 +828,11 @@ export class DrcCombatController {
           return this.character.playWeaponCombat?.('cast') || this.useMeleeStrike();
         }
         return this.useMeleeStrike() || this.character.playWeaponCombat?.('attack') || false;
+      case 'interact':
+        // F context is owned by App (_tryBestAction). Bar click → standard attack.
+        return this.useMeleeStrike() || this.character.playWeaponCombat?.('attack') || false;
       case 'fskill':
+        // Legacy id — same as interact attack fallback (pickup handled in App)
         return this.useMeleeStrike();
       case 'sig1':
         return this.useSkill(0);
@@ -709,9 +848,10 @@ export class DrcCombatController {
       case 'parry':
         return this.parry();
       case 'block':
+        // E = block / guard (fleet SSOT). C = parry.
         return this._utilityAction('block', 0.4, settings.drc?.parryStamina ?? 4, () => {
           this.character.playParry?.() || this.character.requestOneShot?.('block');
-          this.onToast('Guard (E)');
+          this.onToast('Block (E)');
         });
       case 'heavy':
         return this._utilityAction('heavy', 1.4, 14, () => {
@@ -787,7 +927,7 @@ export class DrcCombatController {
 
   /** Map quick-action id → CD fraction for tight bar. */
   quickCd01(actionId) {
-    if (actionId === 'fskill' || actionId === 'primary') {
+    if (actionId === 'fskill' || actionId === 'interact' || actionId === 'primary') {
       return this.cooldown01('drc_melee_strike');
     }
     if (actionId?.startsWith('sig')) {

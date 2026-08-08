@@ -128,6 +128,7 @@ export class App {
       decals: this.decals,
       bursts: this.bursts,
       shake: this.shake,
+      water: this.water,
       assets: null // filled in load()
     });
 
@@ -321,20 +322,20 @@ export class App {
       if (this.drc.inCombat) this.drc.useMeleeStrike?.();
     };
     this.hud.onQuickAction = (actionId) => {
+      if (actionId === 'interact' || actionId === 'fskill') {
+        this._tryBestAction();
+        return;
+      }
       this.drc.performQuickAction?.(actionId);
     };
     this.hud.onMenu = (menuId) => this._handleHudMenu(menuId);
     this.hud.onMode = (mode) => this.setMode(mode);
 
-    // Danger Room combat hotkeys (X/C/E/R/F/J/H/V)
-    // E near a drop = pickup into bag (overrides guard when successful)
+    // Combat hotkeys: E = block · C = parry · F = best-next-action (pickup/harvest/attack)
     this.input.on('combatAction', (actionId) => {
-      if (actionId === 'block' && this.worldDrops) {
-        const bag = this.worldDrops.tryPickup(this.character.position, 2.4);
-        if (bag) {
-          this.dropBag?.add(bag);
-          return;
-        }
+      if (actionId === 'interact') {
+        this._tryBestAction();
+        return;
       }
       this.drc.performQuickAction?.(actionId);
     });
@@ -388,6 +389,54 @@ export class App {
   }
 
   /**
+   * F — best next action (context priority):
+   *  1. Pickup nearby world drop
+   *  2. Harvest nearby node (when wired)
+   *  3. Standard attack / melee residual (combat) or weapon attack (equip)
+   * E stays block; C stays parry — never steal those for interact.
+   * @returns {boolean}
+   */
+  _tryBestAction() {
+    // 1) World loot pickup
+    if (this.worldDrops) {
+      const bag = this.worldDrops.tryPickup(this.character.position, 2.4);
+      if (bag) {
+        this.dropBag?.add(bag);
+        this.hud.showToast(`Picked up ${bag.name || 'item'}`);
+        return true;
+      }
+    }
+
+    // 2) Harvest / gather (Mine-Loader / Open pattern — hook when nodes exist)
+    if (typeof this.tryHarvest === 'function') {
+      const harvested = this.tryHarvest();
+      if (harvested) return true;
+    }
+    if (this.worldHarvest?.tryInteract) {
+      const ok = this.worldHarvest.tryInteract(this.character.position, 2.4);
+      if (ok) {
+        this.hud.showToast(typeof ok === 'string' ? ok : 'Harvested');
+        return true;
+      }
+    }
+
+    // 3) Standard attack (melee residual from tip when in combat)
+    if (this.drc?.inCombat) {
+      const ok =
+        this.drc.useMeleeStrike?.() ||
+        this.drc.performQuickAction?.('primary') ||
+        false;
+      return !!ok;
+    }
+    if (this.character.playWeaponAttack?.()) {
+      this.hud.showToast('Attack');
+      return true;
+    }
+    this.hud.showToast('F · nothing nearby');
+    return false;
+  }
+
+  /**
    * Throw bag item to screen/world aim.
    * @param {object} item
    * @param {number} clientX
@@ -433,7 +482,7 @@ export class App {
         );
         await this.worldDrops.spawn(p, pos);
       }
-      this.hud.showToast(`Spawned ${count} world drops (icon+glow · E pickup)`);
+      this.hud.showToast(`Spawned ${count} world drops (icon+glow · F pickup)`);
     } catch (err) {
       console.warn(err);
       this.hud.showToast(err?.message || 'Prefab catalog failed');
@@ -478,12 +527,8 @@ export class App {
         this.spawnWorldLoot?.(4);
         break;
       case 'weaponAttack':
-        // F = melee residual (attack + Getsuga from tip) — not digit slot 4 / not Space
-        if (this.drc.inCombat) {
-          this.drc.useMeleeStrike?.() || this.drc.useSkill(3);
-        } else if (this.character.playWeaponAttack?.()) {
-          this.hud.showToast('Weapon attack');
-        } else this.hud.showToast('No attack clip');
+        // Legacy path — same as F best-next-action
+        this._tryBestAction();
         break;
       case 'clear':
         this.clearEffects();
@@ -515,6 +560,26 @@ export class App {
   }
 
   /**
+   * Walk mode Space edge → frontflip + sail deploy freeride (back-slot windsurf).
+   * Esc / cancel via mode toggle. While freeriding: WASD, Space hop, 1–4/F skills.
+   */
+  _pollWindsurfDeploy() {
+    if (this.walk.active) {
+      this._wasWalkSpace = this.input.keys.has('Space');
+      return;
+    }
+    const space = this.input.keys.has('Space');
+    const pressed = space && !this._wasWalkSpace;
+    this._wasWalkSpace = space;
+    if (!pressed) return;
+    if (!this.walk.scooter?.ready && this._assets) {
+      this.walk.load(this._assets).catch(() => {});
+    }
+    this.walk.beginFreeride({ yaw: this.character.facing });
+    this.hud.showToast('Windsurf · frontflip deploy · sail from back');
+  }
+
+  /**
    * Switch between casting and walking.
    *
    * `settings.mode` is the source of truth — the editor writes it directly and
@@ -530,16 +595,20 @@ export class App {
     if (next !== 'walk') {
       this.walk.cancel();
     } else {
-      // Path-ride: leave combat WASD, use orbit for draw; keep inventory closed
-      if (this.drc.inCombat) this.drc.setSession('equip');
+      // Windsurf mode: draw path to board OR Space = quick freeride deploy (tslda boat)
       this.inventory?.setOpen?.(false);
       this.rig.setViewMode('orbit');
       if (this._assets && !this.walk.scooter?.ready) {
         this.walk.load(this._assets).catch(() => {});
       }
+      if (changed) {
+        this.hud.showToast('Windsurf · Space = deploy · draw path = course · WASD steer');
+      }
     }
     this.hud.setMode(next);
-    if (changed) this.hud.showToast(`${MODE_META[next].hint} — ${MODE_META[next].blurb}`);
+    if (changed && next !== 'walk') {
+      this.hud.showToast(`${MODE_META[next].hint} — ${MODE_META[next].blurb}`);
+    }
     this.editor.refresh();
   }
 
@@ -730,7 +799,18 @@ export class App {
       this.hud.setCrosshairVisible?.(false);
     }
 
-    // Walk ride owns root while active; DRC yields when character._rideActive
+    // Windsurf freeride: keys + Space deploy + TPS + combat skills
+    this.walk.setKeys?.(this.input.keys);
+    if (settings.mode === 'walk') {
+      this._pollWindsurfDeploy();
+      if (this.walk.freeriding) {
+        if (!this.drc.inCombat) this.drc.setSession('combat');
+        this.rig.setViewMode('tps');
+        this.input.setCombatKeys?.(true);
+      }
+    }
+
+    // Walk ride owns root while active; DRC yields land loco when character._rideActive
     if (settings.mode === 'walk' || this.walk.active) this.walk.update(dt);
     this.drc.update(dt, this.input.keys);
     // Mixer then RideIK (CharacterController.update runs post-mixer IK)

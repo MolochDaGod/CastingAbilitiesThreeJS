@@ -53,6 +53,8 @@ learn source → isolate primitive → edit knobs → bind skill → smoke → e
 | **Slide clip** | `prod:extra/running-slide` (+ quick-roll-to-run) |
 | **Dodge clips** | longbow standing dodge L/R/F/B (+ locomotion / ghost_rider dodge) |
 | **Anim library SSOT** | `animLibrary.js` vocabulary · families · `getAnimLibrary()` · Showcase Anims by family |
+| **Windsurf freeride** | Frontflip + sail from back · feet/hands IK · WASD boat (tslda) · `docs/WINDSURF_RIDE_SSOT.md` |
+| **Dodge afterimage** | Model-color blur + vapor dissipate (`DodgeAfterimage.js`) |
 | **Dodge MM** | `combat/motionMath.js` — 100 MM = 1 m; AA/DD lateral **720 MM (7.2 m = 3×)** |
 | **Dodge afterimage** | `vfx/DodgeAfterimage.js` — SkeletonUtils mesh ghosts, wind cyan additive |
 | **Dodge invuln** | `DrcCombatController.isInvincible` / `invuln` for full dodge duration |
@@ -190,7 +192,8 @@ Lab default residual: range **3.2 m**, slashblue, meshScale **0.9** — tune in 
 
 ```
 casting lab
-  ├─ Combat mode (TPS · WASD · 1–4 · F residual · Space jump)
+  ├─ Combat mode (TPS · WASD · 1–4 · F interact · E block · C parry · Space jump)
+  ├─ 10-spell kit (castingSpellKit → WEAPON_SKILLS STAFF) · I Skills pages
   ├─ Equip / inventory mesh_ids
   ├─ Path cast + VFX editor + Effect Prefab export
   ├─ Element bar + optional ?arcane=1 tree

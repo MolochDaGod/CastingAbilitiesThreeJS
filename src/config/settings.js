@@ -86,17 +86,19 @@ export const settings = {
     slideDuration: 0.72,
     slideStamina: 14,
     /**
-     * Dodge afterimage — trailing copies of the hero mesh (SkeletonUtils).
-     * Wind residual palette (post-cast air ribbons).
+     * Dodge afterimage — blur of model own colors, vapor dissipate.
+     * @see vfx/DodgeAfterimage.js
      */
     afterimage: {
       enabled: true,
       count: 6,
-      life: 0.45,
-      stampInterval: 0.05,
-      stampLife: 0.28,
-      /** null = settings.wind.colorInner */
-      color: null
+      life: 0.55,
+      stampInterval: 0.048,
+      stampLife: 0.32,
+      vaporRise: 0.55,
+      vaporExpand: 0.32,
+      vaporHold: 0.1,
+      vaporPower: 2.5
     }
   },
 
@@ -255,34 +257,65 @@ export const settings = {
   /* Walk mode — the leap, the air scooter and the ride                  */
   /* ------------------------------------------------------------------ */
   walk: {
-    /* --- the leap onto the head of the path --- */
-    jumpSpeed: 7.0, // metres/second of ground covered by the leap
-    jumpHeight: 1.75, // apex of the arc above the straight line
-    jumpMin: 0.45, // seconds — floor and ceiling on the leap duration, so a
-    jumpMax: 1.15, //           step and a long dive both read as one jump
-    tuck: 0.62, // fraction of the leap at which the legs fold up
-    poseBlend: 0.45, // seconds to fold into / out of the seated pose
+    /**
+     * Windsurf / freeride (tslda / Wind Waker boat feel).
+     * Deploy = frontflip + sail from back → land feet on deck, hands on boom.
+     * Back-slot utility asset: public/models/ride/windsurf_package.glb
+     * @see docs/WINDSURF_RIDE_SSOT.md · Robpayot/tslda boat control
+     */
+    /* --- frontflip deploy onto board --- */
+    jumpSpeed: 7.0,
+    jumpHeight: 2.1, // higher arc for readable frontflip
+    jumpMin: 0.5,
+    jumpMax: 1.25,
+    tuck: 0.55,
+    poseBlend: 0.35,
+    /** Frontflip duration during LEAP (matches tilt spin) */
+    frontflipDuration: 0.72,
+    /** Sail/board birth delay into flip (0..1) */
+    sailDeployAt: 0.28,
 
-    /* --- riding the path --- */
-    speed: 5.0, // metres/second along the drawn path
-    accel: 0.45, // seconds spent easing up to speed after landing
-    brake: 0.6, // seconds of gliding to a stop at the far end
-    dismountTime: 0.55, // seconds to step off the board
-    returnHome: false, // leap back to where he started once the path is ridden
+    /* --- path ride (drawn stroke) --- */
+    speed: 5.0,
+    accel: 0.45,
+    brake: 0.6,
+    dismountTime: 0.55,
+    returnHome: false,
+    /** After path ends, enter freeride instead of auto-dismount */
+    freerideAfterPath: true,
 
-    /* --- how he rides (windsurf / hoverboard deck) --- */
-    hover: 0.06, // deck height above floor when pack deckY missing
-    standOffset: 0.02, // rider root above deck seat (standing, not lotus)
-    hipDrop: 0.12, // RideIK pelvis drop so knees bend onto foot straps
-    debugSockets: false, // true = blue spheres on footL/footR/sailRail
-    seatSink: 0.0, // legacy air-ball sink — unused for board
-    bob: 0.04, // vertical bounce while riding (board + parented rider)
-    bobRate: 2.1, // bounces per second
-    rideShake: 0.05, // continuous camera shake while riding (× speed)
-    lean: 22, // degrees of bank at a full-rate turn
-    leanRate: 2.0, // radians/second of yaw that counts as a full-rate turn
-    leanDamping: 0.004, // how quickly the bank follows the turn (damp rate)
-    turnDamping: 0.0001, // how quickly the body swings onto the new heading
+    /* --- freeride (WASD boat, tslda-like) --- */
+    freeride: true,
+    freerideSpeed: 7.2, // m/s max
+    freerideAccel: 4.5, // m/s²
+    freerideDrag: 1.8, // m/s² coast
+    freerideTurnRate: 1.85, // rad/s at full A/D
+    freerideJumpVy: 5.8, // Space hop off waves
+    freerideGravity: 14,
+    freerideWaterY: 0.0, // stage water base; bob adds
+    freerideWaveFollow: 0.85, // how hard board tracks sample height
+    /** Soft-body / ragdoll-lite: extra hip drop sway from wave + bank */
+    softBody: true,
+    softBodyHip: 0.06,
+    softBodyLean: 0.12,
+    /** Allow 1–4 / F skills while riding (ranged / staff) */
+    skillsWhileRide: true,
+    /** Equip contract: windsurf is a back-slot deployable */
+    backSlot: 'windsurf',
+
+    /* --- deck / IK --- */
+    hover: 0.06,
+    standOffset: 0.02,
+    hipDrop: 0.12,
+    debugSockets: false,
+    seatSink: 0.0,
+    bob: 0.04,
+    bobRate: 2.1,
+    rideShake: 0.05,
+    lean: 22,
+    leanRate: 2.0,
+    leanDamping: 0.004,
+    turnDamping: 0.0001,
 
     /* --- the air ball itself (see materials/AirScooterMaterial.js) --- */
     radius: 0.46,

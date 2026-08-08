@@ -106,9 +106,11 @@ export class CharacterController {
     this._rideYaw = 0;
     this.ik = null;
 
-    /** Procedural backflip on tilt (S+Space double jump) */
+    /** Procedural flip on tilt (backflip / frontflip deploy) */
     this._flipActive = false;
     this._flipTime = 0;
+    /** −1 = backflip, +1 = frontflip (pitch about local right) */
+    this._flipSign = -1;
     this._flipDuration = 0.55;
   }
 
@@ -799,7 +801,20 @@ export class CharacterController {
     this._flipTime = 0;
     this._flipDuration = Math.max(0.2, duration);
     this._flipActive = true;
-    // Prefer jump clip as body pose during flip
+    this._flipSign = -1;
+    this.playJump(0.05);
+    return true;
+  }
+
+  /**
+   * Procedural frontflip — windsurf deploy onto board (sail out mid-flip).
+   * @param {number} duration seconds for full 360° pitch about local X
+   */
+  playFrontflip(duration = 0.72) {
+    this._flipTime = 0;
+    this._flipDuration = Math.max(0.25, duration);
+    this._flipActive = true;
+    this._flipSign = 1;
     this.playJump(0.05);
     return true;
   }
@@ -808,6 +823,7 @@ export class CharacterController {
   clearFlip() {
     this._flipActive = false;
     this._flipTime = 0;
+    this._flipSign = -1;
     this.setLean(0);
   }
 
@@ -943,12 +959,13 @@ export class CharacterController {
     this.mixer.timeScale = settings.global.animationSpeed;
     this.mixer.update(dt);
 
-    // Procedural backflip: full revolution about local right (X) on tilt
+    // Procedural flip: full revolution about local right (X) on tilt
+    // _flipSign −1 backflip · +1 frontflip (windsurf deploy)
     if (this._flipActive) {
       this._flipTime += dt;
       const u = MathUtils.clamp(this._flipTime / this._flipDuration, 0, 1);
-      // Spin backward (negative pitch about local +X / right)
-      const angle = -u * Math.PI * 2;
+      const sign = this._flipSign >= 0 ? 1 : -1;
+      const angle = sign * u * Math.PI * 2;
       this.tilt.quaternion.setFromAxisAngle(_flipAxis, angle);
       if (u >= 1) {
         this._flipActive = false;

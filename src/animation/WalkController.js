@@ -18,25 +18,33 @@ const wrapAngle = (angle) => MathUtils.euclideanModulo(angle + Math.PI, TAU) - M
 
 const Phase = Object.freeze({
   IDLE: 'idle',
-  LEAP: 'leap',
-  RIDE: 'ride',
+  LEAP: 'leap', // frontflip deploy → board
+  RIDE: 'ride', // path-follow
+  FREERIDE: 'freeride', // WASD boat (tslda-like)
   DISMOUNT: 'dismount'
 });
 
 /**
- * Walk mode: drawn path → windsurf ride.
+ * Walk / windsurf mode — board is a tiny boat (back-slot deployable).
+ *
+ * Deploy contract (new):
+ *  1. Frontflip off land; sail/board materializes from back mid-flip
+ *  2. Land feet on deck sockets · hands on sail boom (RideIK)
+ *  3. Path ride OR freeride WASD (tslda / Wind Waker boat feel)
+ *  4. Soft-body lean + wave follow (rigged body, ragdoll-lite to ocean)
+ *  5. Space hop; skills allowed while freeride when settings.walk.skillsWhileRide
  *
  * Mount contract (until dismount):
- *  1. Path owns board XZ + yaw
- *  2. Board bank/sway/bob update first
- *  3. Character **reparented** to deck seat (sticks through bank/shake)
- *  4. RideIK feet→footL/R, hands→sailRail/boom (post-mixer)
- *  5. Rapier capsule teleported to deck every frame (no CCT freefall)
+ *  - Character reparented to deck seat
+ *  - RideIK feet→footL/R, hands→sailRail/boom (post-mixer)
+ *  - Physics capsule glued to deck
+ *
+ * Ref: https://github.com/Robpayot/tslda · docs/WINDSURF_RIDE_SSOT.md
  */
 export class WalkController {
   /**
    * @param {import('./CharacterController.js').CharacterController} character
-   * @param {object} ctx { scene, particles, lights, decals, bursts, shake, physics? }
+   * @param {object} ctx { scene, particles, lights, decals, bursts, shake, physics?, water? }
    */
   constructor(character, ctx) {
     this.character = character;
@@ -57,6 +65,8 @@ export class WalkController {
     this._home = new Vector3();
     this._exit = new Vector3();
     this._anchor = new Vector3();
+    this._vel = new Vector3(); // freeride XZ velocity
+    this._vy = 0;
     this._leapTime = 0;
     this._leapDuration = 0;
     this._rideTime = 0;
@@ -66,10 +76,18 @@ export class WalkController {
     this._landStanding = false;
     this._mounted = false;
     this._rideShakeT = 0;
+    this._sailSpawned = false;
+    this._wasJump = false;
+    /** @type {Set<string>|null} live keys from App while freeride */
+    this._keys = null;
   }
 
   get active() {
     return this.phase !== Phase.IDLE;
+  }
+
+  get freeriding() {
+    return this.phase === Phase.FREERIDE;
   }
 
   get ballHeight() {
@@ -90,6 +108,53 @@ export class WalkController {
     this.ctx.physics = physics || null;
   }
 
+  /** Live keyboard for freeride (App passes InputManager.keys each frame). */
+  setKeys(keys) {
+    this._keys = keys || null;
+  }
+
+  /**
+   * Quick ocean deploy: frontflip + sail from back, freeride WASD.
+   * Back-slot windsurf utility — no path required.
+   * @param {{ yaw?: number }} [opts]
+   */
+  beginFreeride(opts = {}) {
+    this._dismountRider(true);
+    this.scooter.cancel();
+    this.character.setRideActive?.(false);
+
+    if (!this.scooter.ready && this.ctx.assets) {
+      this.scooter.load(this.ctx.assets).catch((err) => console.warn('[Walk] board load', err));
+    }
+
+    this.curve = null;
+    this.length = 0;
+    this.distance = 0;
+    this.speed = 0;
+    this._vel.set(0, 0, 0);
+    this._vy = 0;
+    this._rideTime = 0;
+    this._landStanding = false;
+    this._turnRate = 0;
+    this._rideShakeT = 0;
+    this._sailSpawned = false;
+    this._wasJump = false;
+
+    this._home.copy(this.character.position);
+    this._from.copy(this.character.position);
+    const yaw = Number.isFinite(opts.yaw) ? opts.yaw : this.character.facing;
+    this._yaw = yaw;
+    // Land a few metres into water along facing
+    const dist = 2.8;
+    this._target.set(
+      this._from.x + Math.sin(yaw) * dist,
+      this.seatHeight,
+      this._from.z + Math.cos(yaw) * dist
+    );
+    this._startLeap({ freeride: true, frontflip: true });
+    return true;
+  }
+
   begin(curve) {
     const length = curve.getLength();
     if (length < 0.5) return false;
@@ -106,16 +171,20 @@ export class WalkController {
     this.length = length;
     this.distance = 0;
     this.speed = 0;
+    this._vel.set(0, 0, 0);
+    this._vy = 0;
     this._rideTime = 0;
     this._landStanding = false;
     this._turnRate = 0;
     this._rideShakeT = 0;
+    this._sailSpawned = false;
+    this._wasJump = false;
 
     if (!this.active) this._home.copy(this.character.position);
 
     this._from.copy(this.character.position);
     curve.getPointAt(0, this._target).setY(this.seatHeight);
-    this._startLeap();
+    this._startLeap({ freeride: false, frontflip: true });
     return true;
   }
 
@@ -140,6 +209,9 @@ export class WalkController {
         case Phase.RIDE:
           this._updateRide(dt);
           break;
+        case Phase.FREERIDE:
+          this._updateFreeride(dt);
+          break;
         case Phase.DISMOUNT:
           this._updateDismount(dt);
           break;
@@ -163,7 +235,7 @@ export class WalkController {
     }
 
     // After board bank/sway: mount pose + IK sockets + physics glue
-    if (this.phase === Phase.RIDE && this._mounted) {
+    if ((this.phase === Phase.RIDE || this.phase === Phase.FREERIDE) && this._mounted) {
       this._syncMountedRider(dt);
     } else if (this.scooter.active && this.scooter.ready && this.phase === Phase.LEAP) {
       // Pre-land: aim hands/feet toward board sockets once board exists
@@ -247,9 +319,10 @@ export class WalkController {
   _syncMountedRider(dt) {
     if (!this.scooter.ready) return;
 
-    // Seat local stand offset (bob lives on board root, parented rider follows)
+    // Seat local: feet on deck; soft hip sink from wave (ragdoll-lite)
     const stand = settings.walk.standOffset ?? 0.02;
-    this.character.root.position.set(0, stand, 0);
+    const soft = this._softHip || 0;
+    this.character.root.position.set(0, stand - soft, 0);
     this.character.root.rotation.set(0, 0, 0);
 
     // Facing = board forward (seat already yaws with board group)
@@ -258,10 +331,10 @@ export class WalkController {
 
     this.scooter.group.updateWorldMatrix(true, true);
     const targets = this.scooter.getIkWorldTargets();
+    // Hands on sail bar · feet on deck pads (manifest sockets)
     this.character.setRideSockets?.(targets, this._yaw);
     this.character.setRideActive?.(true, this._yaw);
 
-    // Physics glued to deck center world
     if (targets.deckCenter) {
       _deck.copy(targets.deckCenter);
     } else {
@@ -272,10 +345,10 @@ export class WalkController {
       phys.setPlayerFeet(_deck.x, Math.max(0, _deck.y), _deck.z);
     }
 
-    // Continuous ride shake (speed-scaled) + board bank feel
     this._rideShakeT += dt;
     const c = settings.walk;
-    const speedN = saturate(this.speed / Math.max(0.5, c.speed));
+    const refSp = this.phase === Phase.FREERIDE ? c.freerideSpeed ?? 7 : c.speed;
+    const speedN = saturate(this.speed / Math.max(0.5, refSp));
     const shakeAmp =
       (c.rideShake ?? 0.045) * speedN * (settings.global.cameraShake ?? 1) * settings.global.explosionIntensity;
     if (shakeAmp > 0.004 && this.ctx.shake && this._rideShakeT > 0.08) {
@@ -288,7 +361,10 @@ export class WalkController {
   /* leap                                                                */
   /* ------------------------------------------------------------------ */
 
-  _startLeap() {
+  /**
+   * @param {{ freeride?: boolean, frontflip?: boolean }} [opts]
+   */
+  _startLeap(opts = {}) {
     const c = settings.walk;
     const reach = _p.copy(this._target).setY(0).distanceTo(_t.copy(this._from).setY(0));
 
@@ -296,12 +372,16 @@ export class WalkController {
     this._leapTime = 0;
     this._leapDuration = clamp(reach / Math.max(0.5, c.jumpSpeed), c.jumpMin, c.jumpMax);
     this._yaw = this.character.facing;
+    this._enterFreeride = !!opts.freeride;
+    this._sailSpawned = false;
 
-    // Spawn board early under path head so IK can pre-aim
-    this._anchor.set(this._target.x, this.seatHeight, this._target.z);
-    if (this.scooter.ready && !this.scooter.active) {
-      this.scooter.spawn(this._anchor);
+    // Frontflip while sailing out of the back slot
+    if (opts.frontflip !== false) {
+      this.character.playFrontflip?.(c.frontflipDuration ?? 0.72);
     }
+
+    // Board spawns mid-flip from "back" (sail deploy) — not immediately under feet
+    this._anchor.set(this._target.x, this.seatHeight, this._target.z);
 
     _p.set(this._from.x, 0.02, this._from.z);
     this.ctx.decals.spawn(DecalType.DUSTRING, _p, {
@@ -318,12 +398,32 @@ export class WalkController {
     this._leapTime += dt;
     const t = saturate(this._leapTime / Math.max(0.05, this._leapDuration));
 
-    // Keep board under landing spot during leap
-    this._anchor.set(this._target.x, this.seatHeight, this._target.z);
+    // Sail/board deploys from back mid-frontflip
+    const deployAt = c.sailDeployAt ?? 0.28;
+    if (!this._sailSpawned && t >= deployAt) {
+      this._sailSpawned = true;
+      // Spawn slightly behind rider (back slot) then board will track landing
+      const back = 0.6 * (1 - t);
+      this._anchor.set(
+        this._from.x + (this._target.x - this._from.x) * t - Math.sin(this._yaw) * back,
+        this.seatHeight + c.jumpHeight * 0.35,
+        this._from.z + (this._target.z - this._from.z) * t - Math.cos(this._yaw) * back
+      );
+      if (this.scooter.ready && !this.scooter.active) {
+        this.scooter.spawn(this._anchor);
+      }
+    }
+
+    // Keep board gliding toward landing deck
+    if (this._sailSpawned) {
+      this._anchor.lerp(
+        _t.set(this._target.x, this.seatHeight, this._target.z),
+        1 - Math.pow(0.02, dt)
+      );
+    }
 
     _p.lerpVectors(this._from, this._target, t);
     _p.y += c.jumpHeight * 4 * t * (1 - t);
-    // Only free-move root while not mounted
     if (!this._mounted) {
       if (this.character.root.parent !== this.ctx.scene) {
         this.ctx.scene.attach(this.character.root);
@@ -333,18 +433,23 @@ export class WalkController {
 
     this._faceLeap(dt, t);
     this._lean = damp(this._lean, 0, 0.01, dt);
-    this.character.setLean(this._lean);
+    // Frontflip owns tilt — don't fight with setLean
+    if (!this.character._flipActive) this.character.setLean(this._lean);
 
-    // Blend IK weight up before landing
     if (!this._landStanding && t >= (c.tuck ?? 0.55)) {
       this.character.setPose('idle', c.poseBlend);
-      this.character.setRideActive?.(true, this._yaw);
+      // Pre-weight RideIK toward boom/feet before contact
+      if (this.scooter.active) {
+        this.character.setRideActive?.(true, this._yaw);
+        this.character.setRideSockets?.(this.scooter.getIkWorldTargets(), this._yaw);
+      }
     }
 
     if (t < 1) return;
 
     if (this._landStanding) {
       this._dismountRider(true);
+      this.character.clearFlip?.();
       this.character.resetPlacement();
       this.character.setRideActive?.(false);
       this.phase = Phase.IDLE;
@@ -353,21 +458,28 @@ export class WalkController {
       return;
     }
 
-    // Land → mount seat
+    // Land on deck — feet plant · hands on sail bar
     this._anchor.set(this._target.x, this.seatHeight, this._target.z);
     if (!this.scooter.active) this.scooter.spawn(this._anchor);
-    // Force board to landing pose once before attach
     _side.set(Math.cos(this._yaw), 0, -Math.sin(this._yaw));
     this.scooter.update(0, this._anchor, _side, 0, 0, this._yaw, 0);
     this.scooter.group.updateWorldMatrix(true, true);
 
+    this.character.clearFlip?.();
     this._mountRider();
-    this.phase = Phase.RIDE;
     this._rideTime = 0;
     this.distance = 0;
     this.speed = 0;
+    this._vel.set(0, 0, 0);
     this._land(1);
     this._syncMountedRider(0);
+
+    if (this._enterFreeride || !this.curve) {
+      this.phase = Phase.FREERIDE;
+      this._enterFreeride = false;
+    } else {
+      this.phase = Phase.RIDE;
+    }
   }
 
   _faceLeap(dt, t) {
@@ -436,7 +548,138 @@ export class WalkController {
 
     if (!this._mounted && this.scooter.ready) this._mountRider();
 
-    if (this.distance >= this.length - 1e-4) this._startDismount();
+    if (this.distance >= this.length - 1e-4) {
+      if (c.freerideAfterPath !== false && c.freeride !== false) {
+        // Path done → freeride boat (tslda) with residual velocity
+        this.curve = null;
+        this._vel.set(Math.sin(this._yaw) * this.speed, 0, Math.cos(this._yaw) * this.speed);
+        this.phase = Phase.FREERIDE;
+      } else {
+        this._startDismount();
+      }
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* freeride — WASD boat (tslda / Wind Waker)                           */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * Sample water elevation (CPU stand-in for StageWater waves).
+   * @param {number} x
+   * @param {number} z
+   */
+  _sampleWaterY(x, z) {
+    const base = settings.walk.freerideWaterY ?? 0;
+    const t = this._rideTime || 0;
+    // Match StageWater feel: low amp multi-sine (SI metres)
+    const a =
+      Math.sin(x * 0.35 + t * 1.4) * 0.045 +
+      Math.sin(z * 0.28 + t * 1.1) * 0.035 +
+      Math.sin((x + z) * 0.5 + t * 2.0) * 0.02;
+    const water = this.ctx.water;
+    if (water?.sampleHeight) {
+      try {
+        return water.sampleHeight(x, z, t);
+      } catch {
+        /* fall through */
+      }
+    }
+    return base + a;
+  }
+
+  _updateFreeride(dt) {
+    const c = settings.walk;
+    this._rideTime += dt;
+    if (!this._mounted && this.scooter.ready) this._mountRider();
+
+    const keys = this._keys;
+    let ix = 0;
+    let iz = 0;
+    if (keys) {
+      if (keys.has('KeyW') || keys.has('ArrowUp')) iz -= 1;
+      if (keys.has('KeyS') || keys.has('ArrowDown')) iz += 1;
+      // A/D turn (boat feel) — same invert as combat strafe fix: A left turn
+      if (keys.has('KeyA') || keys.has('ArrowLeft')) ix -= 1;
+      if (keys.has('KeyD') || keys.has('ArrowRight')) ix += 1;
+    }
+
+    // Turn boat (tslda joystick X → yaw)
+    const turn = (c.freerideTurnRate ?? 1.85) * ix;
+    this._yaw += turn * dt;
+    this._turnRate = turn;
+
+    // Thrust along board forward (W) / reverse (S)
+    const fwdX = Math.sin(this._yaw);
+    const fwdZ = Math.cos(this._yaw);
+    const maxSp = c.freerideSpeed ?? 7.2;
+    const accel = c.freerideAccel ?? 4.5;
+    const drag = c.freerideDrag ?? 1.8;
+
+    if (iz < 0) {
+      // forward
+      this._vel.x += fwdX * accel * dt;
+      this._vel.z += fwdZ * accel * dt;
+    } else if (iz > 0) {
+      this._vel.x -= fwdX * accel * 0.55 * dt;
+      this._vel.z -= fwdZ * accel * 0.55 * dt;
+    } else {
+      // coast drag
+      const sp = Math.hypot(this._vel.x, this._vel.z);
+      if (sp > 1e-4) {
+        const d = Math.min(sp, drag * dt);
+        this._vel.x -= (this._vel.x / sp) * d;
+        this._vel.z -= (this._vel.z / sp) * d;
+      }
+    }
+
+    // Clamp speed
+    let sp = Math.hypot(this._vel.x, this._vel.z);
+    if (sp > maxSp) {
+      this._vel.x = (this._vel.x / sp) * maxSp;
+      this._vel.z = (this._vel.z / sp) * maxSp;
+      sp = maxSp;
+    }
+    this.speed = sp;
+
+    // Space jump (edge) — hop off wave
+    const jumpDown = !!(keys && keys.has('Space'));
+    if (jumpDown && !this._wasJump && Math.abs(this._vy) < 0.05) {
+      this._vy = c.freerideJumpVy ?? 5.8;
+      this.character.playJump?.(0.06);
+    }
+    this._wasJump = jumpDown;
+
+    // Integrate XZ
+    this._anchor.x += this._vel.x * dt;
+    this._anchor.z += this._vel.z * dt;
+
+    // Wave follow + vertical hop (soft ocean body)
+    const waterY = this._sampleWaterY(this._anchor.x, this._anchor.z);
+    const deck = this.seatHeight + waterY * (c.freerideWaveFollow ?? 0.85);
+    this._vy -= (c.freerideGravity ?? 14) * dt;
+    let y = (this._anchor.y || deck) + this._vy * dt;
+    if (y <= deck) {
+      y = deck;
+      this._vy = 0;
+    }
+    this._anchor.y = y;
+
+    // Soft-body ragdoll-lite: hip drop + lean from bank + wave slope
+    if (c.softBody !== false) {
+      const waveDelta =
+        this._sampleWaterY(this._anchor.x + fwdX, this._anchor.z + fwdZ) -
+        this._sampleWaterY(this._anchor.x - fwdX, this._anchor.z - fwdZ);
+      const softHip = (c.softBodyHip ?? 0.06) * MathUtils.clamp(Math.abs(waveDelta) * 8, 0, 1);
+      this._softHip = softHip;
+      const rate = Math.max(0.05, c.leanRate);
+      const target =
+        -clamp(this._turnRate / rate, -1, 1) * c.lean * MathUtils.DEG2RAD * 0.45 +
+        waveDelta * (c.softBodyLean ?? 0.12);
+      this._lean = damp(this._lean, target, c.leanDamping, dt);
+    }
+
+    if (!this._mounted) this.character.setLean(this._lean);
   }
 
   /* ------------------------------------------------------------------ */

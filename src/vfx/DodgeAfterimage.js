@@ -3,28 +3,27 @@ import {
   Color,
   DoubleSide,
   Group,
+  MathUtils,
   MeshBasicMaterial,
+  NormalBlending,
   Vector3
 } from 'three';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { settings } from '../config/settings.js';
-import { getColor } from '../utils/color.js';
 import { LAYER } from '../core/Layers.js';
 
 const _dir = new Vector3();
 const _pos = new Vector3();
 const _from = new Vector3();
+const _c = new Color();
 
 /**
- * Full-mesh trailing images of the Toon hero during dodge (MM escape).
+ * Dodge afterimage — trailing copies of the **model itself** (blur of own colors).
  *
- * Ports Animator Studio `Vfx.afterimage` pattern:
- *  - SkeletonUtils clone of live rig (frozen pose)
- *  - additive wind-cyan ghosts spaced along dash path
- *  - optional continuous stamps while the dodge impulse runs
+ * Not a flat cyan tint: each skinned mesh keeps a soft read of its map/color,
+ * then dissipates **vaporously** (rise, expand, opacity falloff).
  *
- * Wind residual feel (post-wind-cast ribbons): pale cyan/white additive fade,
- * no depth write — same “high-level motion blur” read as ability trails.
+ * Pattern from Animator afterimage + Casting wind residual fade feel.
  */
 export class DodgeAfterimage {
   /**
@@ -32,25 +31,23 @@ export class DodgeAfterimage {
    */
   constructor(scene) {
     this.scene = scene;
-    /** @type {{ root: Group, mats: MeshBasicMaterial[], age: number, life: number }[]} */
+    /** @type {{ root: Group, mats: import('three').Material[], age: number, life: number, baseOpacity: number, baseScale: number }[]} */
     this._active = [];
     this._stampAcc = 0;
   }
 
   /**
-   * Path-spaced afterimage at dodge start (MM distance along dir).
-   * @param {import('three').Object3D} source model or root with skinned meshes
-   * @param {import('three').Vector3} from world feet / root
-   * @param {import('three').Vector3} dir unit XZ
+   * @param {import('three').Object3D} source
+   * @param {import('three').Vector3} from
+   * @param {import('three').Vector3} dir
    * @param {number} distanceM
-   * @param {{ count?: number, life?: number, color?: number|string }} [opts]
+   * @param {{ count?: number, life?: number }} [opts]
    */
   spawnPath(source, from, dir, distanceM, opts = {}) {
     if (!source || !from || distanceM < 0.05) return;
     const cfg = settings.drc?.afterimage || {};
     const count = Math.max(2, Math.min(10, opts.count ?? cfg.count ?? 6));
-    const life = opts.life ?? cfg.life ?? 0.42;
-    const color = this._color(opts.color ?? cfg.color);
+    const life = opts.life ?? cfg.life ?? 0.55;
 
     _dir.copy(dir);
     _dir.y = 0;
@@ -58,17 +55,18 @@ export class DodgeAfterimage {
     else _dir.normalize();
 
     _from.copy(from);
-    const yaw = source.rotation?.y ?? source.parent?.rotation?.y ?? 0;
+    const yaw = this._sourceYaw(source);
 
     for (let i = 0; i < count; i++) {
       const f = (i + 1) / (count + 1);
       _pos.copy(_from).addScaledVector(_dir, distanceM * f);
-      this._spawnGhost(source, _pos, yaw, color, 0.5 * (1 - i / count), life * (0.85 + f * 0.2));
+      // Later ghosts thinner / shorter life (vapor chain)
+      const op = 0.42 * (1 - i / (count + 0.5));
+      this._spawnGhost(source, _pos, yaw, op, life * (0.75 + f * 0.35));
     }
   }
 
   /**
-   * One ghost stamp at current model pose (call while dodge is live).
    * @param {import('three').Object3D} source
    * @param {import('three').Vector3} worldPos
    * @param {number} [yaw]
@@ -76,14 +74,11 @@ export class DodgeAfterimage {
   stamp(source, worldPos, yaw) {
     if (!source || !worldPos) return;
     const cfg = settings.drc?.afterimage || {};
-    const color = this._color(cfg.color);
-    const life = (cfg.stampLife ?? 0.28);
-    const y = yaw ?? source.rotation?.y ?? 0;
-    this._spawnGhost(source, worldPos, y, color, 0.38, life);
+    const life = cfg.stampLife ?? 0.32;
+    this._spawnGhost(source, worldPos, yaw ?? this._sourceYaw(source), 0.32, life);
   }
 
   /**
-   * Continuous trail while dodge/invuln runs.
    * @param {number} dt
    * @param {boolean} active
    * @param {import('three').Object3D|null} source
@@ -96,7 +91,7 @@ export class DodgeAfterimage {
       this._stampAcc = 0;
       return;
     }
-    const interval = settings.drc?.afterimage?.stampInterval ?? 0.055;
+    const interval = settings.drc?.afterimage?.stampInterval ?? 0.048;
     this._stampAcc += dt;
     while (this._stampAcc >= interval) {
       this._stampAcc -= interval;
@@ -104,20 +99,35 @@ export class DodgeAfterimage {
     }
   }
 
-  /** Fade + dispose finished ghosts. */
+  /** Vapor dissipate: opacity falloff + rise + soft expand. */
   update(dt) {
+    const cfg = settings.drc?.afterimage || {};
+    const rise = cfg.vaporRise ?? 0.55;
+    const expand = cfg.vaporExpand ?? 0.28;
+
     for (let i = this._active.length - 1; i >= 0; i--) {
       const g = this._active[i];
       g.age += dt;
-      const k = 1 - g.age / g.life;
-      if (k <= 0) {
+      const t = MathUtils.clamp(g.age / g.life, 0, 1);
+      if (t >= 1) {
         this._disposeGhost(g);
         this._active.splice(i, 1);
         continue;
       }
+      // Vapor curve: holds briefly then softens (ease-in-out power)
+      const hold = cfg.vaporHold ?? 0.12;
+      const u = t < hold ? 0 : (t - hold) / (1 - hold);
+      const fade = Math.pow(1 - u, cfg.vaporPower ?? 2.4);
+      const op = g.baseOpacity * fade;
+
       for (const mat of g.mats) {
-        mat.opacity = g.baseOpacity * k;
+        mat.opacity = op;
       }
+
+      // Expand + drift up like steam
+      const s = g.baseScale * (1 + expand * u * u);
+      g.root.scale.setScalar(s);
+      g.root.position.y = g.baseY + rise * u * u;
     }
   }
 
@@ -128,95 +138,123 @@ export class DodgeAfterimage {
 
   /* ------------------------------------------------------------------ */
 
-  _color(c) {
-    if (typeof c === 'number') return c;
-    if (typeof c === 'string') return getColor(c).getHex();
-    // Wind residual cyan (matches WindAbility ribbon inner)
-    try {
-      return getColor(settings.wind?.colorInner || '#ebf7ff').getHex();
-    } catch {
-      return 0xaee6ff;
+  _sourceYaw(source) {
+    return source.rotation?.y ?? source.parent?.rotation?.y ?? 0;
+  }
+
+  /**
+   * Pull a soft tint from a source material (map keeps silhouette of gear colors).
+   * @param {import('three').Material|import('three').Material[]|null} srcMat
+   * @param {number} opacity
+   * @returns {MeshBasicMaterial}
+   */
+  _ghostMaterialFrom(srcMat, opacity) {
+    const src = Array.isArray(srcMat) ? srcMat[0] : srcMat;
+    const map = src?.map || null;
+    if (src?.color) _c.copy(src.color);
+    else _c.setHex(0xc8c0b8);
+    // Soften toward mid-grey so additive doesn't blow out
+    _c.lerp(new Color(0xb0aaa4), 0.15);
+
+    const mat = new MeshBasicMaterial({
+      color: _c.clone(),
+      map: map || null,
+      transparent: true,
+      opacity,
+      // Soft vapor: mostly normal so model colors show, slight additive lift
+      blending: map ? NormalBlending : AdditiveBlending,
+      depthWrite: false,
+      side: DoubleSide,
+      toneMapped: false,
+      fog: false
+    });
+    if (map) {
+      mat.map = map;
+      // Do not dispose shared map on ghost death
+      mat.userData.sharedMap = true;
     }
+    return mat;
   }
 
   /**
    * @param {import('three').Object3D} source
    * @param {import('three').Vector3} pos
    * @param {number} yaw
-   * @param {number} colorHex
    * @param {number} opacity
    * @param {number} life
    */
-  _spawnGhost(source, pos, yaw, colorHex, opacity, life) {
+  _spawnGhost(source, pos, yaw, opacity, life) {
     let ghost;
     try {
       ghost = skeletonClone(source);
     } catch {
-      // Fallback: shallow clone (no skinned bind) — still reads as a silhouette
       ghost = source.clone(true);
     }
 
-    ghost.position.copy(pos);
-    ghost.rotation.set(0, yaw, 0);
+    ghost.position.set(0, 0, 0);
+    ghost.rotation.set(0, 0, 0);
     ghost.scale.copy(source.scale);
+
+    /** @type {import('three').Material[]} */
+    const mats = [];
+
     ghost.traverse((o) => {
       if (o.isLight || o.isCamera) {
         o.visible = false;
         return;
       }
-      if (o.isSkinnedMesh || o.isMesh) {
-        o.layers?.set?.(LAYER.VFX);
-        o.frustumCulled = false;
-        o.castShadow = false;
-        o.receiveShadow = false;
-      }
-    });
-
-    const mats = [];
-    const ghostMat = new MeshBasicMaterial({
-      color: new Color(colorHex),
-      transparent: true,
-      opacity,
-      blending: AdditiveBlending,
-      depthWrite: false,
-      side: DoubleSide,
-      toneMapped: false
-    });
-    mats.push(ghostMat);
-
-    ghost.traverse((o) => {
       if (!o.isMesh && !o.isSkinnedMesh) return;
-      // Shared geometry with source — only replace materials
-      if (Array.isArray(o.material)) {
-        o.material = o.material.map(() => ghostMat);
+      o.layers?.set?.(LAYER.VFX);
+      o.frustumCulled = false;
+      o.castShadow = false;
+      o.receiveShadow = false;
+
+      const srcMats = Array.isArray(o.material) ? o.material : [o.material];
+      if (srcMats.length > 1) {
+        const multi = srcMats.map((m) => {
+          const g = this._ghostMaterialFrom(m, opacity);
+          mats.push(g);
+          return g;
+        });
+        o.material = multi;
       } else {
-        o.material = ghostMat;
+        const g = this._ghostMaterialFrom(srcMats[0], opacity);
+        mats.push(g);
+        o.material = g;
       }
     });
 
     const root = new Group();
     root.name = 'DodgeAfterimage';
+    root.position.copy(pos);
+    root.rotation.set(0, yaw, 0);
     root.add(ghost);
     this.scene.add(root);
 
+    const baseScale = root.scale.x || 1;
     this._active.push({
       root,
       mats,
       age: 0,
-      life: Math.max(0.08, life),
-      baseOpacity: opacity
+      life: Math.max(0.1, life),
+      baseOpacity: opacity,
+      baseScale,
+      baseY: pos.y
     });
   }
 
   _disposeGhost(g) {
     this.scene.remove(g.root);
     g.root.traverse((o) => {
-      // Do NOT dispose geometry — shared with live hero via SkeletonUtils
       if (o.isMesh || o.isSkinnedMesh) {
         o.geometry = null;
         o.skeleton = null;
       }
     });
-    for (const mat of g.mats) mat.dispose();
+    for (const mat of g.mats) {
+      // Never dispose shared textures from live hero
+      if (mat.map && mat.userData?.sharedMap) mat.map = null;
+      mat.dispose();
+    }
   }
 }

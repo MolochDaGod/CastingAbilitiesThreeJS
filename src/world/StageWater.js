@@ -17,6 +17,8 @@ import { getColor } from '../utils/color.js';
  * Stage water layer — real transparent water plane (not ability path volume).
  * SI metres; sits under the dark slab so the horizon reads as water + fog.
  * Uses scene env map for reflections when available.
+ *
+ * CPU sampleHeight for windsurf freeride (soft ocean body follow).
  */
 export class StageWater {
   constructor() {
@@ -134,6 +136,24 @@ export class StageWater {
     this.mesh.layers.set(LAYER.WORLD);
     this.mesh.renderOrder = -1;
     this.group = this.mesh;
+  }
+
+  /**
+   * CPU wave height (m) for freeride board follow — mirrors vertex shader amp.
+   * @param {number} x
+   * @param {number} z
+   * @param {number} [time]
+   * @returns {number}
+   */
+  sampleHeight(x, z, time) {
+    const t = time ?? this.uniforms.uTime.value ?? 0;
+    const amp = this.uniforms.uWaveAmp?.value ?? 0.08;
+    const freq = this.uniforms.uWaveFreq?.value ?? 0.35;
+    // Approximate snoise with multi-sine (cheap, SI)
+    const w1 = Math.sin(x * freq + t * 0.22) * Math.cos(z * freq + t * 0.18);
+    const w2 = Math.sin(x * freq * 2.1 + 3 + t * 0.35) * Math.cos(z * freq * 1.7 + t * 0.3);
+    const elev = (w1 * 0.65 + w2 * 0.35) * amp;
+    return (WORLD.waterY || 0) + elev;
   }
 
   update(elapsed) {
