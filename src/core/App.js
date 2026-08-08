@@ -48,6 +48,7 @@ import { loadGeneratedCatalog, spawnGeneratedProp } from '../assets/generatedCat
 
 import { settings, ELEMENTS, MODES, MODE_META } from '../config/settings.js';
 import { SessionState, INTERACTION_MODE, DRC_SESSION } from './SessionState.js';
+import { CombatFocus } from '../combat/CombatFocus.js';
 
 const HDR_URL = './hdri/spruit_sunrise.hdr';
 
@@ -145,6 +146,13 @@ export class App {
     this.pathDrawer = new PathDrawer(this.camera);
     this.scene.add(this.pathDrawer.object3D);
     this.mouseAim = new MouseAim(this.camera);
+    this.combatFocus = new CombatFocus();
+    this.rig.setCombatFocus?.(this.combatFocus);
+    this.combatFocus.on('toast', (msg) => this.hud.showToast(msg));
+    this.combatFocus.on('focus', (on) => {
+      this.hud.setCrosshairVisible?.(on || this.drc.inCombat);
+      this.hud.root?.classList.toggle('hud--focus', !!on);
+    });
     // Ground aim ring under crosshair (combat)
     const ringGeo = new RingGeometry(0.18, 0.32, 32);
     const ringMat = new MeshBasicMaterial({
@@ -242,6 +250,7 @@ export class App {
       physics: null,
       vfx: this.vfxDirector,
       aim: this.mouseAim,
+      combatFocus: this.combatFocus,
       sessionState: this.session,
       onToast: (message) => this.hud.showToast(message),
       // Side effects applied once via session.change — toast only here
@@ -807,31 +816,58 @@ export class App {
 
     /* ---- simulation ---- */
     this.renderer.syncSettings();
-    // The editor and the preset system write `settings.mode` directly.
-    if (settings.mode !== this._mode) this.setMode(settings.mode);
+    // Editor / presets may write settings.mode
+    if (settings.mode !== this.session.mode) this.session.syncFromSettings();
 
     this.environment.setFocus(this.character.position.x, this.character.position.z);
     this.environment.update();
 
-    // Mouse aim → ground crosshair + body face (combat)
+    // Mouse aim + soft lock (combat) — production targeting
     const aimOn = this.drc.inCombat && settings.aim?.enabled !== false;
+    const feetPos = this.character.getWorldPosition?.() || this.character.position;
     if (aimOn) {
-      this.mouseAim.updateFromNdc(this.input.pointer, this.character.position);
+      this.mouseAim.updateFromNdc(this.input.pointer, feetPos);
+      // Soft-lock resolve aim point for marker / facing
+      if (this.combatFocus?.focusEnabled) {
+        this.combatFocus.resolveAimPoint(feetPos, this.mouseAim.point, this.mouseAim.point);
+        this.mouseAim._fromPlayer?.(feetPos);
+        // Recompute yaw from soft point
+        this.mouseAim.yaw = Math.atan2(
+          this.mouseAim.point.x - feetPos.x,
+          this.mouseAim.point.z - feetPos.z
+        );
+        this.mouseAim.forward.set(
+          Math.sin(this.mouseAim.yaw),
+          0,
+          Math.cos(this.mouseAim.yaw)
+        );
+        this.mouseAim.right.set(this.mouseAim.forward.z, 0, -this.mouseAim.forward.x);
+      }
       if (this.aimMarker && settings.aim?.groundMarker !== false) {
-        this.aimMarker.visible = this.mouseAim.valid;
-        if (this.mouseAim.valid) {
+        this.aimMarker.visible = this.mouseAim.valid || !!this.combatFocus?.selectedTarget;
+        if (this.aimMarker.visible) {
           this.aimMarker.position.x = this.mouseAim.point.x;
           this.aimMarker.position.z = this.mouseAim.point.z;
-          // Pulse scale by distance
-          const d = this.mouseAim.distanceTo(this.character.position);
+          const d = this.mouseAim.distanceTo(feetPos);
           const s = MathUtils.clamp(0.7 + d * 0.04, 0.7, 1.6);
           this.aimMarker.scale.setScalar(s);
+          // Outline state: focus ring style
+          this.aimMarker.material.opacity = this.combatFocus?.focusEnabled ? 0.95 : 0.75;
+          this.aimMarker.material.color?.setHex?.(
+            this.combatFocus?.selectedTarget ? 0xff6a55 : 0x7fd6ff
+          );
         }
       }
-      this.hud.setCrosshairVisible?.(settings.aim?.crosshair !== false);
+      const showXh =
+        settings.aim?.crosshair !== false &&
+        (this.combatFocus?.focusEnabled || settings.aim?.crosshair);
+      this.hud.setCrosshairVisible?.(!!showXh);
+      this.hud.root?.classList.toggle('hud--focus', !!this.combatFocus?.focusEnabled);
+      this.hud.root?.classList.toggle('hud--softlock', !!this.combatFocus?.selectedTarget);
     } else {
       if (this.aimMarker) this.aimMarker.visible = false;
       this.hud.setCrosshairVisible?.(false);
+      this.hud.root?.classList.remove('hud--focus', 'hud--softlock');
     }
 
     // Editor may flip settings.mode / settings.drc.session — pull into session
@@ -872,7 +908,7 @@ export class App {
     this.bursts.update(dt);
     this.lights.update(dt);
 
-    /* ---- camera: always track character feet (world — works while board-parented) ---- */
+    /* ---- camera: feet + soft-lock look (production TPS angles) ---- */
     const feet = this.character.getWorldPosition?.() || this.character.position;
     const px = feet.x;
     const py = feet.y;
@@ -881,6 +917,13 @@ export class App {
     if (focus) this.rig.lookAt(focus.position, MathUtils.clamp(1 - focus.u * 0.4, 0, 1));
     this.rig.setAnchor(px, py, pz);
     this.rig.setCharacterYaw(this.character.facing);
+
+    // Soft lock: bias camera look toward selected target (not hard snap)
+    if (this.combatFocus?.focusEnabled && this.combatFocus.selectedTarget) {
+      this.rig.setSoftLock?.(this.combatFocus.selectedTarget.point, 1);
+    } else {
+      this.rig.setSoftLock?.(null, 0);
+    }
     this.shake.update(raw);
     this.flash.update(raw);
     this.rig.update(raw);

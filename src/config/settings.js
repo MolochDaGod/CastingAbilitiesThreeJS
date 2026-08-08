@@ -370,43 +370,52 @@ export const settings = {
   },
 
   /* ------------------------------------------------------------------ */
-  /* Combat aim — mouse ground crosshair · body + camera follow          */
+  /* Combat aim + soft lock (MouseAim + CombatFocus)                     */
   /* ------------------------------------------------------------------ */
   aim: {
-    /** Face character toward mouse ground hit in combat */
     enabled: true,
-    /** Turn rate (rad/s) toward aim — snappy but not instant */
     turnSpeed: 14,
-    /** Move WASD relative to aim (W = toward crosshair) */
+    sprintTurnSpeed: 18,
     moveRelativeToAim: true,
-    /** TPS camera follows body yaw (mouse aim) */
     cameraFollowAim: true,
-    /** Soft yaw lag for camera behind body (0 = hard lock) */
     cameraYawLag: 0.12,
-    /** Show ground aim ring under cursor */
     groundMarker: true,
-    /** Screen crosshair DOM */
-    crosshair: true
+    crosshair: true,
+    faceTravelWhenMoving: false,
+    /** Soft lock blend toward selected target (not hard snap) */
+    softLockBlend: 0.55,
+    softLockRange: 22
   },
 
   /* ------------------------------------------------------------------ */
-  /* Camera rig                                                          */
+  /* Camera rig — combat angles from grudge-third-person-controller      */
   /* ------------------------------------------------------------------ */
   camera: {
-    distance: 11.5,
-    minDistance: 3.5, // scroll-wheel zoom range
-    maxDistance: 30,
-    zoomSpeed: 1.0,
-    zoomDamping: 0.002, // fraction of the zoom gap left after 1s
-    minPolar: 0.35,
-    maxPolar: 1.32,
-    fov: 46,
-    targetHeight: 1.35,
+    /**
+     * Fortnite/WoW blend TPS (ref: MolochDaGod/grudge-third-person-controller)
+     * + soft-lock look (grudge-combat-targeting). Orbit sandbox unchanged.
+     * @see docs/COMBAT_CAMERA_FOCUS_SSOT.md
+     */
+    distance: 6.2,
+    minDistance: 2.8,
+    maxDistance: 18,
+    zoomSpeed: 0.85,
+    zoomDamping: 0.002,
+    minPolar: 0.22,
+    maxPolar: 1.35,
+    fov: 58,
+    targetHeight: 1.45,
     damping: 0.06,
-    autoFrame: 0.35, // how strongly the rig drifts toward active abilities
-    /** Combat TPS (DRC) — OrbitControls disabled while active */
-    tpsDamping: 0.14,
-    tpsDistanceScale: 0.68
+    autoFrame: 0.35,
+    tpsDamping: 0.16,
+    tpsDistanceScale: 1.0,
+    /** Over-the-shoulder offset (m) */
+    shoulderOffset: 0.72,
+    tpsDefaultPitch: 0.38,
+    minPitch: 0.08,
+    maxPitch: 1.25,
+    softLockLook: 0.28,
+    orbitSensitivity: 0.0038
   },
 
   /* ------------------------------------------------------------------ */

@@ -54,6 +54,8 @@ export class DrcCombatController {
     this.physics = opts.physics || null;
     this.vfx = opts.vfx || null;
     this.aim = opts.aim || null;
+    /** @type {import('./CombatFocus.js').CombatFocus|null} */
+    this.combatFocus = opts.combatFocus || null;
     /** @type {import('../core/SessionState.js').SessionState|null} */
     this.sessionState = opts.sessionState || null;
     this.onToast = opts.onToast || (() => {});
@@ -309,7 +311,7 @@ export class DrcCombatController {
     let vx = moving ? _move.x * speed : 0;
     let vz = moving ? _move.z * speed : 0;
 
-    // Face: sprint freelook faces move dir; walk faces aim (true strafe)
+    // Face: soft-lock / focus → cam-fwd; sprint freelook → move; else aim
     this._updateFacingToAim(dt, moving);
 
     // ── Jump / double-jump / S+Space backflip ─────────────────────────
@@ -373,8 +375,19 @@ export class DrcCombatController {
     if (locked && (st === 'dodge' || st === 'roll' || st === 'slide')) return;
 
     let targetYaw = this.character.facing;
-    // Shift sprint: face movement so lateral keys rotate into a run
-    if (this._sprinting && moving && _move.lengthSq() > 1e-6) {
+    const focus = this.combatFocus;
+    // Soft-lock / focus: body faces camera-forward (strafe), not hard snap to target
+    if (focus?.focusEnabled || focus?.rmbHeld) {
+      this.camera.getWorldDirection(_fwd);
+      _fwd.y = 0;
+      if (_fwd.lengthSq() > 1e-6) {
+        _fwd.normalize();
+        targetYaw = Math.atan2(_fwd.x, _fwd.z);
+      } else if (this.aim?.valid) {
+        targetYaw = this.aim.yaw;
+      }
+    } else if (this._sprinting && moving && _move.lengthSq() > 1e-6) {
+      // Shift sprint freelook-run
       targetYaw = Math.atan2(_move.x, _move.z);
     } else if (settings.aim?.enabled !== false && this.aim?.valid) {
       targetYaw = this.aim.yaw;

@@ -617,6 +617,25 @@ body {
   transition: width 0.15s ease;
 }
 
+/* RMB soft-lock focus outline (production targeting) */
+.hud--focus .hud__crosshair {
+  opacity: 1;
+}
+.hud--focus .hud__crosshair-ring {
+  border-color: rgba(255, 180, 80, 0.95);
+  box-shadow: 0 0 12px rgba(255, 160, 60, 0.55);
+}
+.hud--softlock .hud__crosshair-ring {
+  border-color: rgba(255, 90, 70, 0.98);
+  box-shadow: 0 0 14px rgba(255, 70, 50, 0.65);
+}
+.hud--focus .hud__crosshair-dot {
+  background: #ffb84a;
+}
+.hud--softlock .hud__crosshair-dot {
+  background: #ff5a45;
+}
+
 .hud-frame__val {
   position: absolute;
   inset: 0;
