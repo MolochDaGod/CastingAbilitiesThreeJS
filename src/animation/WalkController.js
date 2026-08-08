@@ -16,7 +16,8 @@ const _footR = new Vector3();
 
 const wrapAngle = (angle) => MathUtils.euclideanModulo(angle + Math.PI, TAU) - Math.PI;
 
-const Phase = Object.freeze({
+/** Local phase machine — also report every transition to SessionState.setRidePhase */
+export const Phase = Object.freeze({
   IDLE: 'idle',
   LEAP: 'leap', // frontflip deploy → board
   RIDE: 'ride', // path-follow
@@ -44,15 +45,18 @@ const Phase = Object.freeze({
 export class WalkController {
   /**
    * @param {import('./CharacterController.js').CharacterController} character
-   * @param {object} ctx { scene, particles, lights, decals, bursts, shake, physics?, water? }
+   * @param {object} ctx { scene, particles, lights, decals, bursts, shake, physics?, water?, session? }
    */
   constructor(character, ctx) {
     this.character = character;
     this.ctx = ctx;
+    /** @type {import('../core/SessionState.js').SessionState|null} */
+    this.session = ctx.session || null;
 
     this.scooter = new HoverboardRide(ctx, ctx.assets || null);
     ctx.scene.add(this.scooter.group);
 
+    // Init without emit (session may attach later)
     this.phase = Phase.IDLE;
     this.curve = null;
     this.length = 0;
@@ -88,6 +92,22 @@ export class WalkController {
 
   get freeriding() {
     return this.phase === Phase.FREERIDE;
+  }
+
+  /**
+   * Single phase transition — reports to SessionState for gates/HUD.
+   * @param {string} next
+   */
+  _setPhase(next) {
+    if (this.phase === next) return;
+    this.phase = next;
+    this.session?.setRidePhase?.(next);
+  }
+
+  /** Optional inject after construction. */
+  setSession(session) {
+    this.session = session || null;
+    this.session?.setRidePhase?.(this.phase, { silent: true });
   }
 
   get ballHeight() {
@@ -193,7 +213,7 @@ export class WalkController {
     this._dismountRider(true);
     this.scooter.cancel();
     this.character.setRideActive?.(false);
-    this.phase = Phase.IDLE;
+    this._setPhase(Phase.IDLE);
     this.curve = null;
     this.character.setPose('idle', settings.walk.poseBlend);
     this.character.resetPlacement();
@@ -401,7 +421,7 @@ export class WalkController {
     const c = settings.walk;
     const reach = _p.copy(this._target).setY(0).distanceTo(_t.copy(this._from).setY(0));
 
-    this.phase = Phase.LEAP;
+    this._setPhase(Phase.LEAP);
     this._leapTime = 0;
     this._leapDuration = clamp(reach / Math.max(0.5, c.jumpSpeed), c.jumpMin, c.jumpMax);
     this._yaw = this.character.facing;
@@ -485,7 +505,7 @@ export class WalkController {
       this.character.clearFlip?.();
       this.character.resetPlacement();
       this.character.setRideActive?.(false);
-      this.phase = Phase.IDLE;
+      this._setPhase(Phase.IDLE);
       this.curve = null;
       this._land(0.5);
       return;
@@ -508,10 +528,10 @@ export class WalkController {
     this._syncMountedRider(0);
 
     if (this._enterFreeride || !this.curve) {
-      this.phase = Phase.FREERIDE;
+      this._setPhase(Phase.FREERIDE);
       this._enterFreeride = false;
     } else {
-      this.phase = Phase.RIDE;
+      this._setPhase(Phase.RIDE);
     }
   }
 
@@ -586,7 +606,7 @@ export class WalkController {
         // Path done → freeride boat (tslda) with residual velocity
         this.curve = null;
         this._vel.set(Math.sin(this._yaw) * this.speed, 0, Math.cos(this._yaw) * this.speed);
-        this.phase = Phase.FREERIDE;
+        this._setPhase(Phase.FREERIDE);
       } else {
         this._startDismount();
       }
@@ -720,7 +740,7 @@ export class WalkController {
   /* ------------------------------------------------------------------ */
 
   _startDismount() {
-    this.phase = Phase.DISMOUNT;
+    this._setPhase(Phase.DISMOUNT);
     this._dismountTime = 0;
 
     // Capture world exit before unparent
@@ -769,7 +789,7 @@ export class WalkController {
       return;
     }
 
-    this.phase = Phase.IDLE;
+    this._setPhase(Phase.IDLE);
     this.curve = null;
   }
 

@@ -3,8 +3,8 @@
 **Hosts:** https://casting-abilities-threejs.vercel.app · https://casting.grudge-studio.com (when DNS live)  
 **Agent skill:** `~/.grok/skills/casting-warlords-lab/SKILL.md`  
 **Repo:** `C:\Users\nugye\Documents\CastingAbilitiesThreeJS`  
-**Anim library:** `docs/ANIM_LIBRARY_SSOT.md` · `src/config/animLibrary.js`
-
+**Anim library:** `docs/ANIM_LIBRARY_SSOT.md` · `src/config/animLibrary.js`  
+**Session state:** `docs/SESSION_STATE_SSOT.md` · `src/core/SessionState.js`
 ## Character path (deployed reference — do not fork)
 
 | Concern | Value |
@@ -56,6 +56,7 @@ learn source → isolate primitive → edit knobs → bind skill → smoke → e
 | **Windsurf freeride** | Frontflip + sail from back · feet/hands IK · WASD boat (tslda) · `docs/WINDSURF_RIDE_SSOT.md` |
 | **Island stage** | Planar pad + shore + water ring · `docs/ISLAND_STAGE_SSOT.md` |
 | **Staff elements** | 1 Fire · 2 Ice · 3 Nature · 4 Storm (`ELEMENT_META` / staffFire…Storm) |
+| **Session SSOT** | `SessionState` mode · drc · ridePhase · gates (no ad-hoc mode forks) |
 | **Dodge afterimage** | Model-color blur + vapor dissipate (`DodgeAfterimage.js`) |
 | **Dodge MM** | `combat/motionMath.js` — 100 MM = 1 m; AA/DD lateral **720 MM (7.2 m = 3×)** |
 | **Dodge afterimage** | `vfx/DodgeAfterimage.js` — SkeletonUtils mesh ghosts, wind cyan additive |

@@ -47,15 +47,19 @@ import { VfxDirector } from '../vfx/VfxDirector.js';
 import { loadGeneratedCatalog, spawnGeneratedProp } from '../assets/generatedCatalog.js';
 
 import { settings, ELEMENTS, MODES, MODE_META } from '../config/settings.js';
+import { SessionState, INTERACTION_MODE, DRC_SESSION } from './SessionState.js';
 
 const HDR_URL = './hdri/spruit_sunrise.hdr';
 
 /**
  * Application root: owns every subsystem and the frame loop.
  *
- * The wiring is deliberately one-directional — App builds the systems, hands
- * each ability a context object of the shared services, and then does nothing
- * but order the per-frame updates. No subsystem reaches back into App.
+ * Wiring is one-directional. **Session orchestration** lives in SessionState:
+ * mode / combat-equip / ride phase / element + derived gates. Controllers report
+ * phase changes; App applies camera/inventory/HUD once on session.change.
+ * Tweaks (numbers/colors) stay in settings.js.
+ *
+ * @see docs/SESSION_STATE_SSOT.md
  */
 export class App {
   constructor(canvas) {
@@ -64,6 +68,9 @@ export class App {
     this.elapsed = 0;
     this.paused = false;
     this._raf = 0;
+
+    /** Session SSOT — mode, drc, ride, element, gates */
+    this.session = new SessionState();
 
     /* ---- core ---- */
     this.renderer = new Renderer(canvas);
@@ -129,6 +136,7 @@ export class App {
       bursts: this.bursts,
       shake: this.shake,
       water: this.water,
+      session: this.session,
       assets: null // filled in load()
     });
 
@@ -234,34 +242,82 @@ export class App {
       physics: null,
       vfx: this.vfxDirector,
       aim: this.mouseAim,
+      sessionState: this.session,
       onToast: (message) => this.hud.showToast(message),
-      onSession: (session) => this._onDrcSession(session)
+      // Side effects applied once via session.change — toast only here
+      onSession: () => {}
     });
 
     this._bindEvents();
-    this._mode = null;
-    this.setMode(settings.mode);
+    this.session.on('change', (snap, prev, reason) => this._onSessionChange(snap, prev, reason));
+    // Bootstrap: apply gates without double toast
+    this.session.setMode(settings.mode, { silent: true });
+    this.session.setDrc(settings.drc?.session || 'combat', { silent: true });
+    this.session.setElement(ELEMENTS[0], { silent: true });
+    this._onSessionChange(this.session.snapshot(), null, 'boot');
     this.selectElement(ELEMENTS[0]);
-    this._onDrcSession(this.drc.session);
 
     this._focusPoint = new Vector3();
   }
 
-  _onDrcSession(session) {
-    settings.drc.session = session;
-    // Combat → TPS follow (OrbitControls off). Equip → orbit + inventory.
-    this.rig.setViewMode(session === 'combat' ? 'tps' : 'orbit');
-    this.input.setCombatKeys?.(session === 'combat');
-    this.pathDrawer.setCombatMinLength?.(
-      session === 'combat' ? settings.staffCast?.combatMinPathLength ?? 0.9 : null
-    );
-    if (session === 'equip') {
-      this.inventory.setOpen(true);
+  /**
+   * Single place for camera / inventory / HUD / keys from SessionState.
+   * Controllers must not scatter these side effects.
+   * @param {import('./SessionState.js').SessionSnapshot} snap
+   * @param {import('./SessionState.js').SessionSnapshot|null} prev
+   * @param {string} reason
+   */
+  _onSessionChange(snap, prev, reason) {
+    const g = snap.gates;
+    const modeChanged = !prev || prev.mode !== snap.mode;
+    const drcChanged = !prev || prev.drc !== snap.drc;
+    const rideChanged = !prev || prev.ridePhase !== snap.ridePhase;
+
+    // Leaving walk / equip cancels ride machine
+    if (modeChanged && snap.mode !== INTERACTION_MODE.WALK) {
       this.walk?.cancel?.();
-    } else {
-      this.inventory.setOpen(false);
     }
-    this.hud.setDrcSession?.(session);
+    if (drcChanged && snap.drc === DRC_SESSION.EQUIP) {
+      this.walk?.cancel?.();
+    }
+
+    // Camera view from gates
+    if (g.tpsCamera) this.rig.setViewMode('tps');
+    else if (g.orbitCamera) this.rig.setViewMode('orbit');
+
+    this.input.setCombatKeys?.(g.combatKeys);
+    this.pathDrawer.setCombatMinLength?.(
+      snap.drc === DRC_SESSION.COMBAT && snap.mode === INTERACTION_MODE.CASTING
+        ? settings.staffCast?.combatMinPathLength ?? 0.9
+        : null
+    );
+
+    if (g.inventoryOk) this.inventory?.setOpen?.(true);
+    else if (drcChanged || modeChanged) this.inventory?.setOpen?.(false);
+
+    // HUD mirrors session (no local mode/session forks)
+    this.hud.setMode?.(snap.mode);
+    this.hud.setDrcSession?.(snap.drc);
+    if (this.hud.blurb) this.hud.blurb.textContent = this.session.blurb();
+
+    if (modeChanged && reason !== 'boot') {
+      if (snap.mode === INTERACTION_MODE.WALK) {
+        this.inventory?.setOpen?.(false);
+        if (this._assets && !this.walk.scooter?.ready) {
+          this.walk.load(this._assets).catch(() => {});
+        }
+        this.hud.showToast('Windsurf · Space = deploy · draw path = course · WASD steer');
+      } else {
+        const meta = MODE_META[snap.mode];
+        if (meta) this.hud.showToast(`${meta.hint} — ${meta.blurb}`);
+      }
+      this.editor?.refresh?.();
+    }
+
+    if (rideChanged && snap.freeriding && reason !== 'boot') {
+      // Freeride implies combat skills on board
+      if (snap.drc !== DRC_SESSION.COMBAT) this.session.setDrc(DRC_SESSION.COMBAT);
+    }
   }
 
   /* ------------------------------------------------------------------ */
@@ -278,8 +334,10 @@ export class App {
     this.input.on('draw:end', () => this.pathDrawer.end());
 
     this.input.on('element', (index) => {
-      // In DRC combat, digits 1–4 are weapon skills; element cycle stays on E
-      if (this.drc.inCombat) {
+      // Combat: digits fire skills; also keep element aligned with staff slot
+      if (this.session.gates.combatSkills || this.drc.inCombat) {
+        const el = ELEMENTS[index];
+        if (el) this.selectElement(el);
         this.drc.useSkill(index);
         return;
       }
@@ -292,14 +350,14 @@ export class App {
       }
     });
 
-    // Path stroke: walk = ride; combat = staff place/stream; casting = free element cast.
+    // Path stroke meaning from SessionState.gates (not scattered settings.mode checks)
     this.pathDrawer.on('cast', (curve, _pts, _n, length = 0, holdSec = 0) => {
-      if (settings.mode === 'walk') {
+      const g = this.session.gates;
+      if (g.pathIsRide) {
         if (!this.walk.begin(curve)) this.hud.showToast('Path too short to ride');
         return;
       }
       if (this.drc.inCombat) {
-        // LMB hold-draw: AOE place · ice spikes · wall · stream (staffCast SSOT)
         this.pathDrawer.setCombatMinLength?.(settings.staffCast?.combatMinPathLength ?? 0.9);
         this.drc.castPathAbility?.(curve, length || curve?.getLength?.() || 0, holdSec);
         return;
@@ -537,6 +595,7 @@ export class App {
         break;
       case 'togglePause':
         this.paused = !this.paused;
+        this.session.setPaused(this.paused);
         this.hud.showToast(this.paused ? 'Paused' : 'Resumed');
         break;
       case 'togglePose': {
@@ -555,16 +614,17 @@ export class App {
 
   selectElement(element) {
     if (!element) return;
+    this.session.setElement(element);
     this.abilities.select(element);
     this.hud.setElement(element);
   }
 
   /**
    * Walk mode Space edge → frontflip + sail deploy freeride (back-slot windsurf).
-   * Esc / cancel via mode toggle. While freeriding: WASD, Space hop, 1–4/F skills.
+   * Gate: session.gates.freerideDeploy
    */
   _pollWindsurfDeploy() {
-    if (this.walk.active) {
+    if (!this.session.gates.freerideDeploy) {
       this._wasWalkSpace = this.input.keys.has('Space');
       return;
     }
@@ -580,36 +640,11 @@ export class App {
   }
 
   /**
-   * Switch between casting and walking.
-   *
-   * `settings.mode` is the source of truth — the editor writes it directly and
-   * the frame loop notices — so this is also the sync point for presets and
-   * "reset to defaults".
+   * Interaction mode via SessionState (settings.mode mirrored for editor).
+   * Side effects: session.change → _onSessionChange.
    */
   setMode(mode) {
-    const next = MODES.includes(mode) ? mode : MODES[0];
-    const changed = this._mode !== next;
-    this._mode = next;
-    settings.mode = next;
-
-    if (next !== 'walk') {
-      this.walk.cancel();
-    } else {
-      // Windsurf mode: draw path to board OR Space = quick freeride deploy (tslda boat)
-      this.inventory?.setOpen?.(false);
-      this.rig.setViewMode('orbit');
-      if (this._assets && !this.walk.scooter?.ready) {
-        this.walk.load(this._assets).catch(() => {});
-      }
-      if (changed) {
-        this.hud.showToast('Windsurf · Space = deploy · draw path = course · WASD steer');
-      }
-    }
-    this.hud.setMode(next);
-    if (changed && next !== 'walk') {
-      this.hud.showToast(`${MODE_META[next].hint} — ${MODE_META[next].blurb}`);
-    }
-    this.editor.refresh();
+    this.session.setMode(mode);
   }
 
   clearEffects() {
@@ -799,23 +834,22 @@ export class App {
       this.hud.setCrosshairVisible?.(false);
     }
 
-    // Windsurf freeride: keys + Space deploy + TPS + combat skills
+    // Editor may flip settings.mode / settings.drc.session — pull into session
+    if (settings.mode !== this.session.mode) this.session.syncFromSettings();
+
+    // Windsurf: keys + Space deploy (gates); camera/keys already from session.change
     this.walk.setKeys?.(this.input.keys);
-    if (settings.mode === 'walk') {
+    if (this.session.mode === INTERACTION_MODE.WALK) {
       this._pollWindsurfDeploy();
-      if (this.walk.freeriding) {
-        if (!this.drc.inCombat) this.drc.setSession('combat');
-        this.rig.setViewMode('tps');
-        this.input.setCombatKeys?.(true);
-      }
     }
 
-    // Walk ride owns root while active; DRC yields land loco when character._rideActive
     // SSOT order: walk.update → character.update (mixer) → walk.applyRiderIk
-    if (settings.mode === 'walk' || this.walk.active) this.walk.update(dt);
+    if (this.session.mode === INTERACTION_MODE.WALK || this.walk.active) this.walk.update(dt);
     this.drc.update(dt, this.input.keys);
     this.character.update(dt);
-    if (settings.mode === 'walk' || this.walk.active) this.walk.applyRiderIk?.(dt);
+    if (this.session.mode === INTERACTION_MODE.WALK || this.walk.active) {
+      this.walk.applyRiderIk?.(dt);
+    }
     this.worldDrops?.update?.(dt);
 
     this.ground.update(this.elapsed);

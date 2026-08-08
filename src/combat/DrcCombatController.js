@@ -48,11 +48,13 @@ export class DrcCombatController {
     this.physics = opts.physics || null;
     this.vfx = opts.vfx || null;
     this.aim = opts.aim || null;
+    /** @type {import('../core/SessionState.js').SessionState|null} */
+    this.sessionState = opts.sessionState || null;
     this.onToast = opts.onToast || (() => {});
     this.onSession = opts.onSession || (() => {});
 
-    /** @type {'equip'|'combat'} — combat-first showcase (Q toggles equip) */
-    this.session = 'combat';
+    /** @type {'equip'|'combat'} — mirrored in SessionState.drc */
+    this.session = this.sessionState?.drc || 'combat';
     this.skills = getActiveSkills();
     /** Focus buff: until elapsed, spell damage mul (T0 Apprentice Wand Focus) */
     this._focusUntil = 0;
@@ -124,7 +126,17 @@ export class DrcCombatController {
   }
 
   get inCombat() {
-    return this.session === 'combat';
+    return this.sessionState ? this.sessionState.inCombat : this.session === 'combat';
+  }
+
+  /** Prefer session.gates when present. */
+  get gates() {
+    return this.sessionState?.gates || null;
+  }
+
+  setSessionState(sessionState) {
+    this.sessionState = sessionState || null;
+    if (sessionState) this.session = sessionState.drc;
   }
 
   toggleSession() {
@@ -140,6 +152,8 @@ export class DrcCombatController {
     this.session = next;
     settings.drc = settings.drc || {};
     settings.drc.session = next;
+    // Report to SessionState (App applies camera/HUD once on change)
+    this.sessionState?.setDrc?.(next);
     this.onSession(next);
     this.onToast(
       next === 'combat'
@@ -157,17 +171,21 @@ export class DrcCombatController {
     // stamina regen
     this.stamina = Math.min(this.maxStamina, this.stamina + dt * 18);
 
-    // Windsurf: board vehicle parents character — never write root world pose
+    // Session gates (preferred) — land loco off while riding / equip / walk mode
+    const g = this.gates;
     const riding =
+      g?.rideParented ||
+      this.sessionState?.riding ||
       this.character._rideActive ||
       this.character._rideParented ||
       this.character.isRideParented ||
       this.character.root?.parent?.name?.startsWith?.('socket_');
-    if (riding) {
+    if (riding || (g && !g.landLoco)) {
       this.character.setGait?.(0, false);
       if (this.invuln > 0) this.invuln = Math.max(0, this.invuln - dt);
-      // Skills via useSkill while skillsWhileRide — no land locomotion / physics move
-      return;
+      // Skills still via useSkill when gates.combatSkills — no land move
+      if (riding || !this.inCombat) return;
+      if (g && !g.landLoco) return;
     }
     if (!this.inCombat) {
       this.character.setGait?.(0, false);
@@ -448,6 +466,11 @@ export class DrcCombatController {
   useSkill(slot) {
     if (!this.inCombat) {
       this.onToast('Enter combat (Q) to use DRC skills');
+      return false;
+    }
+    const g = this.gates;
+    if (g && !g.combatSkills) {
+      this.onToast('Skills locked');
       return false;
     }
     // Windsurf freeride: allow ranged/staff skills (tslda boat combat feel)
