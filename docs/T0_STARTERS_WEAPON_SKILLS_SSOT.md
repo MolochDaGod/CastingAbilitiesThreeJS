@@ -59,6 +59,11 @@ URL shortcuts: `?wand=1` · equip path always preferred.
 
 ## Assets (meshes)
 
-GLB models are **separate** from skill import: catalog skills work without mesh.  
-When models ship to `assets.grudge-studio.com` / prefab `modelUrl`, equip attaches them.  
-Source authoring: apprentice = arcane resonance staff · sapling = mushroom_staff (slot tint later).
+| Catalog id | CDN mesh (R2) | Source author |
+|------------|---------------|---------------|
+| **t0-wand** | `prod/gltf/weapons/t0-wand.glb` | arcane_staff_of_resonance |
+| **t0-nature-staff** | `prod/gltf/weapons/t0-nature-staff.glb` | mushroom_staff |
+| family | `prod/gltf/weapons/wand.glb` (alias of apprentice) | same |
+
+Skills import from catalog; equip uses these URLs via `T0_MODEL_CDN` + prefab patch.  
+Mesh nodes stay separate for later slot tint (mushroom colors). SI hand scale in `WeaponMeshAttach`.

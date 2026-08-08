@@ -22,7 +22,7 @@ node scripts/audit-asset-library.mjs
 | **Armor** | Catalog **KEEP** `master-armor.json` — **DO NOT invent** `master-armor-prefabs` in lab until ObjectStore ships it |
 | **D1 `weapon_prefabs`** | Seed SQL exists — index only; **JSON remains authority** |
 | **Deprecated catalogs still HTTP 200** | **DO NOT wire** into lab/games loaders (see §3) |
-| **Custom T0 wand meshes** (arcane / mushroom GLB) | **NOT on CDN yet** — lab falls back to `staff.glb` |
+| **Custom T0 wand meshes** | **UPLOADED 2026-08** `prod/gltf/weapons/t0-wand.glb` · `t0-nature-staff.glb` · `wand.glb` (HEAD 200) |
 
 ---
 

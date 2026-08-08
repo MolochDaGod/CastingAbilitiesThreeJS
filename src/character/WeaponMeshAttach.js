@@ -1,6 +1,9 @@
 /**
  * Attach catalog weapon GLB to R_hand_container for equip preview / prefab QA.
  * Uses prod modelUrl from master-weapon-prefabs (SI scale).
+ *
+ * Wands/staffs: prefer controlled length; allow slightly wider silhouettes
+ * (mushroom / resonance heads) without becoming 100× giants.
  */
 
 import { Group, Box3, Vector3, MathUtils } from 'three';
@@ -13,7 +16,12 @@ const loader = new GLTFLoader();
 /**
  * @param {import('three').Object3D|null} handBone
  * @param {string|null} modelUrl
- * @param {{ maxLengthM?: number, clear?: boolean }} [opts]
+ * @param {{
+ *   maxLengthM?: number,
+ *   maxWidthM?: number,
+ *   profile?: 'melee'|'wand'|'staff'|'bow'|'shield',
+ *   clear?: boolean
+ * }} [opts]
  * @returns {Promise<import('three').Object3D|null>}
  */
 export async function attachWeaponModel(handBone, modelUrl, opts = {}) {
@@ -22,26 +30,63 @@ export async function attachWeaponModel(handBone, modelUrl, opts = {}) {
 
   if (!modelUrl) return null;
 
-  const maxLen = opts.maxLengthM ?? 1.35;
+  const urlLow = String(modelUrl).toLowerCase();
+  const profile =
+    opts.profile ||
+    (/t0-wand|wand\.glb|apprentice/i.test(urlLow)
+      ? 'wand'
+      : /t0-nature|staff|sapling|mushroom/i.test(urlLow)
+        ? 'staff'
+        : /bow|crossbow|gun/i.test(urlLow)
+          ? 'bow'
+          : /shield/i.test(urlLow)
+            ? 'shield'
+            : 'melee');
+
+  // SI: human ~1.8 m — wand shorter, staff a bit longer; width soft-cap for chunky heads
+  const maxLen =
+    opts.maxLengthM ??
+    (profile === 'wand' ? 0.95 : profile === 'staff' ? 1.25 : profile === 'bow' ? 1.4 : 1.2);
+  const maxWidth =
+    opts.maxWidthM ?? (profile === 'wand' || profile === 'staff' ? 0.55 : 0.4);
+
   try {
     const gltf = await loader.loadAsync(modelUrl);
     const root = gltf.scene || gltf.scenes?.[0];
     if (!root) return null;
 
+    // Separate mesh nodes stay named (do not merge) — useful for slot tint later
+    root.traverse((o) => {
+      if (o.isMesh) {
+        o.castShadow = true;
+        o.receiveShadow = true;
+        o.frustumCulled = true;
+      }
+    });
+
     const holder = new Group();
     holder.name = 'WeaponAttach';
     holder.userData.weaponAttach = true;
+    holder.userData.profile = profile;
+    holder.userData.modelUrl = modelUrl;
     holder.add(root);
 
-    // Normalize to SI hand weapon length
+    // Normalize length first, then soft-cap width (willing wider than long for heads)
     _box.setFromObject(root);
     _box.getSize(_size);
     const longest = Math.max(_size.x, _size.y, _size.z, 0.01);
-    const s = maxLen / longest;
+    let s = maxLen / longest;
     root.scale.setScalar(s);
+    _box.setFromObject(root);
+    _box.getSize(_size);
+    const width = Math.max(_size.x, _size.z);
+    if (width > maxWidth) {
+      s *= maxWidth / width;
+      root.scale.setScalar(s);
+    }
 
-    // Grip: blade along +Y local (Toon hand often needs tweak per mesh)
-    root.rotation.x = MathUtils.degToRad(-90);
+    // Grip: shaft along +Y local (Toon R_hand)
+    root.rotation.x = MathUtils.degToRad(profile === 'bow' ? -75 : -90);
     root.position.set(0, 0, 0);
 
     handBone.add(holder);

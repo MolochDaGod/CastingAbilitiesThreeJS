@@ -38,6 +38,15 @@ export const T0_STARTER_WEAPON_IDS = Object.freeze({
   saplingStaff: 't0-nature-staff'
 });
 
+/**
+ * Production mesh overrides (R2 prod/gltf) when catalog still points at family staff.glb.
+ * Uploaded 2026-08: arcane resonance → t0-wand · mushroom → t0-nature-staff · wand family.
+ */
+export const T0_MODEL_CDN = Object.freeze({
+  't0-wand': `${CDN}/prod/gltf/weapons/t0-wand.glb`,
+  't0-nature-staff': `${CDN}/prod/gltf/weapons/t0-nature-staff.glb`
+});
+
 /** category / id → kit mesh slot */
 export const WEAPON_TYPE_TO_MESH_SLOT = Object.freeze({
   SWORD: 'sword',
@@ -217,6 +226,15 @@ export function buildEquippable(prefab, t0 = null, skillsCat = null) {
     t0?.iconUrl ||
     cdnUrl('icons/pack/weapons/Sword_01.png');
 
+  // Prefer authored T0 meshes on CDN over generic family staff.glb
+  const modelOverride = T0_MODEL_CDN[id] || null;
+  const modelUrl =
+    modelOverride ||
+    t0?.modelUrl ||
+    t0?.assets?.modelUrl ||
+    present?.modelUrl ||
+    null;
+
   let slot1 = null;
   let slot2 = null;
   /** @type {WeaponSkillDef[]} */
@@ -334,7 +352,7 @@ export function buildEquippable(prefab, t0 = null, skillsCat = null) {
     labStyle: lab.labStyle,
     labElement: lab.labElement,
     iconUrl,
-    modelUrl: present?.modelUrl || null,
+    modelUrl,
     dropPrefabUrl: present?.dropPrefabUrl || null,
     present,
     slot1,

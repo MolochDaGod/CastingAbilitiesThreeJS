@@ -60,13 +60,34 @@ export function presentPrefab(prefab) {
     cdnUrl(prefab.icon?.cdnUrl || prefab.icon?.path) ||
     cdnUrl('icons/pack/weapons/Sword_01.png');
 
+  const wt = String(prefab.weaponType || prefab.category || '').toUpperCase();
+  const id = String(prefab.id || '');
+  // Authored T0 meshes (R2) before family fallbacks
+  let familyFallback = 'prod/gltf/weapons/sword.glb';
+  if (/WAND|STAFF|TOME|MAGIC|NATURE_STAFF|FIRE_STAFF|FROST|HOLY|LIGHTNING|ARCANE/i.test(wt + id)) {
+    familyFallback = 'prod/gltf/weapons/staff.glb';
+  } else if (/BOW|CROSSBOW|GUN|RIFLE|PISTOL/i.test(wt)) {
+    familyFallback = 'prod/gltf/weapons/bow.glb';
+  } else if (/AXE|GREATAXE/i.test(wt)) {
+    familyFallback = 'prod/gltf/weapons/axe.glb';
+  } else if (/HAMMER|MACE/i.test(wt)) {
+    familyFallback = 'prod/gltf/weapons/hammer.glb';
+  } else if (/DAGGER/i.test(wt)) {
+    familyFallback = 'prod/gltf/weapons/dagger.glb';
+  } else if (/SHIELD/i.test(wt)) {
+    // shield.glb not on CDN yet — axe body as temporary offhand silhouette
+    familyFallback = 'prod/gltf/weapons/axe.glb';
+  }
+  if (id === 't0-wand') familyFallback = 'prod/gltf/weapons/t0-wand.glb';
+  if (id === 't0-nature-staff') familyFallback = 'prod/gltf/weapons/t0-nature-staff.glb';
+
   const modelUrl =
     prefab.modelUrl ||
     prefab.prodGltfUrl ||
     prefab.mesh?.prodGltfUrl ||
     prefab.assets?.modelUrl ||
     cdnUrl(prefab.assets?.modelR2Key || prefab.modelPath || prefab.prodGltfKey) ||
-    cdnUrl('prod/gltf/weapons/sword.glb');
+    cdnUrl(familyFallback);
 
   const dropPrefabUrl = prefab.assets?.dropPrefabR2Key
     ? cdnUrl(prefab.assets.dropPrefabR2Key)

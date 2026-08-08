@@ -114,8 +114,23 @@ export async function equipWeapon(weapon, ctx) {
   clearWeaponAttach(hand);
   _attach = null;
   if (weapon.modelUrl) {
+    const wt = String(weapon.weaponType || '');
+    const id = String(weapon.id || '');
+    let profile = 'melee';
+    if (/WAND/i.test(wt) || id === 't0-wand') profile = 'wand';
+    else if (/STAFF|TOME/i.test(wt) || /staff|sapling/i.test(id)) profile = 'staff';
+    else if (/BOW|GUN|CROSSBOW/i.test(wt)) profile = 'bow';
+    else if (/SHIELD/i.test(wt)) profile = 'shield';
     _attach = await attachWeaponModel(hand, weapon.modelUrl, {
-      maxLengthM: weapon.weaponType === 'SPEAR' || /GREAT|2H/i.test(weapon.weaponType) ? 1.8 : 1.2
+      profile,
+      maxLengthM:
+        profile === 'wand'
+          ? 0.95
+          : profile === 'staff'
+            ? 1.25
+            : /SPEAR|GREAT|2H/i.test(wt)
+              ? 1.8
+              : 1.2
     });
   }
 
