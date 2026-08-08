@@ -2,7 +2,8 @@
 
 **Hosts:** https://casting-abilities-threejs.vercel.app · https://casting.grudge-studio.com (when DNS live)  
 **Agent skill:** `~/.grok/skills/casting-warlords-lab/SKILL.md`  
-**Repo:** `C:\Users\nugye\Documents\CastingAbilitiesThreeJS`
+**Repo:** `C:\Users\nugye\Documents\CastingAbilitiesThreeJS`  
+**Anim library:** `docs/ANIM_LIBRARY_SSOT.md` · `src/config/animLibrary.js`
 
 ## Character path (deployed reference — do not fork)
 
@@ -51,6 +52,10 @@ learn source → isolate primitive → edit knobs → bind skill → smoke → e
 | **Roll clips** | `ghost_rider/roll_left|right|forward|back` (primary) · locomotion fallbacks |
 | **Slide clip** | `prod:extra/running-slide` (+ quick-roll-to-run) |
 | **Dodge clips** | longbow standing dodge L/R/F/B (+ locomotion / ghost_rider dodge) |
+| **Anim library SSOT** | `animLibrary.js` vocabulary · families · `getAnimLibrary()` · Showcase Anims by family |
+| **Dodge MM** | `combat/motionMath.js` — 100 MM = 1 m; AA/DD lateral **720 MM (7.2 m = 3×)** |
+| **Dodge afterimage** | `vfx/DodgeAfterimage.js` — SkeletonUtils mesh ghosts, wind cyan additive |
+| **Dodge invuln** | `DrcCombatController.isInvincible` / `invuln` for full dodge duration |
 | **Staff path cast** | LMB hold-draw → AOE place · spikes · wall · stream (`settings.staffCast`) |
 | **Showcase (O / Show)** | Race · mesh · weapon type · anims · bind master skills to 1–4 / F |
 | **Weapon skills SSOT** | `info…/api/v1/master-weaponSkills.json` v3.1 · 268 skills · WEAPON_SKILLS.html |

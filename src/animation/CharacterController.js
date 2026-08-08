@@ -19,6 +19,7 @@ import {
   bakedClipUrlsForRole
 } from '../config/assets.js';
 import { animPackForLoadout, activeWeaponSlot, packCombatBlurb } from '../config/weaponAnimPack.js';
+import { describeAnimLibrary, roleBlurb } from '../config/animLibrary.js';
 import {
   atlasUrlForRace,
   kitUrlForRace,
@@ -384,6 +385,20 @@ export class CharacterController {
   /** Bound clip roles for anim library UI. */
   listAnimRoles() {
     return [...this.actions.keys()].sort();
+  }
+
+  /**
+   * Animation library snapshot (packs, families, mobility, play API).
+   * Use for Showcase Anims tab + agent diagnostics — do not fork role names.
+   * @see config/animLibrary.js · docs/ANIM_LIBRARY_SSOT.md
+   */
+  getAnimLibrary() {
+    return describeAnimLibrary(this);
+  }
+
+  /** Human blurb for a bound role (toast / lab). */
+  describeRole(roleName) {
+    return roleBlurb(roleName);
   }
 
   /** Play a library clip by role name (one-shot for attack/block/jump). */

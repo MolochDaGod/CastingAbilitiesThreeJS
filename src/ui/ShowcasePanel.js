@@ -26,6 +26,12 @@ import {
   getSkillBinding
 } from '../combat/skillBindings.js';
 import { packCombatBlurb } from '../config/weaponAnimPack.js';
+import {
+  groupRolesByFamily,
+  classifyRole,
+  MOBILITY_BINDINGS,
+  roleBlurb
+} from '../config/animLibrary.js';
 
 export class ShowcasePanel {
   /**
@@ -288,7 +294,9 @@ export class ShowcasePanel {
     const host = this.el.querySelector('[data-sec="anims"]');
     if (!host) return;
     const c = this.character;
-    const roles = c.listAnimRoles?.() || [];
+    const lib = c.getAnimLibrary?.() || null;
+    const roles = lib?.roles || c.listAnimRoles?.() || [];
+    const byFamily = lib?.byFamily || groupRolesByFamily(roles);
     const packOpts = Object.keys(ANIM_PACKS)
       .map(
         (id) =>
@@ -296,17 +304,51 @@ export class ShowcasePanel {
       )
       .join('');
 
+    const familyOrder = ['gait', 'combat', 'mobility', 'utility'];
+    const familyLabels = {
+      gait: 'Gait (setGait)',
+      combat: 'Combat (one-shot)',
+      mobility: 'Mobility (dodge · roll · slide)',
+      utility: 'Other'
+    };
+    const sections = familyOrder
+      .map((fam) => {
+        const list = byFamily[fam] || [];
+        if (!list.length) return '';
+        const buttons = list
+          .map((r) => {
+            const meta = classifyRole(r);
+            const title = roleBlurb(r).replace(/"/g, '&quot;');
+            return `<button type="button" class="showcase-clip" data-clip="${r}" data-family="${fam}" title="${title}">${meta.base || r}</button>`;
+          })
+          .join('');
+        return `<div class="showcase-anim-family" data-family="${fam}">
+          <h4 class="showcase-subh">${familyLabels[fam] || fam}</h4>
+          <div class="showcase-clip-grid">${buttons}</div>
+        </div>`;
+      })
+      .join('');
+
+    const mobilityHint = Object.values(MOBILITY_BINDINGS)
+      .map((m) => `<li><b>${m.label}</b> — ${m.input}</li>`)
+      .join('');
+
+    const mm = lib?.dodgeMm;
+    const mmLine = mm
+      ? `MM dodge: L/R <b>${mm.lateralM} m</b> · F/B ${mm.forwardM}/${mm.backM} m (${mm.units})`
+      : '';
+
     host.innerHTML = `
-      <h3>Animations (watch in scene)</h3>
+      <h3>Animation library</h3>
+      <p class="showcase-hint">Packs + roles SSOT · <code>animLibrary.js</code> · watch in scene</p>
       <label class="showcase-row">
-        <span>Pack</span>
+        <span>Weapon pack</span>
         <select data-pack>${packOpts}</select>
       </label>
-      <div class="showcase-clip-grid">
-        ${roles
-          .map((r) => `<button type="button" class="showcase-clip" data-clip="${r}">${r}</button>`)
-          .join('') || '<p class="showcase-hint">No clips — load character first</p>'}
-      </div>
+      <p class="showcase-hint">${packCombatBlurb(c.animPackId || 'magic')}</p>
+      <p class="showcase-hint">${mmLine}</p>
+      <ul class="showcase-hint showcase-mobility-list">${mobilityHint}</ul>
+      ${sections || '<p class="showcase-hint">No clips — load character first</p>'}
     `;
 
     host.querySelector('[data-pack]')?.addEventListener(
@@ -314,12 +356,16 @@ export class ShowcasePanel {
       this._busyGuard(async (e) => {
         await c.setAnimPack?.(e.target.value);
         await c._bindPack?.('combat_mobility');
-        this.onToast(`Pack · ${e.target.value}`);
+        this.onToast(`Pack · ${e.target.value} · mobility rebound`);
+        this._fillAnims();
       })
     );
     host.querySelectorAll('[data-clip]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        c.playLibraryClip?.(btn.dataset.clip) || c.play?.(btn.dataset.clip, 0.12);
+        const role = btn.dataset.clip;
+        const ok =
+          c.playLibraryClip?.(role) || c.play?.(role, 0.12);
+        this.onToast(ok ? roleBlurb(role) : `Missing · ${role}`);
       });
     });
   }

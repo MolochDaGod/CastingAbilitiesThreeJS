@@ -47,12 +47,28 @@ export const settings = {
     jumpBufferMs: 120,
     /** Double-tap window for AA / DD / WW dodges (ms) */
     doubleTapMs: 280,
-    /** Dodge slide distance (m) */
+    /**
+     * Baseline dodge distance (m) for WW / X.
+     * AA/DD use motion-math lateral (3×) via dodgeMm.lateral — see combat/motionMath.js
+     */
     dodgeDistance: 2.4,
-    /** Dodge duration (s) — also one-shot lock */
+    /** Lateral AA/DD multiplier when dodgeMm not used (fallback) */
+    dodgeLateralMul: 3,
+    /**
+     * Motion-math dodge peaks (100 MM = 1 m). Lateral 720 = 7.2 m escape.
+     * @see combat/motionMath.js DODGE_MM
+     */
+    dodgeMm: {
+      lateral: 720,
+      forward: 240,
+      back: 240
+    },
+    /** Dodge duration (s) — also one-shot lock + invuln window */
     dodgeDuration: 0.42,
     /** Stamina cost per dodge */
     dodgeStamina: 10,
+    /** I-frames while MM dodge + afterimage trail is live (s); 0 = match dodgeDuration */
+    dodgeInvuln: 0,
     /** Parry stamina */
     parryStamina: 8,
     /**
@@ -61,13 +77,27 @@ export const settings = {
      *  - Shift: freelook-run — A/D rotate into run (no strafe)
      *  - Ctrl+A / Ctrl+D: left / right roll (Ghost Rider clips)
      *  - Shift+Ctrl while sprint: slide
+     *  - AA/DD double-tap: MM escape dodge + wind afterimage + invuln
      */
     rollDistance: 3.0,
     rollDuration: 0.55,
     rollStamina: 12,
     slideDistance: 4.2,
     slideDuration: 0.72,
-    slideStamina: 14
+    slideStamina: 14,
+    /**
+     * Dodge afterimage — trailing copies of the hero mesh (SkeletonUtils).
+     * Wind residual palette (post-cast air ribbons).
+     */
+    afterimage: {
+      enabled: true,
+      count: 6,
+      life: 0.45,
+      stampInterval: 0.05,
+      stampLife: 0.28,
+      /** null = settings.wind.colorInner */
+      color: null
+    }
   },
 
   /**

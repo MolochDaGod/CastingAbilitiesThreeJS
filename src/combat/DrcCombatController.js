@@ -9,6 +9,7 @@ import { settings } from '../config/settings.js';
 import { residualFromSettings } from '../vfx/effectPrefab.js';
 import { getSkillBinding } from './skillBindings.js';
 import { vfxIdForSkill, animRoleForSkill } from '../api/weaponSkillsCatalog.js';
+import { dodgeDistanceM } from './motionMath.js';
 
 const _origin = new Vector3();
 const _tip = new Vector3();
@@ -89,9 +90,16 @@ export class DrcCombatController {
     this._dodgeT = 0;
     this._dodgeDur = 0;
     this._dodgeVel = new Vector3();
+    /** I-frames while MM dodge / afterimage trail runs (seconds remaining) */
+    this.invuln = 0;
     /** Edge state for Ctrl roll + Shift+Ctrl slide */
     this._ctrlWasDown = false;
     this._rollKeyWas = { KeyA: false, KeyD: false, KeyW: false, KeyS: false };
+  }
+
+  /** True while dodge MM + afterimage invuln window is active. */
+  get isInvincible() {
+    return this.invuln > 0 || this._dodgeT > 0;
   }
 
   setPhysics(physics) {
@@ -153,6 +161,9 @@ export class DrcCombatController {
     const ctrlHeld = keys.has('ControlLeft') || keys.has('ControlRight');
     this._sprinting = keys.has('ShiftLeft') || keys.has('ShiftRight');
 
+    // I-frame timer (dodge sets this; other systems can extend)
+    if (this.invuln > 0) this.invuln = Math.max(0, this.invuln - dt);
+
     // Shift+Ctrl slide (sprint channel) · Ctrl+A/D rolls · AA/DD dodges
     this._pollSlide(keys, ctrlHeld);
     this._pollCtrlRoll(keys, ctrlHeld);
@@ -172,11 +183,26 @@ export class DrcCombatController {
         this.character.root.position.x += vx * dt;
         this.character.root.position.z += vz * dt;
       }
+      // Continuous model afterimage trail while MM dodge / invuln runs
+      const src = this.character.model || this.character.root;
+      const pos = this.character.root?.position;
+      this.vfx?.updateDodgeTrail?.(
+        dt,
+        true,
+        src,
+        pos,
+        this.character.facing
+      );
       if (this._dodgeT <= 0) {
         this._dodgeVel.set(0, 0, 0);
+        // Keep fading residual ghosts after impulse ends
+        this.vfx?.updateDodgeTrail?.(0, false, null, null);
       }
       return;
     }
+
+    // Fade leftover afterimages when not dodging
+    this.vfx?.updateDodgeTrail?.(dt, false, null, null);
 
     // ── WASD locomotion ──────────────────────────────────────────────
     // Walk (no Shift): face aim · A/D body-strafe
@@ -896,7 +922,9 @@ export class DrcCombatController {
   }
 
   /**
-   * Directional dodge with longbow standing dodge clips (AA/DD/WW/X).
+   * Directional dodge (AA/DD/WW double-tap · X back).
+   * Uses motion-math (MM) distance profiles: AA/DD lateral = 3× baseline (7.2 m).
+   * Spawns wind-style mesh afterimages + full invuln for the dodge window.
    * @param {'left'|'right'|'forward'|'back'} dir
    */
   dodge(dir) {
@@ -906,12 +934,35 @@ export class DrcCombatController {
     return this._utilityAction(`dodge_${d}`, cd, stam, () => {
       this._cdUntil.set('dodge', this.elapsed + cd);
       this._cdMax.set('dodge', cd);
-      const dist = settings.drc?.dodgeDistance ?? 2.4;
+
+      const dist = dodgeDistanceM(d, settings.drc || {});
       const dur = settings.drc?.dodgeDuration ?? 0.42;
       this._startMobilityImpulse(d, dist, dur);
+
+      // I-frames for entire MM dodge + afterimage window
+      const inv = settings.drc?.dodgeInvuln;
+      this.invuln = Math.max(this.invuln, inv > 0 ? inv : dur);
+
+      // Path afterimage (trailing model copies) along the escape vector
+      const origin = this.character.root?.position?.clone?.() || this.character.position?.clone?.();
+      if (origin && this._dodgeVel.lengthSq() > 1e-6) {
+        _fwd.set(this._dodgeVel.x, 0, this._dodgeVel.z).normalize();
+        const src = this.character.model || this.character.root;
+        this.vfx?.afterimage?.(src, origin, _fwd, dist, {
+          count: settings.drc?.afterimage?.count ?? 6,
+          life: Math.max(settings.drc?.afterimage?.life ?? 0.45, dur)
+        });
+      }
+
       const played = this.character.playDodge?.(d);
+      const lat = d === 'left' || d === 'right';
       const labels = { left: 'AA left', right: 'DD right', forward: 'WW forward', back: 'X back' };
-      this.onToast(`${labels[d] || d} dodge${played ? '' : ' (no clip)'}`);
+      this.onToast(
+        `${labels[d] || d} dodge · ${dist.toFixed(1)}m MM` +
+          `${lat ? ' ×3' : ''}` +
+          `${played ? '' : ' (no clip)'}` +
+          ' · invuln'
+      );
     });
   }
 

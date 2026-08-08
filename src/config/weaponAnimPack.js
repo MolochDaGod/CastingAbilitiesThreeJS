@@ -3,6 +3,8 @@
  * SSOT for lab: mesh_ids weapon slot drives locomotion + attack/cast clips.
  *
  * Packs live in assets.js ANIM_PACKS.
+ * Shared mobility (dodge/roll/slide) lives in combat_mobility — always bound.
+ * Role language / families: config/animLibrary.js · docs/ANIM_LIBRARY_SSOT.md
  */
 
 /** @typedef {'magic'|'sword_shield'|'longbow'} WeaponAnimPackId */
@@ -23,28 +25,47 @@ export const WEAPON_SLOT_TO_PACK = Object.freeze({
   longbow: 'longbow'
 });
 
+/** Shared mobility roles (combat_mobility pack — not weapon-specific). */
+export const MOBILITY_ROLES = Object.freeze([
+  'dodgeL',
+  'dodgeR',
+  'dodgeF',
+  'dodgeB',
+  'rollL',
+  'rollR',
+  'rollF',
+  'rollB',
+  'slide',
+  'parry',
+  'block'
+]);
+
 /**
  * What one-shot roles each pack owns for combat skills.
- * @type {Record<WeaponAnimPackId, { attack: string, cast: string, block: string, loco: string[] }>}
+ * Mobility is always layered from combat_mobility (see MOBILITY_ROLES).
+ * @type {Record<WeaponAnimPackId, { attack: string, cast: string, block: string, loco: string[], mobility: string[] }>}
  */
 export const PACK_COMBAT_ROLES = Object.freeze({
   magic: {
     attack: 'cast',
     cast: 'cast',
     block: 'block',
-    loco: ['idle', 'walk', 'run', 'jump']
+    loco: ['idle', 'walk', 'run', 'jump'],
+    mobility: [...MOBILITY_ROLES]
   },
   sword_shield: {
     attack: 'attack',
     cast: 'attack',
     block: 'block',
-    loco: ['idle', 'walk', 'run', 'jump']
+    loco: ['idle', 'walk', 'run', 'jump'],
+    mobility: [...MOBILITY_ROLES]
   },
   longbow: {
     attack: 'attack',
     cast: 'attack',
     block: 'block',
-    loco: ['idle', 'walk', 'run', 'jump']
+    loco: ['idle', 'walk', 'run', 'jump'],
+    mobility: [...MOBILITY_ROLES]
   }
 });
 
@@ -83,5 +104,5 @@ export function animPackForLoadout(loadout = {}, presetPack) {
  */
 export function packCombatBlurb(packId) {
   const r = PACK_COMBAT_ROLES[packId] || PACK_COMBAT_ROLES.magic;
-  return `${packId}: ${r.attack}/${r.cast} · loco ${r.loco.join('·')}`;
+  return `${packId}: ${r.attack}/${r.cast} · loco ${r.loco.join('·')} · mobility dodge/roll/slide`;
 }

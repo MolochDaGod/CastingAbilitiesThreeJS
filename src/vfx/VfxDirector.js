@@ -12,6 +12,7 @@ import {
   VFX_SANDBOX_SHORTCUTS,
   vfxCatalogById
 } from './vfxCatalog.js';
+import { DodgeAfterimage } from './DodgeAfterimage.js';
 
 const _p = new Vector3();
 const _f = new Vector3();
@@ -23,6 +24,8 @@ const _emit = {};
  * High-beauty VFX director for weapon skills — layers particles, bursts,
  * decals, lights, shake, flash using this app's existing systems.
  * Catalog / hotkeys aligned with https://vfxgrudge.puter.site/
+ *
+ * Also owns dodge MM afterimage trails (model trailing images).
  */
 export class VfxDirector {
   /**
@@ -32,6 +35,8 @@ export class VfxDirector {
     this.ctx = ctx;
     this._systems = new Map();
     this._bootSystems();
+    /** @type {DodgeAfterimage|null} */
+    this.afterimages = ctx.scene ? new DodgeAfterimage(ctx.scene) : null;
   }
 
   _bootSystems() {
@@ -353,6 +358,37 @@ export class VfxDirector {
       colorB: new Color(0xffffff),
       colorC: new Color(color)
     });
+  }
+
+  /**
+   * Motion-math dodge afterimage: path-spaced trailing copies of the hero.
+   * Wind residual palette (cyan additive) — same family as post-cast air trails.
+   * @param {import('three').Object3D} source model
+   * @param {import('three').Vector3} from
+   * @param {import('three').Vector3} dir
+   * @param {number} distanceM
+   * @param {object} [opts]
+   */
+  afterimage(source, from, dir, distanceM, opts = {}) {
+    if (settings.drc?.afterimage?.enabled === false) return;
+    this.afterimages?.spawnPath(source, from, dir, distanceM, opts);
+    // Soft wind-like dust along the path start
+    if (from) {
+      this._emitBurst('mote', from.clone().setY((from.y || 0) + 0.9), 18, 2.4, 0xc9f0ff);
+      this._emitBurst('frost', from.clone().setY((from.y || 0) + 0.4), 10, 1.6, 0xaee6ff);
+    }
+  }
+
+  /**
+   * Continuous trail while dodge invuln is live.
+   * @param {number} dt
+   * @param {boolean} active
+   * @param {import('three').Object3D|null} source
+   * @param {import('three').Vector3|null} worldPos
+   * @param {number} [yaw]
+   */
+  updateDodgeTrail(dt, active, source, worldPos, yaw) {
+    this.afterimages?.updateTrail(dt, active, source, worldPos, yaw);
   }
 
   _emitBurst(sysId, position, count, speed, color) {
