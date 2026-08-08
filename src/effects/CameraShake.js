@@ -53,9 +53,10 @@ export class CameraShake {
     const ny = Math.sin(t * 1.37 + 4.2) * 0.6 + Math.sin(t * 2.79 + 0.3) * 0.4;
     const nz = Math.sin(t * 0.83 + 2.9) * 0.6 + Math.sin(t * 3.11 + 5.1) * 0.4;
 
-    this._offset.set(nx, ny * 0.7, nz).multiplyScalar(shake * 0.55);
+    // Soft lab default — was 0.55 pos / 0.035 roll (felt like a phone on vibrate)
+    this._offset.set(nx, ny * 0.7, nz).multiplyScalar(shake * 0.28);
     this.rig.shakeOffset.copy(this._offset);
-    this.rig.shakeRoll = nz * shake * 0.035;
+    this.rig.shakeRoll = nz * shake * 0.018;
 
     this.trauma = Math.max(0, this.trauma - this.decay * dt);
   }

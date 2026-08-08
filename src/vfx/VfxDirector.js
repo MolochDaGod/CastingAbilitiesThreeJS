@@ -13,6 +13,11 @@ import {
   vfxCatalogById
 } from './vfxCatalog.js';
 import { DodgeAfterimage } from './DodgeAfterimage.js';
+import {
+  presentationFor,
+  HYBRID_SPIKE_OVERLAY
+} from '../combat/elementPresentation.js';
+import { normalizeElement } from '../combat/elementWeaponSkills.js';
 
 const _p = new Vector3();
 const _f = new Vector3();
@@ -104,8 +109,8 @@ export class VfxDirector {
         this._nova(front, color, intensity * 1.1);
         this._burst(front, color, 32, 4.2, intensity);
         this._sparks(front, 0x7ec8ff, 40, 5, intensity);
-        this.ctx.shake?.add(0.12 * intensity, 0.7, 28);
-        this._flash(color, 0.18);
+        this.ctx.shake?.add(0.045 * intensity, 0.9, 22);
+        this._flash(color, 0.07);
         break;
       case 'moon_beam': {
         const beam = aim.clone();
@@ -114,14 +119,14 @@ export class VfxDirector {
         this._castAura(beam.clone().setY(1.3), color, intensity);
         this._burst(beam.clone().setY(2.0), color, 22, 2.6, intensity);
         this._nova(beam.clone().setY(1.5), 0xe8f4ff, intensity * 0.9);
-        this._flash(color, 0.12);
+        this._flash(color, 0.05);
         break;
       }
       case 'frost_wave':
         this._frostPlate(ground, 4.4, color, intensity * 1.15);
         this._shockwave(ground, color, 4.6, intensity);
         this._burst(front, color, 26, 3.6, intensity);
-        this.ctx.shake?.add(0.1 * intensity, 0.65, 22);
+        this.ctx.shake?.add(0.035 * intensity, 0.85, 18);
         break;
       case 'fire_aura':
         this._castAura(cast, color, intensity);
@@ -133,7 +138,7 @@ export class VfxDirector {
         this._shockwave(ground.clone().setY(0.07), 0x8b7355, 3.6, intensity * 0.85);
         this._dustBurst(ground, 36, intensity);
         this._burst(front, 0xc4a574, 28, 4.0, intensity);
-        this.ctx.shake?.add(0.16 * intensity, 0.85, 18);
+        this.ctx.shake?.add(0.055 * intensity, 0.95, 16);
         break;
       case 'fireball':
         this._castAura(cast, color, intensity * 0.9);
@@ -145,8 +150,8 @@ export class VfxDirector {
         this._burst(front, color, 48, 5.5, intensity * 1.2);
         this._shockwave(ground, color, 3.8, intensity);
         this._embers(front, 60, intensity);
-        this.ctx.shake?.add(0.2 * intensity, 0.9, 24);
-        this._flash(color, 0.22);
+        this.ctx.shake?.add(0.06 * intensity, 1.0, 20);
+        this._flash(color, 0.08);
         break;
       case 'arcane_swirl':
         this._castAura(cast, color, intensity);
@@ -163,7 +168,7 @@ export class VfxDirector {
         if (aoeR > 0.05) {
           this._shockwave(ground, color, Math.max(1.2, aoeR * 2.2), rInt * 0.85);
         }
-        this.ctx.shake?.add(0.08 * rInt, 0.5, 30);
+        this.ctx.shake?.add(0.03 * rInt, 0.7, 26);
         break;
       }
       case 'fire_hand':
@@ -211,19 +216,267 @@ export class VfxDirector {
 
   /**
    * Element ability path start — cast tell at hand.
-   * @param {'fire'|'water'|'earth'|'wind'} element
+   * Accepts product elements (fire|storm|ice|nature|holy|arcane) or legacy.
    */
   deployElementCast(element, pose) {
-    const map = ELEMENT_EFFECT_MAP[element];
-    if (map?.cast) this.deploy(map.cast, { ...pose, intensity: 1 });
+    const pres = presentationFor(element);
+    const map = ELEMENT_EFFECT_MAP[pres.abilityKey] || ELEMENT_EFFECT_MAP[element];
+    const id = pres.castEffectId || map?.cast;
+    if (id) this.deploy(id, { ...pose, intensity: 1, color: pres.color });
   }
 
   /**
    * Element ability impact — beauty layer on top of Ability impact.
    */
   deployElementImpact(element, pose) {
-    const map = ELEMENT_EFFECT_MAP[element];
-    if (map?.impact) this.deploy(map.impact, { ...pose, intensity: 1.2 });
+    const pres = presentationFor(element);
+    const map = ELEMENT_EFFECT_MAP[pres.abilityKey] || ELEMENT_EFFECT_MAP[element];
+    const id = pres.impactEffectId || map?.impact;
+    if (id) this.deploy(id, { ...pose, intensity: 1.05, color: pres.color });
+  }
+
+  /**
+   * Creative presentation for a product element (volley, meteor, vines, shield, …).
+   * Uses existing particles/bursts/decals only — no second VFX engine.
+   *
+   * @param {string} element product element id
+   * @param {{ origin: import('three').Vector3, forward?: import('three').Vector3, aim?: import('three').Vector3, intensity?: number, kind?: string, skillId?: string }} pose
+   * @param {{ meteor?: boolean, volley?: boolean, pathKind?: string }} [opts]
+   */
+  deployPresentation(element, pose, opts = {}) {
+    const el = normalizeElement(element);
+    const pres = presentationFor(el);
+    const p = settings.presentation || {};
+    const intensity = pose.intensity ?? 1;
+    const origin = pose.origin?.clone?.() || new Vector3();
+    const fwd = (pose.forward || new Vector3(0, 0, 1)).clone();
+    fwd.y = 0;
+    if (fwd.lengthSq() < 1e-6) fwd.set(0, 0, 1);
+    else fwd.normalize();
+    const aim = pose.aim?.clone?.() || origin.clone().addScaledVector(fwd, 8);
+    const ground = new Vector3(origin.x, 0.04, origin.z);
+    const cast = origin.clone();
+    cast.y += 1.15;
+
+    // Cast tell always
+    this.deploy(pres.castEffectId, { origin, forward: fwd, aim, intensity: intensity * 0.9, color: pres.color });
+
+    // Hybrid path spikes: earth motion already from Ability — beauty overlay by element
+    if (opts.pathKind === 'spikes') {
+      const hy = HYBRID_SPIKE_OVERLAY[el];
+      if (hy) {
+        this.deploy(hy.beauty, {
+          origin: aim,
+          forward: fwd,
+          aim,
+          intensity: intensity * 0.9,
+          color: hy.color
+        });
+      }
+    }
+
+    if (pres.multiShot || opts.volley) {
+      this._deployVolley(pres, cast, fwd, aim, intensity, p);
+    }
+
+    // Meteor: fire signature / explicit skill flag (sky shards + small ground blasts)
+    if (opts.meteor === true || (el === 'fire' && opts.pathKind === 'stream' && intensity >= 1.35)) {
+      this._deployMeteor(pres, aim, intensity, p);
+    }
+
+    if (pres.groundFlood || (opts.pathKind === 'aoe' && el === 'ice')) {
+      this._deployGroundFlood(pres, ground, aim, intensity, p);
+    }
+
+    if (pres.style === 'vineLash' || el === 'nature') {
+      this._deployVineLash(pres, ground, aim, fwd, intensity, p);
+    }
+
+    if (pres.shield && (el === 'storm' || opts.shield)) {
+      this._deployStormShield(pres, ground, cast, intensity, p);
+    }
+
+    if (pres.style === 'voidBolt' || el === 'arcane') {
+      this._deployArcaneVoid(pres, cast, fwd, aim, intensity, p);
+    }
+
+    if (pres.style === 'radiance' || el === 'holy') {
+      this.deploy('moon_beam', {
+        origin: aim,
+        forward: fwd,
+        aim,
+        intensity: intensity * 0.95,
+        color: pres.color
+      });
+      if (pres.healAura) {
+        this._auraRing(ground, pres.color, 2.2, intensity * 0.85);
+        this._castAura(cast, pres.colorB || pres.color, intensity * 0.7);
+      }
+    }
+
+    // Default soft impact when style did not already schedule one
+    if (!pres.multiShot && el !== 'storm' && el !== 'arcane' && el !== 'nature' && el !== 'ice') {
+      this.deploy(pres.impactEffectId, {
+        origin: aim,
+        forward: fwd,
+        aim,
+        intensity: intensity * 0.85,
+        color: pres.color
+      });
+    }
+  }
+
+  /** Fire/arcane micro volley — first shot is bullet-sized for cheap reads. */
+  _deployVolley(pres, cast, fwd, aim, intensity, p) {
+    const n = Math.max(1, Math.round(p.fireVolleyCount ?? 5));
+    const delay = p.fireVolleyDelayMs ?? 65;
+    const micro = p.microBulletSize ?? 0.14;
+    const body = p.fireVolleySize ?? 0.32;
+    for (let i = 0; i < n; i++) {
+      const t = i * delay;
+      const size = i === 0 && pres.microFirst ? micro : body * (0.85 + (i % 3) * 0.08);
+      const lateral = ((i % 3) - 1) * 0.35;
+      const side = new Vector3(-fwd.z, 0, fwd.x).multiplyScalar(lateral);
+      const from = cast.clone().add(side).addScaledVector(fwd, 0.4 + i * 0.15);
+      const to = aim.clone().add(side).addScaledVector(fwd, i * 0.4);
+      setTimeout(() => {
+        this._projectileTell(from, fwd, pres.color, intensity * (0.55 + size));
+        this._emitBurst('ember', from, 8 * intensity, 3 + size * 4, pres.color);
+        if (i === n - 1) {
+          this.deploy(pres.impactEffectId, {
+            origin: to,
+            forward: fwd,
+            aim: to,
+            intensity: intensity * 0.75,
+            color: pres.color,
+            size
+          });
+        }
+      }, t);
+    }
+  }
+
+  /** Sky meteor: small falling shards + staggered ground explosions (render-friendly). */
+  _deployMeteor(pres, aim, intensity, p) {
+    const h = p.meteorHeight ?? 14;
+    const shards = Math.max(1, Math.round(p.meteorShards ?? 4));
+    const delay = p.meteorDelayMs ?? 90;
+    for (let i = 0; i < shards; i++) {
+      const ox = (Math.random() - 0.5) * 2.4;
+      const oz = (Math.random() - 0.5) * 2.4;
+      const sky = new Vector3(aim.x + ox, h, aim.z + oz);
+      const hit = new Vector3(aim.x + ox * 0.4, 0.08, aim.z + oz * 0.4);
+      setTimeout(() => {
+        // Thin projectile tell from sky (not full FireAbility volume)
+        this._sparks(sky, pres.color, 12, 2, intensity * 0.6);
+        this._embers(sky, 16, intensity * 0.5);
+        this.deploy('fireball', {
+          origin: sky,
+          forward: new Vector3(0, -1, 0),
+          aim: hit,
+          intensity: intensity * 0.55,
+          color: pres.color,
+          size: 0.4
+        });
+        this.deploy('inferno', {
+          origin: hit,
+          forward: new Vector3(0, 1, 0),
+          aim: hit,
+          intensity: intensity * 0.55,
+          color: pres.color,
+          size: 0.55
+        });
+      }, 120 + i * delay);
+    }
+  }
+
+  /** Ice: frost plate crawl then erupt (earth timing, water shaders). */
+  _deployGroundFlood(pres, ground, aim, intensity, p) {
+    const r = p.iceFloodRadius ?? 4.2;
+    const delay = p.iceEruptDelayMs ?? 280;
+    this._frostPlate(ground, r * 0.55, pres.color, intensity * 0.9);
+    this._shockwave(ground, pres.color, r * 0.7, intensity * 0.75);
+    setTimeout(() => {
+      const up = aim.clone();
+      up.y = 1.4;
+      this.deploy('frost_wave', {
+        origin: ground,
+        forward: new Vector3(0, 1, 0),
+        aim: up,
+        intensity: intensity * 1.05,
+        color: pres.color
+      });
+      this._burst(up, pres.color, 28, 3.8, intensity);
+      // "swallow" ring — expanding water plate
+      this._frostPlate(ground, r, pres.colorB || pres.color, intensity * 1.1);
+    }, delay);
+  }
+
+  /** Nature: green earth surge + vine lashes + optional heal aura. */
+  _deployVineLash(pres, ground, aim, fwd, intensity, p) {
+    const n = Math.max(1, Math.round(p.natureVineCount ?? 3));
+    const green = pres.color;
+    const dark = pres.colorB || 0x2d6b3a;
+    // Underground rumble (soft)
+    this.deploy('earth_surge', {
+      origin: ground,
+      forward: fwd,
+      aim,
+      intensity: intensity * 0.85,
+      color: green
+    });
+    for (let i = 0; i < n; i++) {
+      const t = 80 + i * 110;
+      const side = new Vector3(-fwd.z, 0, fwd.x).multiplyScalar((i - (n - 1) / 2) * 0.9);
+      const root = ground.clone().add(side).addScaledVector(fwd, 1.2 + i * 0.8);
+      setTimeout(() => {
+        // Lash: shockwave + burst rising like water jet but earth/green
+        this._shockwave(root, green, 1.6, intensity * 0.8);
+        this._dustBurst(root, 18, intensity * 0.7);
+        this._burst(root.clone().setY(1.1), green, 16, 3.2, intensity);
+        this._emitBurst('mote', root.clone().setY(0.8), 14, 2.4, dark);
+      }, t);
+    }
+    if (pres.healAura && p.natureHealAura !== false) {
+      this._auraRing(ground, green, 2.6, intensity * 0.7);
+      this._castAura(ground.clone().setY(1.0), green, intensity * 0.55);
+    }
+  }
+
+  /** Storm: defensive wind shield + spark rim. */
+  _deployStormShield(pres, ground, cast, intensity, p) {
+    const r = p.stormShieldRadius ?? 2.4;
+    this._auraRing(ground, pres.color, r, intensity * 0.95);
+    this._auraRing(ground.clone().setY(0.08), pres.colorB || 0xe8f7ff, r * 0.72, intensity * 0.7);
+    this._castAura(cast, pres.color, intensity * 0.8);
+    this._sparks(cast, pres.color, 24, 3.5, intensity * 0.75);
+    this.deploy('arcane_swirl', {
+      origin: cast,
+      forward: new Vector3(0, 1, 0),
+      intensity: intensity * 0.65,
+      color: pres.color
+    });
+  }
+
+  /** Arcane: purple core + void black secondary. */
+  _deployArcaneVoid(pres, cast, fwd, aim, intensity, p) {
+    const purple = pres.color;
+    const voidC = typeof p.arcaneCore === 'string' ? new Color(p.arcaneCore).getHex() : pres.colorB || 0x1a0a28;
+    this._castAura(cast, purple, intensity);
+    this._auraRing(new Vector3(cast.x, 0.04, cast.z), voidC, 1.6, intensity * 0.9);
+    this._motes(cast, purple, 36, intensity);
+    this._motes(cast, voidC, 18, intensity * 0.7);
+    this._projectileTell(cast, fwd, purple, intensity * 0.85);
+    setTimeout(() => {
+      this.deploy('inferno', {
+        origin: aim,
+        forward: fwd,
+        aim,
+        intensity: intensity * 0.7,
+        color: purple
+      });
+      this._burst(aim, voidC, 20, 3.5, intensity * 0.8);
+    }, 220);
   }
 
   /** Alt+hotkey sandbox preview (vfxgrudge.puter.site). */
@@ -242,11 +495,13 @@ export class VfxDirector {
     const mode =
       color === 0xff6a1e || color === 0xff5510 || color === 0xff6020
         ? BurstMode.FIRE
-        : color === 0x9fdcff || color === 0x7ec8ff
+        : color === 0x9fdcff || color === 0x7ec8ff || color === 0x5fd6ff
           ? BurstMode.WATER
-          : color === 0xc4a574
+          : color === 0xc4a574 || color === 0x4ecf6a || color === 0x2d6b3a || color === 0x6bbf4a
             ? BurstMode.EARTH
-            : BurstMode.AIR;
+            : color === 0xb070ff || color === 0x1a0a28
+              ? BurstMode.AIR
+              : BurstMode.AIR;
     this.ctx.bursts?.spawn(mode, pos, {
       radius: 0.35 * intensity,
       endRadius: 2.8 * intensity,

@@ -584,11 +584,12 @@ export class DrcCombatController {
       return true;
     }
 
-    // VFX: spell → elemental ability along forward curve (pathMode from kit / T0 wand)
+    // VFX: spell → elemental ability + creative presentation (volley/meteor/vines/…)
     if (skill.style === 'spell' && (skill.element || skill.abilityElement)) {
       // Product element (fire|storm|ice|nature|holy|arcane) or legacy — AbilityManager maps pool
       const el = skill.element || skill.abilityElement;
-      const curve = this._curveForPathMode(skill.pathMode || 'stream', skill.rangeM);
+      const pathMode = skill.pathMode || 'stream';
+      const curve = this._curveForPathMode(pathMode, skill.rangeM);
       this.abilities.select(el);
       this.abilities.cast(curve, el);
 
@@ -600,42 +601,33 @@ export class DrcCombatController {
         this._focusUntil = 0;
       }
 
-      // Kit beauty: cast → travel → impact effect ids
-      if (skill.castEffectId) {
-        this.vfx?.deploy?.(skill.castEffectId, { ...pose, intensity });
-      }
-      if (skill.travelEffectId && skill.travelEffectId !== skill.castEffectId) {
-        this.vfx?.deploy?.(skill.travelEffectId, {
-          ...pose,
-          origin: pose.origin.clone().addScaledVector(_fwd, 1.2),
-          intensity: intensity * 0.95
-        });
-      }
+      const isMeteor =
+        /meteor|inferno/i.test(skill.id + skill.label + (skill.catalogSkillId || '')) ||
+        skill.presentation === 'meteor';
+      const isVolley = /volley|bolt|spark|practice/i.test(skill.id + skill.label) || skill.presentation === 'volley';
+
+      // Creative presentation (soft shake, multi micro shots, vines, shield, void…)
+      this.vfx?.deployPresentation?.(el, { ...pose, intensity }, {
+        pathKind: pathMode,
+        meteor: isMeteor,
+        volley: isVolley || el === 'fire' || el === 'arcane',
+        shield: el === 'storm' && /shield|ward|guard|gale/i.test(skill.id + skill.label)
+      });
 
       this.character.setCasting?.(true, {
         aimX: _end.x,
         aimY: _end.y,
         aimZ: _end.z
       });
-      const impactAt = skill.castDuration * 0.55;
-      const impactId = skill.impactEffectId || skill.id;
-      setTimeout(() => {
-        this.vfx?.deploy?.(impactId, {
-          ...pose,
-          origin: pose.aim,
-          aim: pose.aim,
-          intensity: intensity * 1.15
-        });
-        this.vfx?.deploySkill?.(skill.id, { ...pose, origin: pose.aim, aim: pose.aim }, 'impact');
-      }, impactAt * 1000);
 
       const dmg = skill.damage ? ` · ${Math.round(skill.damage * focusMul)} dmg` : '';
       const cat = skill.catalogSkillId ? ` → ${skill.catalogSkillId}` : '';
       const focusTag = focusOn ? ' · FOCUSED' : '';
+      const styleTag = isMeteor ? ' · meteor' : isVolley || el === 'fire' ? ' · volley' : '';
       this.onToast(
         bound
           ? `${boundName} · ${bound.skillId}`
-          : `${skill.label}${skill.pathMode ? ` · ${skill.pathMode}` : ''}${dmg}${focusTag}${cat}`
+          : `${skill.label}${skill.pathMode ? ` · ${skill.pathMode}` : ''}${styleTag}${dmg}${focusTag}${cat}`
       );
       return true;
     }
@@ -1330,6 +1322,14 @@ export class DrcCombatController {
       });
     }
 
+    const facing = _fwd.set(Math.sin(this.character.facing), 0, Math.cos(this.character.facing)).clone();
+    const pathPose = {
+      origin: this.character.position.clone(),
+      forward: facing,
+      aim: curve.getPoint(1),
+      intensity
+    };
+
     // AOE: compress path to short arc at endpoint for impact placement
     if (kind === 'aoe') {
       const end = curve.getPoint(1);
@@ -1339,27 +1339,19 @@ export class DrcCombatController {
       const short = new CatmullRomCurve3([start, mid, end], false, 'catmullrom', 0.5);
       this.abilities.select(element);
       this.abilities.cast(short, element);
-      this.vfx?.deployElementImpact?.(element, {
-        origin: end.clone(),
-        forward: _fwd.set(Math.sin(this.character.facing), 0, Math.cos(this.character.facing)).clone(),
-        intensity
+      this.vfx?.deployPresentation?.(element, { ...pathPose, aim: end.clone() }, {
+        pathKind: 'aoe',
+        meteor: element === 'fire' && intensity >= 2.2
       });
     } else {
       this.abilities.select(element);
       this.abilities.cast(curve, element);
-      if (kind === 'wall') {
-        this.vfx?.deploy?.('earth_surge', {
-          origin: curve.getPoint(0.5),
-          forward: _fwd.set(Math.sin(this.character.facing), 0, Math.cos(this.character.facing)).clone(),
-          intensity: 1.0 * intensity
-        });
-      } else if (kind === 'spikes') {
-        this.vfx?.deploy?.('frost_wave', {
-          origin: curve.getPoint(0.5),
-          forward: _fwd.clone(),
-          intensity: 0.85 * intensity
-        });
-      }
+      this.vfx?.deployPresentation?.(element, pathPose, {
+        pathKind: kind,
+        meteor: kind === 'stream' && element === 'fire' && intensity >= 2.4,
+        volley: kind === 'stream' && (element === 'fire' || element === 'arcane'),
+        shield: kind === 'wall' && element === 'storm'
+      });
     }
 
     this.character.requestOneShot?.('cast') || this.character.playCastFlourish?.();

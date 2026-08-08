@@ -224,8 +224,40 @@ export const settings = {
     fresnel: 1.0,
     opacity: 1.0,
     animationSpeed: 1.0, // character animation playback rate
-    cameraShake: 1.0,
-    explosionIntensity: 1.0
+    /** Master camera shake (0 = off). Lab default soft — was 1.0 full trauma. */
+    cameraShake: 0.32,
+    /** Master explosion size / light punch (not shake). */
+    explosionIntensity: 0.85
+  },
+
+  /**
+   * Creative element presentation — how staffs use shared shaders/VFX
+   * without a second ability engine.
+   * @see combat/elementPresentation.js · VfxDirector.deployPresentation
+   */
+  presentation: {
+    /** Multi fire micro-bolts per cast (rendering-friendly vs one fat volume) */
+    fireVolleyCount: 5,
+    fireVolleyDelayMs: 65,
+    fireVolleySize: 0.32,
+    /** Meteor: spawn from sky, small projectiles + ground infernos */
+    meteorHeight: 14,
+    meteorShards: 4,
+    meteorDelayMs: 90,
+    /** Ice ground-flood then erupt (earth-move timing, water shaders) */
+    iceFloodRadius: 4.2,
+    iceEruptDelayMs: 280,
+    /** Nature vine lash — green earth surge + heal aura */
+    natureVineCount: 3,
+    natureHealAura: true,
+    /** Storm defensive shield aura (not only offensive) */
+    stormShieldRadius: 2.4,
+    stormShieldDuration: 1.8,
+    /** Arcane void — purple + near-black */
+    arcaneCore: '#1a0a28',
+    arcaneGlow: '#b070ff',
+    /** Micro bullet size for first projectile in a volley */
+    microBulletSize: 0.14
   },
 
   /* ------------------------------------------------------------------ */
@@ -485,7 +517,7 @@ export const settings = {
     lift: -0.008,
     gain: 1.0,
     grain: 0.045,
-    flashStrength: 1.0 // multiplier for ability screen flashes
+    flashStrength: 0.4 // softer screen flashes (was 1.0)
   },
 
   /* ================================================================== */
@@ -595,8 +627,8 @@ export const settings = {
     // Explosion
     explosionSize: 3.0,
     explosionBrightness: 2.2,
-    explosionShake: 1.0,
-    explosionFlash: 0.55
+    explosionShake: 0.28,
+    explosionFlash: 0.18
   },
 
   /* ================================================================== */
@@ -678,8 +710,8 @@ export const settings = {
     rippleSpeed: 1.0,
     foamSpread: 5.0, // radius of the foam left on the ground
     foamLingering: 3.4, // how long that foam takes to drain away
-    explosionShake: 0.6,
-    explosionFlash: 0.12
+    explosionShake: 0.18,
+    explosionFlash: 0.06
   },
 
   /* ================================================================== */
@@ -709,9 +741,10 @@ export const settings = {
     riseSpeed: 4.95,
     sinkDelay: 0.48,
     tumble: 1.0,
-    colorRock: '#6b5744',
-    colorRockDark: '#3a2e24',
-    colorMoss: '#4f6b33',
+    // Nature-leaning palette (green moss / vine earth — product element "nature")
+    colorRock: '#5a6b44',
+    colorRockDark: '#2d3a24',
+    colorMoss: '#4ecf6a',
     // Ground damage
     crackWidth: 0.78,
     crackDepth: 0.85,
@@ -737,9 +770,9 @@ export const settings = {
     towerHold: 2.4, // seconds standing before it sinks back
     towerRocks: 16,
     towerRockRadius: 2.0,
-    shakeIntensity: 1.5,
+    shakeIntensity: 0.45,
     shakeDuration: 1.38,
-    explosionFlash: 0.15
+    explosionFlash: 0.06
   },
 
   /* ================================================================== */
@@ -800,8 +833,8 @@ export const settings = {
     tornadoRoughness: 0.17,
     tornadoLean: 0.55,
     burstIntensity: 1.5,
-    explosionShake: 0.42,
-    explosionFlash: 0.2
+    explosionShake: 0.14,
+    explosionFlash: 0.08
   },
 
   /* ================================================================== */
@@ -849,8 +882,8 @@ export const settings = {
     tornadoRoughness: 0.12,
     tornadoLean: 0.4,
     burstIntensity: 1.6,
-    explosionShake: 0.35,
-    explosionFlash: 0.35
+    explosionShake: 0.12,
+    explosionFlash: 0.12
   },
 
   /* ================================================================== */
@@ -898,8 +931,8 @@ export const settings = {
     tornadoRoughness: 0.2,
     tornadoLean: 0.5,
     burstIntensity: 1.7,
-    explosionShake: 0.45,
-    explosionFlash: 0.28
+    explosionShake: 0.14,
+    explosionFlash: 0.088
   }
 };
 
