@@ -4,12 +4,15 @@ import { EventEmitter } from '../utils/EventEmitter.js';
 /**
  * Pointer + keyboard → events.
  *
- * Combat hotkeys mirror Danger Room / threejs-rapier quickActions SSOT:
- *   1–4 skills · F residual · X back-dodge · C parry · E guard · R heavy
- *   J heal · H bomb · V kick · Q mode · Space jump
- *   Shift = freelook run (A/D turn-to-run) · Ctrl+A/D = Ghost Rider roll
- *   Shift+Ctrl while sprint = slide · AA/DD/WW double-tap dodge
- *   Shift+C clear VFX · G editor · I lab panel · Alt+V/B/F/G/T/C sandbox VFX
+ * LMB modes (combat, from CombatFocus):
+ *   focus ON  → lmb:attack
+ *   focus OFF → lmb:select (unlocked mouse)
+ *   sandbox / walk path → draw:start|move|end
+ *
+ * Combat hotkeys:
+ *   1–4 skills · F interact/attack · X dodge · C parry · E block
+ *   Shift hold sprint · Shift+Ctrl slide · Ctrl(+dir) roll
+ *   RMB focus toggle · Space jump
  */
 export class InputManager extends EventEmitter {
   constructor(domElement) {
@@ -21,6 +24,11 @@ export class InputManager extends EventEmitter {
     this.enabled = true;
     /** When true, fleet combat keys win over sandbox (clear→Shift+C, etc.) */
     this.combatKeys = true;
+    /**
+     * App sets this: () => 'draw' | 'attack' | 'select'
+     * @type {(() => 'draw'|'attack'|'select')|null}
+     */
+    this.getLmbMode = null;
 
     this._bind();
   }
@@ -52,6 +60,18 @@ export class InputManager extends EventEmitter {
     if (event.target !== this.dom) return;
 
     this._updatePointer(event);
+    const mode = this.getLmbMode?.() || 'draw';
+
+    if (mode === 'attack') {
+      this.emit('lmb:attack', this.pointer.clone());
+      return;
+    }
+    if (mode === 'select') {
+      this.emit('lmb:select', this.pointer.clone());
+      return;
+    }
+
+    // Path draw (casting sandbox / walk course)
     this.isDrawing = true;
     this.dom.setPointerCapture?.(event.pointerId);
     this.emit('draw:start', this.pointer);
@@ -124,10 +144,17 @@ export class InputManager extends EventEmitter {
       return;
     }
 
+    // F = best next action always (pickup / harvest / standard attack)
+    // Alt+F is sandbox frost (handled above). Residual is attack fallback, not a free skill key.
+    if (event.code === 'KeyF') {
+      event.preventDefault();
+      this.emit('combatAction', 'interact');
+      return;
+    }
+
     // Danger Room combat actions when combatKeys
     if (this.combatKeys) {
       const combatMap = {
-        KeyF: 'fskill',
         KeyX: 'dodge',
         KeyC: 'parry',
         KeyE: 'block',
@@ -148,7 +175,7 @@ export class InputManager extends EventEmitter {
         this.emit('action', 'toggleDrcSession');
         break;
       case 'KeyE':
-        // Equip mode only: cycle element (combat uses E as guard)
+        // Equip mode only: cycle element (combat uses E as block)
         if (!this.combatKeys) this.emit('action', 'nextElement');
         break;
       case 'Slash':
@@ -184,9 +211,6 @@ export class InputManager extends EventEmitter {
       case 'KeyL':
         // Spawn sample world loot prefabs
         this.emit('action', 'spawnLoot');
-        break;
-      case 'KeyF':
-        if (!this.combatKeys) this.emit('action', 'weaponAttack');
         break;
       case 'F1':
         event.preventDefault();

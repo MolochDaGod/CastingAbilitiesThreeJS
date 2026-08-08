@@ -152,6 +152,7 @@ export class App {
     this.combatFocus.on('focus', (on) => {
       this.hud.setCrosshairVisible?.(on || this.drc.inCombat);
       this.hud.root?.classList.toggle('hud--focus', !!on);
+      this._applyMouseLockForFocus(!!on);
     });
     // Ground aim ring under crosshair (combat)
     const ringGeo = new RingGeometry(0.18, 0.32, 32);
@@ -338,9 +339,17 @@ export class App {
       this.dust.setPixelRatio(pixelRatio);
     });
 
+    // LMB: focus→attack · free→select (unlocked) · else path draw
+    this.input.getLmbMode = () => this._lmbMode();
+    this.input.on('lmb:attack', () => this._onLmbAttack());
+    this.input.on('lmb:select', (ptr) => this._onLmbSelect(ptr));
     this.input.on('draw:start', (pointer) => this.pathDrawer.begin(pointer));
     this.input.on('draw:move', (pointer) => this.pathDrawer.move(pointer));
     this.input.on('draw:end', () => this.pathDrawer.end());
+
+    this.combatFocus.on('focus', (on) => {
+      this._applyMouseLockForFocus(on);
+    });
 
     this.input.on('element', (index) => {
       // Combat: digits fire skills; also keep element aligned with staff slot
@@ -626,6 +635,66 @@ export class App {
     this.session.setElement(element);
     this.abilities.select(element);
     this.hud.setElement(element);
+  }
+
+  /**
+   * Combat LMB routing (grudge-combat-targeting):
+   *  focus ON  → attack
+   *  focus OFF → select (unlocked mouse)
+   *  casting / walk path → draw
+   * @returns {'draw'|'attack'|'select'}
+   */
+  _lmbMode() {
+    if (!this.drc?.inCombat) return 'draw';
+    if (this.session?.mode === INTERACTION_MODE.WALK) return 'draw';
+    if (this.combatFocus?.focusEnabled) return 'attack';
+    return 'select';
+  }
+
+  _onLmbAttack() {
+    // Focus mode: primary attack (weapon pack / residual)
+    const ok =
+      this.drc.useMeleeStrike?.() ||
+      this.drc.performQuickAction?.('primary') ||
+      this.character.playWeaponCombat?.('attack') ||
+      this.character.playWeaponCombat?.('cast');
+    if (!ok) this.hud.showToast('Attack');
+  }
+
+  /**
+   * Free aim: LMB selects target (soft lock). Mouse stays unlocked.
+   * @param {import('three').Vector2} ptr NDC
+   */
+  _onLmbSelect(ptr) {
+    document.exitPointerLock?.();
+    if (this.canvas) this.canvas.style.cursor = 'default';
+    const picked = this.combatFocus?.pickFromNdc?.(this.camera, ptr);
+    if (picked) {
+      this.hud.showToast('Target selected · soft lock');
+      this.hud.setTargetFrame?.({
+        name: this.combatFocus.selectedTarget?.kind || 'Target',
+        hp01: 1,
+        present: true
+      });
+    } else {
+      this.combatFocus?.clearTarget?.();
+      this.hud.showToast('No target');
+      this.hud.setTargetFrame?.(null);
+    }
+  }
+
+  /**
+   * Focus ON can hide cursor for attack feel; OFF always unlocks mouse.
+   * @param {boolean} focusOn
+   */
+  _applyMouseLockForFocus(focusOn) {
+    if (!focusOn) {
+      document.exitPointerLock?.();
+      if (this.canvas) this.canvas.style.cursor = 'default';
+      return;
+    }
+    // Focus: crosshair cursor (no forced pointer lock — free look with RMB orbit)
+    if (this.canvas) this.canvas.style.cursor = 'crosshair';
   }
 
   /**

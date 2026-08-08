@@ -35,12 +35,14 @@
 |-------|--------|
 | **RMB click** (short, no drag) | Toggle **focus** (sticky) |
 | **RMB hold** | Orbit camera pitch/yaw |
-| **LMB drag** | Path cast (staff) |
+| **LMB · Focus ON** | **Attack** (primary / residual) |
+| **LMB · Focus OFF** | **Select** target (soft lock) · **unlocked mouse** |
+| **LMB · sandbox / walk** | Path draw (cast or ride course) |
 | **Shift hold** | Sprint |
 | **Shift + tap Ctrl** | **Slide** (while sprinting) |
 | **Ctrl** (+ optional dir) | **Roll** forward / L/R/B with WASD |
-| **Focus ON** | Character **rotates with camera**; WASD camera-relative strafe |
-| **Focus OFF** | Camera free; **A/D tank-turn** body; W/S along body facing |
+| **Focus ON** | Character **rotates with camera**; WASD camera-relative; LMB attack |
+| **Focus OFF** | Unlocked cursor; LMB select; A/D tank-turn; W/S body forward |
 | Soft target | Ring/crosshair hostile red; camera soft-look (not hard snap) |
 
 Register enemies with `combatFocus.addSelectable(mesh, 'hostile')`.
