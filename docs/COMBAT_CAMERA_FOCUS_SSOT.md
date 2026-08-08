@@ -36,7 +36,9 @@
 | **RMB click** (short, no drag) | Toggle **focus** (sticky) |
 | **RMB hold** | Orbit camera pitch/yaw |
 | **LMB drag** | Path cast (staff) |
-| **Shift** | **Sprint toggle** (not hold) |
+| **Shift hold** | Sprint |
+| **Shift + tap Ctrl** | **Slide** (while sprinting) |
+| **Ctrl** (+ optional dir) | **Roll** forward / L/R/B with WASD |
 | **Focus ON** | Character **rotates with camera**; WASD camera-relative strafe |
 | **Focus OFF** | Camera free; **A/D tank-turn** body; W/S along body facing |
 | Soft target | Ring/crosshair hostile red; camera soft-look (not hard snap) |

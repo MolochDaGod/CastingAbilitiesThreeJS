@@ -119,9 +119,6 @@ export class DrcCombatController {
     /** Edge state for Ctrl roll + Shift+Ctrl slide */
     this._ctrlWasDown = false;
     this._rollKeyWas = { KeyA: false, KeyD: false, KeyW: false, KeyS: false };
-    /** Shift = sprint toggle (not hold) */
-    this._sprintToggle = false;
-    this._shiftWasDown = false;
   }
 
   /** True while dodge MM + afterimage invuln window is active. */
@@ -212,19 +209,13 @@ export class DrcCombatController {
     }
 
     const ctrlHeld = keys.has('ControlLeft') || keys.has('ControlRight');
-    // Shift = sprint **toggle** (edge), not hold
-    const shiftDown = keys.has('ShiftLeft') || keys.has('ShiftRight');
-    if (shiftDown && !this._shiftWasDown) {
-      this._sprintToggle = !this._sprintToggle;
-      this.onToast?.(this._sprintToggle ? 'Sprint ON' : 'Sprint OFF');
-    }
-    this._shiftWasDown = shiftDown;
-    this._sprinting = this._sprintToggle;
+    // Shift **hold** = sprint
+    this._sprinting = keys.has('ShiftLeft') || keys.has('ShiftRight');
 
     // I-frame timer (dodge sets this; other systems can extend)
     if (this.invuln > 0) this.invuln = Math.max(0, this.invuln - dt);
 
-    // Sprint-toggle + Ctrl slide · Ctrl+A/D rolls · AA/DD dodges
+    // Shift+tap Ctrl = slide · Ctrl(+dir) = roll · AA/DD dodges
     this._pollSlide(keys, ctrlHeld);
     this._pollCtrlRoll(keys, ctrlHeld);
     if (!ctrlHeld) this._pollDoubleTapDodge(keys);
@@ -267,8 +258,7 @@ export class DrcCombatController {
     // ── WASD locomotion ──────────────────────────────────────────────
     // Focus ON (RMB toggle): camera-relative move + character rotates WITH camera
     // Focus OFF: tank turn with A/D, W/S along body facing (camera free)
-    // Ctrl held: A/D reserved for roll
-    // Sprint: Shift toggle (not hold)
+    // Ctrl held: A/D reserved for roll · Shift hold = sprint
     const focusOn = !!this.combatFocus?.focusEnabled;
     let ix = 0;
     let iz = 0;
@@ -1033,17 +1023,21 @@ export class DrcCombatController {
   }
 
   /**
-   * Ctrl+A left roll · Ctrl+D right roll (Ghost Rider clips).
-   * Optional Ctrl+W / Ctrl+S for forward / back roll.
+   * Ctrl alone = roll (Ghost Rider).
+   * Ctrl+A/D/W/S = roll that direction; Ctrl tap with no dir = forward roll.
+   * Not active while Shift held (that channel is slide).
    * @param {Set<string>} keys
    * @param {boolean} ctrlHeld
    */
   _pollCtrlRoll(keys, ctrlHeld) {
     if (this._dodgeT > 0) return;
-    // Shift+Ctrl is slide channel — not directional roll
-    if (this._sprinting && ctrlHeld) return;
+    // Shift+Ctrl = slide — never roll while sprinting
+    if (this._sprinting) {
+      this._rollKeyWas = { KeyA: false, KeyD: false, KeyW: false, KeyS: false, Control: false };
+      return;
+    }
     if (!ctrlHeld) {
-      this._rollKeyWas = { KeyA: false, KeyD: false, KeyW: false, KeyS: false };
+      this._rollKeyWas = { KeyA: false, KeyD: false, KeyW: false, KeyS: false, Control: false };
       return;
     }
     const pairs = [
@@ -1052,17 +1046,34 @@ export class DrcCombatController {
       ['KeyW', 'forward'],
       ['KeyS', 'back']
     ];
+    let dirPressed = false;
     for (const [code, dir] of pairs) {
       const down = keys.has(code);
       const was = !!this._rollKeyWas[code];
-      if (down && !was) this.roll(dir);
+      if (down && !was) {
+        this.roll(dir);
+        dirPressed = true;
+      }
       this._rollKeyWas[code] = down;
+    }
+    // Ctrl edge with no direction key → forward roll
+    const ctrlEdge = ctrlHeld && !this._ctrlWasDown;
+    if (ctrlEdge && !dirPressed) {
+      const anyDir =
+        keys.has('KeyA') ||
+        keys.has('KeyD') ||
+        keys.has('KeyW') ||
+        keys.has('KeyS') ||
+        keys.has('ArrowLeft') ||
+        keys.has('ArrowRight') ||
+        keys.has('ArrowUp') ||
+        keys.has('ArrowDown');
+      if (!anyDir) this.roll('forward');
     }
   }
 
   /**
-   * Shift+Ctrl while sprint → running slide (prod running-slide).
-   * Edge-detect Ctrl press while Shift already held (or both edge).
+   * Shift (sprint hold) + tap Ctrl → running slide.
    * @param {Set<string>} keys
    * @param {boolean} ctrlHeld
    */
