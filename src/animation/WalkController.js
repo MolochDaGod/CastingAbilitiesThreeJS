@@ -234,7 +234,7 @@ export class WalkController {
       );
     }
 
-    // After board bank/sway: mount pose + IK sockets + physics glue
+    // After board bank/sway: mount pose + sockets (IK applied post-mixer via applyRiderIk)
     if ((this.phase === Phase.RIDE || this.phase === Phase.FREERIDE) && this._mounted) {
       this._syncMountedRider(dt);
     } else if (this.scooter.active && this.scooter.ready && this.phase === Phase.LEAP) {
@@ -243,6 +243,22 @@ export class WalkController {
         this.character.setRideSockets?.(this.scooter.getIkWorldTargets(), this._yaw);
       }
     }
+  }
+
+  /**
+   * SSOT apply order: walk.update → character.update (mixer) → walk.applyRiderIk.
+   * Plants feet on deck straps + hands on boom after mixer owns the pose.
+   * @param {number} dt
+   */
+  applyRiderIk(dt) {
+    if (!this.active && !this.character._rideActive) return;
+    if (this.character._softHipRide !== undefined) {
+      this.character._softHipRide = this._softHip || 0;
+    } else {
+      this.character._softHipRide = this._softHip || 0;
+    }
+    this.character._rideIkExternal = true;
+    this.character.applyRideIk?.(dt);
   }
 
   /* ------------------------------------------------------------------ */

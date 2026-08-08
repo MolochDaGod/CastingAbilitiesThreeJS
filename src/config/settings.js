@@ -18,10 +18,11 @@ export const settings = {
   /* Interaction mode — what a drawn path *means*                        */
   /* ------------------------------------------------------------------ */
   /**
-   * 'casting' — the stroke becomes an elemental ability (the original mode).
-   * 'walk'    — the avatar leaps onto the head of the stroke, drops into the
-   *             meditation pose on an air scooter and rides the path to its
-   *             end. See animation/WalkController.js.
+   * What a finished PathDrawer stroke means:
+   *  - 'casting' → AbilityManager (element staff path cast)
+   *  - 'walk'    → WalkController four-phase ride over the same curve:
+   *      leap → ride (path) → freeride/dismount → idle
+   *    See docs/WINDSURF_RIDE_SSOT.md · animation/WalkController.js
    */
   mode: 'casting',
 
@@ -418,6 +419,8 @@ export const settings = {
     shadowRadius: 2.2,
     floorColor: '#1a1f26',
     floorTint: '#242a33', // second slab colour mixed into the base
+    /** Island shore sand/stone (Ground shore band → water) */
+    shoreColor: '#3d4a3a',
     floorRoughness: 0.88,
     floorSheen: 0.3, // faint polished-stone reflectivity
     floorPool: 0.8, // how hard the floor darkens away from the stage centre
@@ -764,7 +767,11 @@ export const settings = {
   }
 };
 
-/** Element ids in selection order (keys 1-4). */
+/**
+ * Element ids in selection order (keys 1–4).
+ * Stable code ids — never rename without AbilityManager + Ability subclasses.
+ * HUD / staff labels live in ELEMENT_META (Warlords staff weapon ids).
+ */
 export const ELEMENTS = ['fire', 'water', 'earth', 'wind'];
 
 /** Interaction modes, in toggle order (key M). */
@@ -772,21 +779,61 @@ export const MODES = ['casting', 'walk'];
 
 /** Presentation metadata for the HUD's mode switch. */
 export const MODE_META = {
-  casting: { label: 'Cast', glyph: '✦', hint: 'Casting mode', blurb: 'Draw a path. Release to cast.' },
+  casting: {
+    label: 'Cast',
+    glyph: '✦',
+    hint: 'Staff path cast',
+    blurb: 'Draw path → element ability · 1–4 staffs · M walk'
+  },
   walk: {
-    label: 'Walk',
+    label: 'Surf',
     glyph: '◎',
     hint: 'Windsurf freeride',
-    blurb: 'Space = frontflip deploy · WASD boat · path draw optional (tslda feel).'
+    blurb: 'Space deploy · path = course · WASD boat · 1–4 skills on board'
   }
 };
 
-/** Presentation metadata for the HUD. */
+/**
+ * Element → staff presentation (Warlords staffFire / staffIce / staffNature / staffStorm).
+ * Ability pool keys stay fire|water|earth|wind.
+ */
 export const ELEMENT_META = {
-  fire: { label: 'Fire', accent: '#ff6a1a', glyph: '🜂', hint: 'Firebending' },
-  water: { label: 'Water', accent: '#31b6ff', glyph: '🜄', hint: 'Waterbending' },
-  earth: { label: 'Earth', accent: '#b98a4d', glyph: '🜃', hint: 'Earthbending' },
-  wind: { label: 'Air', accent: '#c9f0ff', glyph: '🜁', hint: 'Airbending' }
+  fire: {
+    label: 'Fire Staff',
+    short: 'Fire',
+    accent: '#ff6a1a',
+    glyph: '🜂',
+    hint: '1 — staffFire path cast',
+    staffWeaponId: 'staffFire',
+    staffLabel: 'Fire Staff'
+  },
+  water: {
+    label: 'Ice Staff',
+    short: 'Ice',
+    accent: '#31b6ff',
+    glyph: '🜄',
+    hint: '2 — staffIce / water path cast',
+    staffWeaponId: 'staffIce',
+    staffLabel: 'Ice Staff'
+  },
+  earth: {
+    label: 'Nature Staff',
+    short: 'Nature',
+    accent: '#b98a4d',
+    glyph: '🜃',
+    hint: '3 — staffNature / earth path cast',
+    staffWeaponId: 'staffNature',
+    staffLabel: 'Nature Staff'
+  },
+  wind: {
+    label: 'Storm Staff',
+    short: 'Storm',
+    accent: '#c9f0ff',
+    glyph: '🜁',
+    hint: '4 — staffStorm / wind path cast',
+    staffWeaponId: 'staffStorm',
+    staffLabel: 'Storm Staff'
+  }
 };
 
 /** Immutable snapshot used by "Reset to defaults" and the preset system. */

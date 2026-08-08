@@ -52,8 +52,19 @@ export const WORLD = Object.freeze({
   waterSize: ORIG.floorPoolOuter * MAP_SCALE * 4.5,
   waterY: -0.04,
 
-  /** Stage island radius before water (metres) — visual only */
+  /**
+   * Stage island pad (metres) — production-world-ish rules for the lab shell:
+   *  - Terrain layer is planar y=0 (path raycast / earth crust / CCT feet)
+   *  - islandRadius = dry pad before water hole in StageWater
+   *  - shoreBand = sand/foam ring inside pad edge (visual only, still flat)
+   *  - Walkable slope N/A (flat lab); production islands use heightfield ≤45°
+   * @see docs/ISLAND_STAGE_SSOT.md · grudge-production-world
+   */
   islandRadius: ORIG.floorPoolOuter * MAP_SCALE * 0.85,
+  /** Width of visual shore ring inside islandRadius (metres) */
+  shoreBand: 4.5 * MAP_SCALE,
+  /** Beach tint mix strength 0..1 at shore */
+  shoreTint: 0.55,
 
   /** Rapier ground cuboid half-extents XZ */
   physicsGroundHalf: ORIG.physicsHalf * MAP_SCALE,

@@ -811,10 +811,11 @@ export class App {
     }
 
     // Walk ride owns root while active; DRC yields land loco when character._rideActive
+    // SSOT order: walk.update → character.update (mixer) → walk.applyRiderIk
     if (settings.mode === 'walk' || this.walk.active) this.walk.update(dt);
     this.drc.update(dt, this.input.keys);
-    // Mixer then RideIK (CharacterController.update runs post-mixer IK)
     this.character.update(dt);
+    if (settings.mode === 'walk' || this.walk.active) this.walk.applyRiderIk?.(dt);
     this.worldDrops?.update?.(dt);
 
     this.ground.update(this.elapsed);

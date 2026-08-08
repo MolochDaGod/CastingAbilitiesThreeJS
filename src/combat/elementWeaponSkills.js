@@ -1,11 +1,18 @@
 /**
- * Element → Warlords weapon-skill migration (mirrors gameopen castingElementSkills).
+ * Element → Warlords staff skill migration (mirrors gameopen castingElementSkills).
  * Keep effect ids in sync with vfxCatalog + fleet FleetWeaponSkill cast/travel/impact.
  *
- * Warlords staffs:
- *   fire → staffFire · water → staffIce · earth → staffNature
- *   wind → staffStorm · arcane → staff (purple explosive + wind shaders)
+ * Path-cast element ids (settings.ELEMENTS) map to staff weapon ids:
+ *   fire  → staffFire  (Fire Staff)
+ *   water → staffIce   (Ice Staff)   — water ability, ice staff brand
+ *   earth → staffNature (Nature Staff)
+ *   wind  → staffStorm (Storm Staff) — wind ability, storm staff brand
+ *   arcane→ staff      (Arcane Staff, optional tree)
+ *
+ * HUD labels: ELEMENT_META in settings.js · ability classes stay FireAbility…
  */
+
+import { ELEMENT_META } from '../config/settings.js';
 
 /** @typedef {'fire'|'water'|'earth'|'wind'|'arcane'} CastingElement */
 
@@ -17,6 +24,7 @@
  * @property {string} impact
  * @property {number} color
  * @property {string} staffWeaponId
+ * @property {string} staffLabel
  * @property {string} castClip
  */
 
@@ -28,7 +36,8 @@ export const CASTING_ELEMENT_PHASE_VFX = {
     travel: 'fireball',
     impact: 'inferno',
     color: 0xff6a1e,
-    staffWeaponId: 'staffFire',
+    staffWeaponId: ELEMENT_META.fire?.staffWeaponId || 'staffFire',
+    staffLabel: ELEMENT_META.fire?.staffLabel || 'Fire Staff',
     castClip: 'magic/standing 1h cast spell 01'
   },
   water: {
@@ -37,7 +46,8 @@ export const CASTING_ELEMENT_PHASE_VFX = {
     travel: 'moon_beam',
     impact: 'frost_wave',
     color: 0x5fd6ff,
-    staffWeaponId: 'staffIce',
+    staffWeaponId: ELEMENT_META.water?.staffWeaponId || 'staffIce',
+    staffLabel: ELEMENT_META.water?.staffLabel || 'Ice Staff',
     castClip: 'magic/standing 1h cast spell 01'
   },
   earth: {
@@ -46,7 +56,8 @@ export const CASTING_ELEMENT_PHASE_VFX = {
     travel: 'earth_surge',
     impact: 'earth_surge',
     color: 0xc4a574,
-    staffWeaponId: 'staffNature',
+    staffWeaponId: ELEMENT_META.earth?.staffWeaponId || 'staffNature',
+    staffLabel: ELEMENT_META.earth?.staffLabel || 'Nature Staff',
     castClip: 'magic/standing 1h cast spell 01'
   },
   wind: {
@@ -55,7 +66,8 @@ export const CASTING_ELEMENT_PHASE_VFX = {
     travel: 'chain_lightning',
     impact: 'ice_lightning_burst',
     color: 0x9fdcff,
-    staffWeaponId: 'staffStorm',
+    staffWeaponId: ELEMENT_META.wind?.staffWeaponId || 'staffStorm',
+    staffLabel: ELEMENT_META.wind?.staffLabel || 'Storm Staff',
     castClip: 'magic/standing 1h cast spell 01'
   },
   arcane: {
@@ -65,9 +77,15 @@ export const CASTING_ELEMENT_PHASE_VFX = {
     impact: 'inferno',
     color: 0xb070ff,
     staffWeaponId: 'staff',
+    staffLabel: 'Arcane Staff',
     castClip: 'magic/standing 1h cast spell 01'
   }
 };
+
+/** Element id → staff weapon id (equip / catalog). */
+export function staffWeaponIdForElement(element) {
+  return CASTING_ELEMENT_PHASE_VFX[element]?.staffWeaponId || null;
+}
 
 /**
  * Arcane skill tree (purple + explosive + wind-like) for Warlords staff.

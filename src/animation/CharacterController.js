@@ -973,17 +973,29 @@ export class CharacterController {
       }
     }
 
-    // Post-mixer: plant feet on deck + grip boom (walk ride only)
-    if (this.rideIk && (this._rideActive || this.rideIk.weight > 1e-3)) {
-      const yaw = this._rideYaw || this.facing;
-      _rideFwd.set(Math.sin(yaw), 0, Math.cos(yaw));
-      _rideLeft.set(Math.cos(yaw), 0, -Math.sin(yaw));
-      this.rideIk.update(dt, {
-        boardForward: _rideFwd,
-        boardLeft: _rideLeft,
-        hipDrop: settings.walk?.hipDrop ?? 0.1
-      });
+    // Ride IK: default here if WalkController did not call applyRiderIk this frame.
+    // Preferred order (SSOT): walk.update → character.update (mixer) → walk.applyRiderIk
+    if (!this._rideIkExternal) {
+      this.applyRideIk(dt);
     }
+    this._rideIkExternal = false;
+  }
+
+  /**
+   * Post-mixer windsurf IK (feet deck · hands boom).
+   * Call from WalkController.applyRiderIk after character.update so mixer wins first.
+   * @param {number} dt
+   */
+  applyRideIk(dt) {
+    if (!this.rideIk || !(this._rideActive || this.rideIk.weight > 1e-3)) return;
+    const yaw = this._rideYaw || this.facing;
+    _rideFwd.set(Math.sin(yaw), 0, Math.cos(yaw));
+    _rideLeft.set(Math.cos(yaw), 0, -Math.sin(yaw));
+    this.rideIk.update(dt, {
+      boardForward: _rideFwd,
+      boardLeft: _rideLeft,
+      hipDrop: (settings.walk?.hipDrop ?? 0.1) + (this._softHipRide || 0)
+    });
   }
 
   get position() {

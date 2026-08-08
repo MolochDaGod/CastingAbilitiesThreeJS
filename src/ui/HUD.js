@@ -11,7 +11,7 @@ import './showcase.css';
  *  - Player frame (self) top-left
  *  - Target frame top-right (lab placeholder until targeting wired)
  *  - Ally strip under player frame
- *  - Bottom action bar (1–4 + F residual) with CD overlays
+ *  - Bottom action bar (1–4 + F interact) with CD overlays
  *  - Mode switch + compact help
  *
  * CraftPix / HYDRA layouts are the art SSOT — this is functional chrome
@@ -40,7 +40,7 @@ export class HUD {
     root.innerHTML = `
       <div class="hud__panel hud__title">
         Grudge Casting · Warlords lab
-        <span data-blurb>DRC · Toon RTS · Lab Panel (I)</span>
+        <span data-blurb>Staffs 1–4 · path cast · Surf mode (M)</span>
       </div>
 
       <!-- Player unit frame -->
@@ -85,12 +85,12 @@ export class HUD {
         <div>Draw <b data-stat="calls">0</b></div>
       </div>
 
-      <div class="hud__panel hud__help">
-        <div><strong>Danger Room HUD (tight 6+6)</strong></div>
-        <div><kbd>WASD</kbd> · <kbd>Space</kbd> jump · <kbd>1</kbd>–<kbd>4</kbd> skills · <kbd>F</kbd> residual</div>
-        <div>Mouse aim · <kbd>W</kbd> toward aim · <kbd>A</kbd>/<kbd>D</kbd> strafe</div>
-        <div><kbd>L</kbd> loot drops · <kbd>E</kbd> pickup · <kbd>B</kbd> bag · drag throw</div>
-        <div><kbd>O</kbd> Showcase · <kbd>LMB</kbd> path cast · 1–4 skills</div>
+      <div class="hud__panel hud__help" data-help>
+        <div><strong>Combat</strong> · staffs on 1–4 · F residual</div>
+        <div><kbd>WASD</kbd> · <kbd>Shift</kbd> run · <kbd>Space</kbd> jump · <kbd>Ctrl</kbd>+A/D roll</div>
+        <div><kbd>AA</kbd>/<kbd>DD</kbd> dodge · <kbd>E</kbd> block · <kbd>C</kbd> parry · <kbd>X</kbd> back</div>
+        <div><kbd>LMB</kbd> path cast · <kbd>M</kbd> Surf · <kbd>O</kbd> Showcase · <kbd>I</kbd> lab</div>
+        <div data-help-elements>Staffs: Fire · Ice · Nature · Storm</div>
       </div>
 
       <div class="hud__modes">
@@ -107,15 +107,16 @@ export class HUD {
       <div class="hud__actionbar" data-actionbar>
         ${ELEMENTS.map((element, index) => {
           const meta = ELEMENT_META[element];
+          const title = meta.hint || meta.staffLabel || meta.label;
           return `
-            <div class="action-slot" data-element="${element}" data-slot="${index}" style="--accent:${meta.accent}">
+            <div class="action-slot" data-element="${element}" data-slot="${index}" data-staff="${meta.staffWeaponId || ''}" style="--accent:${meta.accent}" title="${title}">
               <div class="action-slot__cd" data-cd></div>
               <div class="action-slot__key">${index + 1}</div>
               <div class="action-slot__glyph">${ELEMENT_SIGILS[element] ?? meta.glyph}</div>
-              <div class="action-slot__label" data-skill-label>${meta.label}</div>
+              <div class="action-slot__label" data-skill-label>${meta.short || meta.label}</div>
             </div>`;
         }).join('')}
-        <div class="action-slot action-slot--melee" data-melee="1" style="--accent:#7dd3fc">
+        <div class="action-slot action-slot--melee" data-melee="1" style="--accent:#7dd3fc" title="F — residual / interact">
           <div class="action-slot__cd" data-cd-melee></div>
           <div class="action-slot__key">F</div>
           <div class="action-slot__glyph">⚔</div>
@@ -189,18 +190,25 @@ export class HUD {
     this.refreshSkillLabels();
   }
 
-  /** Pull labels from catalog bindings (preferred) or active DRC tree. */
+  /**
+   * Pull labels from catalog bindings (preferred), DRC skills, or staff element meta.
+   * Element slots stay tied to Fire/Ice/Nature/Storm staffs when no skill bind.
+   */
   refreshSkillLabels() {
     const skills = getActiveSkills();
     let i = 0;
-    for (const card of this.cards.values()) {
+    for (const [element, card] of this.cards) {
       const lab = card.querySelector('[data-skill-label]');
       const bound = getSkillBinding(i);
       const sk = skills.find((s) => s.slot === i);
-      if (lab) lab.textContent = bound?.name || sk?.label || lab.textContent;
+      const meta = ELEMENT_META[element];
+      const staffFallback = meta?.short || meta?.label || element;
+      if (lab) {
+        lab.textContent = bound?.name || sk?.label || staffFallback;
+      }
+      if (meta?.hint) card.title = bound?.name ? `${bound.name} · ${meta.hint}` : meta.hint;
       i++;
     }
-    // F slot label
     const fLab = this.root.querySelector('[data-melee] .action-slot__label');
     const fBound = getSkillBinding('f');
     if (fLab) fLab.textContent = fBound?.name || DRC_MELEE_STRIKE.label;
@@ -279,27 +287,58 @@ export class HUD {
   }
 
   setMode(mode) {
+    this._mode = mode;
     for (const [key, card] of this.modeCards) {
       card.classList.toggle('is-active', key === mode);
     }
     const meta = MODE_META[mode];
     if (!meta) return;
-    if (this._drcSession !== 'combat') this.blurb.textContent = meta.blurb;
+    // Walk/Surf mode blurb wins over combat blurb for path-ride context
+    if (mode === 'walk') {
+      this.blurb.textContent = meta.blurb;
+      this._setHelpMode('walk');
+    } else if (this._drcSession === 'combat') {
+      this.blurb.textContent = 'Aim · WASD · 1–4 staff skills · LMB path cast';
+      this._setHelpMode('combat');
+    } else {
+      this.blurb.textContent = meta.blurb;
+      this._setHelpMode('equip');
+    }
+  }
+
+  /** Compact help line set by mode (no second help panel). */
+  _setHelpMode(kind) {
+    const el = this.root.querySelector('[data-help-elements]');
+    if (!el) return;
+    if (kind === 'walk') {
+      el.textContent = 'Surf: Space deploy · path = course · WASD boat · staff skills on board';
+    } else if (kind === 'equip') {
+      el.textContent = 'Equip: I lab · O showcase · mesh_ids · staff / bow / sword packs';
+    } else {
+      el.textContent = 'Staffs: Fire · Ice · Nature · Storm (path cast + VFX)';
+    }
   }
 
   setDrcSession(session) {
     this._drcSession = session;
     if (session === 'combat') {
-      this.blurb.textContent = 'Aim mouse · WASD to crosshair · AA/DD dodge · LMB path';
+      if (this._mode === 'walk') {
+        this.blurb.textContent = MODE_META.walk?.blurb || 'Surf freeride';
+        this._setHelpMode('walk');
+      } else {
+        this.blurb.textContent = 'Aim · WASD · 1–4 staff skills · LMB path cast';
+        this._setHelpMode('combat');
+      }
       this.actionbar?.classList.remove('is-dimmed');
       this.tightBar?.setVisible(true);
-      this.setCrosshairVisible(true);
+      this.setCrosshairVisible(this._mode !== 'walk' || true);
       this.refreshSkillLabels();
     } else {
       this.blurb.textContent = 'Equip / Lab Panel · race · mesh · weapon packs';
       this.actionbar?.classList.add('is-dimmed');
       this.tightBar?.setVisible(true);
       this.setCrosshairVisible(false);
+      this._setHelpMode('equip');
     }
   }
 

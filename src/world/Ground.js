@@ -6,18 +6,19 @@ import { LAYER } from '../core/Layers.js';
 import { WORLD } from '../config/worldScale.js';
 
 /**
- * The stage floor.
+ * Stage island terrain pad (lab shell).
  *
- * Kept perfectly flat (y = 0) on purpose: the path-drawing raycast, every
- * ability and the earth eruptions all assume a planar surface, and a flat plane
- * makes those interactions exact.
+ * **Hard (production-world aligned):** keep collision / raycast surface **planar y=0**.
+ * Path draw, earth crust, CCT feet, and ability ground all require a flat field.
+ * Do not raise mesh vertices for "hills" here — use visual shading only.
  *
- * Visually this is a dark polished slab rather than grass and soil — the whole
- * scene is lit like a stage, so the floor only has to hold shadows, catch a thin
- * specular sheen from the key light and then fall off into the fog colour. All
- * of that is procedural, so it still costs no geometry: broad mottling, fine
- * grain, a radial light pool centred on the stage, and a roughness break-up
- * that turns the sheen into scattered highlights instead of a mirror.
+ * **Visual island best practices (lab):**
+ *  - Dark stone pad under hero / cast range
+ *  - Shore band near WORLD.islandRadius → sand tint + foam grain (still flat)
+ *  - Radial light pool; falloff matches fog so pad dissolves into void
+ *  - StageWater cuts a hole under the pad so ocean rings the island
+ *
+ * @see docs/ISLAND_STAGE_SSOT.md · WORLD in worldScale.js
  */
 export class Ground {
   constructor(environment) {
@@ -33,17 +34,25 @@ export class Ground {
     this.uniforms = {
       uFloorColor: { value: getColor(settings.environment.floorColor).clone() },
       uFloorTint: { value: getColor(settings.environment.floorTint).clone() },
+      uShoreColor: { value: getColor(settings.environment.shoreColor || '#3d4a3a').clone() },
       uSheen: { value: settings.environment.floorSheen },
       uPool: { value: settings.environment.floorPool },
-      uTime: { value: 0 }
+      uTime: { value: 0 },
+      uIslandR: { value: WORLD.islandRadius },
+      uShoreBand: { value: WORLD.shoreBand },
+      uShoreTint: { value: WORLD.shoreTint }
     };
 
     environment.registerShadowCasterWithPatch(this.material, (shader) => {
       shader.uniforms.uFloorColor = this.uniforms.uFloorColor;
       shader.uniforms.uFloorTint = this.uniforms.uFloorTint;
+      shader.uniforms.uShoreColor = this.uniforms.uShoreColor;
       shader.uniforms.uSheen = this.uniforms.uSheen;
       shader.uniforms.uPool = this.uniforms.uPool;
       shader.uniforms.uTime = this.uniforms.uTime;
+      shader.uniforms.uIslandR = this.uniforms.uIslandR;
+      shader.uniforms.uShoreBand = this.uniforms.uShoreBand;
+      shader.uniforms.uShoreTint = this.uniforms.uShoreTint;
 
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', `#include <common>\nvarying vec3 vGroundWorld;`)
@@ -59,9 +68,13 @@ export class Ground {
            varying vec3 vGroundWorld;
            uniform vec3 uFloorColor;
            uniform vec3 uFloorTint;
+           uniform vec3 uShoreColor;
            uniform float uSheen;
            uniform float uPool;
            uniform float uTime;
+           uniform float uIslandR;
+           uniform float uShoreBand;
+           uniform float uShoreTint;
            ${noiseGLSL}`
         )
         .replace(
@@ -69,27 +82,32 @@ export class Ground {
           `#include <map_fragment>
            {
              vec3 wp = vGroundWorld;
+             float dist = length(wp.xz);
 
-             // Broad, deliberately smooth variation — dark stone with a warmer
-             // wash drifting through it. Anything higher frequency than this
-             // reads as gravel and fights the clean stage look.
+             // Broad stone mottling (low frequency — not gravel)
              float macro = fbm3(wp * 0.018);
              float tintMask = smoothstep(-0.5, 0.6, macro);
              vec3 base = mix(uFloorColor, uFloorTint, tintMask * 0.5);
 
-             // Faint patina. Both terms are multiplicative and low frequency on
-             // purpose: an additive or fine-grained term is a small number in
-             // absolute terms but a *large* fraction of a floor this dark, and
-             // it immediately reads as gravel.
              base *= 1.0 + fbm3(wp * 0.09 + 11.0) * 0.05;
              base *= 1.0 + (snoise01(wp * 0.7) - 0.5) * 0.06;
 
-             // Radial light pool — extents from WORLD SI scale (2 m hero yardstick)
-             float dist = length(wp.xz);
+             // Shore band: warm sand/stone toward water (island best practice, visual only)
+             float shoreInner = max(0.0, uIslandR - uShoreBand);
+             float shore = smoothstep(shoreInner, uIslandR * 0.98, dist);
+             float foam = smoothstep(0.35, 0.95, snoise01(wp * 0.55 + uTime * 0.04)) * shore;
+             base = mix(base, uShoreColor, shore * clamp(uShoreTint, 0.0, 1.0));
+             base = mix(base, vec3(0.72, 0.78, 0.74), foam * 0.22);
+
+             // Radial light pool — SI extents from WORLD
              float poolOuter = ${WORLD.floorPoolOuter.toFixed(1)};
              float poolInner = ${WORLD.floorPoolInner.toFixed(1)};
              float pool = mix(1.0, smoothstep(poolOuter, poolInner, dist), clamp(uPool, 0.0, 1.0));
              base *= mix(0.18, 1.0, pool);
+
+             // Beyond island: darken into fog/water ring (StageWater owns ocean)
+             float offIsland = smoothstep(uIslandR * 0.96, uIslandR * 1.12, dist);
+             base *= mix(1.0, 0.42, offIsland);
 
              diffuseColor.rgb *= base;
            }`
@@ -124,8 +142,12 @@ export class Ground {
     this.uniforms.uTime.value = elapsed;
     this.uniforms.uFloorColor.value.copy(getColor(env.floorColor));
     this.uniforms.uFloorTint.value.copy(getColor(env.floorTint));
+    this.uniforms.uShoreColor.value.copy(getColor(env.shoreColor || '#3d4a3a'));
     this.uniforms.uSheen.value = env.floorSheen;
     this.uniforms.uPool.value = env.floorPool;
+    this.uniforms.uIslandR.value = WORLD.islandRadius;
+    this.uniforms.uShoreBand.value = WORLD.shoreBand;
+    this.uniforms.uShoreTint.value = WORLD.shoreTint;
     this.material.roughness = env.floorRoughness;
   }
 

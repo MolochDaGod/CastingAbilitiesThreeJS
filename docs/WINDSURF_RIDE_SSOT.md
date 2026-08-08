@@ -22,9 +22,37 @@ Treat the board as a **tiny boat**:
 
 ---
 
-## Deploy sequence (new)
+## Stroke semantics
 
-1. **Space** in Walk mode (or path start) → **frontflip** (`playFrontflip`)
+`settings.mode` decides what a finished PathDrawer stroke means:
+
+| mode | Receiver |
+|------|----------|
+| `casting` | `AbilityManager` (staff element path) |
+| `walk` | `WalkController` four-phase sequence over the same curve |
+
+### Four-phase sequence
+
+| Phase | What happens |
+|-------|----------------|
+| **leap** | Parabolic / frontflip arc to path head. At `walk.tuck` IK weight ramps so hands/feet seek board sockets before landing. Sail deploys mid-flip (`sailDeployAt`). |
+| **ride** | Board + mast + boom + sail live. Rider on deck; path follow by arc length; bank with lean. |
+| **freeride** | After path (optional) or Space deploy: WASD boat (tslda), Space hop, soft wave body. |
+| **dismount** | IK blends off, board fades, step to floor → **idle**. |
+
+### Apply order (hard)
+
+```
+walk.update → character.update (mixer) → walk.applyRiderIk
+```
+
+Sockets (manifest SI): `footL`/`footR` deck straps · `sailRail`/`sailBoom*` boom grips · `deckCenter` seat.
+
+Wind cushion: AirScooter-style streamlines may sit under deck (visual); seat is always deck.
+
+## Deploy sequence
+
+1. **Space** in Walk/Surf mode (or path start) → **frontflip** (`playFrontflip`)
 2. Mid-flip (`sailDeployAt`) → board/sail **spawns from back** (`HoverboardRide.spawn`)
 3. Land on deck → reparent to seat · RideIK feet + hands
 4. **Path ride** if curve drawn, else **freeride** WASD
