@@ -776,8 +776,8 @@ export const MODE_META = {
   walk: {
     label: 'Walk',
     glyph: '◎',
-    hint: 'Windsurf ride',
-    blurb: 'Draw a path. Release to board-ride (feet + sail-rail IK).'
+    hint: 'Windsurf freeride',
+    blurb: 'Space = frontflip deploy · WASD boat · path draw optional (tslda feel).'
   }
 };
 
