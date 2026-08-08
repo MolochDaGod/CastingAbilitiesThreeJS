@@ -604,14 +604,25 @@ export class DrcCombatController {
       const isMeteor =
         /meteor|inferno/i.test(skill.id + skill.label + (skill.catalogSkillId || '')) ||
         skill.presentation === 'meteor';
-      const isVolley = /volley|bolt|spark|practice/i.test(skill.id + skill.label) || skill.presentation === 'volley';
+      const isVolley =
+        /volley|spark|practice/i.test(skill.id + skill.label) ||
+        skill.presentation === 'volley' ||
+        ((el === 'fire' || el === 'arcane') && !/meteor/i.test(skill.id + skill.label));
+      const isLightning =
+        el === 'storm' ||
+        /lightning|chain.?lightning|tempest|storm/i.test(skill.id + skill.label) ||
+        skill.presentation === 'lightning';
+      const isShield =
+        /shield|ward|guard/i.test(skill.id + skill.label) || skill.presentation === 'shield';
 
-      // Creative presentation (soft shake, multi micro shots, vines, shield, void…)
+      // Creative presentation (soft shake, multi micro shots, vines, lightning, shield…)
       this.vfx?.deployPresentation?.(el, { ...pose, intensity }, {
         pathKind: pathMode,
         meteor: isMeteor,
-        volley: isVolley || el === 'fire' || el === 'arcane',
-        shield: el === 'storm' && /shield|ward|guard|gale/i.test(skill.id + skill.label)
+        volley: isVolley && !isLightning,
+        lightning: isLightning && !isShield,
+        chain: isLightning && !/single|bolt only/i.test(skill.label || ''),
+        shield: isShield || (el === 'storm' && pathMode === 'wall')
       });
 
       this.character.setCasting?.(true, {
@@ -623,7 +634,13 @@ export class DrcCombatController {
       const dmg = skill.damage ? ` · ${Math.round(skill.damage * focusMul)} dmg` : '';
       const cat = skill.catalogSkillId ? ` → ${skill.catalogSkillId}` : '';
       const focusTag = focusOn ? ' · FOCUSED' : '';
-      const styleTag = isMeteor ? ' · meteor' : isVolley || el === 'fire' ? ' · volley' : '';
+      const styleTag = isMeteor
+        ? ' · meteor'
+        : isLightning
+          ? ' · lightning'
+          : isVolley
+            ? ' · volley'
+            : '';
       this.onToast(
         bound
           ? `${boundName} · ${bound.skillId}`

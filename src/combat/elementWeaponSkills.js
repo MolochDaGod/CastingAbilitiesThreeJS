@@ -284,7 +284,7 @@ export function elementHotbarSkills(element) {
   if (el === 'holy') return HOLY_WEAPON_SKILLS.slice();
   const labels = {
     fire: ['Fire Bolt', 'Flame Wave', 'Meteor Path', 'Inferno'],
-    storm: ['Storm Bolt', 'Gale Nova', 'Chain Storm', 'Tempest'],
+    storm: ['Lightning Bolt', 'Chain Lightning', 'Storm Shield', 'Tempest'],
     ice: ['Ice Lash', 'Frost Wave', 'Moon Beam', 'Blizzard Shell'],
     nature: ['Vine Spike', 'Quake Surge', 'Stone Path', "Nature's Fury"]
   };

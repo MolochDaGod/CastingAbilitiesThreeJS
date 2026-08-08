@@ -250,9 +250,42 @@ export const settings = {
     /** Nature vine lash — green earth surge + heal aura */
     natureVineCount: 3,
     natureHealAura: true,
-    /** Storm defensive shield aura (not only offensive) */
+    /** Storm defensive shield aura (wall / guard skills) */
     stormShieldRadius: 2.4,
     stormShieldDuration: 1.8,
+    /**
+     * Lightning / chain lightning (storm offense).
+     * Narrow · fast · electric core + wind residual — not fat orbs.
+     */
+    lightning: {
+      /** Primary bolt speed feel (m/s of particle stream) */
+      boltSpeed: 42,
+      /** Segment life (s) — short = snappy electric, not laggy trails */
+      boltLife: 0.14,
+      /** Core thickness (particle size) — keep thin */
+      coreSize: 0.045,
+      /** Outer glow size */
+      glowSize: 0.09,
+      /** Zigzag amplitude (m) along bolt */
+      zigzag: 0.28,
+      /** Segments along primary cast→aim */
+      segments: 7,
+      /** Chain hops after primary (virtual targets) */
+      chainHops: 3,
+      /** Delay between chain hops (ms) — fast cascade */
+      hopDelayMs: 38,
+      /** Lateral search radius for chain hops (m) */
+      hopRadius: 3.2,
+      /** Max hop distance (m) */
+      hopRange: 5.5,
+      /** Wind residual motes along bolt (silk feel) */
+      windResidual: true,
+      /** Soft flash on strike */
+      flash: 0.05,
+      coreColor: '#eef9ff',
+      glowColor: '#6ec8ff',
+      arcColor: '#a8e8ff'
+    },
     /** Arcane void — purple + near-black */
     arcaneCore: '#1a0a28',
     arcaneGlow: '#b070ff',

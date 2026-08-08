@@ -6,7 +6,7 @@
  *  - Fire volley of micro projectiles + sky meteor shards
  *  - Ice ground-flood (earth move timing) then erupt swallow
  *  - Nature green earth + vine lashes + heal aura
- *  - Storm defensive wind shield aura
+ *  - Storm: narrow fast chain lightning + wind residual; shield on wall
  *  - Arcane purple + void black
  *  - Holy radiance beams
  *  - Cross-shader spikes (earth motion + water/fire/air beauty)
@@ -18,7 +18,7 @@
 import { CASTING_ELEMENT_PHASE_VFX, normalizeElement } from './elementWeaponSkills.js';
 
 /**
- * @typedef {'volley'|'meteor'|'groundFlood'|'vineLash'|'shieldAura'|'voidBolt'|'radiance'|'hybridSpike'} PresentationStyle
+ * @typedef {'volley'|'meteor'|'groundFlood'|'vineLash'|'shieldAura'|'lightning'|'voidBolt'|'radiance'|'hybridSpike'} PresentationStyle
  */
 
 /**
@@ -37,6 +37,8 @@ import { CASTING_ELEMENT_PHASE_VFX, normalizeElement } from './elementWeaponSkil
  * @property {boolean} [shield]
  * @property {boolean} [healAura]
  * @property {boolean} [microFirst]
+ * @property {boolean} [lightning]
+ * @property {boolean} [chain]
  * @property {string} learn note for agents
  */
 
@@ -59,15 +61,18 @@ export const ELEMENT_PRESENTATION = {
   },
   storm: {
     element: 'storm',
-    style: 'shieldAura',
+    style: 'lightning',
     abilityKey: 'wind',
     color: 0x9fdcff,
-    colorB: 0xe8f7ff,
+    colorB: 0xeef9ff,
     castEffectId: 'arcane_swirl',
     travelEffectId: 'chain_lightning',
     impactEffectId: 'ice_lightning_burst',
-    shield: true,
-    learn: 'Wind as defensive shield aura + lightning bolt travel; silk sheets = WindAbility'
+    lightning: true,
+    chain: true,
+    shield: true, // wall / guard only — see deployPresentation pathKind
+    learn:
+      'Narrow fast electric bolts + chain hops; wind silk residual; WindAbility path; shield on wall'
   },
   ice: {
     element: 'ice',

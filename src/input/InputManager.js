@@ -110,7 +110,8 @@ export class InputManager extends EventEmitter {
         KeyF: 'frost_wave',
         KeyG: 'fire_aura',
         KeyT: 'earth_surge',
-        KeyC: 'fireball'
+        KeyC: 'fireball',
+        KeyL: 'chain_lightning'
       };
       if (map[event.code]) {
         event.preventDefault();

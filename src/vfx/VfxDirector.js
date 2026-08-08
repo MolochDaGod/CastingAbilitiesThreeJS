@@ -175,10 +175,11 @@ export class VfxDirector {
         this._castAura(cast, color, intensity * 1.1);
         this._embers(cast, 36, intensity);
         break;
+      case 'lightning_bolt':
+        this._deployLightningBolt(cast, aim, color, intensity, { chain: false });
+        break;
       case 'chain_lightning':
-        this._sparks(front, color, 50, 6, intensity);
-        this._burst(front, color, 20, 3.2, intensity);
-        this._nova(front, 0xa8e0ff, intensity * 0.7);
+        this._deployLightningBolt(cast, aim, color, intensity, { chain: true });
         break;
       default:
         this._burst(front, color, 20, 3, intensity);
@@ -258,8 +259,16 @@ export class VfxDirector {
     const cast = origin.clone();
     cast.y += 1.15;
 
-    // Cast tell always
-    this.deploy(pres.castEffectId, { origin, forward: fwd, aim, intensity: intensity * 0.9, color: pres.color });
+    // Cast tell always (storm lightning uses a snappier tell below)
+    if (!(pres.lightning && el === 'storm' && opts.pathKind !== 'wall')) {
+      this.deploy(pres.castEffectId, {
+        origin,
+        forward: fwd,
+        aim,
+        intensity: intensity * 0.9,
+        color: pres.color
+      });
+    }
 
     // Hybrid path spikes: earth motion already from Ability — beauty overlay by element
     if (opts.pathKind === 'spikes') {
@@ -292,8 +301,23 @@ export class VfxDirector {
       this._deployVineLash(pres, ground, aim, fwd, intensity, p);
     }
 
-    if (pres.shield && (el === 'storm' || opts.shield)) {
-      this._deployStormShield(pres, ground, cast, intensity, p);
+    // Storm: offense = narrow chain lightning + wind residual; wall/shield = defensive aura
+    if (el === 'storm' || pres.lightning) {
+      const wantShield =
+        opts.shield === true ||
+        opts.pathKind === 'wall' ||
+        (pres.shield && opts.pathKind === 'wall');
+      if (wantShield) {
+        this._deployStormShield(pres, ground, cast, intensity, p);
+      }
+      if (!wantShield || opts.pathKind === 'stream' || opts.pathKind === 'spikes' || opts.pathKind === 'aoe') {
+        if (pres.lightning !== false && opts.lightning !== false) {
+          this._deployLightningBolt(cast, aim, pres.color, intensity, {
+            chain: pres.chain !== false && opts.chain !== false,
+            wind: true
+          });
+        }
+      }
     }
 
     if (pres.style === 'voidBolt' || el === 'arcane') {
@@ -315,7 +339,13 @@ export class VfxDirector {
     }
 
     // Default soft impact when style did not already schedule one
-    if (!pres.multiShot && el !== 'storm' && el !== 'arcane' && el !== 'nature' && el !== 'ice') {
+    if (
+      !pres.multiShot &&
+      el !== 'storm' &&
+      el !== 'arcane' &&
+      el !== 'nature' &&
+      el !== 'ice'
+    ) {
       this.deploy(pres.impactEffectId, {
         origin: aim,
         forward: fwd,
@@ -324,6 +354,187 @@ export class VfxDirector {
         color: pres.color
       });
     }
+  }
+
+  /**
+   * Lightning / chain lightning — narrow, fast electric motion + optional wind residual.
+   * Design: white-hot core, cyan glow, zigzag segments, hop chain, short life (not fat orbs).
+   *
+   * @param {Vector3} from cast hand / chest
+   * @param {Vector3} to primary aim
+   * @param {number} color
+   * @param {number} intensity
+   * @param {{ chain?: boolean, wind?: boolean }} [opts]
+   */
+  _deployLightningBolt(from, to, color, intensity = 1, opts = {}) {
+    const L = settings.presentation?.lightning || {};
+    const core = new Color(L.coreColor || '#eef9ff').getHex();
+    const glow = typeof color === 'number' ? color : new Color(L.glowColor || '#6ec8ff').getHex();
+    const arc = new Color(L.arcColor || '#a8e8ff').getHex();
+    const segs = Math.max(3, Math.round(L.segments ?? 7));
+    const zigzag = L.zigzag ?? 0.28;
+    const boltSpeed = L.boltSpeed ?? 42;
+    const boltLife = L.boltLife ?? 0.14;
+    const coreSize = L.coreSize ?? 0.045;
+    const glowSize = L.glowSize ?? 0.09;
+    const wind = opts.wind !== false && L.windResidual !== false;
+    const flashStr = (L.flash ?? 0.05) * intensity * (settings.global?.flashStrength ?? 1);
+
+    // Hand crackle (tiny, not a ball)
+    this._emitDirected('spark', from, to.clone().sub(from).normalize(), 10 * intensity, boltSpeed * 0.35, core, {
+      size: coreSize * 0.7,
+      life: boltLife * 0.8,
+      spread: 0.22
+    });
+    this._castAura(from, glow, intensity * 0.45);
+
+    // Primary bolt: zigzag polyline cast → aim (narrow directed sparks)
+    this._electricPath(from, to, segs, zigzag, core, glow, arc, intensity, {
+      boltSpeed,
+      boltLife,
+      coreSize,
+      glowSize,
+      wind
+    });
+
+    // Soft impact pin (small, not inferno)
+    this._sparks(to, core, 14 * intensity, 5.5, intensity * 0.85);
+    this._burst(to, glow, 10, 2.4, intensity * 0.55);
+    this._nova(to.clone().setY(Math.max(0.05, to.y * 0.2 + 0.05)), arc, intensity * 0.45);
+    if (flashStr > 0.001) this._flash(core, flashStr);
+    this.ctx.shake?.add(0.028 * intensity, 1.1, 32);
+
+    // Chain hops — fast cascade to lateral virtual targets (until real combat targets exist)
+    if (opts.chain !== false) {
+      const hops = Math.max(0, Math.round(L.chainHops ?? 3));
+      const hopDelay = L.hopDelayMs ?? 38;
+      const hopR = L.hopRadius ?? 3.2;
+      const hopRange = L.hopRange ?? 5.5;
+      let prev = to.clone();
+      const baseFwd = to.clone().sub(from);
+      baseFwd.y = 0;
+      if (baseFwd.lengthSq() < 1e-6) baseFwd.set(0, 0, 1);
+      else baseFwd.normalize();
+      const side = new Vector3(-baseFwd.z, 0, baseFwd.x);
+
+      for (let h = 0; h < hops; h++) {
+        const t = (h + 1) * hopDelay;
+        const lat = (Math.random() * 2 - 1) * hopR;
+        const along = 0.6 + Math.random() * hopRange * 0.35;
+        const next = prev
+          .clone()
+          .addScaledVector(side, lat)
+          .addScaledVector(baseFwd, along * (0.4 + Math.random() * 0.4));
+        next.y = 0.9 + Math.random() * 0.6;
+        const fromHop = prev.clone();
+        setTimeout(() => {
+          this._electricPath(fromHop, next, Math.max(3, segs - 1 - h), zigzag * 0.85, core, glow, arc, intensity * (0.9 - h * 0.12), {
+            boltSpeed: boltSpeed * 1.08,
+            boltLife: boltLife * 0.9,
+            coreSize: coreSize * (0.95 - h * 0.08),
+            glowSize: glowSize * (0.95 - h * 0.08),
+            wind
+          });
+          this._sparks(next, core, 8 * intensity, 4.5, intensity * 0.6);
+          this._burst(next, glow, 6, 2.0, intensity * 0.4);
+        }, t);
+        prev = next;
+      }
+    }
+  }
+
+  /**
+   * Draw a zigzag electric polyline with directed narrow sparks + optional wind silk residual.
+   */
+  _electricPath(from, to, segments, zigzag, core, glow, arc, intensity, p) {
+    const n = Math.max(2, segments | 0);
+    const dir = to.clone().sub(from);
+    const len = dir.length() || 1;
+    dir.multiplyScalar(1 / len);
+    // Perpendicular for zigzag (prefer world up cross for visible jag)
+    const side = new Vector3().crossVectors(dir, new Vector3(0, 1, 0));
+    if (side.lengthSq() < 1e-6) side.set(1, 0, 0);
+    else side.normalize();
+    const up = new Vector3().crossVectors(side, dir).normalize();
+
+    let prev = from.clone();
+    for (let i = 1; i <= n; i++) {
+      const u = i / n;
+      const jag = i < n ? (Math.random() * 2 - 1) * zigzag * (0.5 + Math.random() * 0.5) : 0;
+      const jagY = i < n ? (Math.random() * 2 - 1) * zigzag * 0.35 : 0;
+      const pt = from
+        .clone()
+        .addScaledVector(dir, len * u)
+        .addScaledVector(side, jag)
+        .addScaledVector(up, jagY);
+      if (i === n) pt.copy(to);
+
+      const segDir = pt.clone().sub(prev);
+      const segLen = segDir.length() || 0.01;
+      segDir.multiplyScalar(1 / segLen);
+      const mid = prev.clone().lerp(pt, 0.5);
+
+      // Core: thin, fast, short life
+      this._emitDirected('spark', mid, segDir, Math.max(4, 7 * intensity), p.boltSpeed, core, {
+        size: p.coreSize,
+        life: p.boltLife,
+        spread: 0.08,
+        radius: 0.04
+      });
+      // Glow sheath
+      this._emitDirected('mote', mid, segDir, Math.max(3, 5 * intensity), p.boltSpeed * 0.75, glow, {
+        size: p.glowSize,
+        life: p.boltLife * 1.15,
+        spread: 0.14,
+        radius: 0.06
+      });
+      // Arc fringe
+      this._emitDirected('frost', mid, segDir, Math.max(2, 3 * intensity), p.boltSpeed * 0.55, arc, {
+        size: p.glowSize * 0.7,
+        life: p.boltLife * 1.3,
+        spread: 0.2,
+        radius: 0.05
+      });
+
+      // Wind residual silk — soft cyan motes lagging the bolt (WindAbility family)
+      if (p.wind) {
+        this._emitDirected('mote', mid.clone().addScaledVector(segDir, -0.15), segDir, 3 * intensity, p.boltSpeed * 0.25, 0xc9f0ff, {
+          size: 0.07,
+          life: 0.35,
+          spread: 0.45,
+          radius: 0.1
+        });
+      }
+
+      prev = pt;
+    }
+  }
+
+  /**
+   * Directed narrow emission for electric/arrow-like travel (low spread, high speed, short life).
+   */
+  _emitDirected(sysId, position, direction, count, speed, color, opts = {}) {
+    const pack = this._systems.get(sysId);
+    if (!pack || count < 1) return;
+    const n = Math.min(48, Math.round(count * (settings.global?.particleCount ?? 1)));
+    _c.set(typeof color === 'number' ? color : 0xffffff);
+    _f.copy(direction).normalize();
+    _emit.position = position;
+    _emit.radius = opts.radius ?? 0.05;
+    _emit.direction = _f;
+    _emit.speed = speed;
+    _emit.speedVariance = opts.speedVariance ?? 0.18;
+    _emit.spread = opts.spread ?? 0.12;
+    _emit.inherit = null;
+    _emit.anchor = position;
+    _emit.size = opts.size ?? 0.05;
+    _emit.sizeVariance = opts.sizeVariance ?? 0.25;
+    _emit.life = opts.life ?? 0.16;
+    _emit.lifeVariance = opts.lifeVariance ?? 0.2;
+    _emit.spin = opts.spin ?? 6;
+    _emit.tint = _c;
+    _emit.time = frame.uTime?.value ?? 0;
+    pack.sys.emit(n, _emit);
   }
 
   /** Fire/arcane micro volley — first shot is bullet-sized for cheap reads. */

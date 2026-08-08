@@ -102,8 +102,17 @@ export const VFX_CATALOG = Object.freeze([
     name: 'Chain Lightning',
     category: 'lightning',
     color: 0x7ec8ff,
-    description: 'Branching lightning arcs.',
-    tags: ['lightning', 'chain', 'burst']
+    description:
+      'Narrow fast electric bolts with chain hops + wind residual (storm presentation).',
+    tags: ['lightning', 'chain', 'bolt', 'electric', 'wind', 'narrow', 'fast']
+  },
+  {
+    id: 'lightning_bolt',
+    name: 'Lightning Bolt',
+    category: 'lightning',
+    color: 0xa8e8ff,
+    description: 'Single narrow electric projectile — core white, cyan glow, wind trail.',
+    tags: ['lightning', 'bolt', 'electric', 'projectile', 'narrow', 'fast']
   }
 ]);
 
@@ -114,7 +123,8 @@ export const VFX_SANDBOX_SHORTCUTS = Object.freeze([
   { key: 'F', code: 'KeyF', label: 'Frost Wave', effectId: 'frost_wave' },
   { key: 'G', code: 'KeyG', label: 'Aura Ring', effectId: 'fire_aura' },
   { key: 'T', code: 'KeyT', label: 'Earth Surge', effectId: 'earth_surge' },
-  { key: 'C', code: 'KeyC', label: 'Fireball', effectId: 'fireball' }
+  { key: 'C', code: 'KeyC', label: 'Fireball', effectId: 'fireball' },
+  { key: 'L', code: 'KeyL', label: 'Chain Lightning', effectId: 'chain_lightning' }
 ]);
 
 const BY_ID = new Map(VFX_CATALOG.map((e) => [e.id, e]));

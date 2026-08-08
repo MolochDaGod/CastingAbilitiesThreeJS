@@ -11,7 +11,7 @@ Product elements reuse **existing** Ability pools + catalog VFX. Creative looks 
 | Element | Ability pool | Style | What you see |
 |---------|--------------|-------|----------------|
 | **Fire** | FireAbility | `volley` + `meteor` | Micro fire bolts (first = bullet size); high intensity / Meteor skill = sky shards + small ground infernos |
-| **Storm** | WindAbility | `shieldAura` | Defensive wind ring + spark rim; offensive bolt = chain lightning |
+| **Storm** | WindAbility | `lightning` + shield on wall | **Narrow fast** electric bolts + **chain hops** + wind silk residual; wall = defensive shield |
 | **Ice** | WaterAbility | `groundFlood` | Frost plate crawls like earth pave, then erupts / frost_wave swallow |
 | **Nature** | EarthAbility | `vineLash` | Green earth palette; vines rise underground and lash; heal aura ring |
 | **Holy** | WindAbility | `radiance` | Moon beam + soft heal aura |
@@ -45,7 +45,23 @@ EarthAbility (or water) motion + beauty overlay:
 | natureVineCount | 3 | lash count |
 | natureHealAura | true | green ring |
 | stormShieldRadius | 2.4 | defensive ring |
+| lightning.* | see below | narrow electric bolt + chain |
 | arcaneCore / arcaneGlow | black / purple | void palette |
+
+### Lightning knobs (`settings.presentation.lightning`)
+
+| Field | Default | Role |
+|-------|---------|------|
+| boltSpeed | 42 | directed particle stream speed |
+| boltLife | 0.14 | short = snappy electric |
+| coreSize / glowSize | 0.045 / 0.09 | **narrow** core + sheath |
+| zigzag | 0.28 m | jag amplitude |
+| segments | 7 | polyline density cast→aim |
+| chainHops | 3 | cascade hops |
+| hopDelayMs | 38 | fast chain timing |
+| windResidual | true | cyan silk lag along bolt |
+
+**Sandbox:** Alt+L → `chain_lightning` preview.
 
 ## Shake policy
 
