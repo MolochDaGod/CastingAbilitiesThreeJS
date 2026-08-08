@@ -57,6 +57,7 @@ learn source → isolate primitive → edit knobs → bind skill → smoke → e
 | **Island stage** | Planar pad + shore + water ring · `docs/ISLAND_STAGE_SSOT.md` |
 | **Staff elements** | 1 Fire · 2 Storm · 3 Ice · 4 Nature · 5 Holy · 6 Arcane (`ELEMENTS` / `ELEMENT_META`) |
 | **Game item prefabs** | All categories → `docs/GAME_ITEM_PREFAB_PRODUCTION_SSOT.md` · I→**Prefabs** · ObjectStore masters |
+| **Asset library audit** | Keep/remove half-done R2/D1/catalogs → `docs/ASSET_LIBRARY_AUDIT_SSOT.md` |
 | **Transit mastery** | `docs/ELEMENT_TRANSIT_MASTERY_SSOT.md` — Ability TRAVEL + materials + 4 path modes |
 | **All STAFF skills** | `staffWeaponSkillsBind.js` ← WEAPON_SKILLS.html / master-weaponSkills STAFF |
 | **Session SSOT** | `SessionState` mode · drc · ridePhase · gates (no ad-hoc mode forks) |

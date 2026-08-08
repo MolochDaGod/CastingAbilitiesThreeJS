@@ -15,6 +15,7 @@ import { loadEquippableWeapons, T0_STARTER_WEAPON_IDS } from './t0WeaponCatalog.
 
 export const INFO_API = 'https://info.grudge-studio.com/api/v1';
 export const INFO_MIRROR = 'https://objectstore.grudge-studio.com/api/v1';
+/** Prefer manifest — game-library.json is currently 404 on info/objectstore (2026-08). */
 export const GAME_LIBRARY_URL = `${INFO_API}/game-library.json`;
 export const ITEMS_MANIFEST_URL = `${INFO_API}/canonical-items-manifest.json`;
 export const ITEM_BROWSER_URL = 'https://info.grudge-studio.com/GRUDGE_Item_Database.html';

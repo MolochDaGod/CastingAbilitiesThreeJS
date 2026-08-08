@@ -8,8 +8,8 @@
 |----------|-----|
 | Item browser | https://info.grudge-studio.com/GRUDGE_Item_Database.html |
 | Weapon skills | https://info.grudge-studio.com/WEAPON_SKILLS.html |
-| Start / game library | https://info.grudge-studio.com/api/v1/game-library.json |
-| Items manifest | https://info.grudge-studio.com/api/v1/canonical-items-manifest.json |
+| Items manifest (start) | https://info.grudge-studio.com/api/v1/canonical-items-manifest.json |
+| game-library.json | **404** as of 2026-08 — do not depend; see ASSET_LIBRARY_AUDIT_SSOT |
 | Equipment pattern | https://info.grudge-studio.com/api/v1/_meta/canonical-equipment-pattern.json |
 | Lab import | `src/api/gameItemCatalog.js` · Inventory **Prefabs** tab |
 | CDN | https://assets.grudge-studio.com |
