@@ -601,7 +601,10 @@ body {
 }
 
 .hud-frame__bar--mp .hud-frame__fill {
-  background: linear-gradient(90deg, #2a6a9a, #5ec8ff);
+  background: linear-gradient(90deg, #2563eb, #38bdf8);
+}
+.hud-frame__bar--sta .hud-frame__fill {
+  background: linear-gradient(90deg, #a16207, #fbbf24);
 }
 
 .hud-frame__bar--hostile .hud-frame__fill {
@@ -934,6 +937,73 @@ body {
   margin-bottom: 12px;
 }
 
+.inv-weapon-equip-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 280px;
+  overflow: auto;
+  margin-bottom: 10px;
+  padding-right: 4px;
+}
+
+.inv-weapon-card {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--ui-text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.inv-weapon-card.is-on {
+  border-color: rgba(125, 211, 252, 0.65);
+  box-shadow: 0 0 0 1px rgba(125, 211, 252, 0.2);
+}
+
+.inv-weapon-card__icon {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  image-rendering: auto;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 6px;
+}
+
+.inv-weapon-card__name {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.inv-weapon-card__meta,
+.inv-weapon-card__skills {
+  font-size: 10px;
+  color: var(--ui-text-dim);
+}
+
+.inv-equip-banner {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  gap: 10px;
+  align-items: center;
+  margin: 8px 0 10px;
+  padding: 8px;
+  border: 1px solid rgba(125, 211, 252, 0.35);
+  border-radius: 8px;
+  background: rgba(125, 211, 252, 0.06);
+}
+
+.inv-equip-banner img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+
 .inv-weapon {
   border: 1px solid var(--ui-border);
   border-radius: 8px;
@@ -959,6 +1029,17 @@ body {
   border-radius: 6px;
   padding: 4px;
   font-size: 11px;
+}
+
+.inv-skill.is-dim {
+  opacity: 0.55;
+}
+
+.inv-skill__icon {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  border-radius: 4px;
 }
 
 .inv-clip-grid {
@@ -991,7 +1072,7 @@ body {
 
 .inv-skill {
   display: grid;
-  grid-template-columns: 28px 1fr auto;
+  grid-template-columns: 22px 22px 1fr;
   gap: 8px;
   align-items: center;
   border: 1px solid var(--ui-border);

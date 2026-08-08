@@ -693,18 +693,31 @@ export class CharacterController {
     return this.requestOneShot('attack') || this.requestOneShot('cast');
   }
 
+  /**
+   * Play clip with improved locomotion/combat blending (Warlords production feel).
+   * Gait uses longer fades; attacks/casts shorter.
+   * @param {string} name
+   * @param {number} [fadeDuration]
+   */
   play(name, fadeDuration = 0.35) {
     const next = this.actions.get(name);
     if (!next) return;
     if (next === this.current && next.isRunning()) return;
+
+    // Smoother gait blends; snappier combat one-shots
+    const isGait = /^(idle|walk|run)$/i.test(name) || /:idle$|:walk$|:run$/i.test(name);
+    const isCombat = /attack|cast|dodge|roll|slide|jump|parry|block/i.test(name);
+    let fade = fadeDuration;
+    if (isGait) fade = Math.max(fade, settings.character?.gaitBlend ?? 0.28);
+    else if (isCombat) fade = Math.min(fade, settings.character?.combatBlend ?? 0.12);
 
     next.reset();
     next.enabled = true;
     next.setEffectiveTimeScale(1);
     next.setEffectiveWeight(1);
 
-    if (this.current && this.current !== next && fadeDuration > 0) {
-      next.crossFadeFrom(this.current, fadeDuration, true);
+    if (this.current && this.current !== next && fade > 0) {
+      next.crossFadeFrom(this.current, fade, true);
     }
     next.play();
     this.current = next;

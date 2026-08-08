@@ -899,6 +899,8 @@ export class App {
       calls: gl.info.render.calls,
       abilities: this.abilities.active.length,
       stamina: this.drc.stamina,
+      mana: this.drc.mana,
+      castIntensity: this.drc.lastCastIntensity ?? 1,
       cooldown01: (slot) => {
         const skill = this.drc.skills.find((s) => s.slot === slot);
         return skill ? this.drc.cooldown01(skill.id) : 0;
@@ -909,7 +911,8 @@ export class App {
         name: this.character.presetId || 'Hero',
         raceId: this.character.raceId,
         hp01: 1,
-        sta01: (this.drc.stamina ?? 100) / 100
+        mana01: (this.drc.mana ?? 100) / (this.drc.maxMana || 100),
+        sta01: (this.drc.stamina ?? 100) / (this.drc.maxStamina || 100)
       },
       target: null
     }));

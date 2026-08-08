@@ -11,6 +11,12 @@ import { residualFromSettings } from '../vfx/effectPrefab.js';
 import { getSkillBinding } from './skillBindings.js';
 import { vfxIdForSkill, animRoleForSkill } from '../api/weaponSkillsCatalog.js';
 import { dodgeDistanceM } from './motionMath.js';
+import {
+  skillCastCosts,
+  pathCastCosts,
+  castIntensity
+} from './castResources.js';
+import { signatureForElement } from './staffSignatureSkills.js';
 
 const _origin = new Vector3();
 const _tip = new Vector3();
@@ -73,7 +79,12 @@ export class DrcCombatController {
     this._cdUntil = new Map();
     this.stamina = 100;
     this.maxStamina = 100;
+    /** Mana pool (spells) — dual resource with stamina */
+    this.mana = settings.drc?.manaMax ?? 100;
+    this.maxMana = settings.drc?.manaMax ?? 100;
     this.elapsed = 0;
+    /** Last path-cast intensity (for HUD / VFX) */
+    this.lastCastIntensity = 1;
 
     this.moveSpeed = settings.drc?.moveSpeed ?? 3.6;
     this.sprintMul = settings.drc?.sprintMul ?? 1.65;
@@ -168,8 +179,11 @@ export class DrcCombatController {
    */
   update(dt, keys) {
     this.elapsed += dt;
-    // stamina regen
-    this.stamina = Math.min(this.maxStamina, this.stamina + dt * 18);
+    // Dual resource regen (settings.drc)
+    const staR = settings.drc?.staminaRegen ?? 18;
+    const manaR = settings.drc?.manaRegen ?? 12;
+    this.stamina = Math.min(this.maxStamina, this.stamina + dt * staR);
+    this.mana = Math.min(this.maxMana, this.mana + dt * manaR);
 
     // Session gates (preferred) — land loco off while riding / equip / walk mode
     const g = this.gates;
@@ -484,12 +498,9 @@ export class DrcCombatController {
       this.onToast(`${skill.label} CD`);
       return false;
     }
-    if (this.stamina < skill.staminaCost) {
-      this.onToast('Low stamina');
-      return false;
-    }
-
-    this.stamina -= skill.staminaCost;
+    // Digit skills: base cost (no hold) — path cast uses hold intensity
+    const costs = skillCastCosts(skill, 0, 0);
+    if (!this._spendResources(costs.mana, costs.stamina, skill.label)) return false;
     this._cdUntil.set(skill.id, this.elapsed + skill.cooldown);
 
     // Catalog binding (Showcase) — true master-weaponSkills id when set
@@ -1209,18 +1220,48 @@ export class DrcCombatController {
   }
 
   /**
+   * Spend mana + stamina. Returns false and toasts if short.
+   * @param {number} mana
+   * @param {number} stamina
+   * @param {string} [label]
+   */
+  _spendResources(mana, stamina, label = 'Cast') {
+    const needM = Math.max(0, mana | 0);
+    const needS = Math.max(0, stamina | 0);
+    if (this.mana < needM) {
+      this.onToast(`Low mana · need ${needM}`);
+      return false;
+    }
+    if (this.stamina < needS) {
+      this.onToast(`Low stamina · need ${needS}`);
+      return false;
+    }
+    this.mana -= needM;
+    this.stamina -= needS;
+    return true;
+  }
+
+  /**
    * Staff / combat path cast: classify stroke → aoe | spikes | wall | stream.
+   * Costs mana+stamina scaled by LMB hold + path length (cast intensity).
    * @param {import('three').CatmullRomCurve3} curve
    * @param {number} length
    * @param {number} [holdSec]
-   * @returns {{ kind: string, element: string }|null}
+   * @returns {{ kind: string, element: string, intensity?: number }|null}
    */
   castPathAbility(curve, length, holdSec = 0) {
     if (!curve) return null;
+    if (!this.inCombat) {
+      this.onToast('Enter combat (Q) to cast');
+      return null;
+    }
     const sc = settings.staffCast || {};
     if (sc.enabled === false) {
+      const costs = pathCastCosts(holdSec, length, 'stream', this.abilities.selected);
+      if (!this._spendResources(costs.mana, costs.stamina, 'Cast')) return null;
+      this.lastCastIntensity = costs.intensity;
       this.abilities.cast(curve);
-      return { kind: 'stream', element: this.abilities.selected };
+      return { kind: 'stream', element: this.abilities.selected, intensity: costs.intensity };
     }
 
     const aoeMax = sc.aoeMaxLength ?? 3.2;
@@ -1238,6 +1279,21 @@ export class DrcCombatController {
     if (kind === 'wall' && sc.wallElement) element = sc.wallElement;
     if (kind === 'stream' && sc.streamElement) element = sc.streamElement;
 
+    const costs = pathCastCosts(holdSec, length, kind, element);
+    if (!this._spendResources(costs.mana, costs.stamina, 'Path cast')) return null;
+    this.lastCastIntensity = costs.intensity;
+    const intensity = costs.intensity;
+
+    // Signature VFX at high intensity (Inferno / Blizzard / etc.)
+    const sig = signatureForElement(element === 'arcane' ? 'arcane' : element);
+    if (intensity >= 2.4 && sig) {
+      this.vfx?.deploy?.(sig.impactEffectId, {
+        origin: this.character.position.clone(),
+        forward: _fwd.set(Math.sin(this.character.facing), 0, Math.cos(this.character.facing)).clone(),
+        intensity: intensity * 0.85
+      });
+    }
+
     // AOE: compress path to short arc at endpoint for impact placement
     if (kind === 'aoe') {
       const end = curve.getPoint(1);
@@ -1249,7 +1305,8 @@ export class DrcCombatController {
       this.abilities.cast(short, element);
       this.vfx?.deployElementImpact?.(element, {
         origin: end.clone(),
-        forward: _fwd.set(Math.sin(this.character.facing), 0, Math.cos(this.character.facing)).clone()
+        forward: _fwd.set(Math.sin(this.character.facing), 0, Math.cos(this.character.facing)).clone(),
+        intensity
       });
     } else {
       this.abilities.select(element);
@@ -1258,20 +1315,23 @@ export class DrcCombatController {
         this.vfx?.deploy?.('earth_surge', {
           origin: curve.getPoint(0.5),
           forward: _fwd.set(Math.sin(this.character.facing), 0, Math.cos(this.character.facing)).clone(),
-          intensity: 1.2
+          intensity: 1.0 * intensity
         });
       } else if (kind === 'spikes') {
         this.vfx?.deploy?.('frost_wave', {
           origin: curve.getPoint(0.5),
           forward: _fwd.clone(),
-          intensity: 1.0
+          intensity: 0.85 * intensity
         });
       }
     }
 
     this.character.requestOneShot?.('cast') || this.character.playCastFlourish?.();
     const labels = { aoe: 'AOE place', spikes: 'Spikes', wall: 'Wall', stream: 'Stream' };
-    this.onToast(`Staff · ${labels[kind]} (${element})`);
-    return { kind, element };
+    const sigName = intensity >= 2.4 && sig ? ` · ${sig.label}` : '';
+    this.onToast(
+      `Staff · ${labels[kind]} (${element}) · ×${intensity.toFixed(1)} · −${costs.mana}MP −${costs.stamina}STA${sigName}`
+    );
+    return { kind, element, intensity, mana: costs.mana, stamina: costs.stamina };
   }
 }

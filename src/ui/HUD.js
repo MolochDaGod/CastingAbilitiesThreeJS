@@ -52,9 +52,13 @@ export class HUD {
             <div class="hud-frame__fill" data-hp-fill style="width:100%"></div>
             <span class="hud-frame__val" data-hp-text>100%</span>
           </div>
-          <div class="hud-frame__bar hud-frame__bar--mp">
+          <div class="hud-frame__bar hud-frame__bar--mp" title="Mana">
             <div class="hud-frame__fill" data-mp-fill style="width:100%"></div>
-            <span class="hud-frame__val" data-mp-text>STA</span>
+            <span class="hud-frame__val" data-mp-text>MP</span>
+          </div>
+          <div class="hud-frame__bar hud-frame__bar--sta" title="Stamina">
+            <div class="hud-frame__fill" data-sta-fill style="width:100%"></div>
+            <span class="hud-frame__val" data-sta-text>STA</span>
           </div>
         </div>
       </div>
@@ -169,8 +173,10 @@ export class HUD {
 
     this._hpFill = root.querySelector('[data-hp-fill]');
     this._mpFill = root.querySelector('[data-mp-fill]');
+    this._staFill = root.querySelector('[data-sta-fill]');
     this._hpText = root.querySelector('[data-hp-text]');
     this._mpText = root.querySelector('[data-mp-text]');
+    this._staText = root.querySelector('[data-sta-text]');
     this._playerName = root.querySelector('[data-player-name]');
     this._portrait = root.querySelector('[data-portrait]');
     this._targetName = root.querySelector('[data-target-name]');
@@ -216,7 +222,7 @@ export class HUD {
   }
 
   /**
-   * @param {{ name?: string, raceId?: string, hp01?: number, sta01?: number }} info
+   * @param {{ name?: string, raceId?: string, hp01?: number, sta01?: number, mana01?: number }} info
    */
   setPlayerFrame(info = {}) {
     if (info.name && this._playerName) this._playerName.textContent = info.name;
@@ -226,11 +232,20 @@ export class HUD {
       if (this._hpFill) this._hpFill.style.width = `${Math.round(this._hp * 100)}%`;
       if (this._hpText) this._hpText.textContent = `${Math.round(this._hp * 100)}%`;
     }
+    if (info.mana01 != null) {
+      this._mana = Math.max(0, Math.min(1, info.mana01));
+      if (this._mpFill) this._mpFill.style.width = `${Math.round(this._mana * 100)}%`;
+      if (this._mpText) this._mpText.textContent = `${Math.round(this._mana * 100)}`;
+    }
     if (info.sta01 != null) {
       this._sta = Math.max(0, Math.min(1, info.sta01));
-      if (this._mpFill) this._mpFill.style.width = `${Math.round(this._sta * 100)}%`;
-      if (this._mpText) this._mpText.textContent = `${Math.round(this._sta * 100)}`;
+      if (this._staFill) this._staFill.style.width = `${Math.round(this._sta * 100)}%`;
+      if (this._staText) this._staText.textContent = `${Math.round(this._sta * 100)}`;
       if (this.stats.stamina) this.stats.stamina.textContent = String(Math.round(this._sta * 100));
+    }
+    // Legacy: if only sta01 and no mana bar data, keep mp as sta for old callers
+    if (info.sta01 != null && info.mana01 == null && !this._staFill && this._mpFill) {
+      this._mpFill.style.width = `${Math.round(this._sta * 100)}%`;
     }
     this.tightBar?.setState({
       character: info.name || this.tightBar.state.character,
@@ -238,7 +253,9 @@ export class HUD {
       health: (info.hp01 != null ? info.hp01 : this._hp) * 100,
       maxHealth: 100,
       stamina: (info.sta01 != null ? info.sta01 : this._sta) * 100,
-      maxStamina: 100
+      maxStamina: 100,
+      mana: (info.mana01 != null ? info.mana01 : this._mana ?? 1) * 100,
+      maxMana: 100
     });
   }
 
@@ -388,20 +405,26 @@ export class HUD {
     this.stats.fps.textContent = this._fps;
     this.stats.particles.textContent = info.particles;
     this.stats.calls.textContent = info.calls;
-    if (info.stamina != null) {
-      this.setPlayerFrame({ sta01: info.stamina / 100 });
+    if (info.player) {
+      this.setPlayerFrame(info.player);
+    } else if (info.stamina != null || info.mana != null) {
+      this.setPlayerFrame({
+        sta01: info.stamina != null ? info.stamina / 100 : undefined,
+        mana01: info.mana != null ? info.mana / 100 : undefined
+      });
     }
     if (info.cooldown01 && this._drcSession === 'combat') {
       this.setCombatHud(info.cooldown01, info.stamina, info.meleeCd01);
     }
-    if (info.player) this.setPlayerFrame(info.player);
     if (info.target !== undefined) this.setTargetFrame(info.target);
 
     // Sync tight bar orbs + CDs every stats tick
-    if (this.tightBar && info.stamina != null) {
+    if (this.tightBar && (info.stamina != null || info.mana != null)) {
       this.tightBar.setState({
-        stamina: info.stamina,
+        stamina: info.stamina ?? this._sta * 100,
         maxStamina: 100,
+        mana: info.mana ?? (this._mana ?? 1) * 100,
+        maxMana: 100,
         health: (info.player?.hp01 ?? this._hp) * 100,
         character: info.player?.name || this.tightBar.state.character,
         raceId: info.player?.raceId || this.tightBar.state.raceId,

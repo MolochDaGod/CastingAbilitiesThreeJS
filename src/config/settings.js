@@ -87,6 +87,27 @@ export const settings = {
     slideDuration: 0.72,
     slideStamina: 14,
     /**
+     * Dual resources for spells (Warlords production controller).
+     * Hold LMB + long path → castIntensity 1..3 multiplies mana/stamina.
+     * @see combat/castResources.js
+     */
+    manaMax: 100,
+    manaRegen: 12, // /s
+    staminaRegen: 18, // /s
+    resources: {
+      holdWeight: 0.42,
+      lengthWeight: 0.055,
+      intensityMin: 1,
+      intensityMax: 3
+    },
+    /** Base path-cast costs by placement kind (before intensity) */
+    pathCastCosts: {
+      aoe: { mana: 8, stamina: 6 },
+      spikes: { mana: 12, stamina: 10 },
+      wall: { mana: 16, stamina: 12 },
+      stream: { mana: 10, stamina: 8 }
+    },
+    /**
      * Dodge afterimage — blur of model own colors, vapor dissipate.
      * @see vfx/DodgeAfterimage.js
      */
@@ -245,6 +266,10 @@ export const settings = {
   character: {
     pose: 'idle', // 'idle' (the FBX clip) or 'sitting' (animation/SittingPose.js)
     blendTime: 0.9, // seconds to cross-fade between the two
+    /** Locomotion crossfade (idle↔walk↔run) — production controller smoothness */
+    gaitBlend: 0.28,
+    /** Attack/cast/dodge one-shot fade */
+    combatBlend: 0.12,
     breathing: 1.0, // breath amplitude while seated (0 = perfectly still)
     breathRate: 0.2, // breaths per second
     legSpread: 1.0, // widens or narrows the crossed legs
