@@ -9,6 +9,7 @@ import {
 import { settings } from '../config/settings.js';
 import { residualFromSettings } from '../vfx/effectPrefab.js';
 import { getSkillBinding } from './skillBindings.js';
+import { staffBindFor, inferStaffBind } from './staffWeaponSkillsBind.js';
 import { vfxIdForSkill, animRoleForSkill } from '../api/weaponSkillsCatalog.js';
 import { dodgeDistanceM } from './motionMath.js';
 import {
@@ -506,8 +507,34 @@ export class DrcCombatController {
     // Windsurf freeride: allow ranged/staff skills (tslda boat combat feel)
     if (this.character._rideActive && !this._allowRideSkill()) return false;
 
-    const skill = skillBySlot(slot);
+    let skill = skillBySlot(slot);
     if (!skill) return false;
+
+    // Catalog binding (Showcase) — true master-weaponSkills id when set
+    const bound = getSkillBinding(slot);
+    const boundName = bound?.name || skill.label;
+
+    // Merge STAFF catalog bind (WEAPON_SKILLS) onto skill for transit / presentation
+    const staffId = bound?.skillId || skill.catalogSkillId || skill.id;
+    const staffB = staffBindFor(staffId) || (bound ? inferStaffBind({ id: bound.skillId, name: bound.name, damageType: bound.damageType }) : null);
+    if (staffB) {
+      skill = {
+        ...skill,
+        element: staffB.element,
+        abilityElement: staffB.element,
+        pathMode: staffB.pathMode,
+        presentation: staffB.presentation,
+        castEffectId: staffB.castEffectId,
+        travelEffectId: staffB.travelEffectId,
+        impactEffectId: staffB.impactEffectId,
+        abilityClass: staffB.abilityClass,
+        animRole: staffB.animRole || skill.animRole,
+        rangeM: skill.rangeM || staffB.rangeM,
+        castDuration: skill.castDuration || staffB.castDuration,
+        catalogSkillId: staffId,
+        label: boundName || skill.label
+      };
+    }
 
     const readyAt = this._cdUntil.get(skill.id) || 0;
     if (this.elapsed < readyAt) {
@@ -518,10 +545,6 @@ export class DrcCombatController {
     const costs = skillCastCosts(skill, 0, 0);
     if (!this._spendResources(costs.mana, costs.stamina, skill.label)) return false;
     this._cdUntil.set(skill.id, this.elapsed + skill.cooldown);
-
-    // Catalog binding (Showcase) — true master-weaponSkills id when set
-    const bound = getSkillBinding(slot);
-    const boundName = bound?.name || skill.label;
 
     // Animation one-shot from equipped weapon pack (magic cast · sword attack · bow attack)
     const animRole = bound
@@ -614,15 +637,24 @@ export class DrcCombatController {
         skill.presentation === 'lightning';
       const isShield =
         /shield|ward|guard/i.test(skill.id + skill.label) || skill.presentation === 'shield';
+      const isNatureTrap =
+        skill.presentation === 'natureTrap' ||
+        /nature.?trap|wild.?apocalypse|natures.?fury/i.test(skill.id + skill.label + (skill.catalogSkillId || ''));
 
-      // Creative presentation (soft shake, multi micro shots, vines, lightning, shield…)
+      // Prefer catalog/staff bind pathMode + presentation (WEAPON_SKILLS STAFF)
+      const pathFromBind = skill.pathMode || pathMode;
+      const presStyle = skill.presentation || skill.prefab?.presentation || null;
+
+      // Creative presentation (soft shake, multi micro shots, vines, lightning, trap…)
       this.vfx?.deployPresentation?.(el, { ...pose, intensity }, {
-        pathKind: pathMode,
-        meteor: isMeteor,
-        volley: isVolley && !isLightning,
-        lightning: isLightning && !isShield,
+        pathKind: pathFromBind,
+        presentation: presStyle,
+        meteor: isMeteor || presStyle === 'meteor',
+        volley: (isVolley && !isLightning && !isNatureTrap) || presStyle === 'volley',
+        lightning: (isLightning && !isShield) || presStyle === 'lightning',
         chain: isLightning && !/single|bolt only/i.test(skill.label || ''),
-        shield: isShield || (el === 'storm' && pathMode === 'wall')
+        shield: isShield || (el === 'storm' && pathFromBind === 'wall') || presStyle === 'shield',
+        natureTrap: isNatureTrap
       });
 
       this.character.setCasting?.(true, {
@@ -634,13 +666,17 @@ export class DrcCombatController {
       const dmg = skill.damage ? ` · ${Math.round(skill.damage * focusMul)} dmg` : '';
       const cat = skill.catalogSkillId ? ` → ${skill.catalogSkillId}` : '';
       const focusTag = focusOn ? ' · FOCUSED' : '';
-      const styleTag = isMeteor
-        ? ' · meteor'
-        : isLightning
-          ? ' · lightning'
-          : isVolley
-            ? ' · volley'
-            : '';
+      const styleTag = isNatureTrap
+        ? ' · nature trap'
+        : isMeteor
+          ? ' · meteor'
+          : isLightning
+            ? ' · lightning'
+            : isVolley
+              ? ' · volley'
+              : presStyle
+                ? ` · ${presStyle}`
+                : '';
       this.onToast(
         bound
           ? `${boundName} · ${bound.skillId}`

@@ -56,6 +56,8 @@ learn source → isolate primitive → edit knobs → bind skill → smoke → e
 | **Windsurf freeride** | Frontflip + sail from back · feet/hands IK · WASD boat (tslda) · `docs/WINDSURF_RIDE_SSOT.md` |
 | **Island stage** | Planar pad + shore + water ring · `docs/ISLAND_STAGE_SSOT.md` |
 | **Staff elements** | 1 Fire · 2 Storm · 3 Ice · 4 Nature · 5 Holy · 6 Arcane (`ELEMENTS` / `ELEMENT_META`) |
+| **Transit mastery** | `docs/ELEMENT_TRANSIT_MASTERY_SSOT.md` — Ability TRAVEL + materials + 4 path modes |
+| **All STAFF skills** | `staffWeaponSkillsBind.js` ← WEAPON_SKILLS.html / master-weaponSkills STAFF |
 | **Session SSOT** | `SessionState` mode · drc · ridePhase · gates (no ad-hoc mode forks) |
 | **Dodge afterimage** | Model-color blur + vapor dissipate (`DodgeAfterimage.js`) |
 | **Dodge MM** | `combat/motionMath.js` — 100 MM = 1 m; AA/DD lateral **720 MM (7.2 m = 3×)** |

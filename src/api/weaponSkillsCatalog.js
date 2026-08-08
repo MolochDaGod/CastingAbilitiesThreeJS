@@ -6,7 +6,10 @@
  * JSON:   https://info.grudge-studio.com/api/v1/master-weaponSkills.json  (v3.1.0 · 268 skills)
  *
  * Icons: https://assets.grudge-studio.com{icon path}
+ * Staff runtime binds: combat/staffWeaponSkillsBind.js (fills empty prefab.vfxRef)
  */
+
+import { enrichStaffSkill } from '../combat/staffWeaponSkillsBind.js';
 
 export const MASTER_WEAPON_SKILLS_URL =
   'https://info.grudge-studio.com/api/v1/master-weaponSkills.json';
@@ -132,6 +135,10 @@ export function flattenWeaponTypeSkills(wt) {
   }
   for (const block of wt.starterSlots || []) {
     for (const sk of block.skills || []) pushSkill(sk, block.type || 'starter', block.label || 'T0');
+  }
+  // Lab: every STAFF skill gets pathMode / Ability / cast-travel-impact / anim
+  if (typeId === 'STAFF' || /_STAFF$/.test(typeId) || typeId === 'WAND' || typeId === 'TOME') {
+    for (const row of out) enrichStaffSkill(row);
   }
   return out;
 }

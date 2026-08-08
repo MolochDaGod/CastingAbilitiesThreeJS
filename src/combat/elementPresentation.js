@@ -18,7 +18,7 @@
 import { CASTING_ELEMENT_PHASE_VFX, normalizeElement } from './elementWeaponSkills.js';
 
 /**
- * @typedef {'volley'|'meteor'|'groundFlood'|'vineLash'|'shieldAura'|'lightning'|'voidBolt'|'radiance'|'hybridSpike'} PresentationStyle
+ * @typedef {'volley'|'meteor'|'groundFlood'|'vineLash'|'shieldAura'|'lightning'|'voidBolt'|'radiance'|'hybridSpike'|'natureTrap'} PresentationStyle
  */
 
 /**
@@ -98,7 +98,7 @@ export const ELEMENT_PRESENTATION = {
     impactEffectId: 'earth_surge',
     healAura: true,
     learn:
-      'EarthAbility motion + green nature palette; vines from underground (earth spikes) lash; heal aura'
+      'EarthAbility travel (RockMaterial plates). Vine lash or natureTrap (foot blast + 2s cage walls). Green heal aura.'
   },
   holy: {
     element: 'holy',
