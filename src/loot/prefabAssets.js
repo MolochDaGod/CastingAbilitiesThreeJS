@@ -14,18 +14,24 @@ export const PREFAB_CATALOG_MIRROR =
   'https://objectstore.grudge-studio.com/api/v1/master-weapon-prefabs.json';
 export const CDN = 'https://assets.grudge-studio.com';
 
-/** Tier border / glow colors for world drops (T0–T5 only; T6–8 never drop). */
+/**
+ * Tier border / glow — full prefab pattern T0–T8.
+ * Natural loot only rolls ≤T5; T6–T8 still present on corpse / special / dungeon.
+ */
 export const TIER_PRESENT = Object.freeze({
   0: { border: '#9aa3ad', glow: 0x8a93a0, label: 'T0' },
   1: { border: '#e8eef6', glow: 0xd0d8e4, label: 'T1' },
   2: { border: '#5dcf7a', glow: 0x3db85c, label: 'T2' },
   3: { border: '#5eb0ff', glow: 0x3a8fe0, label: 'T3' },
   4: { border: '#c48bff', glow: 0xa060e8, label: 'T4' },
-  5: { border: '#ffb84d', glow: 0xff9a1a, label: 'T5' }
+  5: { border: '#ffb84d', glow: 0xff9a1a, label: 'T5' },
+  6: { border: '#ff6b9d', glow: 0xff3d7a, label: 'T6 Mythic' },
+  7: { border: '#ff4d4d', glow: 0xe02020, label: 'T7 Ancient' },
+  8: { border: '#ffe566', glow: 0xffd000, label: 'T8 Divine' }
 });
 
 export function tierPresent(tier) {
-  const t = Math.max(0, Math.min(5, Number(tier) || 0));
+  const t = Math.max(0, Math.min(8, Number(tier) || 0));
   return TIER_PRESENT[t] || TIER_PRESENT[0];
 }
 
@@ -46,7 +52,8 @@ export function cdnUrl(path) {
  */
 export function presentPrefab(prefab) {
   if (!prefab) return null;
-  const tier = Math.max(0, Math.min(5, Number(prefab.tier) ?? 0));
+  // Full catalog tiers T0–T8 (presentation always; natural loot still caps at T5)
+  const tier = Math.max(0, Math.min(8, Number(prefab.tier) ?? 0));
   const iconUrl =
     prefab.assets?.iconUrl ||
     cdnUrl(prefab.assets?.iconR2Key) ||
@@ -152,6 +159,9 @@ export async function loadPrefabCatalog() {
       total: list.length,
       list,
       byId,
+      /** Raw master-weapon-prefabs entries (skills, stats, assets) for equip/export */
+      _rawPrefabs: data.prefabs,
+      prodGltfWeaponMap: data.prodGltfWeaponMap || null,
       cdnBase: data.cdnBase || CDN,
       r2Layout: data.r2Layout || null
     };

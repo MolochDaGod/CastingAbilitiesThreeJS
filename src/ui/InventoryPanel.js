@@ -11,15 +11,32 @@ import {
 import {
   DRC_MELEE_STRIKE,
   getActiveSkills,
-  setActiveSkillTree
+  setActiveSkillTree,
+  setSkillKitPage,
+  setT0WandSlot3,
+  getT0WandSlot3,
+  T0_WAND_SLOT3_OPTIONS
 } from '../combat/drcSkills.js';
+// setActiveSkillTree / getActiveSkills used by weapon equip
 import { allElementWeaponSkillTrees } from '../combat/elementWeaponSkills.js';
+import { CASTING_SPELL_KIT } from '../combat/castingSpellKit.js';
 import {
   animPackForLoadout,
   activeWeaponSlot,
   packCombatBlurb,
   WEAPON_SLOT_TO_PACK
 } from '../config/weaponAnimPack.js';
+import {
+  ensureWeaponCatalog,
+  listEquippableWeapons,
+  equipWeaponById,
+  unequipWeapon,
+  getEquippedWeapon,
+  getEquippedSlot3Id,
+  setEquippedSlot3,
+  downloadEquippedPrefab,
+  exportEquippedPrefab
+} from '../combat/equippedWeaponRuntime.js';
 
 /**
  * Left-side Lab Panel — Main Panel / character production tester (not a fork).
@@ -281,86 +298,167 @@ export class InventoryPanel {
     });
   }
 
-  /* ── Weapon equipped ───────────────────────────────────────── */
+  /* ── Weapon equipped (catalog prefab + skills + icon + 3D) ─── */
 
-  _fillWeapon() {
+  async _fillWeapon() {
     const host = this.el.querySelector('[data-panel="weapon"]');
     if (!host || this._tab !== 'weapon') return;
 
     const c = this.character;
-    const loadout = c.equipment?.loadout || {};
-    const catalog = c.equipment?.getCatalogSummary?.() || {};
-    const active = WEAPON_SLOTS.find((s) => loadout[s] && loadout[s] !== 'none') || null;
+    host.innerHTML = `<p class="inv-hint">Loading weapon prefabs + T0 skills…</p>`;
 
-    const weaponCards = WEAPON_SLOTS.map((slot) => {
-      const info = catalog[slot];
-      const variants = info?.variants?.length ? info.variants : ['A', '_default'];
-      const selected = loadout[slot] || 'none';
-      const isOn = selected && selected !== 'none';
-      return `
-        <div class="inv-weapon ${isOn ? 'is-on' : ''}" data-weapon-slot="${slot}">
-          <div class="inv-weapon__name">${slot}</div>
-          <select data-wslot="${slot}">
-            <option value="none">unequip</option>
-            ${variants
-              .map(
-                (v) =>
-                  `<option value="${v}" ${selected === v ? 'selected' : ''}>${v === '_default' ? 'default' : v}</option>`
-              )
-              .join('')}
-          </select>
-        </div>`;
-    }).join('');
+    try {
+      await ensureWeaponCatalog();
+    } catch (err) {
+      host.innerHTML = `<p class="inv-hint">Catalog failed: ${err?.message || err}</p>`;
+      return;
+    }
+    if (this._tab !== 'weapon') return;
+
+    const weapons = listEquippableWeapons();
+    const equipped = getEquippedWeapon();
+    const slot3Id = getEquippedSlot3Id();
+    const loadout = c.equipment?.loadout || {};
+    const kitSlot = WEAPON_SLOTS.find((s) => loadout[s] && loadout[s] !== 'none') || null;
+
+    const equipCards = weapons
+      .map((w) => {
+        const on = equipped?.id === w.id;
+        const skills = [w.slot1?.name, w.slot2?.name, w.slot3Options?.[0]?.name]
+          .filter(Boolean)
+          .join(' · ');
+        return `
+        <button type="button" class="inv-weapon-card ${on ? 'is-on' : ''}" data-equip-id="${w.id}"
+          title="${w.weaponType} · ${w.animPack}">
+          <img class="inv-weapon-card__icon" src="${w.iconUrl || ''}" alt="" loading="lazy" />
+          <div class="inv-weapon-card__body">
+            <div class="inv-weapon-card__name">${w.name}</div>
+            <div class="inv-weapon-card__meta">T${w.tier} · ${w.weaponType} · ${w.meshSlot}</div>
+            <div class="inv-weapon-card__skills">${skills}</div>
+          </div>
+        </button>`;
+      })
+      .join('');
+
+    const skillRows = equipped
+      ? [
+          equipped.slot1,
+          equipped.slot2,
+          ...(equipped.slot3Options || [])
+        ]
+          .filter(Boolean)
+          .map((sk) => {
+            const isS3 = (equipped.slot3Options || []).some((o) => o.id === sk.id);
+            const active = !isS3 || sk.id === slot3Id;
+            return `
+            <button type="button" class="inv-skill ${active ? '' : 'is-dim'}" data-wskill="${sk.id}" data-choice="${isS3 ? '1' : '0'}">
+              <img class="inv-skill__icon" src="${sk.iconUrl || equipped.iconUrl || ''}" alt="" />
+              <span class="inv-skill__key">${sk.slotType === 'primary' ? '1' : sk.slotType === 'secondary' ? '2' : '3'}</span>
+              <span>${sk.name}</span>
+              <span class="inv-skill__meta">${sk.damageType || ''} · ${sk.damage || 0} dmg · CD ${sk.cooldown ?? '—'}</span>
+            </button>`;
+          })
+          .join('')
+      : '<p class="inv-hint">Equip a weapon to load its 3-slot skills.</p>';
 
     host.innerHTML = `
-      <p class="inv-hint">Active: <b>${active || 'none'}</b> · exclusive weapon (one at a time on kit)</p>
-      <div class="inv-weapon-grid">${weaponCards}</div>
-      <label class="inv-row">
-        <span>Anim pack for weapon</span>
-        <select data-wpack>
-          ${Object.keys(ANIM_PACKS)
-            .map(
-              (id) =>
-                `<option value="${id}" ${c.animPackId === id ? 'selected' : ''}>${ANIM_PACK_META[id]?.label || id}</option>`
-            )
-            .join('')}
-        </select>
-      </label>
-      <button type="button" class="inv-btn" data-strike>F — residual / attack</button>
+      <p class="inv-hint"><b>Equip to try</b> — skills + icon + 3D model from prefab SSOT → Warlords prefab export</p>
+      <p class="inv-hint">Equipped: <b>${equipped ? equipped.name : 'none'}</b> · kit mesh: <b>${kitSlot || '—'}</b> · pack: <b>${c.animPackId}</b></p>
+      ${
+        equipped
+          ? `<div class="inv-equip-banner">
+          <img src="${equipped.iconUrl || ''}" alt="" />
+          <div>
+            <div><b>${equipped.name}</b> · ${equipped.weaponType}</div>
+            <div class="inv-hint">model: ${(equipped.modelUrl || '—').split('/').pop()}</div>
+            <div class="inv-hint">icon: ${(equipped.iconUrl || '—').split('/').pop()}</div>
+          </div>
+        </div>`
+          : ''
+      }
+      <div class="inv-weapon-equip-grid">${equipCards || '<p class="inv-hint">No T0 weapons</p>'}</div>
+      <div class="inv-btn-row">
+        <button type="button" class="inv-btn inv-btn--ghost" data-unequip>Unequip</button>
+        <button type="button" class="inv-btn" data-export-prefab>Export Warlords prefab JSON</button>
+        <button type="button" class="inv-btn inv-btn--ghost" data-copy-prefab>Copy prefab</button>
+      </div>
+      <p class="inv-hint">Skills on this weapon (1–2 fixed · 3 choose)</p>
+      <div class="inv-skill-list">${skillRows}</div>
+      <button type="button" class="inv-btn" data-strike>F — interact / attack</button>
+      <p class="inv-hint">Combat Q · 1–3 weapon skills · mesh_ids kit + CDN GLB hand attach</p>
     `;
 
-    host.querySelectorAll('[data-wslot]').forEach((sel) => {
-      sel.addEventListener(
-        'change',
+    host.querySelectorAll('[data-equip-id]').forEach((btn) => {
+      btn.addEventListener(
+        'click',
         this._busyGuard(async () => {
-          const slot = sel.dataset.wslot;
-          const variant = sel.value;
-          // Exclusive weapon + mesh_ids
-          for (const w of WEAPON_SLOTS) {
-            if (w !== slot) c.equipment?.setSlot(w, null);
+          const id = btn.dataset.equipId;
+          try {
+            const result = await equipWeaponById(id, {
+              character: c,
+              onToast: (m) => this.onToast(m)
+            });
+            setActiveSkillTree('equipped');
+            const drc = this.getDrc?.();
+            if (drc) drc.skills = getActiveSkills();
+            this.onEquip?.();
+            this.onToast(
+              `Try skills 1–3 · ${result.hotbar.map((s) => s.label).join(' · ')}`
+            );
+            this.refresh();
+          } catch (err) {
+            this.onToast(err?.message || 'Equip failed');
           }
-          c.equipment?.setSlot(slot, variant === 'none' ? null : variant);
-          c._reGroundAfterEquip?.();
-          // Weapon slot → attack/cast pack (weaponAnimPack SSOT)
-          const pack =
-            variant === 'none'
-              ? 'magic'
-              : WEAPON_SLOT_TO_PACK[slot] || animPackForLoadout(c.equipment?.loadout || {});
-          await c.setAnimPack?.(pack);
-          // Keep mobility dodges bound
-          await c._bindPack?.('combat_mobility');
-          this.onToast(`${slot} → ${variant} · ${packCombatBlurb(pack)}`);
         })
       );
     });
 
-    host.querySelector('[data-wpack]')?.addEventListener(
-      'change',
-      this._busyGuard(async (e) => {
-        const id = await c.setAnimPack?.(e.target.value);
-        this.onToast(`Anim pack · ${id}`);
-      })
-    );
+    host.querySelector('[data-unequip]')?.addEventListener('click', () => {
+      unequipWeapon({ character: c, onToast: (m) => this.onToast(m) });
+      setActiveSkillTree('kit');
+      const drc = this.getDrc?.();
+      if (drc) drc.skills = getActiveSkills();
+      this.refresh();
+    });
+
+    host.querySelector('[data-export-prefab]')?.addEventListener('click', () => {
+      if (downloadEquippedPrefab()) this.onToast('Downloaded Warlords weapon prefab JSON');
+      else this.onToast('Equip a weapon first');
+    });
+
+    host.querySelector('[data-copy-prefab]')?.addEventListener('click', async () => {
+      const data = exportEquippedPrefab();
+      if (!data) {
+        this.onToast('Equip a weapon first');
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(JSON.stringify(data, null, 2));
+        this.onToast('Prefab JSON copied');
+      } catch {
+        this.onToast('Copy failed — use Export download');
+      }
+    });
+
+    host.querySelectorAll('[data-wskill]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.wskill;
+        const choice = btn.dataset.choice === '1';
+        if (choice) {
+          setEquippedSlot3(id);
+          setActiveSkillTree('equipped');
+          const drc = this.getDrc?.();
+          if (drc) drc.skills = getActiveSkills();
+          this.onToast(`Slot 3 · ${btn.querySelector('span:nth-child(3)')?.textContent || id}`);
+          this.refresh();
+          return;
+        }
+        // Fire skill by bar slot
+        const bar = getActiveSkills();
+        const idx = bar.findIndex((s) => s.id === id);
+        if (idx >= 0) this.getDrc?.()?.useSkill?.(idx);
+      });
+    });
 
     host.querySelector('[data-strike]')?.addEventListener('click', () => {
       const drc = this.getDrc?.();
@@ -533,6 +631,7 @@ export class InventoryPanel {
     const bar = getActiveSkills();
     const melee = DRC_MELEE_STRIKE;
     const trees = allElementWeaponSkillTrees();
+    const kit = CASTING_SPELL_KIT;
 
     const skillRows = [
       ...bar.map(
@@ -540,32 +639,102 @@ export class InventoryPanel {
           `<button type="button" class="inv-skill" data-slot="${s.slot}">
               <span class="inv-skill__key">${s.slot + 1}</span>
               <span>${s.label}</span>
-              <span class="inv-skill__meta">${s.style} · ${s.cooldown}s</span>
+              <span class="inv-skill__meta">${s.pathMode || s.style} · ${s.element || ''} · ${s.cooldown}s</span>
             </button>`
       ),
       `<button type="button" class="inv-skill" data-melee="1">
           <span class="inv-skill__key">F</span>
-          <span>${melee.label}</span>
-          <span class="inv-skill__meta">melee residual</span>
+          <span>Interact / attack</span>
+          <span class="inv-skill__meta">pickup · harvest · residual</span>
         </button>`
     ].join('');
 
+    const kitRows = kit
+      .map(
+        (s) =>
+          `<button type="button" class="inv-skill inv-skill--kit" data-kit-id="${s.id}" title="${s.catalogSkillId}">
+            <span class="inv-skill__key">${s.slot + 1}</span>
+            <span>${s.label}</span>
+            <span class="inv-skill__meta">${s.element} · ${s.pathMode} · ${s.abilityClass}</span>
+          </button>`
+      )
+      .join('');
+
+    const slot3 = getT0WandSlot3();
+    const wandChoice = T0_WAND_SLOT3_OPTIONS.map(
+      (s) =>
+        `<button type="button" class="inv-btn ${s.id === slot3 ? 'inv-btn--active' : 'inv-btn--ghost'}" data-wand-slot3="${s.id}">
+          ${s.label} · ${s.damage} dmg
+        </button>`
+    ).join('');
+
     host.innerHTML = `
+        <p class="inv-hint"><b>T0 Apprentice Wand</b> · three-slot starter → <a href="https://info.grudge-studio.com/WEAPON_SKILLS.html" target="_blank" rel="noopener">WEAPON_SKILLS</a> WAND</p>
         <div class="inv-btn-row">
-          <button type="button" class="inv-btn inv-btn--ghost" data-tree="elements">Elements bar</button>
-          <button type="button" class="inv-btn inv-btn--ghost" data-tree="arcane">Arcane bar</button>
+          <button type="button" class="inv-btn" data-tree="wand">Apprentice Wand bar</button>
         </div>
+        <p class="inv-hint">Slot 1 Auto · Practice Bolt · Slot 2 Auto · Focus · Slot 3 Choose One</p>
+        <div class="inv-btn-row">${wandChoice}</div>
         <div class="inv-skill-list">${skillRows}</div>
-        <p class="inv-hint">Warlords trees (export seed): ${Object.keys(trees).join(', ')}</p>
-        <p class="inv-hint">1–4 cast · F residual · Alt+V/B/F/G/T/C VFX preview</p>
+        <p class="inv-hint"><b>10-spell kit</b> (staff learning) · pages on 1–4</p>
+        <div class="inv-btn-row">
+          <button type="button" class="inv-btn inv-btn--ghost" data-kit-page="0">1–4 Fire/Ice</button>
+          <button type="button" class="inv-btn inv-btn--ghost" data-kit-page="1">5–8 Earth/Wind</button>
+          <button type="button" class="inv-btn inv-btn--ghost" data-kit-page="2">9–10 Holy/Meteor</button>
+        </div>
+        <div class="inv-btn-row">
+          <button type="button" class="inv-btn inv-btn--ghost" data-tree="kit">Kit bar</button>
+          <button type="button" class="inv-btn inv-btn--ghost" data-tree="arcane">Arcane bar</button>
+          <button type="button" class="inv-btn inv-btn--ghost" data-tree="legacy">Legacy 4</button>
+        </div>
+        <div class="inv-skill-list">${kitRows}</div>
+        <p class="inv-hint">Trees: ${Object.keys(trees).join(', ')} · magic pack · cast role</p>
+        <p class="inv-hint">1–3 T0 wand · 1–4 kit · F interact · E block · C parry</p>
       `;
+
+    host.querySelectorAll('[data-kit-page]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const page = Number(btn.dataset.kitPage) || 0;
+        setActiveSkillTree('kit');
+        const drc = this.getDrc?.();
+        if (drc?.setSpellKitPage) drc.setSpellKitPage(page);
+        else {
+          setSkillKitPage(page);
+          if (drc) drc.skills = getActiveSkills();
+        }
+        this.onToast(`Spell kit page ${page + 1}`);
+        this.refresh();
+      });
+    });
 
     host.querySelectorAll('[data-tree]').forEach((btn) => {
       btn.addEventListener('click', () => {
         setActiveSkillTree(btn.dataset.tree);
         const drc = this.getDrc?.();
+        if (drc) {
+          drc.skills = getActiveSkills();
+          if (btn.dataset.tree === 'wand') {
+            // Wand uses magic cast pack (same as staff in lab)
+            this.character?.setAnimPack?.('magic');
+            this.character?.setWeaponSlot?.('staff');
+          }
+        }
+        this.onToast(
+          btn.dataset.tree === 'wand'
+            ? 'T0 Apprentice Wand · 1 Practice Bolt · 2 Focus · 3 choice'
+            : `Skill tree · ${btn.dataset.tree}`
+        );
+        this.refresh();
+      });
+    });
+
+    host.querySelectorAll('[data-wand-slot3]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        setT0WandSlot3(btn.dataset.wandSlot3);
+        setActiveSkillTree('wand');
+        const drc = this.getDrc?.();
         if (drc) drc.skills = getActiveSkills();
-        this.onToast(`Skill tree · ${btn.dataset.tree}`);
+        this.onToast(`Slot 3 · ${btn.textContent.trim()}`);
         this.refresh();
       });
     });
@@ -577,6 +746,26 @@ export class InventoryPanel {
     });
     host.querySelector('[data-melee]')?.addEventListener('click', () => {
       this.getDrc?.()?.useMeleeStrike?.();
+    });
+
+    host.querySelectorAll('[data-kit-id]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.kitId;
+        const spell = kit.find((s) => s.id === id);
+        if (!spell) return;
+        const page = Math.floor(spell.slot / 4);
+        const barSlot = spell.slot % 4;
+        setActiveSkillTree('kit');
+        const drc = this.getDrc?.();
+        if (drc?.setSpellKitPage) drc.setSpellKitPage(page);
+        else setSkillKitPage(page);
+        if (drc) {
+          drc.skills = getActiveSkills();
+          drc.useSkill?.(barSlot);
+        }
+        this.onToast(`${spell.label} → ${spell.catalogSkillId}`);
+        this.refresh();
+      });
     });
   }
 

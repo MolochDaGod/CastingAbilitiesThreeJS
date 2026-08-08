@@ -4,7 +4,7 @@
  *
  * Slots:
  *   0–3 → Digit1–4 (sig1–4 / DRC skills)
- *   f   → F residual / fskill
+ *   f   → F interact fallback attack (when no pickup/harvest)
  */
 
 const STORAGE_KEY = 'casting.lab.skillBindings.v1';

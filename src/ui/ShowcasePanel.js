@@ -510,7 +510,7 @@ export class ShowcasePanel {
           <option value="1" ${this._bindSlot === '1' ? 'selected' : ''}>2 · secondary</option>
           <option value="2" ${this._bindSlot === '2' ? 'selected' : ''}>3 · ability</option>
           <option value="3" ${this._bindSlot === '3' ? 'selected' : ''}>4 · ultimate</option>
-          <option value="f" ${this._bindSlot === 'f' ? 'selected' : ''}>F · residual / fskill</option>
+          <option value="f" ${this._bindSlot === 'f' ? 'selected' : ''}>F · interact fallback attack</option>
         </select>
       </label>
       <div class="showcase-btn-row">

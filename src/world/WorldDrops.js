@@ -101,17 +101,20 @@ export class WorldDrops {
     root.userData.worldDrop = true;
     root.userData.present = p;
 
-    const tier = p.tier ?? 0;
-    const glowHex = p.glowColor ?? tierPresent(tier).glow;
-    const borderHex = p.borderColor ?? tierPresent(tier).border;
+    const tier = Math.max(0, Math.min(8, p.tier ?? 0));
+    const tp = tierPresent(tier);
+    const glowHex = p.glowColor ?? tp.glow;
+    const borderHex = p.borderColor ?? tp.border;
+    // Mythic+ slightly larger glow (still same prefab systems)
+    const glowScale = tier >= 6 ? 1.25 : 1;
 
     // Glow disc (additive — feeds bloom)
     const glow = new Mesh(
-      new CircleGeometry(0.42, 32),
+      new CircleGeometry(0.42 * glowScale, 32),
       new MeshBasicMaterial({
         color: glowHex,
         transparent: true,
-        opacity: 0.45,
+        opacity: tier >= 6 ? 0.55 : 0.45,
         blending: AdditiveBlending,
         depthWrite: false,
         side: DoubleSide
@@ -123,7 +126,7 @@ export class WorldDrops {
 
     // Border ring
     const border = new Mesh(
-      new RingGeometry(0.38, 0.48, 40),
+      new RingGeometry(0.38 * glowScale, 0.48 * glowScale, 40),
       new MeshBasicMaterial({
         color: borderHex,
         transparent: true,
@@ -138,11 +141,11 @@ export class WorldDrops {
 
     // Soft emissive halo for bloom (standard material)
     const halo = new Mesh(
-      new CircleGeometry(0.55, 24),
+      new CircleGeometry(0.55 * glowScale, 24),
       new MeshStandardMaterial({
         color: 0x000000,
         emissive: glowHex,
-        emissiveIntensity: 1.4,
+        emissiveIntensity: tier >= 6 ? 2.0 : 1.4,
         transparent: true,
         opacity: 0.35,
         depthWrite: false,

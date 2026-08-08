@@ -104,7 +104,8 @@ export class TightBar {
     const b3 = getSkillBinding(3);
     const bf = getSkillBinding('f');
     return {
-      fskill: bf?.name || DRC_MELEE_STRIKE.label,
+      fskill: bf?.name || 'Interact',
+      interact: bf?.name || 'Interact',
       sig1: b0?.name || bar.find((s) => s.slot === 0)?.label || 'Fire Bolt',
       sig2: b1?.name || bar.find((s) => s.slot === 1)?.label || 'Water Lash',
       sig3: b2?.name || bar.find((s) => s.slot === 2)?.label || 'Earth Spike',
@@ -117,8 +118,8 @@ export class TightBar {
     if (!def) return null;
     const labels = this._skillLabels();
     const name =
-      id === 'fskill'
-        ? labels.fskill
+      id === 'fskill' || id === 'interact'
+        ? labels.interact || labels.fskill
         : id.startsWith('sig')
           ? labels[id] || def.label
           : def.label;

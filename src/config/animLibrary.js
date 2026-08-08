@@ -40,8 +40,13 @@ export const ANIM_ROLE_META = Object.freeze({
   jump: { family: 'gait', channel: 'oneShot', label: 'Jump', input: 'Space' },
 
   cast: { family: 'combat', channel: 'oneShot', label: 'Cast', input: '1–4 / staff' },
-  attack: { family: 'combat', channel: 'oneShot', label: 'Attack', input: 'F / LMB skill' },
-  block: { family: 'combat', channel: 'oneShot', label: 'Block / guard', input: 'E' },
+  attack: {
+    family: 'combat',
+    channel: 'oneShot',
+    label: 'Attack',
+    input: 'F (when no pickup/harvest) / LMB'
+  },
+  block: { family: 'combat', channel: 'oneShot', label: 'Block', input: 'E' },
   parry: { family: 'combat', channel: 'oneShot', label: 'Parry', input: 'C' },
 
   dodgeL: {

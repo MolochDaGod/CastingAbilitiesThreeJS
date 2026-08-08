@@ -2,22 +2,44 @@
  * Drop / tier rate SSOT runtime (fleet).
  *
  * Source JSON: info/objectstore api/v1/drop-tables.json
- * Local embed matches ObjectStore docs/DROP_TABLES_SSOT.md
  *
- * HARD:
- *  - Never drop tier 6, 7, or 8
- *  - Max drop tier = 5
- *  - T0 allowed/required for materials, potions, foods, thrown
- *  - playerLevel + difficulty shape rates
+ * TIER POLICY:
+ *  - Prefabs exist for T0–T8 (full icon/model/world presentation).
+ *  - NATURAL loot (mobs, common chests, harvest) max tier = 5.
+ *  - T6/T7/T8 are NOT natural drops — only special sources:
+ *      player_death (corpse of holder), special_chest, dungeon_loot, raid_mythic
+ *  - T0 always allowed for materials, potions, foods, thrown.
+ *  - playerLevel + difficulty shape natural rates.
  */
 
 export const DROP_TABLES_URL = 'https://info.grudge-studio.com/api/v1/drop-tables.json';
 export const DROP_TABLES_MIRROR =
   'https://objectstore.grudge-studio.com/api/v1/drop-tables.json';
 
-/** Hard cap — never raise without product decision */
-export const MAX_DROP_TIER = 5;
-export const BANNED_DROP_TIERS = Object.freeze([6, 7, 8]);
+/** Absolute catalog max (prefabs / craft / special loot) */
+export const CATALOG_MAX_TIER = 8;
+
+/** Natural world loot ceiling (mobs, common chests, harvest, normal bosses) */
+export const NATURAL_MAX_DROP_TIER = 5;
+
+/** Mythic+ — full prefab pattern, not natural RNG */
+export const MYTHIC_TIERS = Object.freeze([6, 7, 8]);
+
+/** @deprecated use NATURAL_MAX_DROP_TIER — kept for callers that still import MAX_DROP_TIER */
+export const MAX_DROP_TIER = NATURAL_MAX_DROP_TIER;
+
+/** @deprecated natural ban only — special sources may roll these */
+export const BANNED_DROP_TIERS = MYTHIC_TIERS;
+
+/** Sources that may include T6–T8 (still rate-limited) */
+export const MYTHIC_ALLOWED_SOURCES = Object.freeze([
+  'player_death',
+  'special_chest',
+  'dungeon_loot',
+  'dungeon_boss',
+  'raid_mythic',
+  'event_reward'
+]);
 
 /** @typedef {'trivial'|'easy'|'normal'|'hard'|'elite'|'boss'|'raid'} DifficultyId */
 
@@ -31,18 +53,20 @@ export const DIFFICULTY = Object.freeze({
   raid: { id: 'raid', levelBias: 24, qtyMul: 2.0, rareMul: 3.0, t0WeightMul: 0.4 }
 });
 
-/** Soft target weight tables by maxTier */
 const SOFT_BY_MAX = {
   1: { 0: 55, 1: 45 },
   2: { 0: 35, 1: 40, 2: 25 },
   3: { 0: 25, 1: 32, 2: 28, 3: 15 },
   4: { 0: 18, 1: 26, 2: 28, 3: 18, 4: 10 },
-  5: { 0: 14, 1: 22, 2: 26, 3: 20, 4: 12, 5: 6 }
+  5: { 0: 14, 1: 22, 2: 26, 3: 20, 4: 12, 5: 6 },
+  // Special-source soft curves (include mythic tails)
+  6: { 0: 10, 1: 16, 2: 20, 3: 18, 4: 14, 5: 12, 6: 10 },
+  7: { 0: 8, 1: 12, 2: 16, 3: 16, 4: 14, 5: 14, 6: 12, 7: 8 },
+  8: { 0: 6, 1: 10, 2: 14, 3: 14, 4: 14, 5: 14, 6: 12, 7: 10, 8: 6 }
 };
 
 const DISTANCE_DECAY = 0.55;
 
-/** Categories that always keep a T0 floor */
 export const T0_CATEGORIES = Object.freeze([
   'materials',
   'potions',
@@ -63,12 +87,13 @@ const T0_FLOOR = {
   armor: 0.08
 };
 
-/** Source templates (weights + rolls) */
 export const DROP_SOURCES = Object.freeze({
   mob_trash: {
     rolls: [0, 2],
     emptyChance: 0.35,
     defaultDifficulty: 'easy',
+    maxTierCap: NATURAL_MAX_DROP_TIER,
+    allowMythic: false,
     categories: {
       junk: 35,
       materials: 30,
@@ -83,6 +108,8 @@ export const DROP_SOURCES = Object.freeze({
     rolls: [1, 3],
     emptyChance: 0.15,
     defaultDifficulty: 'normal',
+    maxTierCap: NATURAL_MAX_DROP_TIER,
+    allowMythic: false,
     categories: {
       materials: 28,
       foods: 16,
@@ -97,6 +124,8 @@ export const DROP_SOURCES = Object.freeze({
     rolls: [2, 4],
     emptyChance: 0.05,
     defaultDifficulty: 'elite',
+    maxTierCap: NATURAL_MAX_DROP_TIER,
+    allowMythic: false,
     categories: {
       materials: 20,
       potions: 16,
@@ -111,6 +140,8 @@ export const DROP_SOURCES = Object.freeze({
     rolls: [2, 4],
     emptyChance: 0,
     defaultDifficulty: 'normal',
+    maxTierCap: NATURAL_MAX_DROP_TIER,
+    allowMythic: false,
     categories: {
       materials: 25,
       foods: 20,
@@ -125,6 +156,8 @@ export const DROP_SOURCES = Object.freeze({
     rolls: [3, 5],
     emptyChance: 0,
     defaultDifficulty: 'hard',
+    maxTierCap: NATURAL_MAX_DROP_TIER,
+    allowMythic: false,
     categories: {
       materials: 18,
       potions: 18,
@@ -139,6 +172,8 @@ export const DROP_SOURCES = Object.freeze({
     rolls: [3, 6],
     emptyChance: 0,
     defaultDifficulty: 'boss',
+    maxTierCap: NATURAL_MAX_DROP_TIER,
+    allowMythic: false,
     categories: {
       weapons: 28,
       armor: 24,
@@ -157,6 +192,8 @@ export const DROP_SOURCES = Object.freeze({
     rolls: [5, 8],
     emptyChance: 0,
     defaultDifficulty: 'raid',
+    maxTierCap: NATURAL_MAX_DROP_TIER,
+    allowMythic: false,
     categories: {
       weapons: 30,
       armor: 28,
@@ -176,8 +213,122 @@ export const DROP_SOURCES = Object.freeze({
     rolls: [1, 3],
     emptyChance: 0,
     defaultDifficulty: 'normal',
+    maxTierCap: NATURAL_MAX_DROP_TIER,
+    allowMythic: false,
     categories: { materials: 85, foods: 10, junk: 5 },
     t0Boost: 1.5
+  },
+
+  /* ── Special: may include T6–T8 (prefab systems fully supported) ── */
+
+  /** Corpse of player — drops what they held (any tier including T6–8) */
+  player_death: {
+    rolls: [0, 0],
+    emptyChance: 0,
+    defaultDifficulty: 'normal',
+    maxTierCap: CATALOG_MAX_TIER,
+    allowMythic: true,
+    allowHeldGear: true,
+    categories: {
+      weapons: 40,
+      armor: 40,
+      materials: 10,
+      potions: 5,
+      foods: 5
+    },
+    notes: 'Primary path: spill equipped/bag items as-is. Optional fill rolls use mythic-capable weights.'
+  },
+  special_chest: {
+    rolls: [3, 6],
+    emptyChance: 0,
+    defaultDifficulty: 'elite',
+    maxTierCap: CATALOG_MAX_TIER,
+    allowMythic: true,
+    mythicChance: 0.08,
+    categories: {
+      weapons: 30,
+      armor: 28,
+      materials: 12,
+      potions: 14,
+      thrown: 8,
+      foods: 6,
+      junk: 2
+    },
+    guaranteed: [{ category: 'materials', tier: 0, qty: [2, 4] }]
+  },
+  dungeon_loot: {
+    rolls: [2, 5],
+    emptyChance: 0.05,
+    defaultDifficulty: 'hard',
+    maxTierCap: CATALOG_MAX_TIER,
+    allowMythic: true,
+    mythicChance: 0.05,
+    categories: {
+      weapons: 26,
+      armor: 24,
+      materials: 16,
+      potions: 14,
+      thrown: 10,
+      foods: 8,
+      junk: 2
+    }
+  },
+  dungeon_boss: {
+    rolls: [4, 7],
+    emptyChance: 0,
+    defaultDifficulty: 'boss',
+    maxTierCap: CATALOG_MAX_TIER,
+    allowMythic: true,
+    mythicChance: 0.12,
+    categories: {
+      weapons: 32,
+      armor: 28,
+      materials: 12,
+      potions: 12,
+      thrown: 8,
+      foods: 6,
+      junk: 2
+    },
+    guaranteed: [
+      { category: 'materials', tier: 0, qty: [3, 6] },
+      { category: 'potions', tier: 0, qty: [1, 3] }
+    ]
+  },
+  raid_mythic: {
+    rolls: [5, 9],
+    emptyChance: 0,
+    defaultDifficulty: 'raid',
+    maxTierCap: CATALOG_MAX_TIER,
+    allowMythic: true,
+    mythicChance: 0.18,
+    categories: {
+      weapons: 34,
+      armor: 30,
+      materials: 12,
+      potions: 10,
+      thrown: 8,
+      foods: 4,
+      junk: 2
+    },
+    guaranteed: [
+      { category: 'materials', tier: 0, qty: [4, 10] },
+      { category: 'potions', tier: 0, qty: [2, 5] }
+    ]
+  },
+  event_reward: {
+    rolls: [1, 3],
+    emptyChance: 0,
+    defaultDifficulty: 'elite',
+    maxTierCap: CATALOG_MAX_TIER,
+    allowMythic: true,
+    mythicChance: 0.1,
+    categories: {
+      weapons: 30,
+      armor: 30,
+      materials: 15,
+      potions: 15,
+      foods: 10
+    }
   }
 });
 
@@ -185,8 +336,16 @@ export function clamp(n, lo, hi) {
   return Math.max(lo, Math.min(hi, n));
 }
 
+export function isMythicSource(sourceId) {
+  return MYTHIC_ALLOWED_SOURCES.includes(sourceId);
+}
+
+export function isNaturalSource(sourceId) {
+  return !isMythicSource(sourceId);
+}
+
 /**
- * Max drop tier from player level alone (still capped at 5).
+ * Max natural drop tier from player level (never > 5).
  * @param {number} playerLevel
  */
 export function maxTierFromPlayerLevel(playerLevel) {
@@ -195,13 +354,9 @@ export function maxTierFromPlayerLevel(playerLevel) {
   if (lv < 20) return 2;
   if (lv < 30) return 3;
   if (lv < 40) return 4;
-  return MAX_DROP_TIER;
+  return NATURAL_MAX_DROP_TIER;
 }
 
-/**
- * @param {number} playerLevel
- * @param {DifficultyId|object} difficulty
- */
 export function effectiveLevel(playerLevel, difficulty = 'normal') {
   const d = typeof difficulty === 'string' ? DIFFICULTY[difficulty] : difficulty;
   const bias = d?.levelBias ?? 0;
@@ -209,49 +364,61 @@ export function effectiveLevel(playerLevel, difficulty = 'normal') {
 }
 
 /**
- * Final max tier for a roll — never 6+.
+ * Max tier for a given source (natural ≤5, special ≤8).
  * @param {number} playerLevel
  * @param {DifficultyId|object} difficulty
+ * @param {string} [sourceId]
  */
-export function maxDropTier(playerLevel, difficulty = 'normal') {
+export function maxDropTier(playerLevel, difficulty = 'normal', sourceId = 'mob_normal') {
+  const src = DROP_SOURCES[sourceId];
   const el = effectiveLevel(playerLevel, difficulty);
-  return Math.min(MAX_DROP_TIER, maxTierFromPlayerLevel(el));
+  const fromLevel = maxTierFromPlayerLevel(el);
+  if (src?.allowMythic) {
+    // Special: allow up to 8, but soft-scale by level (T6 at high level, T8 rare)
+    const specialCap = src.maxTierCap ?? CATALOG_MAX_TIER;
+    const mythicUnlock = el >= 45 ? 6 : NATURAL_MAX_DROP_TIER;
+    const t7 = el >= 55 ? 7 : mythicUnlock;
+    const t8 = el >= 65 ? 8 : t7;
+    return Math.min(specialCap, Math.max(fromLevel, Math.min(t8, specialCap)));
+  }
+  return Math.min(NATURAL_MAX_DROP_TIER, fromLevel, src?.maxTierCap ?? NATURAL_MAX_DROP_TIER);
 }
 
-/**
- * Soft target tier for weight peak (0..maxTier).
- * @param {number} playerLevel
- * @param {DifficultyId|object} difficulty
- */
-export function targetDropTier(playerLevel, difficulty = 'normal') {
+export function targetDropTier(playerLevel, difficulty = 'normal', sourceId = 'mob_normal') {
   const el = effectiveLevel(playerLevel, difficulty);
-  const maxT = maxDropTier(playerLevel, difficulty);
-  // ~1 tier per 10 levels
+  const maxT = maxDropTier(playerLevel, difficulty, sourceId);
   return clamp(Math.floor((el - 1) / 10), 0, maxT);
 }
 
 /**
- * Relative weights for tiers 0..maxTier.
  * @param {number} playerLevel
  * @param {DifficultyId|object} difficulty
  * @param {string} category
- * @param {{ t0Boost?: number }} [opts]
- * @returns {Record<number, number>}
+ * @param {{ t0Boost?: number, sourceId?: string }} [opts]
  */
 export function tierWeights(playerLevel, difficulty = 'normal', category = 'materials', opts = {}) {
   const d = typeof difficulty === 'string' ? DIFFICULTY[difficulty] : difficulty || DIFFICULTY.normal;
-  const maxT = maxDropTier(playerLevel, d);
-  const target = targetDropTier(playerLevel, d);
+  const sourceId = opts.sourceId || 'mob_normal';
+  const maxT = maxDropTier(playerLevel, d, sourceId);
+  const target = targetDropTier(playerLevel, d, sourceId);
   const soft = SOFT_BY_MAX[maxT] || SOFT_BY_MAX[5];
+  const src = DROP_SOURCES[sourceId];
   /** @type {Record<number, number>} */
   const w = {};
 
   for (let t = 0; t <= maxT; t++) {
-    if (BANNED_DROP_TIERS.includes(t)) continue;
+    // Natural sources never weight T6–8
+    if (!src?.allowMythic && MYTHIC_TIERS.includes(t)) continue;
+
     let wt = soft[t] ?? 1;
     const dist = Math.abs(t - target);
     wt *= Math.pow(DISTANCE_DECAY, dist);
-    if (t >= 3) wt *= d.rareMul ?? 1;
+    if (t >= 3 && t <= 5) wt *= d.rareMul ?? 1;
+    // Mythic tail: rare even on special sources
+    if (MYTHIC_TIERS.includes(t)) {
+      const mc = src?.mythicChance ?? 0.05;
+      wt *= mc * (t === 6 ? 1.0 : t === 7 ? 0.55 : 0.3);
+    }
     if (t === 0) {
       const floor = T0_FLOOR[category] ?? 0.1;
       let t0m = (d.t0WeightMul ?? 1) * (1 + floor);
@@ -261,20 +428,13 @@ export function tierWeights(playerLevel, difficulty = 'normal', category = 'mate
     }
     w[t] = Math.max(0.001, wt);
   }
-  // Absolute ban
-  for (const ban of BANNED_DROP_TIERS) delete w[ban];
   return w;
 }
 
-/**
- * Pick tier 0..5 only.
- * @param {Record<number, number>} weights
- * @param {() => number} [rng] 0..1
- */
 export function pickTier(weights, rng = Math.random) {
   const entries = Object.entries(weights)
     .map(([t, w]) => [Number(t), w])
-    .filter(([t, w]) => t <= MAX_DROP_TIER && t >= 0 && !BANNED_DROP_TIERS.includes(t) && w > 0);
+    .filter(([t, w]) => t >= 0 && t <= CATALOG_MAX_TIER && w > 0);
   const sum = entries.reduce((a, [, w]) => a + w, 0);
   if (sum <= 0) return 0;
   let r = rng() * sum;
@@ -285,10 +445,6 @@ export function pickTier(weights, rng = Math.random) {
   return entries[entries.length - 1][0];
 }
 
-/**
- * @param {Record<string, number>} weights
- * @param {() => number} [rng]
- */
 export function pickWeightedKey(weights, rng = Math.random) {
   const entries = Object.entries(weights).filter(([, w]) => w > 0);
   const sum = entries.reduce((a, [, w]) => a + w, 0);
@@ -308,14 +464,14 @@ function randInt(min, max, rng = Math.random) {
 }
 
 /**
- * Roll one loot package.
+ * Roll loot. Natural sources never emit T6–8. Special sources may.
  * @param {{
  *   source: keyof typeof DROP_SOURCES,
  *   playerLevel: number,
  *   difficulty?: DifficultyId,
+ *   heldItems?: object[],
  *   rng?: () => number
  * }} opts
- * @returns {{ drops: object[], meta: object }}
  */
 export function rollLoot(opts) {
   const sourceId = opts.source || 'mob_normal';
@@ -326,55 +482,71 @@ export function rollLoot(opts) {
   const d = DIFFICULTY[difficultyId] || DIFFICULTY.normal;
   const playerLevel = clamp(Number(opts.playerLevel) || 1, 1, 999);
   const rng = opts.rng || Math.random;
-  const maxT = maxDropTier(playerLevel, d);
-  const target = targetDropTier(playerLevel, d);
+  const maxT = maxDropTier(playerLevel, d, sourceId);
+  const target = targetDropTier(playerLevel, d, sourceId);
+  const allowMythic = !!src.allowMythic;
 
   /** @type {object[]} */
   const drops = [];
 
-  if (rng() < (src.emptyChance || 0)) {
-    return {
-      drops: [],
-      meta: {
+  // Player death: spill held gear first (any tier, full prefab identity)
+  if (src.allowHeldGear && Array.isArray(opts.heldItems)) {
+    for (const held of opts.heldItems) {
+      const tier = clamp(Number(held.tier) ?? 0, 0, CATALOG_MAX_TIER);
+      drops.push({
+        category: held.category || 'weapons',
+        tier,
+        qty: held.qty || 1,
         sourceId,
-        difficultyId,
-        playerLevel,
-        effectiveLevel: effectiveLevel(playerLevel, d),
-        maxTier: maxT,
-        targetTier: target,
-        empty: true
-      }
-    };
+        fromPlayerDeath: true,
+        itemId: held.id || held.itemId || null,
+        uuid: held.uuid || null,
+        name: held.name || null,
+        iconUrl: held.iconUrl || null,
+        modelUrl: held.modelUrl || null,
+        present: held
+      });
+    }
+  }
+
+  if (rng() < (src.emptyChance || 0) && !drops.length) {
+    return emptyResult(sourceId, difficultyId, playerLevel, d, maxT, target, allowMythic, true);
   }
 
   const [rmin, rmax] = src.rolls;
-  let n = randInt(rmin, rmax, rng);
+  let n = rmin === 0 && rmax === 0 ? 0 : randInt(rmin, rmax, rng);
   n = Math.max(0, Math.round(n * (d.qtyMul || 1)));
 
   for (let i = 0; i < n; i++) {
     const category = pickWeightedKey(src.categories, rng) || 'materials';
-    const weights = tierWeights(playerLevel, d, category, { t0Boost: src.t0Boost });
+    const weights = tierWeights(playerLevel, d, category, {
+      t0Boost: src.t0Boost,
+      sourceId
+    });
     let tier = pickTier(weights, rng);
     tier = clamp(tier, 0, maxT);
-    if (BANNED_DROP_TIERS.includes(tier)) tier = MAX_DROP_TIER; // should never happen
-    if (tier > MAX_DROP_TIER) tier = MAX_DROP_TIER;
+
+    // Enforce natural ban even if weights misconfigured
+    if (!allowMythic && MYTHIC_TIERS.includes(tier)) {
+      tier = NATURAL_MAX_DROP_TIER;
+    }
 
     drops.push({
       category,
       tier,
       qty: 1,
       sourceId,
-      // Resolver fills itemId from catalogs
+      mythic: MYTHIC_TIERS.includes(tier),
       itemId: null,
       name: null
     });
   }
 
-  // Guaranteed T0 mats/pots etc.
   for (const g of src.guaranteed || []) {
     const qty = Array.isArray(g.qty) ? randInt(g.qty[0], g.qty[1], rng) : g.qty || 1;
     let tier = g.tier ?? 0;
-    if (BANNED_DROP_TIERS.includes(tier) || tier > MAX_DROP_TIER) tier = 0;
+    if (!allowMythic && MYTHIC_TIERS.includes(tier)) tier = 0;
+    if (tier > maxT) tier = Math.min(tier, maxT);
     drops.push({
       category: g.category,
       tier,
@@ -395,27 +567,66 @@ export function rollLoot(opts) {
       effectiveLevel: effectiveLevel(playerLevel, d),
       maxTier: maxT,
       targetTier: target,
-      empty: false,
-      bannedTiers: BANNED_DROP_TIERS.slice()
+      allowMythic,
+      naturalMaxTier: NATURAL_MAX_DROP_TIER,
+      catalogMaxTier: CATALOG_MAX_TIER,
+      mythicTiers: MYTHIC_TIERS.slice(),
+      empty: drops.length === 0
+    }
+  };
+}
+
+function emptyResult(sourceId, difficultyId, playerLevel, d, maxT, target, allowMythic, empty) {
+  return {
+    drops: [],
+    meta: {
+      sourceId,
+      difficultyId,
+      playerLevel,
+      effectiveLevel: effectiveLevel(playerLevel, d),
+      maxTier: maxT,
+      targetTier: target,
+      allowMythic,
+      naturalMaxTier: NATURAL_MAX_DROP_TIER,
+      catalogMaxTier: CATALOG_MAX_TIER,
+      mythicTiers: MYTHIC_TIERS.slice(),
+      empty
     }
   };
 }
 
 /**
- * Assert a tier is legal for drops.
+ * Natural loot: reject T6–8. Special: allow 0–8.
  * @param {number} tier
+ * @param {string} [sourceId]
  */
-export function assertDropTierLegal(tier) {
+export function assertDropTierLegal(tier, sourceId = 'mob_normal') {
   const t = Number(tier);
-  if (BANNED_DROP_TIERS.includes(t) || t > MAX_DROP_TIER) {
-    throw new Error(`Illegal drop tier ${t}: max is ${MAX_DROP_TIER}; T6–T8 never drop`);
+  if (t < 0 || t > CATALOG_MAX_TIER) {
+    throw new Error(`Illegal tier ${t}: catalog is T0–T8`);
+  }
+  if (!isMythicSource(sourceId) && MYTHIC_TIERS.includes(t)) {
+    throw new Error(
+      `Illegal natural drop tier ${t}: T6–T8 only from player_death / special_chest / dungeon / raid_mythic`
+    );
   }
   return true;
 }
 
 /**
- * Optional: fetch remote SSOT (after ObjectStore publish). Falls back to embedded rules.
+ * Spill equipped + bag items on player death (any tier keeps prefab systems).
+ * @param {object[]} heldItems
+ * @param {{ playerLevel?: number }} [opts]
  */
+export function rollPlayerDeathDrops(heldItems, opts = {}) {
+  return rollLoot({
+    source: 'player_death',
+    playerLevel: opts.playerLevel ?? 1,
+    difficulty: 'normal',
+    heldItems: heldItems || []
+  });
+}
+
 export async function loadDropTablesRemote() {
   for (const url of [DROP_TABLES_URL, DROP_TABLES_MIRROR]) {
     try {

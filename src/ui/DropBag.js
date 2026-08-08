@@ -84,7 +84,7 @@ export class DropBag {
         <h3>Bag · throw</h3>
         <button type="button" class="drop-bag__close" data-close>×</button>
       </header>
-      <p class="drop-bag__hint">Drag item onto world to throw · E pickup drops</p>
+      <p class="drop-bag__hint">Drag item onto world to throw · F pickup drops</p>
       <div class="drop-bag__grid" data-grid>
         ${this.items
           .map(
