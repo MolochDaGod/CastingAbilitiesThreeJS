@@ -54,7 +54,20 @@ export const settings = {
     /** Stamina cost per dodge */
     dodgeStamina: 10,
     /** Parry stamina */
-    parryStamina: 8
+    parryStamina: 8,
+    /**
+     * Locomotion scheme (Casting combat):
+     *  - Walk: face aim, A/D body-strafe (corrected)
+     *  - Shift: freelook-run — A/D rotate into run (no strafe)
+     *  - Ctrl+A / Ctrl+D: left / right roll (Ghost Rider clips)
+     *  - Shift+Ctrl while sprint: slide
+     */
+    rollDistance: 3.0,
+    rollDuration: 0.55,
+    rollStamina: 12,
+    slideDistance: 4.2,
+    slideDuration: 0.72,
+    slideStamina: 14
   },
 
   /**

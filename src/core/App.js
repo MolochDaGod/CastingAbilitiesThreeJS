@@ -38,6 +38,10 @@ import { ShowcasePanel } from '../ui/ShowcasePanel.js';
 import { DrcCombatController } from '../combat/DrcCombatController.js';
 import { loadWeaponSkillsCatalog } from '../api/weaponSkillsCatalog.js';
 import { loadSkillBindings } from '../combat/skillBindings.js';
+import { loadPrefabCatalog, pickSamplePrefab, bagItemFromPresent } from '../loot/prefabAssets.js';
+import { WorldDrops } from '../world/WorldDrops.js';
+import { DropBag } from '../ui/DropBag.js';
+import '../ui/dropBag.css';
 import { PhysicsWorld } from '../physics/PhysicsWorld.js';
 import { VfxDirector } from '../vfx/VfxDirector.js';
 import { loadGeneratedCatalog, spawnGeneratedProp } from '../assets/generatedCatalog.js';
@@ -202,6 +206,15 @@ export class App {
       onBindingsChanged: () => this.hud.refreshSkillLabels?.()
     });
 
+    this.dropBag = new DropBag({
+      onToast: (m) => this.hud.showToast(m),
+      onThrow: (item, cx, cy) => this._throwBagItem(item, cx, cy)
+    });
+
+    /** @type {WorldDrops|null} filled after assets load */
+    this.worldDrops = null;
+    this._prefabCatalog = null;
+
     this.physics = new PhysicsWorld();
     this.vfxDirector = new VfxDirector({
       scene: this.scene,
@@ -314,8 +327,27 @@ export class App {
     this.hud.onMode = (mode) => this.setMode(mode);
 
     // Danger Room combat hotkeys (X/C/E/R/F/J/H/V)
+    // E near a drop = pickup into bag (overrides guard when successful)
     this.input.on('combatAction', (actionId) => {
+      if (actionId === 'block' && this.worldDrops) {
+        const bag = this.worldDrops.tryPickup(this.character.position, 2.4);
+        if (bag) {
+          this.dropBag?.add(bag);
+          return;
+        }
+      }
       this.drc.performQuickAction?.(actionId);
+    });
+
+    // Canvas drag-drop from bag → throw world drop
+    const canvas = this.canvas;
+    canvas.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    });
+    canvas.addEventListener('drop', (e) => {
+      e.preventDefault();
+      this.dropBag?.handleCanvasDrop?.(e);
     });
   }
 
@@ -330,6 +362,12 @@ export class App {
         this.inventory.setOpen?.(false);
         this.showcase?.toggle?.();
         break;
+      case 'bag':
+        this.dropBag?.toggle?.();
+        break;
+      case 'loot':
+        this.spawnWorldLoot?.(3);
+        break;
       case 'editor':
         this.editor.toggle();
         break;
@@ -338,13 +376,67 @@ export class App {
         break;
       case 'clear':
         this.clearEffects();
-        this.hud.showToast('Effects cleared');
+        this.worldDrops?.clear?.();
+        this.hud.showToast('Effects + world drops cleared');
         break;
       case 'mainpanel':
         window.open('https://ui.grudge-studio.com/main-panel.html?era=warlords', '_blank', 'noopener');
         break;
       default:
         break;
+    }
+  }
+
+  /**
+   * Throw bag item to screen/world aim.
+   * @param {object} item
+   * @param {number} clientX
+   * @param {number} clientY
+   */
+  async _throwBagItem(item, clientX, clientY) {
+    if (!this.worldDrops || !item) return;
+    this.mouseAim.updateFromClient(clientX, clientY, this.character.position);
+    const to = this.mouseAim.valid
+      ? this.mouseAim.point.clone()
+      : this.character.position.clone().add(new Vector3(0, 0, 2));
+    const from = this.character.position.clone();
+    from.y += 1.2;
+    await this.worldDrops.throwFrom(item, from, to);
+    this.hud.showToast(`Threw ${item.name}`);
+  }
+
+  /**
+   * Spawn sample prefab drops near player (loot demo).
+   * @param {number} [count]
+   */
+  async spawnWorldLoot(count = 3) {
+    if (!this.worldDrops) {
+      this.hud.showToast('Drops not ready');
+      return;
+    }
+    try {
+      if (!this._prefabCatalog) {
+        this.hud.showToast('Loading weapon prefabs…');
+        this._prefabCatalog = await loadPrefabCatalog();
+      }
+      const cat = this._prefabCatalog;
+      const origin = this.character.position;
+      for (let i = 0; i < count; i++) {
+        const p = pickSamplePrefab(cat, { maxTier: 5 });
+        if (!p) continue;
+        const ang = (i / count) * Math.PI * 2 + Math.random() * 0.4;
+        const r = 1.8 + Math.random() * 2.2;
+        const pos = new Vector3(
+          origin.x + Math.cos(ang) * r,
+          0,
+          origin.z + Math.sin(ang) * r
+        );
+        await this.worldDrops.spawn(p, pos);
+      }
+      this.hud.showToast(`Spawned ${count} world drops (icon+glow · E pickup)`);
+    } catch (err) {
+      console.warn(err);
+      this.hud.showToast(err?.message || 'Prefab catalog failed');
     }
   }
 
@@ -378,6 +470,12 @@ export class App {
         this.inventory.setOpen?.(false);
         this.showcase?.toggle?.();
         this.hud.showToast(this.showcase?.open ? 'Showcase open' : 'Showcase closed');
+        break;
+      case 'toggleDropBag':
+        this.dropBag?.toggle?.();
+        break;
+      case 'spawnLoot':
+        this.spawnWorldLoot?.(4);
         break;
       case 'weaponAttack':
         // F = melee residual (attack + Getsuga from tip) — not digit slot 4 / not Space
@@ -511,6 +609,22 @@ export class App {
       console.warn('[App] ride asset load failed', err);
     }
 
+    // World drops (prefab icon + glow + model on terrain/ocean)
+    this.worldDrops = new WorldDrops({
+      scene: this.scene,
+      camera: this.camera,
+      assets,
+      waterY: WORLD.waterY,
+      groundY: 0,
+      onToast: (m) => this.hud.showToast(m)
+    });
+    loadPrefabCatalog()
+      .then((cat) => {
+        this._prefabCatalog = cat;
+        console.info(`[App] weapon prefabs ${cat.total} (icon/model presentation)`);
+      })
+      .catch((err) => console.warn('[App] prefab catalog', err));
+
     this.generatedCatalog = null;
     if (/[?&]props=1\b/.test(location.search)) {
       this.loading.setProgress(0.78, 'Generated props catalog…');
@@ -621,6 +735,7 @@ export class App {
     this.drc.update(dt, this.input.keys);
     // Mixer then RideIK (CharacterController.update runs post-mixer IK)
     this.character.update(dt);
+    this.worldDrops?.update?.(dt);
 
     this.ground.update(this.elapsed);
     this.water?.update?.(this.elapsed);

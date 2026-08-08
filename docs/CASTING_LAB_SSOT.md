@@ -47,8 +47,10 @@ learn source → isolate primitive → edit knobs → bind skill → smoke → e
 | **Lab Panel (I)** | Left tabs: Character · Equipment · Weapon · Race · Mesh · Mount · Anims · Skills · API |
 | **HUD frames** | Player / target / allies |
 | **Tight bar (Danger)** | threejs-rapier 6+6 + avatar + HP/STA orbs + menu buttons |
-| **Combat hotkeys** | AA/DD/WW dodge · X back · C parry · LMB staff path · F/1–4 · Q mode |
-| **Dodge clips** | longbow standing dodge L/R/F/B (+ locomotion fallbacks) |
+| **Combat hotkeys** | Shift freelook-run · Ctrl+A/D Ghost Rider roll · Shift+Ctrl slide · AA/DD/WW dodge · X back · C parry · LMB path · F/1–4 · Q |
+| **Roll clips** | `ghost_rider/roll_left|right|forward|back` (primary) · locomotion fallbacks |
+| **Slide clip** | `prod:extra/running-slide` (+ quick-roll-to-run) |
+| **Dodge clips** | longbow standing dodge L/R/F/B (+ locomotion / ghost_rider dodge) |
 | **Staff path cast** | LMB hold-draw → AOE place · spikes · wall · stream (`settings.staffCast`) |
 | **Showcase (O / Show)** | Race · mesh · weapon type · anims · bind master skills to 1–4 / F |
 | **Weapon skills SSOT** | `info…/api/v1/master-weaponSkills.json` v3.1 · 268 skills · WEAPON_SKILLS.html |

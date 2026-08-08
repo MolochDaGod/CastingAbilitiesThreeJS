@@ -102,13 +102,41 @@ export const ANIM_PACKS = {
   },
   /**
    * Shared combat mobility — always bound on hero load.
-   * Prefer longbow standing dodges (verified CDN), locomotion fallbacks.
+   * Rolls: Ghost Rider preferred (open …/ghost_rider/roll_*), locomotion fallbacks.
+   * Dodges: longbow standing L/R/F/B (AA/DD/WW/X). Slide: prod running-slide.
    */
   combat_mobility: {
-    dodgeL: ['longbow/standing dodge left', 'locomotion/dodge_l'],
-    dodgeR: ['longbow/standing dodge right', 'locomotion/dodge_r'],
-    dodgeF: ['longbow/standing dodge forward', 'locomotion/dodge_fwd'],
-    dodgeB: ['longbow/standing dodge backward', 'locomotion/dodge_back'],
+    // Ghost Rider rolls (user-preferred) → locomotion pack → longbow dodge as last resort
+    rollL: [
+      'ghost_rider/roll_left',
+      'locomotion/roll_left',
+      'longbow/standing dodge left',
+      'locomotion/dodge_l'
+    ],
+    rollR: [
+      'ghost_rider/roll_right',
+      'locomotion/roll_right',
+      'longbow/standing dodge right',
+      'locomotion/dodge_r'
+    ],
+    rollF: [
+      'ghost_rider/roll_forward',
+      'locomotion/roll_forward',
+      'longbow/standing dodge forward',
+      'locomotion/dodge_fwd'
+    ],
+    rollB: [
+      'ghost_rider/roll_back',
+      'locomotion/roll_back',
+      'longbow/standing dodge backward',
+      'locomotion/dodge_back'
+    ],
+    // Sprint+Ctrl slide (prod bake on assets CDN)
+    slide: ['prod:extra/running-slide', 'prod:extra/quick-roll-to-run'],
+    dodgeL: ['longbow/standing dodge left', 'locomotion/dodge_l', 'ghost_rider/dodgeL'],
+    dodgeR: ['longbow/standing dodge right', 'locomotion/dodge_r', 'ghost_rider/dodgeR'],
+    dodgeF: ['longbow/standing dodge forward', 'locomotion/dodge_fwd', 'ghost_rider/dodgeF'],
+    dodgeB: ['longbow/standing dodge backward', 'locomotion/dodge_back', 'ghost_rider/dodgeB'],
     parry: ['sword_shield/sword and shield block'],
     block: ['sword_shield/sword and shield block']
   }
@@ -120,7 +148,11 @@ export const ANIM_PACK_META = {
   sword_shield: { label: 'Sword & shield', skills: 'attack·block', locomotion: 'walk·run·jump' },
   longbow: { label: 'Longbow', skills: 'attack · dodge L/R/F/B', locomotion: 'walk·run·jump' },
   locomotion_8way: { label: 'Locomotion 8-way', skills: '—', locomotion: 'walk·run·jump' },
-  combat_mobility: { label: 'Shared dodges / parry', skills: 'dodge·parry', locomotion: '—' }
+  combat_mobility: {
+    label: 'Shared rolls / dodges / slide / parry',
+    skills: 'roll·dodge·slide·parry',
+    locomotion: '—'
+  }
 };
 
 /** Dodge role by direction for AA/DD/WW/X. */
@@ -129,6 +161,14 @@ export const DODGE_ROLE = Object.freeze({
   right: 'dodgeR',
   forward: 'dodgeF',
   back: 'dodgeB'
+});
+
+/** Roll role by direction for Ctrl+A/D (and optional F/B). Ghost Rider pack primary. */
+export const ROLL_ROLE = Object.freeze({
+  left: 'rollL',
+  right: 'rollR',
+  forward: 'rollF',
+  back: 'rollB'
 });
 
 /** Fallback loadouts if CDN presets fail (mage-first for casting).

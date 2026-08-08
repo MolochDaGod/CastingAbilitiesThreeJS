@@ -88,9 +88,9 @@ export class HUD {
       <div class="hud__panel hud__help">
         <div><strong>Danger Room HUD (tight 6+6)</strong></div>
         <div><kbd>WASD</kbd> · <kbd>Space</kbd> jump · <kbd>1</kbd>–<kbd>4</kbd> skills · <kbd>F</kbd> residual</div>
-        <div>Mouse aim · body + camera face crosshair · <kbd>W</kbd> toward aim</div>
-        <div><kbd>AA</kbd>/<kbd>DD</kbd>/<kbd>WW</kbd> dodge · <kbd>X</kbd> back · <kbd>C</kbd> parry</div>
-        <div><kbd>LMB</kbd> path cast · weapon equip → anim pack (attack/cast)</div>
+        <div>Mouse aim · <kbd>W</kbd> toward aim · <kbd>A</kbd>/<kbd>D</kbd> strafe</div>
+        <div><kbd>L</kbd> loot drops · <kbd>E</kbd> pickup · <kbd>B</kbd> bag · drag throw</div>
+        <div><kbd>O</kbd> Showcase · <kbd>LMB</kbd> path cast · 1–4 skills</div>
       </div>
 
       <div class="hud__modes">

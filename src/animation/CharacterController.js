@@ -12,6 +12,7 @@ import {
 import {
   ANIM_PACKS,
   DODGE_ROLE,
+  ROLL_ROLE,
   DEFAULT_RACE,
   FALLBACK_PRESETS,
   GEAR_PRESETS_URL,
@@ -388,7 +389,7 @@ export class CharacterController {
   /** Play a library clip by role name (one-shot for attack/block/jump). */
   playLibraryClip(role) {
     if (!role || !this.actions.has(role)) return false;
-    const once = /attack|block|parry|jump|cast|dodge/i.test(role);
+    const once = /attack|block|parry|jump|cast|dodge|roll|slide/i.test(role);
     this.play(role, once ? 0.12 : 0.25);
     if (once) {
       const act = this.actions.get(role);
@@ -397,9 +398,13 @@ export class CharacterController {
       this._gaitLocked = true;
       this.animState = /attack/i.test(role)
         ? 'attack'
-        : /dodge/i.test(role)
-          ? 'dodge'
-          : this.animState;
+        : /roll/i.test(role)
+          ? 'roll'
+          : /slide/i.test(role)
+            ? 'slide'
+            : /dodge/i.test(role)
+              ? 'dodge'
+              : this.animState;
     }
     return true;
   }
@@ -432,6 +437,46 @@ export class CharacterController {
       return true;
     }
     return false;
+  }
+
+  /**
+   * Directional roll one-shot — Ghost Rider roll_* preferred (Ctrl+A/D).
+   * @param {'left'|'right'|'forward'|'back'} dir
+   * @returns {boolean}
+   */
+  playRoll(dir) {
+    const role = ROLL_ROLE[dir] || 'rollB';
+    const candidates = [role, `combat_mobility:${role}`, DODGE_ROLE[dir], `longbow:${DODGE_ROLE[dir]}`];
+    for (const name of candidates) {
+      if (!name || !this.actions.has(name)) continue;
+      this.play(name, 0.06);
+      const act = this.actions.get(name);
+      const dur = act?.getClip?.()?.duration ?? settings.drc?.rollDuration ?? 0.55;
+      this._oneShotTimer = Math.max(this._oneShotTimer, dur * 0.92);
+      this._gaitLocked = true;
+      this.animState = 'roll';
+      return true;
+    }
+    return this.playDodge(dir);
+  }
+
+  /**
+   * Sprint slide one-shot — prod running-slide (Shift+Ctrl while sprint).
+   * @returns {boolean}
+   */
+  playSlide() {
+    for (const name of ['slide', 'combat_mobility:slide']) {
+      if (!this.actions.has(name)) continue;
+      this.play(name, 0.06);
+      const act = this.actions.get(name);
+      const dur = act?.getClip?.()?.duration ?? settings.drc?.slideDuration ?? 0.72;
+      this._oneShotTimer = Math.max(this._oneShotTimer, dur * 0.92);
+      this._gaitLocked = true;
+      this.animState = 'slide';
+      return true;
+    }
+    // Fallback: forward roll if slide bake missing
+    return this.playRoll('forward');
   }
 
   /** Parry / block one-shot (sword_shield block clip as longbow has no parry bake). */
@@ -491,7 +536,12 @@ export class CharacterController {
       dodgeL: LoopOnce,
       dodgeR: LoopOnce,
       dodgeF: LoopOnce,
-      dodgeB: LoopOnce
+      dodgeB: LoopOnce,
+      rollL: LoopOnce,
+      rollR: LoopOnce,
+      rollF: LoopOnce,
+      rollB: LoopOnce,
+      slide: LoopOnce
     };
 
     for (const [role, rel] of Object.entries(pack)) {

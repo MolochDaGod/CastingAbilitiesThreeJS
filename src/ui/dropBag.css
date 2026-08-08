@@ -1,0 +1,110 @@
+.drop-bag {
+  position: fixed;
+  bottom: 140px;
+  left: 16px;
+  width: min(280px, calc(100vw - 32px));
+  max-height: 320px;
+  z-index: 41;
+  display: flex;
+  flex-direction: column;
+  background: var(--ui-bg-solid);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  box-shadow: var(--ui-shadow);
+  backdrop-filter: blur(12px);
+  pointer-events: auto;
+  overflow: hidden;
+}
+
+.drop-bag[hidden] {
+  display: none !important;
+}
+
+.drop-bag__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px 6px;
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.drop-bag__head h3 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.drop-bag__close {
+  border: 0;
+  background: transparent;
+  color: var(--ui-text-dim);
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.drop-bag__hint {
+  margin: 6px 12px;
+  font-size: 10px;
+  color: var(--ui-text-dim);
+}
+
+.drop-bag__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 8px 12px 12px;
+  overflow: auto;
+}
+
+.drop-bag__slot {
+  position: relative;
+  border: 2px solid var(--tier, #9aa3ad);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 6px;
+  cursor: grab;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-height: 72px;
+  box-shadow: 0 0 12px color-mix(in srgb, var(--tier) 35%, transparent);
+}
+
+.drop-bag__slot.is-dragging {
+  opacity: 0.5;
+}
+
+.drop-bag__slot img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.drop-bag__qty {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 2px #000;
+}
+
+.drop-bag__name {
+  font-size: 9px;
+  color: var(--ui-text-dim);
+  text-align: center;
+  line-height: 1.2;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drop-bag__empty {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  color: var(--ui-text-dim);
+  margin: 0;
+}

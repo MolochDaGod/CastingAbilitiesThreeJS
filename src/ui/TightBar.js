@@ -188,11 +188,12 @@ export class TightBar {
       </div>
       <nav class="tb-menus" data-menus>
         <button type="button" class="tb-menu-btn" data-menu="showcase" title="Showcase · race/weapon/anim/skills">Show</button>
+        <button type="button" class="tb-menu-btn" data-menu="loot" title="Spawn world drops (L)">Loot</button>
+        <button type="button" class="tb-menu-btn" data-menu="bag" title="Drop bag · throw (B)">Bag</button>
         <button type="button" class="tb-menu-btn" data-menu="lab" title="Lab Panel (I)">Lab</button>
         <button type="button" class="tb-menu-btn" data-menu="editor" title="VFX Editor (G)">VFX</button>
         <button type="button" class="tb-menu-btn" data-menu="help" title="Help (F1)">?</button>
-        <button type="button" class="tb-menu-btn" data-menu="clear" title="Clear VFX (Shift+C)">Clr</button>
-        <button type="button" class="tb-menu-btn" data-menu="inventory" title="Inventory / equip">Bag</button>
+        <button type="button" class="tb-menu-btn" data-menu="clear" title="Clear VFX + drops (Shift+C)">Clr</button>
         <button type="button" class="tb-menu-btn" data-menu="mainpanel" title="Main Panel production">MP</button>
       </nav>
       <div class="tb-keychips" data-chips></div>

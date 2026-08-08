@@ -5,8 +5,10 @@ import { EventEmitter } from '../utils/EventEmitter.js';
  * Pointer + keyboard → events.
  *
  * Combat hotkeys mirror Danger Room / threejs-rapier quickActions SSOT:
- *   1–4 skills · F residual · X roll · C parry · E guard · R heavy
+ *   1–4 skills · F residual · X back-dodge · C parry · E guard · R heavy
  *   J heal · H bomb · V kick · Q mode · Space jump
+ *   Shift = freelook run (A/D turn-to-run) · Ctrl+A/D = Ghost Rider roll
+ *   Shift+Ctrl while sprint = slide · AA/DD/WW double-tap dodge
  *   Shift+C clear VFX · G editor · I lab panel · Alt+V/B/F/G/T/C sandbox VFX
  */
 export class InputManager extends EventEmitter {
@@ -174,6 +176,14 @@ export class InputManager extends EventEmitter {
       case 'KeyO':
         // Showcase review (race / weapon / anim / bind skills)
         this.emit('action', 'toggleShowcase');
+        break;
+      case 'KeyB':
+        // Drop bag (throw / pickups)
+        this.emit('action', 'toggleDropBag');
+        break;
+      case 'KeyL':
+        // Spawn sample world loot prefabs
+        this.emit('action', 'spawnLoot');
         break;
       case 'KeyF':
         if (!this.combatKeys) this.emit('action', 'weaponAttack');
