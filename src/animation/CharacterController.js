@@ -104,6 +104,13 @@ export class CharacterController {
     this._rideActive = false;
     /** World heading for ride pole vectors (set by WalkController) */
     this._rideYaw = 0;
+    /**
+     * When true, root is parented under windsurf seat — do not write world XZ/Y
+     * to root.position (board vehicle owns transform until dismount).
+     */
+    this._rideParented = false;
+    /** Cached world feet for position getter while parented */
+    this._worldPos = new Vector3();
     this.ik = null;
 
     /** Procedural flip on tilt (backflip / frontflip deploy) */
@@ -289,8 +296,9 @@ export class CharacterController {
     return out;
   }
 
-  /** Snap root feet to world XZ (physics / spawn). */
+  /** Snap root feet to world XZ (physics / spawn). No-op while parented to board. */
   placeAt(x, y, z) {
+    if (this._rideParented || this._rideActive) return;
     this.root.position.set(x, y ?? 0, z);
   }
 
@@ -875,7 +883,21 @@ export class CharacterController {
       this._gaitLocked = true;
     } else {
       this._gaitLocked = false;
+      this._rideParented = false;
     }
+  }
+
+  /**
+   * Mark that character.root is parented under the windsurf vehicle seat.
+   * While true, placeAt / world locomotion must not write root.position.
+   * @param {boolean} parented
+   */
+  setRideParented(parented) {
+    this._rideParented = !!parented;
+  }
+
+  get isRideParented() {
+    return !!this._rideParented;
   }
 
   /**
@@ -905,20 +927,31 @@ export class CharacterController {
   }
 
   setFacing(yaw) {
+    // While parented to board, yaw is board group rotation — keep root local 0
+    if (this._rideParented || this._rideActive) {
+      this._rideYaw = yaw;
+      this.root.rotation.y = 0;
+      return;
+    }
     this.root.rotation.y = yaw;
-    if (this._rideActive) this._rideYaw = yaw;
   }
 
   get facing() {
+    if (this._rideParented || this._rideActive) {
+      return this._rideYaw || 0;
+    }
     return this.root.rotation.y;
   }
 
   setLean(angle) {
     if (this._flipActive) return; // backflip owns tilt
+    // Board banks the vehicle; keep mild body lean only when not parented
+    if (this._rideParented) return;
     this.tilt.quaternion.setFromAxisAngle(this.forwardAxis, angle);
   }
 
   resetPlacement() {
+    if (this._rideParented) return; // WalkController owns unparent first
     this.root.position.y = 0;
     this.setLean(0);
     this.setRideActive(false);
@@ -998,8 +1031,22 @@ export class CharacterController {
     });
   }
 
+  /**
+   * World feet position. While parented to windsurf, root.position is local —
+   * always return world so camera / dust / systems do not "drag" local coords.
+   */
   get position() {
+    if (this._rideParented || this.root.parent?.name?.startsWith?.('socket_')) {
+      this.root.getWorldPosition(this._worldPos);
+      return this._worldPos;
+    }
     return this.root.position;
+  }
+
+  /** Write world feet into out (safe while parented). */
+  getWorldPosition(out = this._worldPos) {
+    this.root.getWorldPosition(out);
+    return out;
   }
 
   dispose() {

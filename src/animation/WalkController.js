@@ -266,54 +266,68 @@ export class WalkController {
   /* ------------------------------------------------------------------ */
 
   /**
-   * Parent character to deck seat so bank/sway/bob stick until dismount.
+   * Parent character.root under windsurf vehicle seat (deckCenter).
+   * Board vehicle owns world transform until _dismountRider — do not
+   * write world XZ to character while mounted.
    */
   _mountRider() {
-    if (this._mounted) return;
     const seat = this.scooter.getSeat?.() || this.scooter.sockets?.deckCenter;
     if (!seat || !this.scooter.ready) {
       console.warn('[Walk] mount deferred — seat not ready');
       return;
     }
 
-    // Preserve world pose, then parent under seat
-    seat.updateWorldMatrix(true, false);
-    seat.attach(this.character.root);
+    // Re-assert parent every call (recover if something stole root)
+    if (this.character.root.parent !== seat) {
+      seat.updateWorldMatrix(true, true);
+      this.scooter.group.updateWorldMatrix(true, true);
+      seat.attach(this.character.root);
+    }
 
-    // Local feet on deck: small stand offset along seat up
+    // Local feet on deck only — vehicle carries world pose
     const stand = settings.walk.standOffset ?? 0.02;
-    this.character.root.position.set(0, stand, 0);
+    this.character.root.position.set(0, stand - (this._softHip || 0), 0);
     this.character.root.rotation.set(0, 0, 0);
     this.character.root.scale.set(1, 1, 1);
+    this.character.clearFlip?.();
     this.character.setLean(0);
 
     this._mounted = true;
+    this.character.setRideParented?.(true);
     this.character.setRideActive?.(true, this._yaw);
     this.character.setRideSockets?.(this.scooter.getIkWorldTargets(), this._yaw);
     this._syncPhysicsToCharacter();
-    console.info('[Walk] mounted on deck seat');
+    if (!this._mountLogged) {
+      this._mountLogged = true;
+      console.info('[Walk] mounted — character parented under', seat.name || 'deck seat');
+    }
   }
 
   /**
    * Unparent character to scene; keep world position.
+   * Only call when ride ends — not mid-ride.
    * @param {boolean} [snapY] force feet to y=0
    */
   _dismountRider(snapY = false) {
+    this._mountLogged = false;
     if (!this._mounted) {
-      // Ensure scene ownership even if never mounted
+      this.character.setRideParented?.(false);
       if (this.character.root.parent !== this.ctx.scene) {
         this.ctx.scene.attach(this.character.root);
       }
       return;
     }
 
+    // World pose before unparent
+    this.character.root.updateWorldMatrix(true, false);
+    this.character.root.getWorldPosition(_p);
+    const worldYaw = this._yaw;
+
     this.ctx.scene.attach(this.character.root);
+    this.character.setRideParented?.(false);
     this.character.setLean(0);
-    if (snapY) {
-      this.character.root.position.y = 0;
-      this.character.root.rotation.x = 0;
-      this.character.root.rotation.z = 0;
-    }
+    this.character.root.position.set(_p.x, snapY ? 0 : Math.max(0, _p.y), _p.z);
+    this.character.root.rotation.set(0, worldYaw, 0);
     this._mounted = false;
     this.character.setRideActive?.(false);
     this._syncPhysicsToCharacter();
@@ -330,26 +344,29 @@ export class WalkController {
   }
 
   /**
-   * Each ride frame after board update: refresh IK + physics + light shake.
+   * Each ride frame after board update: keep parent, local stand, IK, physics.
+   * Never writes world XZ onto character.root — vehicle group owns that.
    */
   _syncMountedRider(dt) {
     if (!this.scooter.ready) return;
 
-    // Seat local: feet on deck; soft hip sink from wave (ragdoll-lite)
+    // Hard guarantee: stay parented under seat for whole ride
+    this._mountRider();
+
     const stand = settings.walk.standOffset ?? 0.02;
     const soft = this._softHip || 0;
+    // Local-only stand pose (parent = deck)
     this.character.root.position.set(0, stand - soft, 0);
     this.character.root.rotation.set(0, 0, 0);
+    this.character.root.scale.set(1, 1, 1);
 
-    // Facing = board forward (seat already yaws with board group)
-    this.character.setFacing(0);
+    // Board yaw is world; IK poles use _rideYaw, root stays local 0
+    this.character.setRideActive?.(true, this._yaw);
     this._rideYawForIk = this._yaw;
 
     this.scooter.group.updateWorldMatrix(true, true);
     const targets = this.scooter.getIkWorldTargets();
-    // Hands on sail bar · feet on deck pads (manifest sockets)
     this.character.setRideSockets?.(targets, this._yaw);
-    this.character.setRideActive?.(true, this._yaw);
 
     if (targets.deckCenter) {
       _deck.copy(targets.deckCenter);
@@ -474,8 +491,8 @@ export class WalkController {
       return;
     }
 
-    // Land on deck — feet plant · hands on sail bar
-    this._anchor.set(this._target.x, this.seatHeight, this._target.z);
+    // Land on deck — group at surface Y=0 (+ target); deck local; then parent rider
+    this._anchor.set(this._target.x, 0, this._target.z);
     if (!this.scooter.active) this.scooter.spawn(this._anchor);
     _side.set(Math.cos(this._yaw), 0, -Math.sin(this._yaw));
     this.scooter.update(0, this._anchor, _side, 0, 0, this._yaw, 0);
@@ -550,10 +567,10 @@ export class WalkController {
     const heading = _t.lengthSq() > 1e-6 ? Math.atan2(_t.x, _t.z) : this._yaw;
     this._turnRate = this._turnTo(heading, dt, c.turnDamping);
 
-    // Path bob applied to board anchor (rider parented → follows automatically)
+    // Board group Y = surface (bob); deckHeight is local on boardRoot — rider parented
     const bob =
       Math.sin(this._rideTime * c.bobRate * TAU) * c.bob * saturate(this.speed / Math.max(0.5, c.speed));
-    this._anchor.set(_p.x, this.seatHeight + bob, _p.z);
+    this._anchor.set(_p.x, bob, _p.z);
 
     // Character lean = board bank feel (extra visual; parent already banks)
     const rate = Math.max(0.05, c.leanRate);
@@ -670,13 +687,13 @@ export class WalkController {
     this._anchor.x += this._vel.x * dt;
     this._anchor.z += this._vel.z * dt;
 
-    // Wave follow + vertical hop (soft ocean body)
+    // Wave follow + hop: group Y is water surface; deckHeight is on boardRoot local
     const waterY = this._sampleWaterY(this._anchor.x, this._anchor.z);
-    const deck = this.seatHeight + waterY * (c.freerideWaveFollow ?? 0.85);
+    const surface = waterY * (c.freerideWaveFollow ?? 0.85);
     this._vy -= (c.freerideGravity ?? 14) * dt;
-    let y = (this._anchor.y || deck) + this._vy * dt;
-    if (y <= deck) {
-      y = deck;
+    let y = (Number.isFinite(this._anchor.y) ? this._anchor.y : surface) + this._vy * dt;
+    if (y <= surface) {
+      y = surface;
       this._vy = 0;
     }
     this._anchor.y = y;

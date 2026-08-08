@@ -319,7 +319,10 @@ export class HoverboardRide {
     const birth = Easing.outBack(this._birth);
     const fade = 1 - Easing.outQuad(this._death);
 
-    this.group.position.set(position.x, 0, position.z);
+    // Full world anchor (incl. freeride wave Y) — rider is parented under seat
+    // so they ride with this group, not via separate character world transforms.
+    const py = Number.isFinite(position.y) ? position.y : 0;
+    this.group.position.set(position.x, py, position.z);
     this._yaw = yaw;
     this.group.rotation.y = yaw;
 
@@ -334,6 +337,7 @@ export class HoverboardRide {
 
     const sway =
       Math.sin(this._swayT * (motion.swayHz || 0.55) * TAU + 1.2) * (motion.swayM || 0.04);
+    // Deck height local to group (group already at water/path Y)
     this.boardRoot.position.set(sway, this.deckHeight * birth, 0);
     this.boardRoot.rotation.z = this._bank;
     this.boardRoot.rotation.x = -MathUtils.clamp(speed * 0.012, 0, 0.12);

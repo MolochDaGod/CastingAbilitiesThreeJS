@@ -157,13 +157,16 @@ export class DrcCombatController {
     // stamina regen
     this.stamina = Math.min(this.maxStamina, this.stamina + dt * 18);
 
-    // Windsurf freeride: WalkController owns WASD / board; still tick invuln only
+    // Windsurf: board vehicle parents character — never write root world pose
     const riding =
-      this.character._rideActive || this.character.root?.parent?.name?.startsWith?.('socket_');
+      this.character._rideActive ||
+      this.character._rideParented ||
+      this.character.isRideParented ||
+      this.character.root?.parent?.name?.startsWith?.('socket_');
     if (riding) {
       this.character.setGait?.(0, false);
       if (this.invuln > 0) this.invuln = Math.max(0, this.invuln - dt);
-      // Skills fire via useSkill while skillsWhileRide — no land locomotion
+      // Skills via useSkill while skillsWhileRide — no land locomotion / physics move
       return;
     }
     if (!this.inCombat) {

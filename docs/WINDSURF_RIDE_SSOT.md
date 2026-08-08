@@ -46,6 +46,22 @@ Treat the board as a **tiny boat**:
 walk.update → character.update (mixer) → walk.applyRiderIk
 ```
 
+### Parenting (hard)
+
+While mounted, **windsurf vehicle owns the player transform**:
+
+```
+HoverboardRide.group  (world XZ/Y + yaw)
+  └ boardRoot         (bank / deck height)
+       └ socket_deckCenter  (seat)
+            └ character.root   (local stand only — until dismount)
+```
+
+- `seat.attach(character.root)` on mount; re-assert every freeride/ride frame
+- **Do not** write world XZ to `character.root.position` while `_rideParented`
+- Camera / dust use `character.getWorldPosition()` / `position` getter (world)
+- Dismount: `scene.attach(root)` once, then restore world feet
+
 Sockets (manifest SI): `footL`/`footR` deck straps · `sailRail`/`sailBoom*` boom grips · `deckCenter` seat.
 
 Wind cushion: AirScooter-style streamlines may sit under deck (visual); seat is always deck.

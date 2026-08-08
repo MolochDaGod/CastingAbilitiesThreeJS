@@ -838,10 +838,11 @@ export class App {
     this.bursts.update(dt);
     this.lights.update(dt);
 
-    /* ---- camera: always track character feet (world root) ---- */
-    const px = this.character.position.x;
-    const py = this.character.position.y;
-    const pz = this.character.position.z;
+    /* ---- camera: always track character feet (world — works while board-parented) ---- */
+    const feet = this.character.getWorldPosition?.() || this.character.position;
+    const px = feet.x;
+    const py = feet.y;
+    const pz = feet.z;
     const focus = this.abilities.focus;
     if (focus) this.rig.lookAt(focus.position, MathUtils.clamp(1 - focus.u * 0.4, 0, 1));
     this.rig.setAnchor(px, py, pz);
@@ -850,7 +851,7 @@ export class App {
     this.flash.update(raw);
     this.rig.update(raw);
 
-    this.contactShadows.setPosition(this.character.position.x, this.character.position.z);
+    this.contactShadows.setPosition(px, pz);
     this.contactShadows.render(this.scene);
 
     /* ---- render ---- */
