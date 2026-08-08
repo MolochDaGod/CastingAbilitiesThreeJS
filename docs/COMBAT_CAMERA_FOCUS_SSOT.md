@@ -33,11 +33,13 @@
 
 | Input | Action |
 |-------|--------|
-| **RMB click** (short, no drag) | Toggle **focus** soft-lock mode |
+| **RMB click** (short, no drag) | Toggle **focus** (sticky) |
 | **RMB hold** | Orbit camera pitch/yaw |
 | **LMB drag** | Path cast (staff) |
-| Focus ON | Body faces **camera-forward** (strafe); crosshair outline warm |
-| Soft target | Ground ring + crosshair go **hostile red**; camera soft-looks |
+| **Shift** | **Sprint toggle** (not hold) |
+| **Focus ON** | Character **rotates with camera**; WASD camera-relative strafe |
+| **Focus OFF** | Camera free; **A/D tank-turn** body; W/S along body facing |
+| Soft target | Ring/crosshair hostile red; camera soft-look (not hard snap) |
 
 Register enemies with `combatFocus.addSelectable(mesh, 'hostile')`.
 

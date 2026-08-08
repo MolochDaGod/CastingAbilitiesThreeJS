@@ -119,6 +119,9 @@ export class DrcCombatController {
     /** Edge state for Ctrl roll + Shift+Ctrl slide */
     this._ctrlWasDown = false;
     this._rollKeyWas = { KeyA: false, KeyD: false, KeyW: false, KeyS: false };
+    /** Shift = sprint toggle (not hold) */
+    this._sprintToggle = false;
+    this._shiftWasDown = false;
   }
 
   /** True while dodge MM + afterimage invuln window is active. */
@@ -209,12 +212,19 @@ export class DrcCombatController {
     }
 
     const ctrlHeld = keys.has('ControlLeft') || keys.has('ControlRight');
-    this._sprinting = keys.has('ShiftLeft') || keys.has('ShiftRight');
+    // Shift = sprint **toggle** (edge), not hold
+    const shiftDown = keys.has('ShiftLeft') || keys.has('ShiftRight');
+    if (shiftDown && !this._shiftWasDown) {
+      this._sprintToggle = !this._sprintToggle;
+      this.onToast?.(this._sprintToggle ? 'Sprint ON' : 'Sprint OFF');
+    }
+    this._shiftWasDown = shiftDown;
+    this._sprinting = this._sprintToggle;
 
     // I-frame timer (dodge sets this; other systems can extend)
     if (this.invuln > 0) this.invuln = Math.max(0, this.invuln - dt);
 
-    // Shift+Ctrl slide (sprint channel) · Ctrl+A/D rolls · AA/DD dodges
+    // Sprint-toggle + Ctrl slide · Ctrl+A/D rolls · AA/DD dodges
     this._pollSlide(keys, ctrlHeld);
     this._pollCtrlRoll(keys, ctrlHeld);
     if (!ctrlHeld) this._pollDoubleTapDodge(keys);
@@ -255,17 +265,33 @@ export class DrcCombatController {
     this.vfx?.updateDodgeTrail?.(dt, false, null, null);
 
     // ── WASD locomotion ──────────────────────────────────────────────
-    // Walk (no Shift): face aim · A/D body-strafe
-    // Sprint (Shift): freelook-run — face move dir so A/D rotate into run
-    // Ctrl held: A/D reserved for roll (no lateral move that frame)
-    let ix = 0; // world lateral vs look basis (see invert below)
-    let iz = 0; // −1 = forward (W), +1 = back (S)
+    // Focus ON (RMB toggle): camera-relative move + character rotates WITH camera
+    // Focus OFF: tank turn with A/D, W/S along body facing (camera free)
+    // Ctrl held: A/D reserved for roll
+    // Sprint: Shift toggle (not hold)
+    const focusOn = !!this.combatFocus?.focusEnabled;
+    let ix = 0;
+    let iz = 0;
     if (keys.has('KeyW') || keys.has('ArrowUp')) iz -= 1;
     if (keys.has('KeyS') || keys.has('ArrowDown')) iz += 1;
-    // Invert A/D vs prior build (player reported strafe wrong way)
-    if (!ctrlHeld) {
-      if (keys.has('KeyA') || keys.has('ArrowLeft')) ix += 1;
-      if (keys.has('KeyD') || keys.has('ArrowRight')) ix -= 1;
+
+    if (focusOn) {
+      // Strafe relative to camera (A/D don't turn body — camera yaw does)
+      if (!ctrlHeld) {
+        if (keys.has('KeyA') || keys.has('ArrowLeft')) ix += 1;
+        if (keys.has('KeyD') || keys.has('ArrowRight')) ix -= 1;
+      }
+    } else if (!ctrlHeld) {
+      // Free aim: A/D rotate character in place (tank turn)
+      const turnRate = settings.aim?.tankTurnSpeed ?? 2.6; // rad/s
+      let turn = 0;
+      if (keys.has('KeyA') || keys.has('ArrowLeft')) turn += 1;
+      if (keys.has('KeyD') || keys.has('ArrowRight')) turn -= 1;
+      if (turn !== 0) {
+        const yaw = this.character.facing + turn * turnRate * dt;
+        this._yaw = yaw;
+        this.character.setFacing(yaw);
+      }
     }
 
     const len = Math.hypot(ix, iz);
@@ -274,35 +300,33 @@ export class DrcCombatController {
       iz /= len;
     }
 
-    // Forward basis: aim when valid, else body facing, else camera
-    const useAim =
-      settings.aim?.enabled !== false &&
-      settings.aim?.moveRelativeToAim !== false &&
-      this.aim?.valid;
-
-    if (useAim) {
-      _fwd.copy(this.aim.forward);
+    // Movement basis
+    if (focusOn) {
+      // Camera-relative
+      this.camera.getWorldDirection(_fwd);
+      _fwd.y = 0;
+      if (_fwd.lengthSq() < 1e-6) _fwd.set(0, 0, 1);
+      else _fwd.normalize();
     } else {
+      // Body-facing (W/S only after A/D turn)
       const yaw = this.character.facing;
       _fwd.set(Math.sin(yaw), 0, Math.cos(yaw));
-      if (_fwd.lengthSq() < 1e-6) {
-        this.camera.getWorldDirection(_fwd);
-        _fwd.y = 0;
-        if (_fwd.lengthSq() < 1e-6) _fwd.set(0, 0, 1);
-        else _fwd.normalize();
-      }
     }
 
-    // Local right for facing (sin,0,cos): (fz, 0, −fx)
     const fx = _fwd.x;
     const fz = _fwd.z;
     const rx = fz;
     const rz = -fx;
 
-    // W → +forward · lateral uses inverted A/D ix
     _move.set(0, 0, 0);
-    _move.x = fx * -iz + rx * ix;
-    _move.z = fz * -iz + rz * ix;
+    if (focusOn) {
+      _move.x = fx * -iz + rx * ix;
+      _move.z = fz * -iz + rz * ix;
+    } else {
+      // Only W/S along body
+      _move.x = fx * -iz;
+      _move.z = fz * -iz;
+    }
     if (_move.lengthSq() > 1e-6) _move.normalize();
 
     const speed =
@@ -311,7 +335,7 @@ export class DrcCombatController {
     let vx = moving ? _move.x * speed : 0;
     let vz = moving ? _move.z * speed : 0;
 
-    // Face: soft-lock / focus → cam-fwd; sprint freelook → move; else aim
+    // Face: focus → match camera; free → A/D already turned body
     this._updateFacingToAim(dt, moving);
 
     // ── Jump / double-jump / S+Space backflip ─────────────────────────
@@ -357,8 +381,8 @@ export class DrcCombatController {
 
   /**
    * Facing:
-   *  - Sprint (Shift): freelook-run — rotate into move dir (A/D turn-to-run)
-   *  - Walk: face mouse aim so A/D are true body-strafes
+   *  - Focus ON (RMB toggle): character rotates **with camera** (cam-forward)
+   *  - Focus OFF: A/D tank-turn only (already applied in update); no cam rotate
    *  - Backflip / roll / dodge lock own facing while active
    * @param {number} dt
    * @param {boolean} moving
@@ -374,33 +398,22 @@ export class DrcCombatController {
     const st = this.character.animState;
     if (locked && (st === 'dodge' || st === 'roll' || st === 'slide')) return;
 
-    let targetYaw = this.character.facing;
-    const focus = this.combatFocus;
-    // Soft-lock / focus: body faces camera-forward (strafe), not hard snap to target
-    if (focus?.focusEnabled || focus?.rmbHeld) {
-      this.camera.getWorldDirection(_fwd);
-      _fwd.y = 0;
-      if (_fwd.lengthSq() > 1e-6) {
-        _fwd.normalize();
-        targetYaw = Math.atan2(_fwd.x, _fwd.z);
-      } else if (this.aim?.valid) {
-        targetYaw = this.aim.yaw;
-      }
-    } else if (this._sprinting && moving && _move.lengthSq() > 1e-6) {
-      // Shift sprint freelook-run
-      targetYaw = Math.atan2(_move.x, _move.z);
-    } else if (settings.aim?.enabled !== false && this.aim?.valid) {
-      targetYaw = this.aim.yaw;
-    } else if (moving) {
-      targetYaw = Math.atan2(_move.x, _move.z);
-    } else {
+    const focusOn = !!this.combatFocus?.focusEnabled;
+    // Free aim: body yaw only from A/D tank turn in update() — do not follow camera/aim
+    if (!focusOn) {
+      this._yaw = this.character.facing;
       return;
     }
 
-    // Sprint turns a bit snappier so A/D read as "rotate to run"
-    const turn = this._sprinting
-      ? (settings.aim?.sprintTurnSpeed ?? 18)
-      : (settings.aim?.turnSpeed ?? 14);
+    // Focus: lock body yaw to camera forward (rotates with orbit)
+    this.camera.getWorldDirection(_fwd);
+    _fwd.y = 0;
+    if (_fwd.lengthSq() < 1e-6) return;
+    _fwd.normalize();
+    const targetYaw = Math.atan2(_fwd.x, _fwd.z);
+
+    // Snappy follow so RMB orbit feels glued to the character
+    const turn = settings.aim?.focusTurnSpeed ?? 22;
     let cur = this.character.facing;
     let diff = targetYaw - cur;
     while (diff > Math.PI) diff -= Math.PI * 2;

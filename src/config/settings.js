@@ -375,6 +375,10 @@ export const settings = {
   aim: {
     enabled: true,
     turnSpeed: 14,
+    /** Focus mode: body yaws with camera (rad/s max) */
+    focusTurnSpeed: 22,
+    /** Free aim: A/D tank turn rate (rad/s) */
+    tankTurnSpeed: 2.6,
     sprintTurnSpeed: 18,
     moveRelativeToAim: true,
     cameraFollowAim: true,

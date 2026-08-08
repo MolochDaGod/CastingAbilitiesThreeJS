@@ -91,8 +91,8 @@ export class HUD {
 
       <div class="hud__panel hud__help" data-help>
         <div><strong>Combat</strong> · staffs on 1–4 · F residual</div>
-        <div><kbd>WASD</kbd> · <kbd>Shift</kbd> run · <kbd>Space</kbd> jump · <kbd>Ctrl</kbd>+A/D roll</div>
-        <div><kbd>AA</kbd>/<kbd>DD</kbd> dodge · <kbd>E</kbd> block · <kbd>C</kbd> parry · <kbd>X</kbd> back</div>
+        <div><kbd>WASD</kbd> · <kbd>Shift</kbd> sprint toggle · <kbd>RMB</kbd> focus toggle</div>
+        <div>Focus ON: body+cam · OFF: A/D turn · <kbd>Ctrl</kbd>+A/D roll · <kbd>Space</kbd> jump</div>
         <div><kbd>LMB</kbd> path cast · <kbd>M</kbd> Surf · <kbd>O</kbd> Showcase · <kbd>I</kbd> lab</div>
         <div data-help-elements>Staffs: Fire · Ice · Nature · Storm</div>
       </div>
