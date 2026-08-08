@@ -37,13 +37,20 @@ import {
   downloadEquippedPrefab,
   exportEquippedPrefab
 } from '../combat/equippedWeaponRuntime.js';
+import {
+  loadGameItemCatalog,
+  queryGameItems,
+  exportItemPrefabSnapshot,
+  PREFAB_CATEGORIES,
+  ITEM_BROWSER_URL,
+  WEAPON_SKILLS_HTML
+} from '../api/gameItemCatalog.js';
 
 /**
  * Left-side Lab Panel — Main Panel / character production tester (not a fork).
  *
- * Tabs: Character · Equipment · Weapon · Race · Mesh · Mount · Anims · API
- * Production Main Panel stays Open/ui.grudge-studio.com — we link + exercise
- * the same contracts (mesh_ids, packs, fleet API).
+ * Tabs: Character · Equipment · Weapon · Prefabs · Race · Mesh · Mount · Anims · API
+ * Prefabs = full game item import (weapons, armour, relics, mounts…) from info SSOT.
  */
 export class InventoryPanel {
   /**
@@ -69,6 +76,11 @@ export class InventoryPanel {
     this._tab = 'character';
     this._busy = false;
     this.api = fleetApi;
+    /** @type {string} Prefabs category filter */
+    this._prefabCat = 't0';
+    this._prefabQ = '';
+    this._prefabSelected = null;
+    this._gameItems = null;
 
     this.el = document.createElement('div');
     this.el.id = 'inventory-panel';
@@ -84,6 +96,7 @@ export class InventoryPanel {
       { id: 'character', label: 'Character' },
       { id: 'equip', label: 'Equipment' },
       { id: 'weapon', label: 'Weapon' },
+      { id: 'prefabs', label: 'Prefabs' },
       { id: 'race', label: 'Race' },
       { id: 'mesh', label: 'Mesh' },
       { id: 'mount', label: 'Mount' },
@@ -116,6 +129,7 @@ export class InventoryPanel {
           <section class="inv-section" data-panel="character"></section>
           <section class="inv-section" data-panel="equip" hidden></section>
           <section class="inv-section" data-panel="weapon" hidden></section>
+          <section class="inv-section" data-panel="prefabs" hidden></section>
           <section class="inv-section" data-panel="race" hidden></section>
           <section class="inv-section" data-panel="mesh" hidden></section>
           <section class="inv-section" data-panel="mount" hidden></section>
@@ -164,6 +178,7 @@ export class InventoryPanel {
     this._fillCharacter();
     this._fillEquip();
     this._fillWeapon();
+    this._fillPrefabs();
     this._fillRace();
     this._fillMesh();
     this._fillMount();
@@ -620,6 +635,156 @@ export class InventoryPanel {
           this.onToast(`Play · ${role}`);
         }
       });
+    });
+  }
+
+  /* ── Prefabs (full game items · production SSOT) ───────────── */
+
+  async _fillPrefabs() {
+    const host = this.el.querySelector('[data-panel="prefabs"]');
+    if (!host || this._tab !== 'prefabs') return;
+
+    host.innerHTML = `<p class="inv-hint">Loading game-library + master catalogs…</p>`;
+    try {
+      this._gameItems = await loadGameItemCatalog();
+    } catch (err) {
+      host.innerHTML = `<p class="inv-hint">Catalog load failed: ${err?.message || err}</p>`;
+      return;
+    }
+    if (this._tab !== 'prefabs') return;
+
+    const cat = this._gameItems;
+    const counts = cat.counts || {};
+    const rows = queryGameItems(cat, {
+      category: this._prefabCat,
+      q: this._prefabQ,
+      limit: 60
+    });
+    const sel = this._prefabSelected;
+
+    const catBtns = PREFAB_CATEGORIES.map(
+      (c) =>
+        `<button type="button" class="inv-btn inv-btn--ghost ${this._prefabCat === c.id ? 'is-on' : ''}" data-pcat="${c.id}">${c.label} (${counts[c.id] ?? 0})</button>`
+    ).join('');
+
+    const list = rows
+      .map((r) => {
+        const on = sel?.id === r.id;
+        return `
+        <button type="button" class="inv-weapon-card ${on ? 'is-on' : ''}" data-pitem="${r.id}" data-pcat-row="${r.category}">
+          <img class="inv-weapon-card__icon" src="${r.iconUrl || ''}" alt="" loading="lazy" />
+          <div class="inv-weapon-card__body">
+            <div class="inv-weapon-card__name">${r.name}</div>
+            <div class="inv-weapon-card__meta">T${r.tier} · ${r.category}${r.weaponType ? ' · ' + r.weaponType : ''}${r.slot ? ' · ' + r.slot : ''}</div>
+            <div class="inv-weapon-card__skills">${r.equippable ? 'equippable' : 'catalog'} · ${r.source}</div>
+          </div>
+        </button>`;
+      })
+      .join('');
+
+    const detail = sel
+      ? `<div class="inv-equip-banner">
+          <img src="${sel.iconUrl || ''}" alt="" />
+          <div>
+            <div><b>${sel.name}</b> · ${sel.category}</div>
+            <div class="inv-hint">${(sel.description || '').slice(0, 160)}</div>
+            <div class="inv-hint">id: ${sel.id}</div>
+            <div class="inv-hint">model: ${(sel.modelUrl || '—').split('/').pop()}</div>
+            <div class="inv-hint">stats: ${sel.stats ? JSON.stringify(sel.stats).slice(0, 120) : '—'}</div>
+          </div>
+        </div>
+        <div class="inv-btn-row">
+          ${sel.equippable ? `<button type="button" class="inv-btn" data-pequip>Equip (combat bar)</button>` : ''}
+          <button type="button" class="inv-btn inv-btn--ghost" data-pexport>Export prefab JSON</button>
+          <button type="button" class="inv-btn inv-btn--ghost" data-pcopy>Copy JSON</button>
+        </div>`
+      : '<p class="inv-hint">Select a row to inspect · export for Warlords / HUD / combat binds.</p>';
+
+    host.innerHTML = `
+      <p class="inv-hint"><b>Production prefab import</b> — weapons, armour, relics, mounts, class, off-hands, specials</p>
+      <p class="inv-hint">
+        <a href="${ITEM_BROWSER_URL}" target="_blank" rel="noopener">Item Database ↗</a> ·
+        <a href="${WEAPON_SKILLS_HTML}" target="_blank" rel="noopener">WEAPON_SKILLS ↗</a> ·
+        no invented ITEM-* ids
+      </p>
+      <div class="inv-btn-row" style="flex-wrap:wrap">${catBtns}</div>
+      <input type="search" class="inv-input" data-pq placeholder="Search name / id…" value="${this._prefabQ.replace(/"/g, '&quot;')}" />
+      ${detail}
+      <div class="inv-weapon-equip-grid">${list || '<p class="inv-hint">No rows (try another category)</p>'}</div>
+      <p class="inv-hint">Consumers: items · character HUD · UI · controller · combat · this lab. Doc: GAME_ITEM_PREFAB_PRODUCTION_SSOT.md</p>
+    `;
+
+    host.querySelectorAll('[data-pcat]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        this._prefabCat = btn.dataset.pcat;
+        this._prefabSelected = null;
+        this._fillPrefabs();
+      });
+    });
+
+    const search = host.querySelector('[data-pq]');
+    search?.addEventListener('change', () => {
+      this._prefabQ = search.value || '';
+      this._fillPrefabs();
+    });
+    search?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        this._prefabQ = search.value || '';
+        this._fillPrefabs();
+      }
+    });
+
+    host.querySelectorAll('[data-pitem]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.pitem;
+        const pool = queryGameItems(cat, {
+          category: this._prefabCat,
+          q: this._prefabQ,
+          limit: 200
+        });
+        this._prefabSelected = pool.find((r) => r.id === id) || null;
+        this._fillPrefabs();
+      });
+    });
+
+    host.querySelector('[data-pequip]')?.addEventListener('click', async () => {
+      if (!sel?.equippable) return;
+      try {
+        await equipWeaponById(sel.id, {
+          character: this.character,
+          onToast: (m) => this.onToast(m)
+        });
+        setActiveSkillTree('equipped');
+        const drc = this.getDrc?.();
+        if (drc) drc.skills = getActiveSkills();
+        this.onToast(`Equipped ${sel.name} · combat 1–3`);
+        this.onEquip?.();
+      } catch (err) {
+        this.onToast(err?.message || 'Equip failed (not a T0/weapon id?)');
+      }
+    });
+
+    host.querySelector('[data-pexport]')?.addEventListener('click', () => {
+      const snap = exportItemPrefabSnapshot(sel);
+      if (!snap) return;
+      const blob = new Blob([JSON.stringify(snap, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${snap.id}.game-item-prefab.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      this.onToast('Downloaded prefab snapshot');
+    });
+
+    host.querySelector('[data-pcopy]')?.addEventListener('click', async () => {
+      const snap = exportItemPrefabSnapshot(sel);
+      if (!snap) return;
+      try {
+        await navigator.clipboard.writeText(JSON.stringify(snap, null, 2));
+        this.onToast('Prefab JSON copied');
+      } catch {
+        this.onToast('Copy failed');
+      }
     });
   }
 
