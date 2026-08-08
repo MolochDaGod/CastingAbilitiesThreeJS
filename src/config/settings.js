@@ -802,15 +802,152 @@ export const settings = {
     burstIntensity: 1.5,
     explosionShake: 0.42,
     explosionFlash: 0.2
+  },
+
+  /* ================================================================== */
+  /* HOLY — light staff (editor + VFX colors; path ability = wind pool)   */
+  /* ================================================================== */
+  holy: {
+    speed: 13.0,
+    lifetime: 2.5,
+    ribbonCount: 3,
+    ribbonWidth: 2.0,
+    ribbonOpacity: 0.95,
+    ribbonLength: 22.0,
+    spiralRadius: 0.95,
+    sheetTwist: 1.2,
+    rotationSpeed: 4.5,
+    vortexStrength: 1.2,
+    swirlSpeed: 1.8,
+    filamentCount: 28,
+    filamentSharpness: 0.6,
+    turbulence: 0.55,
+    haze: 0.28,
+    noiseStrength: 0.55,
+    noiseFrequency: 0.85,
+    distortion: 0.06,
+    fresnel: 1.5,
+    opacity: 0.7,
+    glow: 1.35,
+    colorInner: '#fff8e8',
+    colorOuter: '#ffe08a',
+    leafCount: 24,
+    leafSize: 0.05,
+    leafSpin: 3.5,
+    leafLifetime: 2.2,
+    dustAmount: 1.4,
+    dustSize: 0.05,
+    dustRate: 120,
+    lightIntensity: 14,
+    lightRadius: 10,
+    lightColor: '#ffe9a8',
+    tornadoHeight: 7.5,
+    tornadoRadius: 1.8,
+    tornadoDuration: 1.4,
+    tornadoNeck: 0.22,
+    tornadoShells: 3,
+    tornadoRoughness: 0.12,
+    tornadoLean: 0.4,
+    burstIntensity: 1.6,
+    explosionShake: 0.35,
+    explosionFlash: 0.35
+  },
+
+  /* ================================================================== */
+  /* ARCANE — void / warp staff (editor; path ability = wind pool)        */
+  /* ================================================================== */
+  arcane: {
+    speed: 14.5,
+    lifetime: 2.3,
+    ribbonCount: 4,
+    ribbonWidth: 1.9,
+    ribbonOpacity: 0.92,
+    ribbonLength: 23.0,
+    spiralRadius: 1.1,
+    sheetTwist: 1.7,
+    rotationSpeed: 6.2,
+    vortexStrength: 1.85,
+    swirlSpeed: 2.6,
+    filamentCount: 32,
+    filamentSharpness: 0.58,
+    turbulence: 0.95,
+    haze: 0.3,
+    noiseStrength: 0.8,
+    noiseFrequency: 1.05,
+    distortion: 0.1,
+    fresnel: 1.4,
+    opacity: 0.65,
+    glow: 1.2,
+    colorInner: '#f0e0ff',
+    colorOuter: '#9b5cff',
+    leafCount: 30,
+    leafSize: 0.05,
+    leafSpin: 5.0,
+    leafLifetime: 2.3,
+    dustAmount: 1.8,
+    dustSize: 0.05,
+    dustRate: 160,
+    lightIntensity: 12,
+    lightRadius: 9,
+    lightColor: '#c090ff',
+    tornadoHeight: 8.0,
+    tornadoRadius: 2.0,
+    tornadoDuration: 1.5,
+    tornadoNeck: 0.18,
+    tornadoShells: 3,
+    tornadoRoughness: 0.2,
+    tornadoLean: 0.5,
+    burstIntensity: 1.7,
+    explosionShake: 0.45,
+    explosionFlash: 0.28
   }
 };
 
 /**
- * Element ids in selection order (keys 1–4).
- * Stable code ids — never rename without AbilityManager + Ability subclasses.
- * HUD / staff labels live in ELEMENT_META (Warlords staff weapon ids).
+ * Product element ids in hotbar order (keys 1–6).
+ * Path-cast abilities still pool as fire|water|earth|wind — see ELEMENT_ABILITY.
+ * HUD / staff labels live in ELEMENT_META.
  */
-export const ELEMENTS = ['fire', 'water', 'earth', 'wind'];
+export const ELEMENTS = ['fire', 'storm', 'ice', 'nature', 'holy', 'arcane'];
+
+/**
+ * Product element → AbilityManager pool key (Fire/Water/Earth/Wind ability classes).
+ * Holy + arcane reuse the wind path mesh until dedicated abilities ship.
+ */
+export const ELEMENT_ABILITY = Object.freeze({
+  fire: 'fire',
+  storm: 'wind',
+  ice: 'water',
+  nature: 'earth',
+  holy: 'wind',
+  arcane: 'wind'
+});
+
+/** @param {string} element product or legacy id */
+export function abilityKeyForElement(element) {
+  if (!element) return 'fire';
+  if (ELEMENT_ABILITY[element]) return ELEMENT_ABILITY[element];
+  // Legacy ids still used by older skills / catalogs
+  if (element === 'water' || element === 'frost') return 'water';
+  if (element === 'earth') return 'earth';
+  if (element === 'wind' || element === 'lightning') return 'wind';
+  if (element === 'fire') return 'fire';
+  return ELEMENT_ABILITY[element] || 'wind';
+}
+
+/**
+ * Live settings block for an element (editor + ability config).
+ * ice→water, storm→wind, nature→earth; holy/arcane own blocks.
+ */
+export function settingsForElement(element) {
+  if (element === 'ice' || element === 'water' || element === 'frost') return settings.water;
+  if (element === 'storm' || element === 'wind' || element === 'lightning') return settings.wind;
+  if (element === 'nature' || element === 'earth') return settings.earth;
+  if (element === 'holy') return settings.holy;
+  if (element === 'arcane') return settings.arcane;
+  if (element === 'fire') return settings.fire;
+  return settings.fire;
+}
 
 /** Interaction modes, in toggle order (key M). */
 export const MODES = ['casting', 'walk'];
@@ -821,19 +958,19 @@ export const MODE_META = {
     label: 'Cast',
     glyph: '✦',
     hint: 'Staff path cast',
-    blurb: 'Draw path → element ability · 1–4 staffs · M walk'
+    blurb: 'Draw path → element ability · 1–6 staffs · M walk'
   },
   walk: {
     label: 'Surf',
     glyph: '◎',
     hint: 'Windsurf freeride',
-    blurb: 'Space deploy · path = course · WASD boat · 1–4 skills on board'
+    blurb: 'Space deploy · path = course · WASD boat · 1–6 skills on board'
   }
 };
 
 /**
- * Element → staff presentation (Warlords staffFire / staffIce / staffNature / staffStorm).
- * Ability pool keys stay fire|water|earth|wind.
+ * Element → staff presentation (Warlords staff brands).
+ * Product ids: fire · storm · ice · nature · holy · arcane.
  */
 export const ELEMENT_META = {
   fire: {
@@ -841,36 +978,54 @@ export const ELEMENT_META = {
     short: 'Fire',
     accent: '#ff6a1a',
     glyph: '🜂',
-    hint: '1 — staffFire path cast',
+    hint: '1 — Fire staff path cast',
     staffWeaponId: 'staffFire',
     staffLabel: 'Fire Staff'
   },
-  water: {
+  storm: {
+    label: 'Storm Staff',
+    short: 'Storm',
+    accent: '#9fdcff',
+    glyph: '🜁',
+    hint: '2 — Storm staff path cast',
+    staffWeaponId: 'staffStorm',
+    staffLabel: 'Storm Staff'
+  },
+  ice: {
     label: 'Ice Staff',
     short: 'Ice',
     accent: '#31b6ff',
     glyph: '🜄',
-    hint: '2 — staffIce / water path cast',
+    hint: '3 — Ice staff path cast',
     staffWeaponId: 'staffIce',
     staffLabel: 'Ice Staff'
   },
-  earth: {
+  nature: {
     label: 'Nature Staff',
     short: 'Nature',
-    accent: '#b98a4d',
+    accent: '#6bbf4a',
     glyph: '🜃',
-    hint: '3 — staffNature / earth path cast',
+    hint: '4 — Nature staff path cast',
     staffWeaponId: 'staffNature',
     staffLabel: 'Nature Staff'
   },
-  wind: {
-    label: 'Storm Staff',
-    short: 'Storm',
-    accent: '#c9f0ff',
-    glyph: '🜁',
-    hint: '4 — staffStorm / wind path cast',
-    staffWeaponId: 'staffStorm',
-    staffLabel: 'Storm Staff'
+  holy: {
+    label: 'Holy Staff',
+    short: 'Holy',
+    accent: '#ffe08a',
+    glyph: '✦',
+    hint: '5 — Holy staff path cast',
+    staffWeaponId: 'staffHoly',
+    staffLabel: 'Holy Staff'
+  },
+  arcane: {
+    label: 'Arcane Staff',
+    short: 'Arcane',
+    accent: '#b070ff',
+    glyph: '✧',
+    hint: '6 — Arcane staff path cast',
+    staffWeaponId: 'staffArcane',
+    staffLabel: 'Arcane Staff'
   }
 };
 

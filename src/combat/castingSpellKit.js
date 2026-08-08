@@ -14,8 +14,9 @@
 
 import { CASTING_ELEMENT_PHASE_VFX } from './elementWeaponSkills.js';
 import { STAFF_SIGNATURE_SKILLS } from './staffSignatureSkills.js';
+import { abilityKeyForElement } from '../config/settings.js';
 
-/** @typedef {'fire'|'water'|'earth'|'wind'|'arcane'} SpellElement */
+/** @typedef {'fire'|'storm'|'ice'|'nature'|'holy'|'arcane'} SpellElement */
 /** @typedef {'stream'|'aoe'|'spikes'|'wall'} PathMode */
 
 /**
@@ -47,10 +48,15 @@ import { STAFF_SIGNATURE_SKILLS } from './staffSignatureSkills.js';
  */
 
 const F = CASTING_ELEMENT_PHASE_VFX.fire;
-const W = CASTING_ELEMENT_PHASE_VFX.water;
-const E = CASTING_ELEMENT_PHASE_VFX.earth;
-const A = CASTING_ELEMENT_PHASE_VFX.wind;
+const S = CASTING_ELEMENT_PHASE_VFX.storm;
+const I = CASTING_ELEMENT_PHASE_VFX.ice;
+const N = CASTING_ELEMENT_PHASE_VFX.nature;
+const H = CASTING_ELEMENT_PHASE_VFX.holy;
 const R = CASTING_ELEMENT_PHASE_VFX.arcane;
+/** @deprecated legacy aliases used while core spells migrate */
+const W = I;
+const E = N;
+const A = S;
 
 const CAST_CLIP = 'magic/standing 1h cast spell 01';
 
@@ -61,7 +67,7 @@ export function manaFromStam(staminaCost) {
 
 /**
  * Core ten + staff signatures (Inferno, Blizzard, Warp, Quake, Tempest).
- * Order: fire → water → earth → wind → arcane, then signatures.
+ * Order: fire → ice → nature → storm → holy/arcane, then signatures.
  *
  * @type {readonly CastingSpell[]}
  */
@@ -132,17 +138,17 @@ const CASTING_SPELL_CORE = [
     catalogSkillId: 'staff_frost_bolt',
     label: 'Frost Bolt',
     description: 'Water stream along path — WaterAbility ribbons + frost impact.',
-    element: 'water',
+    element: 'ice',
     pathMode: 'stream',
     style: 'spell',
     animRole: 'cast',
     animPack: 'magic',
     castClip: CAST_CLIP,
     abilityClass: 'WaterAbility',
-    castEffectId: W.cast,
-    travelEffectId: W.travel,
-    impactEffectId: W.impact,
-    staffWeaponId: W.staffWeaponId,
+    castEffectId: I.cast,
+    travelEffectId: I.travel,
+    impactEffectId: I.impact,
+    staffWeaponId: I.staffWeaponId,
     rangeM: 14,
     cooldown: 1.2,
     castDuration: 0.9,
@@ -161,17 +167,17 @@ const CASTING_SPELL_CORE = [
     catalogSkillId: 'staff_ice_nova',
     label: 'Ice Nova',
     description: 'Medium path spikes — frost ground wave along stroke (staffCast spikes).',
-    element: 'water',
+    element: 'ice',
     pathMode: 'spikes',
     style: 'spell',
     animRole: 'cast',
     animPack: 'magic',
     castClip: CAST_CLIP,
     abilityClass: 'WaterAbility',
-    castEffectId: W.cast,
-    travelEffectId: W.travel,
+    castEffectId: I.cast,
+    travelEffectId: I.travel,
     impactEffectId: 'frost_wave',
-    staffWeaponId: W.staffWeaponId,
+    staffWeaponId: I.staffWeaponId,
     rangeM: 12,
     cooldown: 3.5,
     castDuration: 0.95,
@@ -189,7 +195,7 @@ const CASTING_SPELL_CORE = [
     catalogSkillId: 'staff_earthquake',
     label: 'Earth Spike',
     description: 'Earth rise along path — EarthAbility + earth_surge (nature staff line).',
-    element: 'earth',
+    element: 'nature',
     pathMode: 'spikes',
     style: 'spell',
     animRole: 'cast',
@@ -219,7 +225,7 @@ const CASTING_SPELL_CORE = [
     catalogSkillId: 'staff_natures_fury',
     label: 'Stone Wall',
     description: 'Long path / hold → wall barrier (staffCast wall + earth).',
-    element: 'earth',
+    element: 'nature',
     pathMode: 'wall',
     style: 'spell',
     animRole: 'cast',
@@ -248,7 +254,7 @@ const CASTING_SPELL_CORE = [
     catalogSkillId: 'staff_storm_call',
     label: 'Wind Tempest',
     description: 'Wind stream + lightning travel — WindAbility + chain arcs.',
-    element: 'wind',
+    element: 'storm',
     pathMode: 'stream',
     style: 'spell',
     animRole: 'cast',
@@ -278,7 +284,7 @@ const CASTING_SPELL_CORE = [
     catalogSkillId: 'staff_thunder_cataclysm',
     label: 'Gale Nova',
     description: 'Wind AOE place — lightning burst at endpoint.',
-    element: 'wind',
+    element: 'storm',
     pathMode: 'aoe',
     style: 'spell',
     animRole: 'cast',
@@ -399,9 +405,9 @@ export function toDrcSkill(spell) {
     slot: spell.slot % 4,
     kitSlot: spell.slot,
     style: 'spell',
-    element: spell.element === 'arcane' ? 'arcane' : spell.element,
-    /** Casting Ability uses fire|water|earth|wind; arcane maps to wind path + beauty VFX */
-    abilityElement: spell.element === 'arcane' ? 'wind' : spell.element,
+    element: spell.element,
+    /** Product element → ability pool (fire|water|earth|wind) */
+    abilityElement: abilityKeyForElement(spell.element),
     pathMode: spell.pathMode,
     animRole: spell.animRole,
     animPack: spell.animPack,

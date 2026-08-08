@@ -40,7 +40,7 @@ export class HUD {
     root.innerHTML = `
       <div class="hud__panel hud__title">
         Grudge Casting · Warlords lab
-        <span data-blurb>Staffs 1–4 · path cast · Surf mode (M)</span>
+        <span data-blurb>Staffs 1–6 · path cast · Surf mode (M)</span>
       </div>
 
       <!-- Player unit frame -->
@@ -90,11 +90,11 @@ export class HUD {
       </div>
 
       <div class="hud__panel hud__help" data-help>
-        <div><strong>Combat</strong> · staffs on 1–4 · F residual</div>
+        <div><strong>Combat</strong> · staffs on 1–6 · F residual</div>
         <div><kbd>RMB</kbd> focus · LMB attack (focus) / select (free) · unlocked mouse free</div>
         <div><kbd>Shift</kbd> sprint · <kbd>Shift</kbd>+<kbd>Ctrl</kbd> slide · <kbd>Ctrl</kbd>+dir roll</div>
         <div><kbd>LMB</kbd> path cast · <kbd>M</kbd> Surf · <kbd>O</kbd> Showcase · <kbd>I</kbd> lab</div>
-        <div data-help-elements>Staffs: Fire · Ice · Nature · Storm</div>
+        <div data-help-elements>Staffs: Fire · Storm · Ice · Nature · Holy · Arcane (1–6)</div>
       </div>
 
       <div class="hud__modes">
@@ -315,7 +315,7 @@ export class HUD {
       this.blurb.textContent = meta.blurb;
       this._setHelpMode('walk');
     } else if (this._drcSession === 'combat') {
-      this.blurb.textContent = 'Aim · WASD · 1–4 staff skills · LMB path cast';
+      this.blurb.textContent = 'Aim · WASD · 1–6 elements · LMB path cast';
       this._setHelpMode('combat');
     } else {
       this.blurb.textContent = meta.blurb;
@@ -343,7 +343,7 @@ export class HUD {
         this.blurb.textContent = MODE_META.walk?.blurb || 'Surf freeride';
         this._setHelpMode('walk');
       } else {
-        this.blurb.textContent = 'Aim · WASD · 1–4 staff skills · LMB path cast';
+        this.blurb.textContent = 'Aim · WASD · 1–6 elements · LMB path cast';
         this._setHelpMode('combat');
       }
       this.actionbar?.classList.remove('is-dimmed');

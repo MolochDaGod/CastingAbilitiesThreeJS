@@ -20,19 +20,22 @@ See `castResources.js` · `docs/PRODUCTION_CONTROLLER_SSOT.md`.
 |---|--------|------------------|---------|-----------|---------|------------------------|
 | 1 | casting_fire_bolt | staff_fire_bolt | fire | stream | FireAbility | fire_hand → fireball → inferno |
 | 2 | casting_flame_wave | staff_flame_wave | fire | aoe | FireAbility | fire_hand → fireball → inferno |
-| 3 | casting_frost_bolt | staff_frost_bolt | water | stream | WaterAbility | arcane_swirl → moon_beam → frost_wave |
-| 4 | casting_ice_nova | staff_ice_nova | water | spikes | WaterAbility | … → frost_wave |
-| 5 | casting_earth_spike | staff_earthquake | earth | spikes | EarthAbility | earth_surge ×3 |
-| 6 | casting_stone_wall | staff_natures_fury | earth | wall | EarthAbility | earth_surge |
-| 7 | casting_wind_tempest | staff_storm_call | wind | stream | WindAbility | arcane_swirl → chain_lightning → ice_lightning_burst |
-| 8 | casting_gale_nova | staff_thunder_cataclysm | wind | aoe | WindAbility | … → ice_lightning_burst |
-| 9 | casting_holy_light | staff_holy_light | arcane | stream | (wind path + beauty) | arcane_swirl → moon_beam |
+| 3 | casting_frost_bolt | staff_frost_bolt | ice | stream | WaterAbility | arcane_swirl → moon_beam → frost_wave |
+| 4 | casting_ice_nova | staff_ice_nova | ice | spikes | WaterAbility | … → frost_wave |
+| 5 | casting_earth_spike | staff_earthquake | nature | spikes | EarthAbility | earth_surge ×3 |
+| 6 | casting_stone_wall | staff_natures_fury | nature | wall | EarthAbility | earth_surge |
+| 7 | casting_wind_tempest | staff_storm_call | storm | stream | WindAbility | arcane_swirl → chain_lightning → ice_lightning_burst |
+| 8 | casting_gale_nova | staff_thunder_cataclysm | storm | aoe | WindAbility | … → ice_lightning_burst |
+| 9 | casting_holy_light | staff_holy_light | holy | stream | (wind path + beauty) | arcane_swirl → moon_beam |
 | 10 | casting_meteor_strike | staff_meteor_strike | fire | stream | FireAbility | fire_hand → fireball → inferno (long range) |
 | S | casting_inferno | staff_inferno | fire | stream | FireAbility | **Inferno** signature |
-| S | casting_blizzard | staff_blizzard | water | aoe | WaterAbility | **Blizzard** signature |
+| S | casting_blizzard | staff_blizzard | ice | aoe | WaterAbility | **Blizzard** signature |
 | S | casting_warp | staff_warp | arcane | stream | arcane | **Warp** signature |
-| S | casting_quake | staff_quake | earth | wall | EarthAbility | **Quake** signature |
-| S | casting_tempest | staff_tempest | wind | stream | WindAbility | **Tempest** signature |
+| S | casting_quake | staff_quake | nature | wall | EarthAbility | **Quake** signature |
+| S | casting_tempest | staff_tempest | storm | stream | WindAbility | **Tempest** signature |
+
+**Product elements (hotbar 1–6):** `fire` · `storm` · `ice` · `nature` · `holy` · `arcane`  
+Ability pools still: FireAbility · WindAbility · WaterAbility · EarthAbility · (holy/arcane → wind pool).
 
 ## What to study per element
 

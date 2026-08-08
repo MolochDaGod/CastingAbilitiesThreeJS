@@ -1,12 +1,22 @@
 /**
  * DRC weapon skills — fleet-shaped (FleetWeaponSkill) for Warlords migration.
  * Elements fire/water/earth/wind use Casting path ability + cast/travel/impact VFX.
- * Slot 3 can be blade residual OR arcane ultimate (see ARCANE tree).
+ * Default bar = first 4 of CASTING_SPELL_KIT (10 learnable spells → WEAPON_SKILLS STAFF).
  *
- * @see elementWeaponSkills.js · gameopen castingElementSkills.ts
+ * @see castingSpellKit.js · elementWeaponSkills.js · WEAPON_SKILLS.html
  */
 
 import { ARCANE_WEAPON_SKILLS, CASTING_ELEMENT_PHASE_VFX } from './elementWeaponSkills.js';
+import { kitHotbarSkills, toDrcSkill, CASTING_SPELL_KIT } from './castingSpellKit.js';
+import {
+  t0ApprenticeWandHotbar,
+  allT0WandSkills,
+  setT0WandSlot3,
+  getT0WandSlot3,
+  T0_WAND_SLOT3_OPTIONS,
+  toDrcT0
+} from './t0ApprenticeWand.js';
+import { equippedWeaponHotbar, getEquippedWeapon } from './equippedWeaponRuntime.js';
 
 /** @typedef {'melee'|'spell'|'ranged'} SkillStyle */
 
@@ -16,7 +26,7 @@ import { ARCANE_WEAPON_SKILLS, CASTING_ELEMENT_PHASE_VFX } from './elementWeapon
  * @property {string} label
  * @property {number} slot 0..3
  * @property {SkillStyle} style
- * @property {string} [element] fire|water|earth|wind|arcane
+ * @property {string} [element] fire|storm|ice|nature|holy|arcane
  * @property {string} animRole idle|cast|attack|block
  * @property {number} rangeM
  * @property {number} cooldown
@@ -30,13 +40,13 @@ import { ARCANE_WEAPON_SKILLS, CASTING_ELEMENT_PHASE_VFX } from './elementWeapon
  */
 
 const F = CASTING_ELEMENT_PHASE_VFX.fire;
-const W = CASTING_ELEMENT_PHASE_VFX.water;
-const E = CASTING_ELEMENT_PHASE_VFX.earth;
-const A = CASTING_ELEMENT_PHASE_VFX.wind;
+const W = CASTING_ELEMENT_PHASE_VFX.ice;
+const E = CASTING_ELEMENT_PHASE_VFX.nature;
+const A = CASTING_ELEMENT_PHASE_VFX.storm;
 
 /**
- * Melee residual (Getsuga-class) — F strike / attack frame.
- * Not a free hotkey; not Space. Profile knobs: settings.residual.
+ * Melee residual (Getsuga-class) — standard attack frame (F when no interact target).
+ * Not Space. Profile knobs: settings.residual.
  * Open SSOT: meleeStrikeFx.ts · MELEE_SLASH_FX.md
  */
 /** @type {DrcWeaponSkill} */
@@ -54,12 +64,24 @@ export const DRC_MELEE_STRIKE = {
   impactEffectId: 'getsuga_slash',
   attachToHand: true,
   weaponId: 'sword',
-  hint: 'F — attack anim + residual from weapon tip (edit settings.residual)'
+  hint: 'F fallback — attack anim + residual from weapon tip (edit settings.residual)'
 };
 
-/** Default combat bar: 3 elements + wind ultimate (classic DRC digits). F = melee residual. */
+/**
+ * Default combat bar = kit page 0 (spells 1–4 of 10).
+ * F = interact / attack. Pages: setSkillKitPage(0|1|2).
+ */
 /** @type {DrcWeaponSkill[]} */
-export const DRC_WEAPON_SKILLS = [
+export const DRC_WEAPON_SKILLS = kitHotbarSkills(0);
+
+/** Full 10 as DRC skills (kit browse / bind). */
+export const DRC_SPELL_KIT_ALL = CASTING_SPELL_KIT.map(toDrcSkill);
+
+/** Purple arcane tree (optional bar: ?arcane=1 or setActiveSkillTree('arcane')). */
+export const DRC_ARCANE_SKILLS = ARCANE_WEAPON_SKILLS;
+
+/** @deprecated aliases for old element labels in toasts/docs */
+export const DRC_LEGACY_ELEMENT_SKILLS = [
   {
     id: 'drc_fire_bolt',
     label: 'Fire Bolt',
@@ -76,14 +98,17 @@ export const DRC_WEAPON_SKILLS = [
     impactEffectId: F.impact,
     attachToHand: true,
     weaponId: F.staffWeaponId,
-    hint: '1 — fire cast/travel/impact → Warlords staffFire'
+    pathMode: 'stream',
+    abilityElement: 'fire',
+    catalogSkillId: 'staff_fire_bolt',
+    hint: 'legacy → casting_fire_bolt'
   },
   {
     id: 'drc_water_lash',
     label: 'Water Lash',
     slot: 1,
     style: 'spell',
-    element: 'water',
+    element: 'ice',
     animRole: 'cast',
     rangeM: 14,
     cooldown: 1.2,
@@ -94,14 +119,17 @@ export const DRC_WEAPON_SKILLS = [
     impactEffectId: W.impact,
     attachToHand: true,
     weaponId: W.staffWeaponId,
-    hint: '2 — frost path → Warlords staffIce'
+    pathMode: 'stream',
+    abilityelement: 'ice',
+    catalogSkillId: 'staff_frost_bolt',
+    hint: 'legacy → casting_frost_bolt'
   },
   {
     id: 'drc_earth_spike',
     label: 'Earth Spike',
     slot: 2,
     style: 'spell',
-    element: 'earth',
+    element: 'nature',
     animRole: 'cast',
     rangeM: 12,
     cooldown: 1.4,
@@ -112,14 +140,17 @@ export const DRC_WEAPON_SKILLS = [
     impactEffectId: E.impact,
     attachToHand: true,
     weaponId: E.staffWeaponId,
-    hint: '3 — earth surge → Warlords staffNature'
+    pathMode: 'spikes',
+    abilityelement: 'nature',
+    catalogSkillId: 'staff_earthquake',
+    hint: 'legacy → casting_earth_spike'
   },
   {
     id: 'drc_wind_tempest',
     label: 'Wind Tempest',
     slot: 3,
     style: 'spell',
-    element: 'wind',
+    element: 'storm',
     animRole: 'cast',
     rangeM: 14,
     cooldown: 2.5,
@@ -130,22 +161,57 @@ export const DRC_WEAPON_SKILLS = [
     impactEffectId: A.impact,
     attachToHand: true,
     weaponId: A.staffWeaponId,
-    hint: '4 — wind/lightning → Warlords staffStorm'
+    pathMode: 'stream',
+    abilityelement: 'storm',
+    catalogSkillId: 'staff_storm_call',
+    hint: 'legacy → casting_wind_tempest'
   }
 ];
 
-/** Purple arcane tree (optional bar: ?arcane=1 or setActiveSkillTree('arcane')). */
-export const DRC_ARCANE_SKILLS = ARCANE_WEAPON_SKILLS;
-
-/** Active hotbar (default elemental; swap to arcane for staff tree preview). */
-let _activeTree = 'elements';
+/** Active hotbar: kit pages | t0 wand | arcane | legacy elements */
+let _activeTree = 'kit';
+let _kitPage = 0;
+/** @type {DrcWeaponSkill[]} */
+let _kitBar = kitHotbarSkills(0);
 
 export function setActiveSkillTree(tree) {
-  _activeTree = tree === 'arcane' ? 'arcane' : 'elements';
+  if (tree === 'arcane') _activeTree = 'arcane';
+  else if (tree === 'legacy' || tree === 'elements') _activeTree = 'legacy';
+  else if (tree === 'wand' || tree === 't0_wand' || tree === 'apprentice_wand')
+    _activeTree = 'wand';
+  else if (tree === 'equipped' || tree === 'weapon') _activeTree = 'equipped';
+  else _activeTree = 'kit';
+}
+
+/** Kit page 0 = spells 1–4, 1 = 5–8, 2 = 9–10 (+ pads). */
+export function setSkillKitPage(page = 0) {
+  _kitPage = Math.max(0, Math.min(2, Number(page) || 0));
+  _kitBar = kitHotbarSkills(_kitPage);
+  // Normalize digit slots 0–3 for the bar
+  _kitBar = _kitBar.map((s, i) => ({ ...s, slot: i }));
+  if (_activeTree === 'kit') return _kitBar;
+  return getActiveSkills();
+}
+
+export function getSkillKitPage() {
+  return _kitPage;
 }
 
 export function getActiveSkills() {
-  return _activeTree === 'arcane' ? DRC_ARCANE_SKILLS : DRC_WEAPON_SKILLS;
+  if (_activeTree === 'arcane') return DRC_ARCANE_SKILLS;
+  if (_activeTree === 'legacy') return DRC_LEGACY_ELEMENT_SKILLS;
+  if (_activeTree === 'wand') return t0ApprenticeWandHotbar();
+  if (_activeTree === 'equipped') {
+    const bar = equippedWeaponHotbar();
+    if (bar.length) return bar;
+    // No equip yet — fall back to kit
+    return _kitBar;
+  }
+  return _kitBar;
+}
+
+export function getActiveSkillTree() {
+  return _activeTree;
 }
 
 export function skillBySlot(slot) {
@@ -154,14 +220,27 @@ export function skillBySlot(slot) {
 
 export function skillById(id) {
   if (id === DRC_MELEE_STRIKE.id) return DRC_MELEE_STRIKE;
+  const t0 = allT0WandSkills().find((s) => s.id === id || s.catalogSkillId === id);
+  if (t0) return toDrcT0(t0);
   return (
-    DRC_WEAPON_SKILLS.find((s) => s.id === id) ||
+    DRC_SPELL_KIT_ALL.find((s) => s.id === id) ||
+    DRC_SPELL_KIT_ALL.find((s) => s.catalogSkillId === id) ||
+    DRC_LEGACY_ELEMENT_SKILLS.find((s) => s.id === id) ||
     DRC_ARCANE_SKILLS.find((s) => s.id === id) ||
     null
   );
 }
 
-/** F-key / light attack residual skill (always available in combat). */
+export {
+  CASTING_SPELL_KIT,
+  setT0WandSlot3,
+  getT0WandSlot3,
+  T0_WAND_SLOT3_OPTIONS,
+  allT0WandSkills,
+  t0ApprenticeWandHotbar
+};
+
+/** F fallback / light attack residual skill (when no pickup/harvest). */
 export function getMeleeStrikeSkill() {
   return DRC_MELEE_STRIKE;
 }

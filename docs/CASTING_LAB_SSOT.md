@@ -55,7 +55,7 @@ learn source → isolate primitive → edit knobs → bind skill → smoke → e
 | **Anim library SSOT** | `animLibrary.js` vocabulary · families · `getAnimLibrary()` · Showcase Anims by family |
 | **Windsurf freeride** | Frontflip + sail from back · feet/hands IK · WASD boat (tslda) · `docs/WINDSURF_RIDE_SSOT.md` |
 | **Island stage** | Planar pad + shore + water ring · `docs/ISLAND_STAGE_SSOT.md` |
-| **Staff elements** | 1 Fire · 2 Ice · 3 Nature · 4 Storm (`ELEMENT_META` / staffFire…Storm) |
+| **Staff elements** | 1 Fire · 2 Storm · 3 Ice · 4 Nature · 5 Holy · 6 Arcane (`ELEMENTS` / `ELEMENT_META`) |
 | **Session SSOT** | `SessionState` mode · drc · ridePhase · gates (no ad-hoc mode forks) |
 | **Dodge afterimage** | Model-color blur + vapor dissipate (`DodgeAfterimage.js`) |
 | **Dodge MM** | `combat/motionMath.js` — 100 MM = 1 m; AA/DD lateral **720 MM (7.2 m = 3×)** |

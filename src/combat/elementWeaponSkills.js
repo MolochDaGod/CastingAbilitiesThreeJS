@@ -2,19 +2,19 @@
  * Element → Warlords staff skill migration (mirrors gameopen castingElementSkills).
  * Keep effect ids in sync with vfxCatalog + fleet FleetWeaponSkill cast/travel/impact.
  *
- * Path-cast element ids (settings.ELEMENTS) map to staff weapon ids:
- *   fire  → staffFire  (Fire Staff)
- *   water → staffIce   (Ice Staff)   — water ability, ice staff brand
- *   earth → staffNature (Nature Staff)
- *   wind  → staffStorm (Storm Staff) — wind ability, storm staff brand
- *   arcane→ staff      (Arcane Staff, optional tree)
+ * Product ELEMENTS (settings.ELEMENTS):
+ *   fire · storm · ice · nature · holy · arcane
  *
- * HUD labels: ELEMENT_META in settings.js · ability classes stay FireAbility…
+ * Path-cast ability pools (AbilityManager):
+ *   fire→FireAbility · ice→WaterAbility · nature→EarthAbility
+ *   storm|holy|arcane→WindAbility
+ *
+ * HUD labels: ELEMENT_META in settings.js
  */
 
-import { ELEMENT_META } from '../config/settings.js';
+import { ELEMENT_META, ELEMENTS, abilityKeyForElement } from '../config/settings.js';
 
-/** @typedef {'fire'|'water'|'earth'|'wind'|'arcane'} CastingElement */
+/** @typedef {'fire'|'storm'|'ice'|'nature'|'holy'|'arcane'} CastingElement */
 
 /**
  * @typedef {object} ElementPhaseVfx
@@ -26,6 +26,7 @@ import { ELEMENT_META } from '../config/settings.js';
  * @property {string} staffWeaponId
  * @property {string} staffLabel
  * @property {string} castClip
+ * @property {string} abilityKey  fire|water|earth|wind pool
  */
 
 /** @type {Record<CastingElement, ElementPhaseVfx>} */
@@ -38,37 +39,52 @@ export const CASTING_ELEMENT_PHASE_VFX = {
     color: 0xff6a1e,
     staffWeaponId: ELEMENT_META.fire?.staffWeaponId || 'staffFire',
     staffLabel: ELEMENT_META.fire?.staffLabel || 'Fire Staff',
-    castClip: 'magic/standing 1h cast spell 01'
+    castClip: 'magic/standing 1h cast spell 01',
+    abilityKey: 'fire'
   },
-  water: {
-    element: 'water',
-    cast: 'arcane_swirl',
-    travel: 'moon_beam',
-    impact: 'frost_wave',
-    color: 0x5fd6ff,
-    staffWeaponId: ELEMENT_META.water?.staffWeaponId || 'staffIce',
-    staffLabel: ELEMENT_META.water?.staffLabel || 'Ice Staff',
-    castClip: 'magic/standing 1h cast spell 01'
-  },
-  earth: {
-    element: 'earth',
-    cast: 'earth_surge',
-    travel: 'earth_surge',
-    impact: 'earth_surge',
-    color: 0xc4a574,
-    staffWeaponId: ELEMENT_META.earth?.staffWeaponId || 'staffNature',
-    staffLabel: ELEMENT_META.earth?.staffLabel || 'Nature Staff',
-    castClip: 'magic/standing 1h cast spell 01'
-  },
-  wind: {
-    element: 'wind',
+  storm: {
+    element: 'storm',
     cast: 'arcane_swirl',
     travel: 'chain_lightning',
     impact: 'ice_lightning_burst',
     color: 0x9fdcff,
-    staffWeaponId: ELEMENT_META.wind?.staffWeaponId || 'staffStorm',
-    staffLabel: ELEMENT_META.wind?.staffLabel || 'Storm Staff',
-    castClip: 'magic/standing 1h cast spell 01'
+    staffWeaponId: ELEMENT_META.storm?.staffWeaponId || 'staffStorm',
+    staffLabel: ELEMENT_META.storm?.staffLabel || 'Storm Staff',
+    castClip: 'magic/standing 1h cast spell 01',
+    abilityKey: 'wind'
+  },
+  ice: {
+    element: 'ice',
+    cast: 'arcane_swirl',
+    travel: 'moon_beam',
+    impact: 'frost_wave',
+    color: 0x5fd6ff,
+    staffWeaponId: ELEMENT_META.ice?.staffWeaponId || 'staffIce',
+    staffLabel: ELEMENT_META.ice?.staffLabel || 'Ice Staff',
+    castClip: 'magic/standing 1h cast spell 01',
+    abilityKey: 'water'
+  },
+  nature: {
+    element: 'nature',
+    cast: 'earth_surge',
+    travel: 'earth_surge',
+    impact: 'earth_surge',
+    color: 0x6bbf4a,
+    staffWeaponId: ELEMENT_META.nature?.staffWeaponId || 'staffNature',
+    staffLabel: ELEMENT_META.nature?.staffLabel || 'Nature Staff',
+    castClip: 'magic/standing 1h cast spell 01',
+    abilityKey: 'earth'
+  },
+  holy: {
+    element: 'holy',
+    cast: 'arcane_swirl',
+    travel: 'moon_beam',
+    impact: 'moon_beam',
+    color: 0xffe08a,
+    staffWeaponId: ELEMENT_META.holy?.staffWeaponId || 'staffHoly',
+    staffLabel: ELEMENT_META.holy?.staffLabel || 'Holy Staff',
+    castClip: 'magic/standing 1h cast spell 01',
+    abilityKey: 'wind'
   },
   arcane: {
     element: 'arcane',
@@ -76,25 +92,43 @@ export const CASTING_ELEMENT_PHASE_VFX = {
     travel: 'chain_lightning',
     impact: 'inferno',
     color: 0xb070ff,
-    staffWeaponId: 'staff',
-    staffLabel: 'Arcane Staff',
-    castClip: 'magic/standing 1h cast spell 01'
+    staffWeaponId: ELEMENT_META.arcane?.staffWeaponId || 'staffArcane',
+    staffLabel: ELEMENT_META.arcane?.staffLabel || 'Arcane Staff',
+    castClip: 'magic/standing 1h cast spell 01',
+    abilityKey: 'wind'
   }
 };
 
+/** Legacy product aliases → canonical CastingElement */
+const LEGACY_ELEMENT = {
+  water: 'ice',
+  frost: 'ice',
+  earth: 'nature',
+  wind: 'storm',
+  lightning: 'storm'
+};
+
+/** @param {string} element */
+export function normalizeElement(element) {
+  if (!element) return 'fire';
+  if (CASTING_ELEMENT_PHASE_VFX[element]) return element;
+  return LEGACY_ELEMENT[element] || element;
+}
+
 /** Element id → staff weapon id (equip / catalog). */
 export function staffWeaponIdForElement(element) {
-  return CASTING_ELEMENT_PHASE_VFX[element]?.staffWeaponId || null;
+  const el = normalizeElement(element);
+  return CASTING_ELEMENT_PHASE_VFX[el]?.staffWeaponId || null;
 }
 
 /**
- * Arcane skill tree (purple + explosive + wind-like) for Warlords staff.
+ * Arcane skill tree (purple + explosive + storm-like) for Warlords staff.
  * Slots 0–3 = DRC / fleet hotbar.
  */
 export const ARCANE_WEAPON_SKILLS = [
   {
     id: 'arcane_bolt',
-    weaponId: 'staff',
+    weaponId: 'staffArcane',
     slot: 0,
     label: 'Arcane Bolt',
     style: 'spell',
@@ -112,7 +146,7 @@ export const ARCANE_WEAPON_SKILLS = [
   },
   {
     id: 'arcane_gale',
-    weaponId: 'staff',
+    weaponId: 'staffArcane',
     slot: 1,
     label: 'Arcane Gale',
     style: 'spell',
@@ -126,11 +160,11 @@ export const ARCANE_WEAPON_SKILLS = [
     travelEffectId: 'chain_lightning',
     impactEffectId: 'ice_lightning_burst',
     attachToHand: true,
-    hint: '2 — wind + purple burst'
+    hint: '2 — storm + purple burst'
   },
   {
     id: 'void_burst',
-    weaponId: 'staff',
+    weaponId: 'staffArcane',
     slot: 2,
     label: 'Void Burst',
     style: 'spell',
@@ -148,7 +182,7 @@ export const ARCANE_WEAPON_SKILLS = [
   },
   {
     id: 'storm_arcane',
-    weaponId: 'staff',
+    weaponId: 'staffArcane',
     slot: 3,
     label: 'Storm Arcane',
     style: 'spell',
@@ -166,25 +200,102 @@ export const ARCANE_WEAPON_SKILLS = [
   }
 ];
 
+/** Holy skill tree — light bolts / beams. */
+export const HOLY_WEAPON_SKILLS = [
+  {
+    id: 'holy_bolt',
+    weaponId: 'staffHoly',
+    slot: 0,
+    label: 'Holy Bolt',
+    style: 'spell',
+    element: 'holy',
+    animRole: 'cast',
+    rangeM: 14,
+    cooldown: 1.0,
+    castDuration: 0.85,
+    staminaCost: 10,
+    castEffectId: 'arcane_swirl',
+    travelEffectId: 'moon_beam',
+    impactEffectId: 'moon_beam',
+    attachToHand: true,
+    hint: '1 — holy bolt'
+  },
+  {
+    id: 'holy_radiance',
+    weaponId: 'staffHoly',
+    slot: 1,
+    label: 'Radiance',
+    style: 'spell',
+    element: 'holy',
+    animRole: 'cast',
+    rangeM: 10,
+    cooldown: 3.5,
+    castDuration: 0.95,
+    staminaCost: 14,
+    castEffectId: 'moon_beam',
+    travelEffectId: 'moon_beam',
+    impactEffectId: 'moon_beam',
+    attachToHand: true,
+    hint: '2 — radiance AOE'
+  },
+  {
+    id: 'holy_smite',
+    weaponId: 'staffHoly',
+    slot: 2,
+    label: 'Smite',
+    style: 'spell',
+    element: 'holy',
+    animRole: 'cast',
+    rangeM: 12,
+    cooldown: 6.0,
+    castDuration: 1.05,
+    staminaCost: 18,
+    castEffectId: 'arcane_swirl',
+    travelEffectId: 'moon_beam',
+    impactEffectId: 'ice_lightning_burst',
+    attachToHand: true,
+    hint: '3 — smite'
+  },
+  {
+    id: 'holy_judgment',
+    weaponId: 'staffHoly',
+    slot: 3,
+    label: 'Judgment',
+    style: 'spell',
+    element: 'holy',
+    animRole: 'cast',
+    rangeM: 16,
+    cooldown: 12.0,
+    castDuration: 1.15,
+    staminaCost: 22,
+    castEffectId: 'moon_beam',
+    travelEffectId: 'moon_beam',
+    impactEffectId: 'inferno',
+    attachToHand: true,
+    hint: '4 — judgment'
+  }
+];
+
 /** Element hotbar (4 skills) for a Casting element → Warlords staff kit. */
 export function elementHotbarSkills(element) {
-  const phase = CASTING_ELEMENT_PHASE_VFX[element] || CASTING_ELEMENT_PHASE_VFX.arcane;
+  const el = normalizeElement(element);
+  const phase = CASTING_ELEMENT_PHASE_VFX[el] || CASTING_ELEMENT_PHASE_VFX.arcane;
+  if (el === 'arcane') return ARCANE_WEAPON_SKILLS.slice();
+  if (el === 'holy') return HOLY_WEAPON_SKILLS.slice();
   const labels = {
     fire: ['Fire Bolt', 'Flame Wave', 'Meteor Path', 'Inferno'],
-    water: ['Water Lash', 'Frost Wave', 'Moon Beam', 'Blizzard Shell'],
-    earth: ['Earth Spike', 'Quake Surge', 'Stone Path', 'Tectonic Burst'],
-    wind: ['Wind Bolt', 'Gale Nova', 'Chain Storm', 'Tempest'],
-    arcane: ARCANE_WEAPON_SKILLS.map((s) => s.label)
+    storm: ['Storm Bolt', 'Gale Nova', 'Chain Storm', 'Tempest'],
+    ice: ['Ice Lash', 'Frost Wave', 'Moon Beam', 'Blizzard Shell'],
+    nature: ['Vine Spike', 'Quake Surge', 'Stone Path', "Nature's Fury"]
   };
-  if (element === 'arcane') return ARCANE_WEAPON_SKILLS.slice();
-  const names = labels[element] || labels.arcane;
+  const names = labels[el] || labels.fire;
   return names.map((label, slot) => ({
-    id: `${element}_skill_${slot}`,
+    id: `${el}_skill_${slot}`,
     weaponId: phase.staffWeaponId,
     slot,
     label,
     style: 'spell',
-    element,
+    element: el,
     animRole: 'cast',
     rangeM: [14, 10, 16, 8][slot],
     cooldown: [1.1, 3.0, 6.0, 12.0][slot],
@@ -194,17 +305,17 @@ export function elementHotbarSkills(element) {
     travelEffectId: phase.travel,
     impactEffectId: phase.impact,
     attachToHand: true,
+    abilityElement: abilityKeyForElement(el),
     hint: `${slot + 1} — ${label}`
   }));
 }
 
-/** All five trees for export / Warlords seed. */
+/** All product element trees for export / Warlords seed. */
 export function allElementWeaponSkillTrees() {
-  return {
-    fire: elementHotbarSkills('fire'),
-    water: elementHotbarSkills('water'),
-    earth: elementHotbarSkills('earth'),
-    wind: elementHotbarSkills('wind'),
-    arcane: elementHotbarSkills('arcane')
-  };
+  /** @type {Record<string, ReturnType<typeof elementHotbarSkills>>} */
+  const out = {};
+  for (const el of ELEMENTS) {
+    out[el] = elementHotbarSkills(el);
+  }
+  return out;
 }

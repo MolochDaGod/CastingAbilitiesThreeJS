@@ -11,9 +11,9 @@
 import { CASTING_ELEMENT_PHASE_VFX } from './elementWeaponSkills.js';
 
 const F = CASTING_ELEMENT_PHASE_VFX.fire;
-const W = CASTING_ELEMENT_PHASE_VFX.water;
-const E = CASTING_ELEMENT_PHASE_VFX.earth;
-const A = CASTING_ELEMENT_PHASE_VFX.wind;
+const W = CASTING_ELEMENT_PHASE_VFX.ice;
+const E = CASTING_ELEMENT_PHASE_VFX.nature;
+const A = CASTING_ELEMENT_PHASE_VFX.storm;
 const R = CASTING_ELEMENT_PHASE_VFX.arcane;
 const CAST_CLIP = 'magic/standing 1h cast spell 01';
 
@@ -61,7 +61,7 @@ export const STAFF_SIGNATURE_SKILLS = Object.freeze([
     catalogSkillId: 'staff_blizzard',
     label: 'Blizzard',
     description: 'Ice Staff signature — wide frost AOE place + frost_wave crown.',
-    element: 'water',
+    element: 'ice',
     pathMode: 'aoe',
     style: 'spell',
     animRole: 'cast',
@@ -121,7 +121,7 @@ export const STAFF_SIGNATURE_SKILLS = Object.freeze([
     catalogSkillId: 'staff_quake',
     label: 'Quake',
     description: 'Nature Staff signature — earth wall/spikes along path + tower impact.',
-    element: 'earth',
+    element: 'nature',
     pathMode: 'wall',
     style: 'spell',
     animRole: 'cast',
@@ -151,7 +151,7 @@ export const STAFF_SIGNATURE_SKILLS = Object.freeze([
     catalogSkillId: 'staff_tempest',
     label: 'Tempest',
     description: 'Storm Staff signature — long wind stream + lightning burst impact.',
-    element: 'wind',
+    element: 'storm',
     pathMode: 'stream',
     style: 'spell',
     animRole: 'cast',

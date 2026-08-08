@@ -51,5 +51,16 @@ const AIR = WRAP(`
   <path d="${AIR_ARM}" transform="rotate(240 50 50)"/>
 `);
 
-/** Keyed by the ids in `ELEMENTS`. */
-export const ELEMENT_SIGILS = { fire: FIRE, water: WATER, earth: EARTH, wind: AIR };
+/** Keyed by the ids in `ELEMENTS` (fire · storm · ice · nature · holy · arcane). */
+export const ELEMENT_SIGILS = {
+  fire: FIRE,
+  storm: AIR,
+  ice: WATER,
+  nature: EARTH,
+  holy: FIRE, // light tongue reuse until dedicated holy glyph
+  arcane: AIR,
+  // legacy aliases
+  water: WATER,
+  earth: EARTH,
+  wind: AIR
+};

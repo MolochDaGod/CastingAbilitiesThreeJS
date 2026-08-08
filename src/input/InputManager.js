@@ -126,7 +126,7 @@ export class InputManager extends EventEmitter {
       return;
     }
 
-    // Digit skills always (combat + equip free-cast)
+    // Digit skills / element select (1–6 staffs: fire storm ice nature holy arcane)
     if (event.code === 'Digit1') {
       this.emit('element', 0);
       return;
@@ -141,6 +141,14 @@ export class InputManager extends EventEmitter {
     }
     if (event.code === 'Digit4') {
       this.emit('element', 3);
+      return;
+    }
+    if (event.code === 'Digit5') {
+      this.emit('element', 4);
+      return;
+    }
+    if (event.code === 'Digit6') {
+      this.emit('element', 5);
       return;
     }
 

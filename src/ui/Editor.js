@@ -209,7 +209,7 @@ export class Editor {
     R(folder, e, 'duration', 0.05, 4, 0.01, 'duration (s)');
     folder.add(e, 'attach', ['R_hand', 'L_hand', 'root', 'feet', 'weapon_tip']).name('attach');
 
-    const residual = folder.addFolder('Melee residual (F)');
+    const residual = folder.addFolder('Melee residual (F attack fallback)');
     residual.add(r, 'enabled').name('enabled');
     R(residual, r, 'range', 1, 10, 0.05, 'range (m)');
     R(residual, r, 'speed', 4, 30, 0.1, 'wave speed');
@@ -372,7 +372,16 @@ export class Editor {
   _buildElement(element) {
     const meta = ELEMENT_META[element];
     const folder = this.gui.addFolder(`${meta.glyph}  ${meta.label}`);
-    const c = settings[element];
+    // Product ids: ice/storm/nature alias ability blocks; holy/arcane own blocks
+    const c =
+      settings[element] ||
+      (element === 'ice'
+        ? settings.water
+        : element === 'storm'
+          ? settings.wind
+          : element === 'nature'
+            ? settings.earth
+            : settings.fire);
     const R = Editor.range;
 
     R(folder, c, 'speed', 0.5, 40, 0.1, 'speed');
@@ -637,7 +646,20 @@ export class Editor {
       }
     };
 
-    build[element]?.();
+    // Product elements map to ability-shaped editors (ice→water, storm→wind, …)
+    const buildKey =
+      {
+        fire: 'fire',
+        ice: 'water',
+        water: 'water',
+        nature: 'earth',
+        earth: 'earth',
+        storm: 'wind',
+        wind: 'wind',
+        holy: 'wind',
+        arcane: 'wind'
+      }[element] || element;
+    build[buildKey]?.();
 
     const light = folder.addFolder('Dynamic light');
     Editor.range(light, c, 'lightIntensity', 0, 80, 0.1, 'light intensity');

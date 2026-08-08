@@ -2,10 +2,13 @@ import { FireAbility } from './FireAbility.js';
 import { WaterAbility } from './WaterAbility.js';
 import { EarthAbility } from './EarthAbility.js';
 import { WindAbility } from './WindAbility.js';
-import { ELEMENTS } from '../config/settings.js';
+import { ELEMENTS, abilityKeyForElement } from '../config/settings.js';
 import { ObjectPool } from '../utils/ObjectPool.js';
 
-/** Registry: adding an element means adding one line here. */
+/**
+ * Ability pool keys (class implementations). Product ELEMENTS map via abilityKeyForElement:
+ * fire→fire, ice→water, nature→earth, storm|holy|arcane→wind.
+ */
 const ABILITY_TYPES = {
   fire: FireAbility,
   water: WaterAbility,
@@ -18,7 +21,7 @@ const MAX_CONCURRENT = 8;
 /**
  * Spawns, updates and recycles abilities.
  *
- * Instances are pooled per element: casting fire fifty times constructs at most
+ * Instances are pooled per ability key: casting fire fifty times constructs at most
  * a handful of FireAbility objects, and every one of them keeps its meshes and
  * materials for the lifetime of the app. Nothing is built during a cast.
  */
@@ -30,12 +33,13 @@ export class AbilityManager {
   constructor(context) {
     this.ctx = context;
     this.active = [];
+    /** @type {string} product element id (ELEMENTS) */
     this.selected = ELEMENTS[0];
 
     this.pools = new Map();
-    for (const [element, Type] of Object.entries(ABILITY_TYPES)) {
+    for (const [key, Type] of Object.entries(ABILITY_TYPES)) {
       this.pools.set(
-        element,
+        key,
         new ObjectPool(() => {
           const ability = new Type(this.ctx);
           this.ctx.scene.add(ability.group);
@@ -46,17 +50,23 @@ export class AbilityManager {
     }
   }
 
+  /** @param {string} element product element (fire|storm|ice|nature|holy|arcane) or legacy */
   select(element) {
-    if (!ABILITY_TYPES[element]) return;
-    this.selected = element;
+    if (!element) return;
+    const key = abilityKeyForElement(element);
+    if (!ABILITY_TYPES[key]) return;
+    this.selected = ELEMENTS.includes(element) ? element : element;
   }
 
   /**
    * Cast the currently selected element along `curve`.
+   * @param {import('three').Curve} curve
+   * @param {string} [element] product or legacy element id
    * @returns {import('./Ability.js').Ability|null}
    */
   cast(curve, element = this.selected) {
-    if (!ABILITY_TYPES[element]) return null;
+    const key = abilityKeyForElement(element);
+    if (!ABILITY_TYPES[key]) return null;
 
     // Retire the oldest cast rather than letting the scene grow without bound.
     if (this.active.length >= MAX_CONCURRENT) {
@@ -65,7 +75,7 @@ export class AbilityManager {
       this.pools.get(oldest.element).release(oldest);
     }
 
-    const ability = this.pools.get(element).acquire();
+    const ability = this.pools.get(key).acquire();
     ability.spawn(curve);
     this.active.push(ability);
     return ability;

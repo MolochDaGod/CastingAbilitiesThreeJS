@@ -586,12 +586,11 @@ export class DrcCombatController {
 
     // VFX: spell → elemental ability along forward curve (pathMode from kit / T0 wand)
     if (skill.style === 'spell' && (skill.element || skill.abilityElement)) {
-      const el = skill.abilityElement || skill.element;
-      // Arcane uses wind Ability path + beauty VFX (no separate Ability class)
-      const abilityEl = el === 'arcane' ? 'wind' : el === 'frost' ? 'water' : el;
+      // Product element (fire|storm|ice|nature|holy|arcane) or legacy — AbilityManager maps pool
+      const el = skill.element || skill.abilityElement;
       const curve = this._curveForPathMode(skill.pathMode || 'stream', skill.rangeM);
-      this.abilities.select(abilityEl);
-      this.abilities.cast(curve, abilityEl);
+      this.abilities.select(el);
+      this.abilities.cast(curve, el);
 
       const focusOn = this.elapsed < this._focusUntil;
       const focusMul = focusOn ? this._focusMul || 1.35 : 1;
@@ -750,8 +749,8 @@ export class DrcCombatController {
 
       // Short elemental ribbon as travel residual (shared trail primitive)
       if (settings.residual?.enabled !== false) {
-        const el = this.abilities.selected || 'wind';
-        this.abilities.cast(curve, el === 'earth' ? 'wind' : el);
+        const el = this.abilities.selected || 'storm';
+        this.abilities.cast(curve, el);
       }
     };
 

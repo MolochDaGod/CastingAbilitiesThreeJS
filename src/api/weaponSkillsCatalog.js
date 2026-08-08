@@ -38,11 +38,12 @@ export const WEAPON_TYPE_TO_LAB = Object.freeze({
   PISTOL: { slot: 'bow', pack: 'longbow', style: 'ranged' },
   STAFF: { slot: 'staff', pack: 'magic', style: 'spell' },
   FIRE_STAFF: { slot: 'staff', pack: 'magic', style: 'spell', element: 'fire' },
-  FROST_STAFF: { slot: 'staff', pack: 'magic', style: 'spell', element: 'water' },
-  HOLY_STAFF: { slot: 'staff', pack: 'magic', style: 'spell', element: 'arcane' },
-  LIGHTNING_STAFF: { slot: 'staff', pack: 'magic', style: 'spell', element: 'wind' },
-  NATURE_STAFF: { slot: 'staff', pack: 'magic', style: 'spell', element: 'earth' },
+  FROST_STAFF: { slot: 'staff', pack: 'magic', style: 'spell', element: 'ice' },
+  HOLY_STAFF: { slot: 'staff', pack: 'magic', style: 'spell', element: 'holy' },
+  LIGHTNING_STAFF: { slot: 'staff', pack: 'magic', style: 'spell', element: 'storm' },
+  NATURE_STAFF: { slot: 'staff', pack: 'magic', style: 'spell', element: 'nature' },
   ARCANE_STAFF: { slot: 'staff', pack: 'magic', style: 'spell', element: 'arcane' },
+  WAND: { slot: 'staff', pack: 'magic', style: 'spell', element: 'arcane' },
   TOME: { slot: 'staff', pack: 'magic', style: 'spell' },
   TOOL: { slot: 'axe', pack: 'sword_shield', style: 'melee' },
   SHIELD: { slot: 'shield', pack: 'sword_shield', style: 'melee' }
@@ -93,6 +94,7 @@ export function flattenWeaponTypeSkills(wt) {
 
   const pushSkill = (sk, slotType, slotLabel) => {
     if (!sk || !sk.id) return;
+    const casting = sk.prefab?.castingLab || sk.lab || null;
     out.push({
       id: sk.id,
       uuid: sk.uuid || null,
@@ -106,17 +108,22 @@ export function flattenWeaponTypeSkills(wt) {
       castTime: sk.castTime ?? 0,
       range: sk.range ?? null,
       damageType: sk.damageType || 'physical',
-      animation: sk.animation || sk.prefab?.animationClip || null,
+      animation: sk.animation || sk.prefab?.animationClip || casting?.animationClip || null,
       prefab: sk.prefab || null,
       effects: sk.effects || [],
       weaponTypeId: typeId,
       weaponTypeName: wt.name || typeId,
       slotType: slotType || 'ability',
       slotLabel: slotLabel || slotType || '',
-      labPack: lab.pack,
+      labPack: casting?.animPack || lab.pack,
       labSlot: lab.slot,
       labStyle: lab.style,
-      labElement: lab.element || null
+      labElement: casting?.element || lab.element || null,
+      castingSpellId: sk.castingSpellId || casting?.castingSpellId || null,
+      castEffectId: sk.prefab?.castEffectId || casting?.castEffectId || null,
+      travelEffectId: sk.prefab?.travelEffectId || casting?.travelEffectId || null,
+      impactEffectId: sk.prefab?.impactEffectId || casting?.impactEffectId || null,
+      pathMode: casting?.pathMode || null
     });
   };
 
@@ -231,9 +238,14 @@ export function animRoleForSkill(skill) {
   return skill.labStyle === 'ranged' ? 'attack' : 'attack';
 }
 
-/** Infer VFX effect id from damage type / description. */
+/** Infer VFX effect id from damage type / description / casting kit binds. */
 export function vfxIdForSkill(skill) {
   if (!skill) return 'arcane_swirl';
+  if (skill.impactEffectId) return skill.impactEffectId;
+  if (skill.travelEffectId) return skill.travelEffectId;
+  if (skill.castEffectId) return skill.castEffectId;
+  if (skill.prefab?.impactEffectId) return skill.prefab.impactEffectId;
+  if (skill.prefab?.vfxRef) return skill.prefab.vfxRef;
   const t = String(skill.damageType || '').toLowerCase();
   const blob = `${skill.id} ${skill.name} ${skill.description}`.toLowerCase();
   if (t === 'fire' || /fire|ember|inferno/.test(blob)) return 'inferno';
