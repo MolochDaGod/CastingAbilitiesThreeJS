@@ -1,9 +1,9 @@
 # T0 Apprentice Wand — three-slot starter
 
 **Weapon:** `t0-wand` · Apprentice Wand  
-**Catalog:** [WEAPON_SKILLS.html](https://info.grudge-studio.com/WEAPON_SKILLS.html) · WAND · starterSlots  
-**JSON:** ObjectStore `api/v1/t0-apprentice-wand-skills.json` · `t0-weapons.json`  
-**Lab:** `src/combat/t0ApprenticeWand.js` · tree `wand` · `?wand=1`
+**Catalog SSOT:** [WEAPON_SKILLS.html](https://info.grudge-studio.com/WEAPON_SKILLS.html) · [t0-weapons.json](https://info.grudge-studio.com/api/v1/t0-weapons.json)  
+**Lab import:** `src/api/t0WeaponCatalog.js` (preferred) · local `t0ApprenticeWand.js` only as offline mirror  
+**Pair:** Sapling Staff `t0-nature-staff` — see `docs/T0_STARTERS_WEAPON_SKILLS_SSOT.md`
 
 ## Slots (product)
 

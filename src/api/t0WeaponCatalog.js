@@ -24,10 +24,19 @@ import {
   iconCdnUrl
 } from './weaponSkillsCatalog.js';
 import { WEAPON_SLOT_TO_PACK } from '../config/weaponAnimPack.js';
+import { bindFromCatalogSkill } from '../combat/staffWeaponSkillsBind.js';
 
 export const T0_WEAPONS_URL = 'https://info.grudge-studio.com/api/v1/t0-weapons.json';
 export const T0_WEAPONS_MIRROR =
   'https://objectstore.grudge-studio.com/api/v1/t0-weapons.json';
+/** Product browse (same skills as JSON) */
+export const WEAPON_SKILLS_HTML = 'https://info.grudge-studio.com/WEAPON_SKILLS.html';
+
+/** Catalog ids for the two T0 magic starters (Mage Wand = class item, later) */
+export const T0_STARTER_WEAPON_IDS = Object.freeze({
+  apprenticeWand: 't0-wand',
+  saplingStaff: 't0-nature-staff'
+});
 
 /** category / id → kit mesh slot */
 export const WEAPON_TYPE_TO_MESH_SLOT = Object.freeze({
@@ -341,7 +350,11 @@ export function buildEquippable(prefab, t0 = null, skillsCat = null) {
 }
 
 /**
- * Load all equippable T0 weapons (merged prefab + t0 + skills).
+ * Load all equippable T0 weapons from live catalog.
+ * **SSOT:** https://info.grudge-studio.com/api/v1/t0-weapons.json
+ * (+ master-weapon-prefabs for icons/models when present)
+ * Browse: WEAPON_SKILLS.html
+ *
  * @returns {Promise<{ weapons: EquippableWeapon[], byId: Map<string, EquippableWeapon>, prefabCat: object, skillsCat: object }>}
  */
 export async function loadEquippableWeapons() {
@@ -356,18 +369,20 @@ export async function loadEquippableWeapons() {
     ]);
 
     const t0List = t0Data?.weapons || [];
+    if (!t0List.length) {
+      console.warn('[t0WeaponCatalog] t0-weapons.json empty/unreachable — no starters');
+    }
     const t0ById = new Map(t0List.map((w) => [w.id, w]));
     const prefabList = prefabCat?.list || [];
-    // prefab catalog stores present-normalized list; also keep raw map if available
     const prefabRawById = new Map();
     if (prefabCat?._rawPrefabs) {
       for (const p of prefabCat._rawPrefabs) prefabRawById.set(p.id, p);
     }
 
-    // Prefer all t0 prefabs + any t0-weapons not in prefabs
+    // t0-weapons is skill SSOT; prefabs only enrich icon/model
     const ids = new Set([
-      ...prefabList.filter((p) => p.tier === 0 || String(p.id).startsWith('t0-')).map((p) => p.id),
-      ...t0List.map((w) => w.id)
+      ...t0List.map((w) => w.id),
+      ...prefabList.filter((p) => p.tier === 0 || String(p.id).startsWith('t0-')).map((p) => p.id)
     ]);
 
     /** @type {EquippableWeapon[]} */
@@ -376,12 +391,26 @@ export async function loadEquippableWeapons() {
       const present = prefabList.find((p) => p.id === id) || null;
       const raw = prefabRawById.get(id) || present?.raw || null;
       const t0 = t0ById.get(id) || null;
-      // presentPrefab already applied in list; rebuild from raw when possible
+      // Prefer t0 body (skills) + prefab mesh when available
       const eq = buildEquippable(raw || present?.raw || present, t0, skillsCat);
-      if (eq) weapons.push(eq);
+      if (eq) {
+        eq.catalogSource = {
+          t0: T0_WEAPONS_URL,
+          skillsHtml: WEAPON_SKILLS_HTML,
+          weaponId: id
+        };
+        weapons.push(eq);
+      }
     }
 
-    weapons.sort((a, b) => a.name.localeCompare(b.name));
+    // Ensure the two magic starters always surface first when present
+    const priority = [T0_STARTER_WEAPON_IDS.apprenticeWand, T0_STARTER_WEAPON_IDS.saplingStaff];
+    weapons.sort((a, b) => {
+      const pa = priority.indexOf(a.id);
+      const pb = priority.indexOf(b.id);
+      if (pa >= 0 || pb >= 0) return (pa < 0 ? 99 : pa) - (pb < 0 ? 99 : pb);
+      return a.name.localeCompare(b.name);
+    });
     const byId = new Map(weapons.map((w) => [w.id, w]));
 
     _cache = {
@@ -390,13 +419,38 @@ export async function loadEquippableWeapons() {
       prefabCat,
       skillsCat,
       t0Data,
+      starters: {
+        apprenticeWand: byId.get(T0_STARTER_WEAPON_IDS.apprenticeWand) || null,
+        saplingStaff: byId.get(T0_STARTER_WEAPON_IDS.saplingStaff) || null
+      },
       loadedAt: Date.now()
     };
+    // Sync access for skill trees (wand / sapling) without re-fetch
+    if (typeof globalThis !== 'undefined') {
+      globalThis.__castingT0WeaponsCache = _cache;
+    }
     _loading = null;
     return _cache;
   })();
 
   return _loading;
+}
+
+/** Sync read of last loaded equippable catalog (null until first load). */
+export function getEquippableWeaponsCache() {
+  return _cache || (typeof globalThis !== 'undefined' ? globalThis.__castingT0WeaponsCache : null) || null;
+}
+
+/**
+ * Hotbar for a live catalog T0 id (e.g. t0-wand, t0-nature-staff).
+ * @param {string} weaponId
+ * @param {string} [slot3Id]
+ */
+export async function hotbarForCatalogWeaponId(weaponId, slot3Id) {
+  const cat = await loadEquippableWeapons();
+  const w = cat.byId.get(weaponId);
+  if (!w) return [];
+  return hotbarForWeapon(w, slot3Id || w.defaultSlot3Id);
 }
 
 /**
@@ -409,16 +463,23 @@ export function skillDefToDrc(sk, barSlot, weapon) {
   if (!sk) return null;
   const labStyle = weapon?.labStyle || 'melee';
   const dmg = String(sk.damageType || '').toLowerCase();
+  const nameId = `${sk.id} ${sk.name}`;
+  const isHeal = sk.damage < 0 || /heal|sprout|radiant/i.test(nameId);
   const isBuff =
-    (sk.damage === 0 || /focus|stance|guard|ward|buff/i.test(sk.name + sk.id)) &&
-    !/slash|bolt|spark|ping|thrust|sweep|shot/i.test(sk.name + sk.id);
+    !isHeal &&
+    (sk.damage === 0 || /focus|stance|guard|ward|buff|shield/i.test(nameId)) &&
+    !/slash|bolt|spark|ping|thrust|sweep|shot|lash|root|practice/i.test(nameId);
+  /** Focus = next-spell damage buff only (Apprentice Wand slot 2) */
+  const isFocus = isBuff && /focus/i.test(nameId);
+  /** Nature Ward / shields = defense buff, not focus mul */
+  const isWard = isBuff && /ward|shield|guard/i.test(nameId);
 
   let element = 'arcane';
   let abilityElement = null;
   let style = 'melee';
 
   if (labStyle === 'spell' || /arcane|fire|frost|ice|holy|nature|lightning|water|earth|wind/.test(dmg)) {
-    style = isBuff ? 'spell' : 'spell';
+    style = 'spell';
     if (dmg === 'fire') {
       element = 'fire';
       abilityElement = 'fire';
@@ -439,51 +500,75 @@ export function skillDefToDrc(sk, barSlot, weapon) {
       abilityElement = 'wind';
     }
   } else {
-    style = isBuff ? 'spell' : 'melee';
-    element = 'physical';
-    abilityElement = null;
+    style = isBuff || isHeal ? 'spell' : 'melee';
+    element = isHeal ? 'nature' : 'physical';
+    abilityElement = isHeal ? 'earth' : null;
   }
+
+  // Fill cast/travel/impact from WEAPON_SKILLS / staff school bind (catalog id only)
+  const staffB = bindFromCatalogSkill({
+    id: sk.id,
+    name: sk.name,
+    description: sk.description,
+    damageType: sk.damageType,
+    effects: sk.effects,
+    cooldown: sk.cooldown,
+    castTime: sk.castTime,
+    range: sk.range,
+    damage: sk.damage,
+    slotType: sk.slotType,
+    resourceCost: sk.resourceCost
+  });
 
   const catalogLike = {
     ...sk,
     labStyle,
     labPack: weapon?.animPack,
-    slotType: sk.slotType
+    slotType: sk.slotType,
+    castEffectId: staffB?.castEffectId,
+    travelEffectId: staffB?.travelEffectId,
+    impactEffectId: staffB?.impactEffectId
   };
+
+  const vfx = vfxIdForSkill(catalogLike);
 
   return {
     id: sk.id,
     label: sk.name,
     slot: barSlot,
     style,
-    skillKind: isBuff ? 'buff' : style,
-    element,
-    abilityElement,
-    pathMode: style === 'spell' ? (isBuff ? null : 'stream') : null,
-    animRole: isBuff ? 'block' : animRoleForSkill(catalogLike),
-    animPack: weapon?.animPack || 'sword_shield',
-    castClip: sk.animation || null,
-    rangeM: sk.range || (style === 'spell' ? 12 : 3.2),
-    cooldown: sk.cooldown || (style === 'melee' ? 0.55 : 1),
-    castDuration: sk.castTime || 0.45,
+    skillKind: isBuff ? 'buff' : isHeal ? 'heal' : style,
+    element: staffB?.element || element,
+    abilityElement: staffB ? staffB.element : abilityElement,
+    pathMode: isBuff || isHeal ? null : staffB?.pathMode || (style === 'spell' ? 'stream' : null),
+    presentation: staffB?.presentation || null,
+    animRole: isBuff || isHeal ? 'cast' : animRoleForSkill(catalogLike),
+    animPack: weapon?.animPack || (labStyle === 'spell' ? 'magic' : 'sword_shield'),
+    castClip: sk.animation || staffB?.castClip || 'magic/standing 1h cast spell 01',
+    rangeM: sk.range || staffB?.rangeM || (style === 'spell' ? 12 : 3.2),
+    cooldown: sk.cooldown ?? staffB?.cooldown ?? (style === 'melee' ? 0.55 : 1),
+    castDuration: sk.castTime || staffB?.castDuration || 0.45,
     staminaCost: sk.resourceCost?.stamina ?? (style === 'melee' ? 6 : 0),
-    manaCost: sk.resourceCost?.mana ?? 0,
-    damage: sk.damage || 0,
-    castEffectId: vfxIdForSkill(catalogLike),
-    travelEffectId: style === 'spell' ? vfxIdForSkill(catalogLike) : null,
-    impactEffectId: vfxIdForSkill(catalogLike),
+    manaCost: sk.resourceCost?.mana ?? staffB?.manaCost ?? 0,
+    damage: sk.damage ?? 0,
+    castEffectId: staffB?.castEffectId || vfx,
+    travelEffectId: isBuff || isHeal ? null : staffB?.travelEffectId || vfx,
+    impactEffectId: staffB?.impactEffectId || vfx,
     attachToHand: true,
     weaponId: weapon?.id,
     catalogSkillId: sk.id,
-    isFocus: isBuff,
-    focusDurationSec: isBuff ? 3 : 0,
-    focusDamageMul: isBuff ? 1.35 : 1,
+    isFocus,
+    isWard,
+    focusDurationSec: isFocus ? 3 : isWard ? 2 : 0,
+    focusDamageMul: isFocus ? 1.35 : 1,
     effects: sk.effects || [],
+    description: sk.description || '',
     iconUrl: sk.iconUrl || weapon?.iconUrl,
     tier: sk.tier ?? 0,
     fixed: !!sk.fixed,
     choice: !!sk.choice,
-    hint: `${sk.name} · ${weapon?.name || weapon?.id || ''}`
+    source: 'info.grudge-studio.com t0-weapons / WEAPON_SKILLS',
+    hint: `${sk.name} · ${weapon?.name || weapon?.id || ''} · catalog`
   };
 }
 

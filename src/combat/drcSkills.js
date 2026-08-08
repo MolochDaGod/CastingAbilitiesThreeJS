@@ -16,7 +16,17 @@ import {
   T0_WAND_SLOT3_OPTIONS,
   toDrcT0
 } from './t0ApprenticeWand.js';
-import { equippedWeaponHotbar, getEquippedWeapon } from './equippedWeaponRuntime.js';
+import {
+  equippedWeaponHotbar,
+  getEquippedWeapon,
+  ensureWeaponCatalog
+} from './equippedWeaponRuntime.js';
+import {
+  hotbarForWeapon,
+  T0_STARTER_WEAPON_IDS,
+  getEquippableWeaponsCache,
+  loadEquippableWeapons
+} from '../api/t0WeaponCatalog.js';
 
 /** @typedef {'melee'|'spell'|'ranged'} SkillStyle */
 
@@ -168,26 +178,47 @@ export const DRC_LEGACY_ELEMENT_SKILLS = [
   }
 ];
 
-/** Active hotbar: kit pages | t0 wand | arcane | legacy elements */
+/** Active hotbar: kit | equipped catalog | t0 starters | arcane | legacy */
 let _activeTree = 'kit';
 let _kitPage = 0;
 /** @type {DrcWeaponSkill[]} */
 let _kitBar = kitHotbarSkills(0);
+/** Slot-3 choice when using catalog starter without full equip */
+let _catalogSlot3 = {
+  [T0_STARTER_WEAPON_IDS.apprenticeWand]: 't0_wand_frost_spark',
+  [T0_STARTER_WEAPON_IDS.saplingStaff]: 't0_staff_vine_lash'
+};
 
 export function setActiveSkillTree(tree) {
   if (tree === 'arcane') _activeTree = 'arcane';
   else if (tree === 'legacy' || tree === 'elements') _activeTree = 'legacy';
   else if (tree === 'wand' || tree === 't0_wand' || tree === 'apprentice_wand')
     _activeTree = 'wand';
+  else if (tree === 'sapling' || tree === 't0_nature' || tree === 'nature_staff')
+    _activeTree = 'sapling';
   else if (tree === 'equipped' || tree === 'weapon') _activeTree = 'equipped';
   else _activeTree = 'kit';
+}
+
+/**
+ * Choose slot-3 for catalog T0 starter trees (wand / sapling).
+ * @param {'t0-wand'|'t0-nature-staff'|string} weaponId
+ * @param {string} skillId
+ */
+export function setCatalogStarterSlot3(weaponId, skillId) {
+  if (!weaponId || !skillId) return;
+  _catalogSlot3[weaponId] = skillId;
+  if (weaponId === T0_STARTER_WEAPON_IDS.apprenticeWand) setT0WandSlot3(skillId);
+}
+
+export function getCatalogStarterSlot3(weaponId) {
+  return _catalogSlot3[weaponId] || null;
 }
 
 /** Kit page 0 = spells 1–4, 1 = 5–8, 2 = 9–10 (+ pads). */
 export function setSkillKitPage(page = 0) {
   _kitPage = Math.max(0, Math.min(2, Number(page) || 0));
   _kitBar = kitHotbarSkills(_kitPage);
-  // Normalize digit slots 0–3 for the bar
   _kitBar = _kitBar.map((s, i) => ({ ...s, slot: i }));
   if (_activeTree === 'kit') return _kitBar;
   return getActiveSkills();
@@ -197,14 +228,40 @@ export function getSkillKitPage() {
   return _kitPage;
 }
 
+/**
+ * Hotbar from live t0-weapons.json (WEAPON_SKILLS.html).
+ * @param {string} weaponId t0-wand | t0-nature-staff
+ */
+function hotbarFromCachedStarter(weaponId) {
+  const equipped = getEquippedWeapon?.();
+  if (equipped?.id === weaponId) return equippedWeaponHotbar();
+  const cache = getEquippableWeaponsCache();
+  if (!cache?.byId) {
+    void ensureWeaponCatalog?.().catch(() => {});
+    return null;
+  }
+  const w = cache.byId.get(weaponId);
+  if (!w) return null;
+  const s3 = _catalogSlot3[weaponId] || w.defaultSlot3Id;
+  return hotbarForWeapon(w, s3);
+}
+
 export function getActiveSkills() {
   if (_activeTree === 'arcane') return DRC_ARCANE_SKILLS;
   if (_activeTree === 'legacy') return DRC_LEGACY_ELEMENT_SKILLS;
-  if (_activeTree === 'wand') return t0ApprenticeWandHotbar();
+  if (_activeTree === 'wand') {
+    // Live catalog first; local t0ApprenticeWand only if cache cold
+    const bar = hotbarFromCachedStarter(T0_STARTER_WEAPON_IDS.apprenticeWand);
+    return bar?.length ? bar : t0ApprenticeWandHotbar();
+  }
+  if (_activeTree === 'sapling') {
+    const bar = hotbarFromCachedStarter(T0_STARTER_WEAPON_IDS.saplingStaff);
+    // Sapling has no local fork — empty until catalog warms (equip Weapon tab)
+    return bar?.length ? bar : [];
+  }
   if (_activeTree === 'equipped') {
     const bar = equippedWeaponHotbar();
     if (bar.length) return bar;
-    // No equip yet — fall back to kit
     return _kitBar;
   }
   return _kitBar;

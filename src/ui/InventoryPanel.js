@@ -362,7 +362,8 @@ export class InventoryPanel {
       : '<p class="inv-hint">Equip a weapon to load its 3-slot skills.</p>';
 
     host.innerHTML = `
-      <p class="inv-hint"><b>Equip to try</b> — skills + icon + 3D model from prefab SSOT → Warlords prefab export</p>
+      <p class="inv-hint"><b>Import from</b> <a href="https://info.grudge-studio.com/WEAPON_SKILLS.html" target="_blank" rel="noopener">WEAPON_SKILLS.html</a> · <code>t0-weapons.json</code> — no local skill invent</p>
+      <p class="inv-hint">Starters: <b>Apprentice Wand</b> (t0-wand) · <b>Sapling Staff</b> (t0-nature-staff). Mage Wand = later class item.</p>
       <p class="inv-hint">Equipped: <b>${equipped ? equipped.name : 'none'}</b> · kit mesh: <b>${kitSlot || '—'}</b> · pack: <b>${c.animPackId}</b></p>
       ${
         equipped
@@ -684,9 +685,12 @@ export class InventoryPanel {
         </div>
         <div class="inv-btn-row">
           <button type="button" class="inv-btn inv-btn--ghost" data-tree="kit">Kit bar</button>
+          <button type="button" class="inv-btn inv-btn--ghost" data-tree="wand">Apprentice Wand</button>
+          <button type="button" class="inv-btn inv-btn--ghost" data-tree="sapling">Sapling Staff</button>
           <button type="button" class="inv-btn inv-btn--ghost" data-tree="arcane">Arcane bar</button>
           <button type="button" class="inv-btn inv-btn--ghost" data-tree="legacy">Legacy 4</button>
         </div>
+        <p class="inv-hint">Starters import from WEAPON_SKILLS · prefer <b>Weapon</b> tab equip for full catalog</p>
         <div class="inv-skill-list">${kitRows}</div>
         <p class="inv-hint">Trees: ${Object.keys(trees).join(', ')} · magic pack · cast role</p>
         <p class="inv-hint">1–3 T0 wand · 1–4 kit · F interact · E block · C parry</p>
@@ -713,17 +717,18 @@ export class InventoryPanel {
         const drc = this.getDrc?.();
         if (drc) {
           drc.skills = getActiveSkills();
-          if (btn.dataset.tree === 'wand') {
-            // Wand uses magic cast pack (same as staff in lab)
+          if (btn.dataset.tree === 'wand' || btn.dataset.tree === 'sapling') {
             this.character?.setAnimPack?.('magic');
             this.character?.setWeaponSlot?.('staff');
+            // Warm catalog so bars use live t0-weapons.json
+            void ensureWeaponCatalog?.();
           }
         }
-        this.onToast(
-          btn.dataset.tree === 'wand'
-            ? 'T0 Apprentice Wand · 1 Practice Bolt · 2 Focus · 3 choice'
-            : `Skill tree · ${btn.dataset.tree}`
-        );
+        const treeMsg = {
+          wand: 'Catalog Apprentice Wand · Practice Bolt · Focus · Frost Spark|Arcane Ping',
+          sapling: 'Catalog Sapling Staff · Practice Root · Nature Ward · Vine Lash|Healing Sprout'
+        };
+        this.onToast(treeMsg[btn.dataset.tree] || `Skill tree · ${btn.dataset.tree}`);
         this.refresh();
       });
     });

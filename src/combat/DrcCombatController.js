@@ -68,10 +68,13 @@ export class DrcCombatController {
     /** Focus buff: until elapsed, spell damage mul (T0 Apprentice Wand Focus) */
     this._focusUntil = 0;
     this._focusMul = 1;
-    // ?arcane=1 → purple arcane tree · ?wand=1 → T0 Apprentice Wand
+    // Catalog starters: ?wand=1 Apprentice · ?sapling=1 Sapling Staff · ?arcane=1
     if (typeof location !== 'undefined') {
       if (/[?&]wand=1\b/.test(location.search)) {
         setActiveSkillTree('wand');
+        this.skills = getActiveSkills();
+      } else if (/[?&]sapling=1\b/.test(location.search)) {
+        setActiveSkillTree('sapling');
         this.skills = getActiveSkills();
       } else if (/[?&]arcane=1\b/.test(location.search)) {
         setActiveSkillTree('arcane');
@@ -605,11 +608,9 @@ export class DrcCombatController {
       this.vfx?.deploySkill?.(skill.id, pose, 'cast');
     }
 
-    // T0 Focus buff — channel, no projectile
-    if (skill.isFocus || skill.skillKind === 'buff') {
+    // Catalog buffs: Focus (next spell) · Nature Ward / shields (defense VFX only)
+    if (skill.isFocus || skill.isWard || skill.skillKind === 'buff') {
       const dur = skill.focusDurationSec || 3;
-      this._focusUntil = this.elapsed + dur;
-      this._focusMul = skill.focusDamageMul || 1.35;
       if (skill.castEffectId) {
         this.vfx?.deploy?.(skill.castEffectId, { ...pose, intensity: 0.85 });
       }
@@ -618,7 +619,22 @@ export class DrcCombatController {
         aimY: pose.origin.y + 1.2,
         aimZ: pose.origin.z
       });
-      this.onToast(`Focus · next spell +${Math.round((this._focusMul - 1) * 100)}% (${dur}s)`);
+      if (skill.isFocus) {
+        this._focusUntil = this.elapsed + dur;
+        this._focusMul = skill.focusDamageMul || 1.35;
+        this.onToast(`Focus · next spell +${Math.round((this._focusMul - 1) * 100)}% (${dur}s)`);
+      } else if (skill.isWard || /ward|shield/i.test(skill.id + skill.label)) {
+        // Nature Ward etc. — catalog effects; no invented trap system
+        this.vfx?.deploy?.(skill.impactEffectId || 'earth_surge', {
+          ...pose,
+          intensity: 0.9
+        });
+        this.onToast(
+          `${skill.label} · ${(skill.effects || []).join(', ') || 'ward'} · ${dur}s`
+        );
+      } else {
+        this.onToast(`${skill.label} · buff ${dur}s`);
+      }
       return true;
     }
 
