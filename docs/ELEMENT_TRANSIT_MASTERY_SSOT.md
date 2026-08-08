@@ -83,43 +83,33 @@ Editor: lil-gui folders per element + Global (`cameraShake`, glow…).
 
 ---
 
-## 5. Nature trap example (scripted presentation)
+## 5. All STAFF skills (catalog only — no invented skills)
 
-**Id:** `nature_trap` · ground-travel (EarthAbility stream) → foot burst (stun) → cage walls 2s → collapse free.
+**SSOT:** [WEAPON_SKILLS.html](https://info.grudge-studio.com/WEAPON_SKILLS.html) · `master-weaponSkills.json` → type **STAFF** (~45 ids).
 
-| Step | Time | Systems |
-|------|------|---------|
-| Travel | 0… | EarthAbility green path to target |
-| Foot blast | impact | small `earth_surge` + burst under feet (stun VFX) |
-| Cage | +0.05…2.0s | 4–6 wall pillars (`earth_surge` ring) |
-| Free | 2.0s | pillars fade |
+Lab file **`staffWeaponSkillsBind.js`**:
+- Maps **existing catalog ids only** → school (fire/frost/holy/lightning/nature/arcane)
+- Fills empty prefab with existing Ability materials + VFX (does **not** invent skill rows)
+- Cooldown / castTime / damage / mana from catalog when present
+- Anim: magic pack **cast** for all staff
 
-Knobs: `settings.presentation.natureTrap` · deploy: `VfxDirector._deployNatureTrap`.
+| School | Ability transit | Texture / material style |
+|--------|-----------------|---------------------------|
+| fire | FireAbility | VolumetricFireMaterial |
+| frost | WaterAbility | OceanWaterMaterial |
+| holy | Wind + moon_beam | radiance presentation |
+| lightning | Wind + chain_lightning | WindMaterial + electric |
+| nature | EarthAbility | RockMaterial + green |
+| arcane | Wind + void beauty | purple / black |
 
----
-
-## 6. All STAFF skills from WEAPON_SKILLS
-
-Catalog type **STAFF** (~45 skills including T0). Lab enriches each id via **`STAFF_SKILL_BINDS`** so combat plays:
-
-- magic **cast** anim  
-- Ability transit (element)  
-- pathMode  
-- cast / travel / impact effect ids  
-- optional presentation (`meteor`, `lightning`, `natureTrap`, `shield`, …)
-
-Source of truth for ids:  
-`https://info.grudge-studio.com/api/v1/master-weaponSkills.json` → weaponTypes `STAFF`  
-Browse: `https://info.grudge-studio.com/WEAPON_SKILLS.html`
-
-Remote `prefab.vfxRef` is still null on many rows — **lab bind fills runtime**; export `exportSpellKitJson` / staff binds for ObjectStore later.
+Do **not** add lab-only skill ids. New staff skills land in ObjectStore catalog first.
 
 ---
 
-## 7. Agent rules
+## 6. Agent rules
 
-1. Name layers correctly: **Ability TRAVEL** ≠ **presentation particles** ≠ **path mode**.
-2. Master four materials before inventing a fifth Ability class.
-3. New skill look = bind row + knobs + optional presentation recipe.
-4. Staff skills always `animPack: magic`, `animRole: cast` unless catalog says otherwise.
-5. Smoke = fire particles; wind = WindMaterial; ice water = OceanWaterMaterial; nature earth = RockMaterial + plates.
+1. **WEAPON_SKILLS catalog is skill SSOT** — do not invent `staff_*` ids or trap systems.
+2. Only wire transit/VFX/anim onto **existing** catalog skills.
+3. Name layers: **Ability TRAVEL** ≠ presentation particles ≠ path mode.
+4. Staff school style = fire/frost/holy/lightning/nature/arcane textures already in lab.
+5. Smoke = fire particles; wind = WindMaterial; ice = OceanWaterMaterial; nature = RockMaterial.

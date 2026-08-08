@@ -290,23 +290,7 @@ export const settings = {
     arcaneCore: '#1a0a28',
     arcaneGlow: '#b070ff',
     /** Micro bullet size for first projectile in a volley */
-    microBulletSize: 0.14,
-    /**
-     * Nature trap: ground travel → foot stun blast → cage walls → free.
-     * Uses EarthAbility transit + earth_surge pillars (no second engine).
-     */
-    natureTrap: {
-      /** Cage hold (s) before walls fall / free */
-      cageDuration: 2.0,
-      /** Foot blast radius (m) */
-      blastRadius: 1.4,
-      /** Number of wall pillars around target */
-      wallCount: 6,
-      /** Cage ring radius (m) */
-      cageRadius: 1.85,
-      /** Wall pillar visual height scale */
-      wallHeight: 2.4
-    }
+    microBulletSize: 0.14
   },
 
   /* ------------------------------------------------------------------ */

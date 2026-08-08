@@ -9,7 +9,7 @@ import {
 import { settings } from '../config/settings.js';
 import { residualFromSettings } from '../vfx/effectPrefab.js';
 import { getSkillBinding } from './skillBindings.js';
-import { staffBindFor, inferStaffBind } from './staffWeaponSkillsBind.js';
+import { bindFromCatalogSkill, staffBindFor } from './staffWeaponSkillsBind.js';
 import { vfxIdForSkill, animRoleForSkill } from '../api/weaponSkillsCatalog.js';
 import { dodgeDistanceM } from './motionMath.js';
 import {
@@ -514,9 +514,21 @@ export class DrcCombatController {
     const bound = getSkillBinding(slot);
     const boundName = bound?.name || skill.label;
 
-    // Merge STAFF catalog bind (WEAPON_SKILLS) onto skill for transit / presentation
+    // Merge WEAPON_SKILLS STAFF row only — no invented skills
     const staffId = bound?.skillId || skill.catalogSkillId || skill.id;
-    const staffB = staffBindFor(staffId) || (bound ? inferStaffBind({ id: bound.skillId, name: bound.name, damageType: bound.damageType }) : null);
+    const staffB =
+      bindFromCatalogSkill({
+        id: staffId,
+        name: bound?.name || skill.label,
+        description: skill.description || '',
+        damageType: bound?.damageType || skill.damageType,
+        effects: skill.effects,
+        cooldown: skill.cooldown,
+        castTime: skill.castDuration,
+        range: skill.rangeM,
+        damage: skill.damage,
+        slotType: skill.slotType
+      }) || staffBindFor(staffId);
     if (staffB) {
       skill = {
         ...skill,
@@ -528,11 +540,14 @@ export class DrcCombatController {
         travelEffectId: staffB.travelEffectId,
         impactEffectId: staffB.impactEffectId,
         abilityClass: staffB.abilityClass,
-        animRole: staffB.animRole || skill.animRole,
-        rangeM: skill.rangeM || staffB.rangeM,
-        castDuration: skill.castDuration || staffB.castDuration,
+        animRole: 'cast',
+        rangeM: staffB.rangeM || skill.rangeM,
+        castDuration: staffB.castDuration || skill.castDuration,
+        cooldown: staffB.cooldown || skill.cooldown,
         catalogSkillId: staffId,
-        label: boundName || skill.label
+        label: boundName || staffB.name || skill.label,
+        description: staffB.description,
+        effects: staffB.effects
       };
     }
 
@@ -637,24 +652,18 @@ export class DrcCombatController {
         skill.presentation === 'lightning';
       const isShield =
         /shield|ward|guard/i.test(skill.id + skill.label) || skill.presentation === 'shield';
-      const isNatureTrap =
-        skill.presentation === 'natureTrap' ||
-        /nature.?trap|wild.?apocalypse|natures.?fury/i.test(skill.id + skill.label + (skill.catalogSkillId || ''));
-
-      // Prefer catalog/staff bind pathMode + presentation (WEAPON_SKILLS STAFF)
+      // Catalog presentation only (staff school style — no invented skill systems)
       const pathFromBind = skill.pathMode || pathMode;
       const presStyle = skill.presentation || skill.prefab?.presentation || null;
 
-      // Creative presentation (soft shake, multi micro shots, vines, lightning, trap…)
       this.vfx?.deployPresentation?.(el, { ...pose, intensity }, {
         pathKind: pathFromBind,
         presentation: presStyle,
         meteor: isMeteor || presStyle === 'meteor',
-        volley: (isVolley && !isLightning && !isNatureTrap) || presStyle === 'volley',
+        volley: (isVolley && !isLightning) || presStyle === 'volley',
         lightning: (isLightning && !isShield) || presStyle === 'lightning',
-        chain: isLightning && !/single|bolt only/i.test(skill.label || ''),
-        shield: isShield || (el === 'storm' && pathFromBind === 'wall') || presStyle === 'shield',
-        natureTrap: isNatureTrap
+        chain: isLightning,
+        shield: isShield || presStyle === 'shield' || pathFromBind === 'wall'
       });
 
       this.character.setCasting?.(true, {
@@ -666,17 +675,7 @@ export class DrcCombatController {
       const dmg = skill.damage ? ` · ${Math.round(skill.damage * focusMul)} dmg` : '';
       const cat = skill.catalogSkillId ? ` → ${skill.catalogSkillId}` : '';
       const focusTag = focusOn ? ' · FOCUSED' : '';
-      const styleTag = isNatureTrap
-        ? ' · nature trap'
-        : isMeteor
-          ? ' · meteor'
-          : isLightning
-            ? ' · lightning'
-            : isVolley
-              ? ' · volley'
-              : presStyle
-                ? ` · ${presStyle}`
-                : '';
+      const styleTag = presStyle ? ` · ${presStyle}` : '';
       this.onToast(
         bound
           ? `${boundName} · ${bound.skillId}`

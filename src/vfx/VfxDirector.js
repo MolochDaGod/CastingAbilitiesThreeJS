@@ -297,9 +297,8 @@ export class VfxDirector {
       this._deployGroundFlood(pres, ground, aim, intensity, p);
     }
 
-    if (opts.presentation === 'natureTrap' || opts.natureTrap) {
-      this._deployNatureTrap(pres, cast, aim, fwd, intensity, p);
-    } else if (pres.style === 'vineLash' || el === 'nature') {
+    // Nature school = EarthAbility green + vine/earth_surge (catalog skills only)
+    if (pres.style === 'vineLash' || el === 'nature' || opts.presentation === 'vineLash') {
       this._deployVineLash(pres, ground, aim, fwd, intensity, p);
     }
 
@@ -625,88 +624,7 @@ export class VfxDirector {
     }, delay);
   }
 
-  /**
-   * Nature trap: ground-travel (Ability handles path) beauty sequence —
-   * foot explosion (stun) → walls rise around target → hold cageDuration → collapse free.
-   */
-  _deployNatureTrap(pres, cast, aim, fwd, intensity, p) {
-    const nt = p.natureTrap || settings.presentation?.natureTrap || {};
-    const cageDur = (nt.cageDuration ?? 2.0) * 1000;
-    const blastR = nt.blastRadius ?? 1.4;
-    const walls = Math.max(3, Math.round(nt.wallCount ?? 6));
-    const cageR = nt.cageRadius ?? 1.85;
-    const green = pres.color || 0x4ecf6a;
-    const dark = pres.colorB || 0x2d6b3a;
-    const feet = aim.clone();
-    feet.y = 0.06;
-    const ground = new Vector3(aim.x, 0.04, aim.z);
-
-    // Travel tell along ground toward feet (trap creeping)
-    this._shockwave(cast.clone().setY(0.04), green, 1.2, intensity * 0.5);
-    this._dustBurst(cast.clone().setY(0.1), 12, intensity * 0.5);
-    this.deploy('earth_surge', {
-      origin: cast,
-      forward: fwd,
-      aim: feet,
-      intensity: intensity * 0.7,
-      color: green
-    });
-
-    // Foot blast on arrival (stun — VFX only until combat CC exists)
-    const blastAt = 180;
-    setTimeout(() => {
-      this._burst(feet.clone().setY(0.35), green, 22, 3.2, intensity);
-      this._shockwave(ground, dark, blastR * 1.6, intensity);
-      this._dustBurst(ground, 28, intensity);
-      this.deploy('earth_surge', {
-        origin: feet,
-        forward: new Vector3(0, 1, 0),
-        aim: feet.clone().setY(1.2),
-        intensity: intensity * 1.05,
-        color: green
-      });
-      this.ctx.shake?.add(0.04 * intensity, 1.0, 20);
-      // Stun ring (visual lock-in)
-      this._auraRing(ground, 0xffe08a, blastR, intensity * 0.9);
-    }, blastAt);
-
-    // Cage walls rise around target
-    const wallAt = blastAt + 60;
-    setTimeout(() => {
-      for (let i = 0; i < walls; i++) {
-        const ang = (i / walls) * Math.PI * 2;
-        const px = aim.x + Math.cos(ang) * cageR;
-        const pz = aim.z + Math.sin(ang) * cageR;
-        const base = new Vector3(px, 0.05, pz);
-        const top = new Vector3(px, nt.wallHeight ?? 2.4, pz);
-        setTimeout(() => {
-          this._dustBurst(base, 10, intensity * 0.7);
-          this._shockwave(base, green, 0.9, intensity * 0.75);
-          this.deploy('earth_surge', {
-            origin: base,
-            forward: new Vector3(0, 1, 0),
-            aim: top,
-            intensity: intensity * 0.85,
-            color: dark
-          });
-          this._burst(base.clone().setY(1.0), green, 8, 2.0, intensity * 0.55);
-        }, i * 35);
-      }
-      // Continuous cage ring while held
-      this._auraRing(ground, green, cageR * 1.05, intensity * 0.8);
-    }, wallAt);
-
-    // Walls fall / free after cageDuration
-    setTimeout(() => {
-      this._shockwave(ground, dark, cageR * 1.3, intensity * 0.6);
-      this._dustBurst(ground, 20, intensity * 0.55);
-      this._motes(aim.clone().setY(1.2), green, 24, intensity * 0.6);
-      // Soft free flash
-      this._flash(green, 0.04 * intensity);
-    }, wallAt + cageDur);
-  }
-
-  /** Nature: green earth surge + vine lashes + optional heal aura. */
+  /** Nature school (catalog): green earth_surge + vine lashes + heal aura. */
   _deployVineLash(pres, ground, aim, fwd, intensity, p) {
     const n = Math.max(1, Math.round(p.natureVineCount ?? 3));
     const green = pres.color;
