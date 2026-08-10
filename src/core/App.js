@@ -314,7 +314,10 @@ export class App {
       },
       onHelp: () => this.hud.toggleHelp(),
       spawnLoot: (n) => this.spawnWorldLoot?.(n),
-      respawnHarvest: () => this.worldHarvest?.spawnDefaultLayout?.(),
+      respawnHarvest: async () => {
+        await this.worldHarvest?.spawnDefaultLayout?.();
+        await this.worldHarvest?.spawnDecor?.();
+      },
       equipHarvestTool: () => this._equipHarvestTool?.(),
       respawnDummies: () => this.worldHarvest?.spawnTrainingDummies?.()
     });
@@ -1492,11 +1495,16 @@ export class App {
       });
       await this.worldHarvest.init();
       console.info(
-        `[App] DevIsland harvest ready · F nearest ≤${HARVEST_RANGE_M}m · nodes=${this.worldHarvest.nodeCount}`
+        `[App] DevIsland map · harvest=${this.worldHarvest.nodeCount} decor=${this.worldHarvest.decorCount} dummies=${this.worldHarvest.dummies?.length || 0} F≤${HARVEST_RANGE_M}m padR=${WORLD.islandRadius.toFixed(0)}`
+      );
+      this.hud.showToast?.(
+        `Dev Island · ${this.worldHarvest.nodeCount} nodes · ${this.worldHarvest.dummies?.length || 0} dummies · Hold Q mode`,
+        2800
       );
     } catch (err) {
       console.warn('[App] DevIsland harvest failed', err);
       this.worldHarvest = null;
+      this.hud.showToast?.('Dev Island map failed — check /models/dev-island', 4000);
     }
 
     this.generatedCatalog = null;

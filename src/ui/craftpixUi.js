@@ -9,7 +9,8 @@
  */
 
 const CDN = 'https://assets.grudge-studio.com/ui/craftpix';
-const LOCAL = '/ui/craftpix';
+/** Relative so Vite base `./` and nested hosts resolve correctly */
+const LOCAL = './ui/craftpix';
 
 /** @type {Record<string, string>} */
 export const CRAFTPIX = {

@@ -14,7 +14,7 @@
  * @see docs/WARLORDS_DEV_UI_SSOT.md · docs/MAIN_PANEL_INVENTORY_SSOT.md
  */
 
-const LOCAL = '/ui/warlords-dev';
+const LOCAL = './ui/warlords-dev';
 const CDN = 'https://assets.grudge-studio.com/ui/warlords-dev';
 
 /** @type {Record<string, string>} */
@@ -23,8 +23,8 @@ export const WARLORDS_UI = Object.freeze({
   miniInventoryShell: 'inventory/miniinventory.png',
   buttonAtlas: 'buttons/button-ui.png',
   /** Legacy slot set still used by Main Panel grid cells */
-  inventorySlotsSet: '/ui/inventory/inventory-slots-set.png',
-  equipmentRef: '/ui/inventory/equipment-reference.png'
+  inventorySlotsSet: './ui/inventory/inventory-slots-set.png',
+  equipmentRef: './ui/inventory/equipment-reference.png'
 });
 
 /**

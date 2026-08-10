@@ -14,7 +14,9 @@ export const GRUDGE6_SSOT_VERSION = '2026-08-07.5-casting-deploy-ssot';
 export const WARLORDS_PLAY_CONTRACT_VERSION = '2026-08-07.harden.1';
 
 /** Live lab that owns Warlords character + ability UX proof */
-export const CASTING_LAB_LIVE = 'https://casting-abilities-threejs.vercel.app/';
+export const CASTING_LAB_LIVE = 'https://casting.grudge.studio/';
+/** Always-on Vercel project URL (alias of same deploy) */
+export const CASTING_LAB_VERCEL = 'https://casting-abilities-threejs.vercel.app/';
 
 export const CDN = 'https://assets.grudge-studio.com';
 export const CDN_MIRROR_OPEN = 'https://open.grudge-studio.com';
@@ -22,6 +24,8 @@ export const HUMAN_HEIGHT_M = 1.8;
 export const ANIMS_BAKED = `${CDN_MIRROR_OPEN}/anims/baked`;
 export const GEAR_PRESETS_URL = `${CDN}/api/v1/grudge6-gear-presets.json`;
 export const RACE_MODELS_URL = `${CDN}/asset-packs/toon-rts-characters/race-models.json`;
+/** Canonical Toon RTS kit directory (race-models.json) */
+export const TOON_RTS_GLB_DIR = `${CDN}/asset-packs/toon-rts-characters/glb/characters`;
 
 export const BIP001_CORE_BONES = Object.freeze([
   'Bip001 Pelvis',
@@ -104,9 +108,10 @@ export function validateBip001Bones(root) {
   };
 }
 
-/** ★ Toon RTS play URL — only play mesh family */
+/** ★ Toon RTS play URL — only play mesh family (human.glb not WK.glb) */
 export function toonRtsKitUrl(libraryId) {
-  return `${CDN}/asset-packs/toon-rts-characters/glb/characters/${libraryId}.glb`;
+  const id = String(libraryId || 'human').toLowerCase();
+  return `${TOON_RTS_GLB_DIR}/${id}.glb`;
 }
 
 /**
@@ -184,11 +189,16 @@ export function kitUrlForRace(raceId) {
 }
 
 /**
- * Play candidates = Toon RTS only.
+ * Play candidates = Toon RTS only (short name from raceDef).
  * Do not chain races bake / metaverse — those hide broken Toon loads behind wrong models.
  */
 export function kitUrlCandidates(raceId) {
-  return [kitUrlForRace(raceId)].filter(Boolean);
+  const def = raceDef(raceId);
+  const short = def.short || 'human';
+  const primary = def.kitGlb || toonRtsKitUrl(short);
+  // Same file under rare alternate keys (legacy docs used race id)
+  const alt = toonRtsKitUrl(short);
+  return [...new Set([primary, alt].filter(Boolean))];
 }
 
 export function atlasUrlForRace(raceId) {

@@ -187,7 +187,7 @@ export const DEPLOYABLE_ENDPOINTS = Object.freeze({
   armor: `${INFO_API}/master-armor.json`,
   mounts: `${INFO_API}/master-mounts.json`,
   registry: `${INFO_API}/master-registry.json`,
-  grudge6: 'https://assets.grudge-studio.com/toon-rts-characters/glb/characters/',
+  grudge6: 'https://assets.grudge-studio.com/asset-packs/toon-rts-characters/glb/characters/',
   cdn: CDN,
   info: INFO_API,
   mirror: INFO_MIRROR,

@@ -26,8 +26,10 @@ import {
 } from 'three';
 import { WORLD } from '../config/worldScale.js';
 import {
+  DEFAULT_DECOR_LAYOUT,
   DEFAULT_DUMMY_LAYOUT,
   DEFAULT_HARVEST_LAYOUT,
+  DECOR_MESH_POOL,
   HARVEST_NODE_DEFS,
   HARVEST_RANGE_M,
   HARVEST_SWING_CD,
@@ -109,16 +111,62 @@ export class DevIslandHarvest {
   }
 
   /**
-   * Boot default layout + dummies.
+   * Boot default layout + décor + dummies (full map deploy on pad).
    */
   async init() {
     await this.spawnDefaultLayout();
+    await this.spawnDecor();
     this.spawnTrainingDummies();
     this._ready = true;
     console.info(
-      `[DevIsland] harvest nodes=${this.nodes.length} alive=${this.nodeCount} dummies=${this.dummies.length} range=${this.rangeM}m padR=${this.islandRadius.toFixed(1)}`
+      `[DevIsland] harvest=${this.nodes.length} decor=${this.decorCount} dummies=${this.dummies.length} range=${this.rangeM}m padR=${this.islandRadius.toFixed(1)}`
     );
     return this;
+  }
+
+  get decorCount() {
+    return this._decor?.length || 0;
+  }
+
+  /**
+   * Shore rockforms / walls — map silhouette, not harvestable.
+   */
+  async spawnDecor() {
+    if (!this._decor) this._decor = [];
+    for (const d of this._decor) {
+      this.group.remove(d);
+      this._disposeObject(d);
+    }
+    this._decor.length = 0;
+    const jobs = DEFAULT_DECOR_LAYOUT.map(async (slot, i) => {
+      const url = DECOR_MESH_POOL[slot.mesh % DECOR_MESH_POOL.length];
+      if (!url) return;
+      try {
+        const model = await this._loadModel(url, slot.scale ?? 1.2);
+        if (!model) return;
+        const root = new Group();
+        root.name = `decor_${i}`;
+        root.userData.decor = true;
+        root.position.set(
+          Math.cos(slot.angle) * this.islandRadius * (slot.r ?? 0.82),
+          0,
+          Math.sin(slot.angle) * this.islandRadius * (slot.r ?? 0.82)
+        );
+        root.rotation.y = slot.yaw ?? 0;
+        root.add(model);
+        try {
+          _box.setFromObject(root);
+          if (Number.isFinite(_box.min.y)) root.position.y -= _box.min.y;
+        } catch {
+          /* ok */
+        }
+        this.group.add(root);
+        this._decor.push(root);
+      } catch (err) {
+        console.warn('[DevIsland] decor fail', url, err?.message || err);
+      }
+    });
+    await Promise.all(jobs);
   }
 
   /**
@@ -413,15 +461,19 @@ export class DevIslandHarvest {
         }
       }
     });
-    // Fit to ~1.1–1.6 m tall boulder (SI)
+    // Fit to SI prop height (~0.9–1.8 m) — author packs may be cm or unitless
     _box.setFromObject(clone);
     const size = new Vector3();
     _box.getSize(size);
     const maxDim = Math.max(size.x, size.y, size.z, 0.01);
-    const target = 1.25 * scale;
+    // If mesh already ~1–2 m, only apply scale; if huge (cm), compress hard
+    let target = 1.35 * scale;
+    if (maxDim > 8) target = 1.5 * scale; // classic 100× / big export
+    else if (maxDim < 0.25) target = 1.1 * scale; // tiny author
     const s = target / maxDim;
     clone.scale.setScalar(s);
     clone.position.set(0, 0, 0);
+    clone.updateMatrixWorld(true);
     return clone;
   }
 

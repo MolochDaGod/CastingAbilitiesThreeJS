@@ -2,7 +2,7 @@
   "units": "m",
   "primary": "windsurf",
   "sourceImage": "./ik-reference.png",
-  "notes": "Travel frame: +Y up, +Z nose/forward (SI). Mesh artYawDeg +90 aligns package nose with travel. Feet staggered (no cross); hands on boom L/R at grip height ~1m.",
+  "notes": "Travel frame: +Y up, +Z nose/forward (SI). Mesh artYawDeg 180 (board was backwards at 90). Feet staggered; hands on boom L/R ~1.05 m.",
   "hoverboard": {
     "file": "./hoverboard.glb",
     "lengthM": 1.15,

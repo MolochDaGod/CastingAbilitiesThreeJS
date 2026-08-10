@@ -23,6 +23,18 @@ const ROCK_DIR = './models/dev-island';
 const ICON_MINERALS = './icons/dev-island/minerals';
 const ICON_INV = './icons/dev-island/inventory';
 
+/** Shore / pad décor (not harvestable) — rockforms + walls for map read */
+export const DECOR_MESH_POOL = Object.freeze([
+  `${ROCK_DIR}/rock__rockform_arch_medium.glb`,
+  `${ROCK_DIR}/rock__rockform_column_medium.glb`,
+  `${ROCK_DIR}/rock__rockform_wall_short1_medium.glb`,
+  `${ROCK_DIR}/rock__rockform_wall_long_medium.glb`,
+  `${ROCK_DIR}/rock__rockwall_straight_medium.glb`,
+  `${ROCK_DIR}/rock__rockwall_corner_medium.glb`,
+  `${ROCK_DIR}/rock__debris1_medium.glb`,
+  `${ROCK_DIR}/rock__rock5_natural_dark.glb`
+]);
+
 /**
  * Preferred rock isolates for harvestable nodes (SI ~human-scale debris/boulders).
  * Natural medium variants first; base mesh as fallback.
@@ -192,9 +204,17 @@ export const HARVEST_NODE_DEFS = Object.freeze({
 /**
  * Default pad layout — rings of harvestables for the lab island.
  * Positions are relative (angle, radiusFrac of islandRadius).
+ * Spawn cluster is close so F harvest is reachable without a long run.
  */
 export const DEFAULT_HARVEST_LAYOUT = Object.freeze([
-  // Inner ring — hand pebbles + herbs (easy first harvest)
+  // Spawn cluster (~4–8 m) — tutorial harvest
+  { defId: 'rock_pebbles', angle: 0.4, r: 0.1 },
+  { defId: 'herb_patch', angle: 1.2, r: 0.09 },
+  { defId: 'rock_pebbles', angle: 2.1, r: 0.11 },
+  { defId: 'herb_patch', angle: 3.4, r: 0.1 },
+  { defId: 'rock_boulder', angle: 5.0, r: 0.12 },
+  { defId: 'rock_pebbles', angle: 5.8, r: 0.095 },
+  // Inner ring — hand + herbs
   { defId: 'rock_pebbles', angle: 0.2, r: 0.22 },
   { defId: 'herb_patch', angle: 1.1, r: 0.2 },
   { defId: 'rock_pebbles', angle: 2.0, r: 0.24 },
@@ -202,32 +222,53 @@ export const DEFAULT_HARVEST_LAYOUT = Object.freeze([
   { defId: 'rock_pebbles', angle: 4.2, r: 0.23 },
   { defId: 'herb_patch', angle: 5.2, r: 0.2 },
   // Mid ring — stone boulders
-  { defId: 'rock_boulder', angle: 0.5, r: 0.42 },
-  { defId: 'rock_boulder', angle: 1.6, r: 0.45 },
-  { defId: 'rock_boulder', angle: 2.7, r: 0.4 },
-  { defId: 'rock_boulder', angle: 3.8, r: 0.44 },
-  { defId: 'rock_boulder', angle: 4.9, r: 0.41 },
-  { defId: 'rock_boulder', angle: 5.8, r: 0.43 },
+  { defId: 'rock_boulder', angle: 0.5, r: 0.38 },
+  { defId: 'rock_boulder', angle: 1.6, r: 0.4 },
+  { defId: 'rock_boulder', angle: 2.7, r: 0.37 },
+  { defId: 'rock_boulder', angle: 3.8, r: 0.41 },
+  { defId: 'rock_boulder', angle: 4.9, r: 0.39 },
+  { defId: 'rock_boulder', angle: 5.8, r: 0.4 },
   // Outer ring — ore
-  { defId: 'rock_ore', angle: 0.9, r: 0.62 },
-  { defId: 'rock_ore', angle: 2.3, r: 0.65 },
-  { defId: 'rock_ore', angle: 3.5, r: 0.6 },
-  { defId: 'rock_ore', angle: 4.7, r: 0.64 },
-  { defId: 'rock_ore', angle: 5.9, r: 0.61 },
-  // Extra boulders near shore practice
+  { defId: 'rock_ore', angle: 0.9, r: 0.58 },
+  { defId: 'rock_ore', angle: 2.3, r: 0.6 },
+  { defId: 'rock_ore', angle: 3.5, r: 0.56 },
+  { defId: 'rock_ore', angle: 4.7, r: 0.59 },
+  { defId: 'rock_ore', angle: 5.9, r: 0.57 },
+  // Shore practice boulders
   { defId: 'rock_boulder', angle: 1.3, r: 0.72 },
-  { defId: 'rock_boulder', angle: 4.0, r: 0.7 }
+  { defId: 'rock_boulder', angle: 4.0, r: 0.7 },
+  { defId: 'rock_ore', angle: 2.8, r: 0.74 }
+]);
+
+/**
+ * Non-interactive décor (rockforms / walls) for map silhouette.
+ * r near shore so pad center stays clear for combat + harvest.
+ */
+export const DEFAULT_DECOR_LAYOUT = Object.freeze([
+  { mesh: 0, angle: 0.3, r: 0.82, yaw: 0.4, scale: 1.4 },
+  { mesh: 1, angle: 1.0, r: 0.85, yaw: 1.2, scale: 1.2 },
+  { mesh: 2, angle: 1.8, r: 0.8, yaw: 0.1, scale: 1.5 },
+  { mesh: 3, angle: 2.6, r: 0.86, yaw: 2.0, scale: 1.3 },
+  { mesh: 4, angle: 3.4, r: 0.83, yaw: 0.7, scale: 1.6 },
+  { mesh: 5, angle: 4.2, r: 0.84, yaw: 1.5, scale: 1.25 },
+  { mesh: 6, angle: 5.0, r: 0.81, yaw: 0.2, scale: 1.1 },
+  { mesh: 7, angle: 5.7, r: 0.87, yaw: 2.4, scale: 1.35 },
+  { mesh: 0, angle: 0.8, r: 0.78, yaw: 1.0, scale: 1.15 },
+  { mesh: 2, angle: 3.9, r: 0.79, yaw: 0.5, scale: 1.45 }
 ]);
 
 /**
  * Training dummy pads for combat focus (not harvest).
+ * Closer ring so Tab soft-lock works from spawn.
  * @type {{ angle: number, r: number, label: string }[]}
  */
 export const DEFAULT_DUMMY_LAYOUT = Object.freeze([
-  { angle: 0.0, r: 0.32, label: 'Dummy · North' },
-  { angle: Math.PI * 0.5, r: 0.32, label: 'Dummy · East' },
-  { angle: Math.PI, r: 0.32, label: 'Dummy · South' },
-  { angle: Math.PI * 1.5, r: 0.32, label: 'Dummy · West' }
+  { angle: 0.0, r: 0.18, label: 'Dummy · North' },
+  { angle: Math.PI * 0.5, r: 0.18, label: 'Dummy · East' },
+  { angle: Math.PI, r: 0.18, label: 'Dummy · South' },
+  { angle: Math.PI * 1.5, r: 0.18, label: 'Dummy · West' },
+  { angle: Math.PI * 0.25, r: 0.28, label: 'Dummy · NE' },
+  { angle: Math.PI * 1.25, r: 0.28, label: 'Dummy · SW' }
 ]);
 
 /**

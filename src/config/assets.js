@@ -105,8 +105,17 @@ export const ANIM_PACKS = {
     finisher: ['sword_shield/sword and shield attack'],
     finisherAir: ['sword_shield/dropto-target', 'sword_shield/sword and shield attack'],
     block: ['sword_shield/sword and shield block'],
-    walk: ['sword_shield/sword and shield walk', 'prod:magic/standing-walk-forward'],
-    run: ['sword_shield/sword and shield run'],
+    // Walk: open S&S walk 404s — prod magic walk is live SSOT fallback
+    walk: [
+      'prod:magic/standing-walk-forward',
+      'sword_shield/sword and shield walk',
+      'magic/standing walk forward'
+    ],
+    run: [
+      'sword_shield/sword and shield run',
+      'prod:magic/standing-run-forward',
+      'magic/standing run forward'
+    ],
     /** Melee focus strafe — no native S&S side walks; magic/longbow CDN */
     walkL: [
       'prod:magic/standing-walk-left',
