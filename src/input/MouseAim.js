@@ -147,9 +147,10 @@ export class MouseAim {
         _dir.normalize();
         const ang = this.rayDir.angleTo(_dir);
         if (ang <= maxAng) {
-          // Blend hit toward soft target — stronger when closer to crosshair
-          const w = blend * (1 - ang / Math.max(1e-4, maxAng));
-          this.hitPoint.lerp(soft, MathUtils.clamp(w, 0, 0.85));
+          // Action assist: stronger pull near crosshair, still capped (not hard lock)
+          const closeness = 1 - ang / Math.max(1e-4, maxAng);
+          const w = blend * (0.35 + closeness * 0.75);
+          this.hitPoint.lerp(soft, MathUtils.clamp(w, 0, 0.9));
         }
       }
     }

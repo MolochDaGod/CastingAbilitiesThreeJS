@@ -102,11 +102,16 @@ When focus is ON and A/D dominate WASD, play pack **walkL/walkR** or **runL/runR
 
 | Feature | Behavior |
 |---------|----------|
-| FOV | Free `camera.fov` (58) → focus `actionFov` (64), damped |
+| FOV | Free `camera.fov` (70) → focus `actionFov` (85), damped |
 | Crosshair | Positional N/E/S/W ticks · soft-lock tint · fire scale · spread from move |
 | Strafe gait | World move · cam right/forward → walkL/R / runL/R when lateral dominates |
 | Backflip | Real FBX clip when bound · **camera yaw held** (setup for air attack) |
 | Frontflip | Real extra/front-flip FBX when bound |
+| **Directional soft lock** | Acquire / Tab order by **camera cone × distance** (not pure nearest) |
+| **Yaw assist** | Subtle `softLockYawAssist` rad/s toward target in cone — framing help |
+| **Pitch assist** | Soft damp pitch toward target chest while locked |
+| **Aim magnet** | Crosshair hit blends toward soft target inside `softLockMaxAngleDeg` |
+| **Camera ownership** | Focus: mouse owns orbit yaw (not body-driven) · free: body drives base |
 
 ## Agent rules
 

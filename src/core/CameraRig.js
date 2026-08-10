@@ -214,7 +214,7 @@ export class CameraRig {
 
   /**
    * TPS look:
-   *  - Focus ON → mouse is aim (pointer-lock movementX/Y or free delta) — no cursor
+   *  - Focus ON → mouse is aim always (pointer-lock movementX/Y, or client delta fallback)
    *  - Focus OFF → RMB hold only (orbit), unlocked cursor for select
    */
   _onPointerMove = (event) => {
@@ -224,7 +224,11 @@ export class CameraRig {
     const focusOn = !!this.combatFocus?.focusEnabled;
     const locked = document.pointerLockElement === this.domElement;
     // Focus: always look with mouse. Free: only while RMB held (orbit).
-    if (!focusOn && !this._rmb) return;
+    if (!focusOn && !this._rmb) {
+      this._lastX = event.clientX;
+      this._lastY = event.clientY;
+      return;
+    }
 
     const base = settings.camera.orbitSensitivity ?? 0.0038;
     const lookMul = settings.controls?.lookSensitivity ?? 1;
@@ -232,14 +236,13 @@ export class CameraRig {
     const invertY = !!settings.controls?.invertLookY;
     let dx = 0;
     let dy = 0;
-    if (locked || focusOn) {
-      // Prefer movementX (pointer lock / focus aim)
+    if (locked) {
       dx = event.movementX || 0;
       dy = event.movementY || 0;
-      if (!locked && (dx === 0 && dy === 0) && this._rmb) {
-        dx = event.clientX - this._lastX;
-        dy = event.clientY - this._lastY;
-      }
+    } else if (focusOn) {
+      // Focus without lock: client delta (movementX is often 0 when unlocked)
+      dx = event.movementX || event.clientX - this._lastX;
+      dy = event.movementY || event.clientY - this._lastY;
     } else {
       dx = event.clientX - this._lastX;
       dy = event.clientY - this._lastY;
@@ -248,12 +251,59 @@ export class CameraRig {
     this._lastY = event.clientY;
     if (dx === 0 && dy === 0) return;
 
-    this._tpsYawOffset -= dx * sens;
+    // Focus: fold look into characterYaw so body lag and soft-lock share one orbit base
+    if (focusOn) {
+      this.characterYaw -= dx * sens;
+      // Keep offset near 0 while focused (camera yaw = characterYaw)
+      this._tpsYawOffset *= 0.85;
+    } else {
+      this._tpsYawOffset -= dx * sens;
+    }
     const minP = settings.camera.minPitch ?? 0.08;
     const maxP = settings.camera.maxPitch ?? 1.25;
     const dySign = invertY ? -1 : 1;
     this._tpsPitch = clamp(this._tpsPitch + dy * sens * 0.85 * dySign, minP, maxP);
   };
+
+  /**
+   * Enter focus: fold yaw offset into base so look continues smoothly; enable assist.
+   */
+  enterFocusLook() {
+    this.characterYaw = this.getTpsYaw();
+    this._tpsYawOffset = 0;
+    this._lastX = 0;
+    this._lastY = 0;
+  }
+
+  /**
+   * Subtle camera yaw assist toward soft-lock target (best angle / aim help).
+   * Never hard-snaps — capped rad/s, only within max angle cone.
+   * @param {number} dt
+   * @param {import('three').Vector3} feet
+   */
+  applySoftLockYawAssist(dt, feet) {
+    if (this.viewMode !== 'tps') return;
+    if (!this.combatFocus?.focusEnabled) return;
+    if (!this.softLockPoint || this.softLockWeight < 0.05) return;
+    const cam = settings.camera;
+    const rate = cam.softLockYawAssist ?? 0.55; // rad/s max
+    if (rate <= 0) return;
+    const maxCone = MathUtils.degToRad(cam.softLockYawConeDeg ?? 42);
+
+    const dx = this.softLockPoint.x - feet.x;
+    const dz = this.softLockPoint.z - feet.z;
+    if (dx * dx + dz * dz < 0.25) return;
+    const targetYaw = Math.atan2(dx, dz);
+    let camYaw = this.getTpsYaw();
+    let err = targetYaw - camYaw;
+    while (err > Math.PI) err -= Math.PI * 2;
+    while (err < -Math.PI) err += Math.PI * 2;
+    if (Math.abs(err) > maxCone) return; // outside awareness cone — no assist
+    // Stronger when nearly on target (sticky aim), weaker at edge of cone
+    const falloff = 1 - Math.abs(err) / maxCone;
+    const step = Math.sign(err) * Math.min(Math.abs(err), rate * dt * (0.35 + falloff * 0.9));
+    this.characterYaw += step;
+  }
 
   update(dt) {
     const cam = settings.camera;
@@ -342,13 +392,30 @@ export class CameraRig {
     }
 
     // Soft lock bias — stronger in focus (soft lock ON); never hard snap
+    // Subtle look-at pull toward target chest for framing / trajectory
     const softBase = focusOn
-      ? (cam.softLockLookFocus ?? cam.softLockLook ?? 0.55)
-      : (cam.softLockLook ?? 0.28);
+      ? (cam.softLockLookFocus ?? cam.softLockLook ?? 0.48)
+      : (cam.softLockLook ?? 0.22);
     const softW = softBase * (this.softLockWeight || 0);
     if (this.softLockPoint && softW > 0.01) {
       _soft.copy(this.softLockPoint);
       _desiredTarget.lerp(_soft, softW);
+      // Slight pitch assist toward target height (subtle, not snap)
+      if (focusOn && cam.softLockPitchAssist !== false) {
+        const dy = this.softLockPoint.y - this.anchor.y;
+        const xz = Math.hypot(
+          this.softLockPoint.x - this.anchor.x,
+          this.softLockPoint.z - this.anchor.z
+        );
+        if (xz > 1.2) {
+          const wantPitch = MathUtils.clamp(
+            Math.atan2(dy * 0.55, xz) + 0.28,
+            cam.minPitch ?? 0.12,
+            cam.maxPitch ?? 1.35
+          );
+          this._tpsPitch = damp(this._tpsPitch, wantPitch, cam.softLockPitchDamp ?? 0.04, dt);
+        }
+      }
     }
 
     // Spherical offset behind shoulder pivot (ref grudge-third-person-controller)

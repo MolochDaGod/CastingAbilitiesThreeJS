@@ -186,11 +186,24 @@ export class App {
       this.hud.setCrosshairVisible?.(!!on);
       this.hud.root?.classList.toggle('hud--focus', !!on);
       this._applyMouseLockForFocus(!!on);
-      // Soft lock ON with focus: auto-acquire nearest selectable
-      if (on && settings.aim?.softLockOnFocus !== false) {
-        const feet = this.character?.position || this.character?.root?.position;
-        if (feet && !this.combatFocus.selectedTarget) {
-          this.combatFocus.acquireNearest(feet);
+      // Action soft-lock: combat session + TPS + directional acquire
+      if (on) {
+        if (this.drc?.session === 'equip') this.drc.setSession?.('combat');
+        if (this.session.mode === INTERACTION_MODE.WALK && !this.session.riding) {
+          // Stay walk only if freeriding; land combat wants casting mode for TPS
+          // Keep current mode if freeriding skills
+        } else if (this.session.mode !== INTERACTION_MODE.CASTING && !this.session.freeriding) {
+          this.session.setMode?.(INTERACTION_MODE.CASTING, { silent: true });
+        }
+        this.rig.setViewMode?.('tps');
+        this.rig.enterFocusLook?.();
+        if (settings.aim?.softLockOnFocus !== false) {
+          const feet = this.character?.position || this.character?.root?.position;
+          const fwd = this.rig.getCameraForward?.(new Vector3());
+          if (feet) {
+            this.combatFocus.acquireBest?.(feet, fwd) ||
+              this.combatFocus.acquireNearest?.(feet, fwd);
+          }
         }
         const t = this.combatFocus.selectedTarget;
         if (t) {
@@ -205,9 +218,15 @@ export class App {
               : 1,
             present: true
           });
+          this.hud.root?.classList.add('hud--softlock');
         }
-      }
-      if (!on) {
+        this.hud.showToast?.(
+          t
+            ? `Focus · soft-lock ${t.mesh?.userData?.displayName || t.mesh?.name || 'target'} · LMB attack`
+            : 'Focus · mouse look · crosshair · Tab cycle · LMB attack',
+          2200
+        );
+      } else {
         this.hud.root?.classList.remove('hud--softlock');
       }
     });
@@ -468,10 +487,6 @@ export class App {
     this.input.on('draw:start', (pointer) => this.pathDrawer.begin(pointer));
     this.input.on('draw:move', (pointer) => this.pathDrawer.move(pointer));
     this.input.on('draw:end', () => this.pathDrawer.end());
-
-    this.combatFocus.on('focus', (on) => {
-      this._applyMouseLockForFocus(on);
-    });
 
     this.input.on('element', (index) => {
       // Combat: digits fire skills; also keep element aligned with staff slot
@@ -791,7 +806,8 @@ export class App {
           this._applyMouseLockForFocus?.(true);
         }
         this.combatFocus.softLockEnabled = true;
-        this.combatFocus.cycleTarget(feet, reverse);
+        const fwd = this.rig.getCameraForward?.(new Vector3());
+        this.combatFocus.cycleTarget(feet, reverse, fwd);
         // HUD target frame
         const t = this.combatFocus.selectedTarget;
         if (t) {
@@ -1166,12 +1182,21 @@ export class App {
     setCursorIntent('none', { force: true, tooltip: false });
     if (this.canvas) {
       this.canvas.style.cursor = 'none';
-      // Pointer lock (user gesture = RMB focus toggle). Fallback: cursor none only.
-      try {
-        this.canvas.requestPointerLock?.();
-      } catch {
-        /* autoplay / gesture policy */
-      }
+      // Pointer lock (RMB toggle is a user gesture). Fallback: free mouse delta look.
+      const tryLock = () => {
+        try {
+          this.canvas.requestPointerLock?.();
+        } catch {
+          /* policy */
+        }
+      };
+      tryLock();
+      // Retry once after tick if browser delayed grant
+      window.setTimeout(() => {
+        if (this.combatFocus?.focusEnabled && document.pointerLockElement !== this.canvas) {
+          tryLock();
+        }
+      }, 40);
     }
     this.hud.setCrosshairVisible?.(true);
   }
@@ -1606,20 +1631,28 @@ export class App {
     this.environment.setFocus(this.character.position.x, this.character.position.z);
     this.environment.update();
 
-    // Mouse aim + soft lock (combat) — snow-brawl style 3D ray when focused
-    const aimOn = this.drc.inCombat && settings.aim?.enabled !== false;
+    // Mouse aim + soft lock — focus works in combat or when focus already on
+    const aimOn =
+      settings.aim?.enabled !== false &&
+      (this.drc.inCombat || !!this.combatFocus?.focusEnabled);
     const feetPos = this.character.getWorldPosition?.() || this.character.position;
     if (aimOn) {
-      // Focus: camera-center ray → hit (ground/colliders/far) + soft-lock cone.
-      // Free: NDC follows real pointer for select / ground pick.
+      // Focus: camera-center ray → hit + soft-lock cone (auto-aim help).
+      // Free: NDC pointer for select / ground pick.
       if (this.combatFocus?.focusEnabled) {
-        const softPt = this.combatFocus.getSoftLockPoint?.() || null;
+        let softPt = this.combatFocus.getSoftLockPoint?.() || null;
+        // Keep soft-lock sticky: re-acquire directional best if lost
+        if (!softPt && settings.aim?.softLockOnFocus !== false) {
+          const fwd0 = this.rig.getCameraForward?.(new Vector3());
+          this.combatFocus.acquireBest?.(feetPos, fwd0);
+          softPt = this.combatFocus.getSoftLockPoint?.() || null;
+        }
         this.mouseAim.updateFocusAim?.(feetPos, {
           softTarget: softPt,
           softBlend: settings.aim?.softLockBlend,
           maxSoftAngleDeg: settings.aim?.softLockMaxAngleDeg
         }) || this.mouseAim.updateFromCenter?.(feetPos);
-        // Keep XZ body forward aligned with look (player rotates with focus)
+        // Body / launch XZ from camera look (action TPS)
         this.rig?.getCameraForward?.(this.mouseAim.forward);
         if (this.mouseAim.forward.lengthSq() > 1e-6) {
           this.mouseAim.forward.y = 0;
@@ -1629,7 +1662,6 @@ export class App {
             this.mouseAim.right.set(this.mouseAim.forward.z, 0, -this.mouseAim.forward.x);
           }
         }
-        // Refresh 3D launch after body axes update
         this.mouseAim._refreshLaunch?.(feetPos);
       } else {
         this.mouseAim.updateFromNdc(this.input.pointer, feetPos);
@@ -1745,7 +1777,9 @@ export class App {
     const focus = this.abilities.focus;
     if (focus) this.rig.lookAt(focus.position, MathUtils.clamp(1 - focus.u * 0.4, 0, 1));
     this.rig.setAnchor(px, py, pz);
-    // Backflip setup: hold camera yaw (do not follow reverse body)
+    // Camera yaw ownership:
+    //  · Focus ON → mouse owns camera (characterYaw); body lag-follows look
+    //  · Focus OFF → body facing drives orbit base (free / tank)
     if (this.character?.isBackflip || this.drc?._flipHoldYaw != null) {
       const hold =
         this.character?._flipCameraHoldYaw ??
@@ -1755,25 +1789,41 @@ export class App {
       this.rig.setHoldCharacterYaw?.(hold);
     } else {
       this.rig.setHoldCharacterYaw?.(null);
-      this.rig.setCharacterYaw(this.character?.facing ?? 0);
+      if (!this.combatFocus?.focusEnabled) {
+        this.rig.setCharacterYaw(this.character?.facing ?? 0);
+      }
     }
 
-    // Soft lock ON in focus: bias camera look toward selected target (not hard snap)
-    const softPt = this.combatFocus?.getSoftLockPoint?.();
-    if (this.combatFocus?.focusEnabled && softPt) {
-      this.rig.setSoftLock?.(softPt, 1);
+    // Soft lock ON in focus: frame target + subtle yaw assist (action auto-aim)
+    const softPtCam = this.combatFocus?.getSoftLockPoint?.();
+    if (this.combatFocus?.focusEnabled && softPtCam) {
+      this.rig.setSoftLock?.(softPtCam, 1);
+      this.rig.applySoftLockYawAssist?.(dt, feet);
+      this.hud.root?.classList.add('hud--softlock');
+      const t = this.combatFocus.selectedTarget;
+      if (t) {
+        this.hud.setTargetFrame?.({
+          name:
+            t.mesh?.userData?.displayName ||
+            t.mesh?.name ||
+            t.kind ||
+            'Target',
+          hp01: Number.isFinite(t.mesh?.userData?.hp01) ? t.mesh.userData.hp01 : 1,
+          present: true
+        });
+      }
     } else if (
       this.combatFocus?.focusEnabled &&
-      settings.aim?.softLockOnFocus !== false &&
-      !this.combatFocus.selectedTarget
+      settings.aim?.softLockOnFocus !== false
     ) {
-      // Keep trying nearest while focused with no target
-      const feetPos = this.character?.position || this.character?.root?.position;
-      if (feetPos) this.combatFocus.acquireNearest?.(feetPos);
+      const fwd = this.rig.getCameraForward?.(new Vector3());
+      this.combatFocus.acquireBest?.(feet, fwd);
       const p2 = this.combatFocus?.getSoftLockPoint?.();
       this.rig.setSoftLock?.(p2 || null, p2 ? 1 : 0);
+      if (p2) this.rig.applySoftLockYawAssist?.(dt, feet);
     } else {
       this.rig.setSoftLock?.(null, 0);
+      this.hud.root?.classList.remove('hud--softlock');
     }
     this.shake.update(raw);
     this.flash.update(raw);

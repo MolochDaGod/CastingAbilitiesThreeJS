@@ -538,17 +538,17 @@ export const settings = {
      * Magnetic aim blend toward selected target — not hard camera snap.
      */
     softLockOnFocus: true,
-    /** Soft lock blend toward selected target (focus aim cone) */
-    softLockBlend: 0.55,
-    softLockRange: 28,
+    /** Soft lock blend toward selected target (focus aim cone) — auto-aim help */
+    softLockBlend: 0.68,
+    softLockRange: 32,
     /** Tab cycles soft-lock targets (Shift+Tab previous) */
     tabCycleTargets: true,
     /**
      * Focus aim — snow-brawl style (camera ray → hit → launch dir).
      * @see discourse snow-brawl · docs/COMBAT_CAMERA_FOCUS_SSOT.md
      */
-    /** Max soft-lock magnetic angle from crosshair (deg) — keeps accuracy */
-    softLockMaxAngleDeg: 18,
+    /** Max soft-lock magnetic angle from crosshair (deg) — generous for action assist */
+    softLockMaxAngleDeg: 26,
     /** Camera ray length (m) when no ground/mesh hit */
     aimRayFar: 80,
     /** Projectile aim height on ground hits (m, SI chest) */
@@ -630,8 +630,15 @@ export const settings = {
      * Soft-lock camera look bias 0..1 when focus + target (not hard snap).
      * Higher when focused — soft lock is ON in focus.
      */
-    softLockLook: 0.42,
-    softLockLookFocus: 0.55,
+    softLockLook: 0.32,
+    softLockLookFocus: 0.48,
+    /** Subtle yaw assist toward soft-lock target (rad/s cap) — action framing */
+    softLockYawAssist: 0.72,
+    /** Only assist when target within this cone of camera forward (deg) */
+    softLockYawConeDeg: 48,
+    /** Nudge pitch toward target chest while soft-locked */
+    softLockPitchAssist: true,
+    softLockPitchDamp: 0.045,
     orbitSensitivity: 0.0042,
     /** Shoulder: -1 left · 0 center · +1 right */
     shoulderSide: 1,

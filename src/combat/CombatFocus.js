@@ -299,26 +299,76 @@ export class CombatFocus extends EventEmitter {
   }
 
   /**
-   * Auto soft-lock nearest target when focus engages (no Tab yet).
+   * Score targets for soft lock: prefer in-front of camera / body facing.
+   * Lower score = better.
+   * @param {{ point: Vector3, dist: number }} t
    * @param {Vector3} playerPos
+   * @param {Vector3|null} forward XZ unit (camera or body)
+   */
+  _scoreTarget(t, playerPos, forward) {
+    let score = t.dist;
+    if (forward && forward.lengthSq() > 1e-6) {
+      _tmp.subVectors(t.point, playerPos);
+      _tmp.y = 0;
+      if (_tmp.lengthSq() > 1e-6) {
+        _tmp.normalize();
+        const dot = MathUtils.clamp(forward.dot(_tmp), -1, 1);
+        const ang = Math.acos(dot); // 0 = dead ahead
+        // Heavy weight on frontal cone — action soft-lock awareness
+        score = t.dist * (0.35 + ang * 1.4) + ang * 8;
+      }
+    }
+    return score;
+  }
+
+  /**
+   * Auto soft-lock best directional target when focus engages.
+   * @param {Vector3} playerPos
+   * @param {Vector3|null} [forward] camera XZ forward for cone preference
    * @returns {boolean}
    */
-  acquireNearest(playerPos) {
+  acquireNearest(playerPos, forward = null) {
+    return this.acquireBest(playerPos, forward);
+  }
+
+  /**
+   * Best target: distance × frontal cone (directional awareness).
+   * @param {Vector3} playerPos
+   * @param {Vector3|null} [forward]
+   * @returns {boolean}
+   */
+  acquireBest(playerPos, forward = null) {
     const list = this.listTargetsInRange(playerPos);
     if (!list.length) return false;
-    const t = list[0];
-    this._cycleIndex = 0;
-    this.setTarget(t);
+    let best = list[0];
+    let bestS = this._scoreTarget(best, playerPos, forward);
+    for (let i = 1; i < list.length; i++) {
+      const s = this._scoreTarget(list[i], playerPos, forward);
+      if (s < bestS) {
+        bestS = s;
+        best = list[i];
+      }
+    }
+    // Order cycle list by score for Tab
+    list.sort(
+      (a, b) =>
+        this._scoreTarget(a, playerPos, forward) - this._scoreTarget(b, playerPos, forward)
+    );
+    this._cycleList = list;
+    this._cycleIndex = list.findIndex((t) => t.id === best.id);
+    this.setTarget(best);
+    this.softLockEnabled = true;
     return true;
   }
 
   /**
-   * Tab / Shift+Tab soft-lock cycle (grudge-combat-targeting style).
+   * Tab / Shift+Tab soft-lock cycle — directional order when possible.
    * @param {Vector3} playerPos
    * @param {boolean} [reverse]
+   * @param {Vector3|null} [forward]
    * @returns {boolean}
    */
-  cycleTarget(playerPos, reverse = false) {
+  cycleTarget(playerPos, reverse = false, forward = null) {
     const list = this.listTargetsInRange(playerPos);
     if (!list.length) {
       this.clearTarget();
@@ -326,7 +376,11 @@ export class CombatFocus extends EventEmitter {
       this.emit('toast', 'No targets in range');
       return false;
     }
-    // Find current in list
+    list.sort(
+      (a, b) =>
+        this._scoreTarget(a, playerPos, forward) - this._scoreTarget(b, playerPos, forward)
+    );
+    this._cycleList = list;
     let idx = list.findIndex((t) => t.id === this.selectedTarget?.id);
     if (idx < 0) idx = reverse ? 0 : -1;
     idx = reverse
