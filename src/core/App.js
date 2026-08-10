@@ -1153,12 +1153,17 @@ export class App {
     document.body?.classList.toggle('focus-aim', !!focusOn);
     if (!focusOn) {
       if (document.pointerLockElement) document.exitPointerLock?.();
-      setCursorIntent('default', { force: true });
+      setCursorIntent('select', {
+        force: true,
+        label: 'Free aim',
+        lmb: 'Select target',
+        rmb: 'Focus look (toggle)'
+      });
       this.hud.setCrosshairVisible?.(false);
       return;
     }
-    // Hide cursor; screen-center crosshair is the reticle
-    setCursorIntent('none', { force: true });
+    // Hide cursor + tip; screen-center crosshair is the reticle
+    setCursorIntent('none', { force: true, tooltip: false });
     if (this.canvas) {
       this.canvas.style.cursor = 'none';
       // Pointer lock (user gesture = RMB focus toggle). Fallback: cursor none only.
@@ -1172,13 +1177,20 @@ export class App {
   }
 
   /**
-   * Unlocked cursor: harvest node / loot proximity drives pirate intent.
+   * Unlocked cursor: harvest / loot / target drives pirate intent + LMB/RMB tip.
+   * Cursors are ~28px (baked). Focus lock hides cursor (crosshair only).
    */
   _updateInteractCursor() {
-    if (this.combatFocus?.focusEnabled) return;
+    if (this.combatFocus?.focusEnabled) {
+      setCursorIntent('none', { force: true, tooltip: false });
+      return;
+    }
     if (document.pointerLockElement) return;
     const pos = this.character?.position || this.character?.root?.position;
     if (!pos) return;
+
+    const lmbMode = this._lmbMode?.() || 'select';
+    const rmbAlways = 'Focus look (toggle)';
 
     // World drop in pickup range
     if (this.worldDrops?.items?.length) {
@@ -1193,7 +1205,12 @@ export class App {
         }
       }
       if (nearDrop) {
-        setCursorIntent('pickup');
+        setCursorIntent('pickup', {
+          label: 'Loot drop',
+          lmb: lmbMode === 'attack' ? 'Attack' : 'Select drop',
+          rmb: rmbAlways,
+          extra: 'F · pick up'
+        });
         return;
       }
     }
@@ -1202,7 +1219,13 @@ export class App {
     if (this.worldHarvest?.nearestAlive) {
       const hit = this.worldHarvest.nearestAlive(pos, HARVEST_RANGE_M);
       if (hit?.node) {
-        setCursorIntent(intentFromInteractKind(hit.node.def?.classId || 'harvest'));
+        const name = hit.node.def?.label || hit.node.def?.classId || 'node';
+        setCursorIntent('harvest', {
+          label: name,
+          lmb: lmbMode === 'draw' ? 'Draw path' : 'Select node',
+          rmb: rmbAlways,
+          extra: `F · harvest (${hit.dist.toFixed(1)} m)`
+        });
         return;
       }
     }
@@ -1210,11 +1233,40 @@ export class App {
     // Soft-lock hostile → attack cursor
     const t = this.combatFocus?.selectedTarget;
     if (t && (t.kind === 'hostile' || t.mesh?.userData?.trainingDummy)) {
-      setCursorIntent('attack');
+      setCursorIntent('attack', {
+        label: t.mesh?.userData?.displayName || t.mesh?.name || 'Hostile',
+        lmb: lmbMode === 'attack' ? 'Attack (focus on)' : 'Select target',
+        rmb: rmbAlways
+      });
       return;
     }
 
-    setCursorIntent('default');
+    // LMB mode drives default / draw / select tips
+    if (lmbMode === 'draw') {
+      setCursorIntent('draw', {
+        label: this.session?.freeriding ? 'Freeride cast' : 'Path draw',
+        lmb: this.session?.mode === 'walk' && !this.session?.freeriding
+          ? 'Draw windsurf course'
+          : 'Draw cast path',
+        rmb: rmbAlways
+      });
+      return;
+    }
+    if (lmbMode === 'attack') {
+      setCursorIntent('slash', {
+        label: 'Combat',
+        lmb: 'Primary attack',
+        rmb: rmbAlways
+      });
+      return;
+    }
+
+    setCursorIntent('select', {
+      label: this.activityMode === 'harvest' ? 'Harvest mode' : 'Ready',
+      lmb: 'Select target',
+      rmb: rmbAlways,
+      extra: this.activityMode === 'harvest' ? 'Hold R · tools · F harvest' : 'Hold Q · mode'
+    });
   }
 
   /** Push honest name/race into HUD + tight bar. */

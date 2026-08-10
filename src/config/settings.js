@@ -443,8 +443,8 @@ export const settings = {
      * Melee still uses combat focus/select when not casting path.
      */
     freerideRangedCast: true,
-    /** Mesh art yaw (deg) relative to travel +Z — +90 = nose right-corrected at spawn */
-    boardArtYawDeg: 90,
+    /** Mesh art yaw (deg) relative to travel +Z — 180 = reverse (was backwards at 90) */
+    boardArtYawDeg: 180,
     /**
      * Equip contract: windsurf is a **back-slot vehicle** (same family as glider).
      * Deploy → parent seat + RideIK · E get off → board removed · land loco.

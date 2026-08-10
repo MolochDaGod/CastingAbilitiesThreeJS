@@ -18,7 +18,7 @@
     "file": "./windsurf_package.glb",
     "size": [2.8, 0.684, 1.815],
     "deckY": 0.06,
-    "artYawDeg": 90,
+    "artYawDeg": 180,
     "sockets": {
       "footL": [-0.2, 0.08, -0.28],
       "footR": [0.16, 0.08, 0.12],

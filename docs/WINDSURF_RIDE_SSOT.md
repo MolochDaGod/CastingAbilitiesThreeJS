@@ -91,7 +91,7 @@ Sockets (manifest SI, **travel frame +Z forward**):
 | `sailRail` | optional primary · prefer BoomR for R hand |
 | `deckCenter` | Seat / hip pad |
 
-**Art yaw:** `artYawDeg: 90` on mesh only (package +X → travel +Z). Sockets stay travel-frame.
+**Art yaw:** `artYawDeg: 180` on mesh only (board was backwards at 90°). Sockets stay travel-frame.
 
 ### Back-slot equip (equipment pattern)
 

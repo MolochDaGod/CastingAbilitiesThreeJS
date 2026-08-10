@@ -154,14 +154,13 @@ export class HoverboardRide {
       scene.name = 'RideMesh';
       // Fit package: keep author SI bake; ensure deck roughly at y=0 if needed
       this._normalizeMesh(scene, pack);
-      // Art yaw: package often authored +X forward; travel frame is +Z.
-      // +90° right (from rider facing travel) points board the correct way at spawn.
+      // Art yaw vs travel +Z. Package was 180° off at 90 — product wants 180° flip.
       const artYawDeg =
         Number.isFinite(pack.artYawDeg)
           ? pack.artYawDeg
           : Number.isFinite(settings.walk?.boardArtYawDeg)
             ? settings.walk.boardArtYawDeg
-            : 90;
+            : 180;
       scene.rotation.y = (artYawDeg * Math.PI) / 180;
       this.boardRoot.add(scene);
       this.mesh = scene;
