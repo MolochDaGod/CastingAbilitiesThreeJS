@@ -42,7 +42,7 @@ Weapon mesh swap → `animPackForLoadout` → `setAnimPack` → rebind mobility.
 | Pack | Owns | Notes |
 |------|------|--------|
 | `magic` | idle, cast, walk, run, jump | Staff; prod idle has Hand tracks |
-| `sword_shield` | idle, attack, block, walk, run, jump | Melee |
+| `sword_shield` | idle, **attack1–3**, **finisher**, **finisherAir**, attack (finisher alias), block, walk, run, jump | Melee combo + jump-dash finisher — `docs/MELEE_COMBO_SSOT.md` |
 | `longbow` | idle, attack, walk, run, jump, dodge* | Dodges also in combat_mobility |
 | `combat_mobility` | roll L/R/F/B, slide, dodge L/R/F/B, parry | Shared; Ghost Rider rolls first |
 | `locomotion_8way` | optional overlay | Bind only if CDN clips exist |
@@ -56,7 +56,7 @@ Clip URL candidates: `bakedClipUrlsForRole` — `prod:…` then open baked.
 | Family | Roles | API |
 |--------|-------|-----|
 | **gait** | idle, walk, run, jump | `setGait(0\|1\|2, sprinting)` · `playJump` |
-| **combat** | cast, attack, block, parry | `playWeaponCombat` · `requestOneShot` · `playParry` |
+| **combat** | cast, attack1–3, finisher, finisherAir, attack, block, parry | `playMeleeAttack` · `playWeaponCombat` · `requestOneShot` · `playParry` |
 | **mobility** | dodge*, roll*, slide | `playDodge` · `playRoll` · `playSlide` + DRC input |
 | **utility** | anything else | `playLibraryClip(role)` |
 

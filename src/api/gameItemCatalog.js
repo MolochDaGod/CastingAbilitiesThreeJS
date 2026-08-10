@@ -354,7 +354,7 @@ export function exportItemPrefabSnapshot(row) {
     lab: {
       meshSlot: row.meshSlot || null,
       animPack: row.animPack || null,
-      liveLab: 'https://casting.grudge-studio.com/',
+      liveLab: 'https://casting.grudge.studio/',
       source: row.source
     },
     production: {

@@ -59,7 +59,9 @@ export const EFFECT_MESH_IDS = Object.freeze([
   'orb-fire',
   'orb-ember',
   'orb-core',
-  'orb-flare'
+  'orb-flare',
+  'summon-fire-fist',
+  'summon-ice-shard'
 ]);
 
 export const EFFECT_KINDS = Object.freeze([
@@ -82,7 +84,9 @@ export const MESH_PATH_HINT = Object.freeze({
   'orb-fire': 'models/vfx/orbs/orb-fire.glb',
   'orb-ember': 'models/vfx/orbs/orb-ember.glb',
   'orb-core': 'models/vfx/orbs/orb-core.glb',
-  'orb-flare': 'models/vfx/orbs/orb-flare.glb'
+  'orb-flare': 'models/vfx/orbs/orb-flare.glb',
+  'summon-fire-fist': 'models/vfx/summons/summon-fire-fist.glb',
+  'summon-ice-shard': 'models/vfx/summons/summon-ice-shard.glb'
 });
 
 /**

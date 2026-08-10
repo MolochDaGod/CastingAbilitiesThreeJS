@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "generated": "2026-08-08T21:52:59.399Z",
+  "clips": [
+    {
+      "role": "attack1",
+      "file": "intoout.glb",
+      "duration": 1.7000000476837158,
+      "tracks": 75,
+      "source": "intoout.glb"
+    },
+    {
+      "role": "attack2",
+      "file": "st1able-sword-inward-slash.glb",
+      "duration": 2.2333333492279053,
+      "tracks": 75,
+      "source": "st1able-sword-inward-slash.glb"
+    },
+    {
+      "role": "attack3",
+      "file": "11upward-thrust.glb",
+      "duration": 2.366666555404663,
+      "tracks": 75,
+      "source": "11upward-thrust.glb"
+    },
+    {
+      "role": "finisher-air",
+      "file": "dropto-target.glb",
+      "duration": 0.8333333134651184,
+      "tracks": 75,
+      "source": "dropto-target.glb"
+    },
+    {
+      "role": "attack1-combo",
+      "file": "one-hand-combo-hit1.json",
+      "duration": 1.5222222010294597,
+      "tracks": 16,
+      "source": "one-hand-sword-combo.glb"
+    },
+    {
+      "role": "attack2-combo",
+      "file": "one-hand-combo-hit2.json",
+      "duration": 1.5222222010294597,
+      "tracks": 16,
+      "source": "one-hand-sword-combo.glb"
+    },
+    {
+      "role": "attack3-combo",
+      "file": "one-hand-combo-hit3.json",
+      "duration": 1.5222222010294595,
+      "tracks": 16,
+      "source": "one-hand-sword-combo.glb"
+    },
+    {
+      "role": "combo-full",
+      "file": "one-hand-sword-combo.glb",
+      "duration": 4.566666603088379,
+      "tracks": 75,
+      "source": "one-hand-sword-combo.glb"
+    },
+    {
+      "role": "2h-combo",
+      "file": "two-hand-sword-combo.glb",
+      "duration": 3.299999952316284,
+      "tracks": 75,
+      "source": "two-hand-sword-combo.glb"
+    },
+    {
+      "role": "dual-combo",
+      "file": "dual-weapon-combo.glb",
+      "duration": 3.6666667461395264,
+      "tracks": 75,
+      "source": "dual-weapon-combo.glb"
+    },
+    {
+      "role": "spear",
+      "file": "spear1.glb",
+      "duration": 3.299999952316284,
+      "tracks": 75,
+      "source": "spear1.glb"
+    },
+    {
+      "role": "greataxe",
+      "file": "greataxe.glb",
+      "duration": 5.4666666984558105,
+      "tracks": 75,
+      "source": "greataxe.glb"
+    },
+    {
+      "role": "slash",
+      "file": "sword-and-shield-slash.glb",
+      "duration": 1.5333333015441895,
+      "tracks": 75,
+      "source": "sword-and-shield-slash.glb"
+    },
+    {
+      "role": "slash-in",
+      "file": "insword-and-shield-slash.glb",
+      "duration": 1.7000000476837158,
+      "tracks": 75,
+      "source": "insword-and-shield-slash.glb"
+    }
+  ]
+}

@@ -36,14 +36,32 @@ export const settings = {
     sprintMul: 1.65,
     /** Jump (Space) — SI m/s */
     jumpVelocity: 5.4,
-    /** Second air jump strength */
+    /** Second air jump (frontflip) vertical m/s */
     doubleJumpVelocity: 5.0,
     /** Max jumps before needing ground (1 = single, 2 = double) */
     maxJumps: 2,
-    /** Backflip (S+Space on 2nd jump): reverse dash m/s */
-    backflipSpeed: 4.2,
+    /**
+     * Air mobility (2nd jump):
+     *  - Space alone → quick **frontflip** (standard double jump)
+     *  - S+Space → hard stop + **backflip** (more horizontal) + hang time for air attacks
+     */
+    frontflipDuration: 0.48,
+    frontflipSpeed: 3.2,
+    /** Backflip reverse dash m/s (horizontal-heavy) */
+    backflipSpeed: 6.8,
+    /** Backflip upward kick (keep lower than double jump so arc is flat) */
+    backflipVertical: 2.4,
     /** Seconds for procedural backflip spin */
-    backflipDuration: 0.55,
+    backflipDuration: 0.52,
+    /** Hard zero XZ velocity before reverse dash (s) */
+    backflipHardStop: 0.1,
+    /**
+     * Gravity scale while hang is active (1 = normal −9.81).
+     * Lower = float longer so air attacks can aim.
+     */
+    backflipHangGravity: 0.32,
+    /** Hang duration after backflip starts (s) */
+    backflipHangDuration: 1.15,
     /** Coyote / buffer feel */
     jumpBufferMs: 120,
     /** Double-tap window for AA / DD / WW dodges (ms) */
@@ -197,6 +215,33 @@ export const settings = {
     tipOffset: 0.55,
     /** hit-frame delay after attack start (s) */
     hitFrameDelay: 0.18
+  },
+
+  /**
+   * Sword & shield melee combo (3 light clicks) + finisher.
+   * Current CDN “sword and shield attack” is the finisher (jump/dash), not light.
+   * @see docs/MELEE_COMBO_SSOT.md
+   */
+  meleeCombo: {
+    /** max chain length (click 1→2→3) */
+    hits: 3,
+    /** seconds after a hit to accept next combo click */
+    chainWindow: 0.85,
+    /** light residual range m (hit 1–3) */
+    lightRange: 2.6,
+    /** finisher residual range m */
+    finisherRange: 5.5,
+    /**
+     * Large MM toward target → force finisher (100 MM = 1 m).
+     * Sprint toward focus or recent forward impulse above this MM.
+     */
+    finisherMm: 280,
+    /** body lunge MM during ground finisher */
+    finisherLungeMm: 320,
+    /** air finisher drop MM toward aim (horizontal) */
+    airLungeMm: 180,
+    /** residual range m while airborne finisher */
+    airFinisherRange: 6.5
   },
 
   /* ------------------------------------------------------------------ */
@@ -379,7 +424,9 @@ export const settings = {
     freeride: true,
     freerideSpeed: 7.2, // m/s max
     freerideAccel: 4.5, // m/s²
-    freerideDrag: 1.8, // m/s² coast
+    /** Water coast: low drag so releasing W does not stop immediately */
+    freerideDrag: 0.55, // m/s² coast (was 1.8 — felt like brakes)
+    freerideBrakeDrag: 2.4, // m/s² when holding S
     freerideTurnRate: 1.85, // rad/s at full A/D
     freerideJumpVy: 5.8, // Space hop off waves
     freerideGravity: 14,
@@ -391,13 +438,25 @@ export const settings = {
     softBodyLean: 0.12,
     /** Allow 1–4 / F skills while riding (ranged / staff) */
     skillsWhileRide: true,
-    /** Equip contract: windsurf is a back-slot deployable */
+    /**
+     * Freeride + ranged/staff: LMB path cast in **non-focus** mode (unlocked cursor).
+     * Melee still uses combat focus/select when not casting path.
+     */
+    freerideRangedCast: true,
+    /** Mesh art yaw (deg) relative to travel +Z — +90 = nose right-corrected at spawn */
+    boardArtYawDeg: 90,
+    /**
+     * Equip contract: windsurf is a **back-slot vehicle** (same family as glider).
+     * Deploy → parent seat + RideIK · E get off → board removed · land loco.
+     * @see docs/WINDSURF_RIDE_SSOT.md
+     */
     backSlot: 'windsurf',
 
     /* --- deck / IK --- */
     hover: 0.06,
     standOffset: 0.02,
-    hipDrop: 0.12,
+    /** Hip drop for bent knees on deck (absolute vs bind Y) */
+    hipDrop: 0.14,
     debugSockets: false,
     seatSink: 0.0,
     bob: 0.04,
@@ -440,20 +499,91 @@ export const settings = {
   aim: {
     enabled: true,
     turnSpeed: 14,
-    /** Focus mode: body yaws with camera (rad/s max) */
-    focusTurnSpeed: 22,
+    /**
+     * Focus mode: max body yaw rate toward camera (rad/s).
+     * Keep low — high values make mouse look whip the body (felt “turn too easily”).
+     */
+    focusTurnSpeed: 6.5,
+    /**
+     * Deadzone (deg): body does not turn until camera yaw differs by this much.
+     * Stops micro look from spinning the character.
+     */
+    focusTurnDeadzoneDeg: 16,
+    /**
+     * When true, body only yaws with camera while WASD moving (look freer when idle).
+     * Default false: always lag-follow with deadzone (predictable TPS).
+     */
+    focusTurnOnlyWhenMoving: false,
     /** Free aim: A/D tank turn rate (rad/s) */
     tankTurnSpeed: 2.6,
     sprintTurnSpeed: 18,
     moveRelativeToAim: true,
     cameraFollowAim: true,
     cameraYawLag: 0.12,
+    /**
+     * World ground ring under aim point.
+     * false = never. true = only when placement/AoE/path skill needs ground aim
+     * (not for basic focus look or pure projectile lock).
+     */
     groundMarker: true,
+    /**
+     * Also show ground ring while drawing an LMB path (staff place/wall/aoe).
+     */
+    groundMarkerOnPathDraw: true,
+    /** Screen-center HUD crosshair (focus mode) — separate from ground ring */
     crosshair: true,
     faceTravelWhenMoving: false,
-    /** Soft lock blend toward selected target (not hard snap) */
+    /**
+     * Soft lock ON while focus is enabled (auto-acquire nearest if none).
+     * Magnetic aim blend toward selected target — not hard camera snap.
+     */
+    softLockOnFocus: true,
+    /** Soft lock blend toward selected target (focus aim cone) */
     softLockBlend: 0.55,
-    softLockRange: 22
+    softLockRange: 28,
+    /** Tab cycles soft-lock targets (Shift+Tab previous) */
+    tabCycleTargets: true,
+    /**
+     * Focus aim — snow-brawl style (camera ray → hit → launch dir).
+     * @see discourse snow-brawl · docs/COMBAT_CAMERA_FOCUS_SSOT.md
+     */
+    /** Max soft-lock magnetic angle from crosshair (deg) — keeps accuracy */
+    softLockMaxAngleDeg: 18,
+    /** Camera ray length (m) when no ground/mesh hit */
+    aimRayFar: 80,
+    /** Projectile aim height on ground hits (m, SI chest) */
+    projectileAimHeight: 1.15,
+    /** Spawn height above feet for launch origin */
+    spawnHeight: 1.35,
+    /** Spawn nudge along body forward so mesh clears torso */
+    spawnForwardM: 0.55,
+    /** Hand lateral offset (m) for L/R throw alternate */
+    handOffsetM: 0.28,
+    /** Use full 3D launch vector for skills/projectiles in focus */
+    use3dLaunch: true
+  },
+
+  /**
+   * Player control preferences (Editor → Controls).
+   * Default: Shift and RMB **toggle** on press (not hold).
+   */
+  controls: {
+    /**
+     * true = press Shift toggles sprint on/off
+     * false = hold Shift to sprint
+     */
+    sprintToggle: true,
+    /**
+     * true = short RMB click toggles focus (current)
+     * false = hold RMB to stay in focus (release = off)
+     */
+    focusToggle: true,
+    /** Show on-screen hotkey chips under tight bar */
+    showHotkeyChips: true,
+    /** Invert look Y in focus/TPS */
+    invertLookY: false,
+    /** Mouse look sensitivity scale (multiplies camera.orbitSensitivity) */
+    lookSensitivity: 1.0
   },
 
   /* ------------------------------------------------------------------ */
@@ -461,30 +591,52 @@ export const settings = {
   /* ------------------------------------------------------------------ */
   camera: {
     /**
-     * Fortnite/WoW blend TPS (ref: MolochDaGod/grudge-third-person-controller)
-     * + soft-lock look (grudge-combat-targeting). Orbit sandbox unchanged.
+     * Fortnite TPS from grudge-third-person-controller (CAMERA_MODES.md):
+     *   distance 5.5 · height ~1.8 · shoulder 0.8 · FOV 85 combat / 70 free
+     * Soft-lock look: grudge-combat-targeting. Orbit sandbox unchanged.
      * @see docs/COMBAT_CAMERA_FOCUS_SSOT.md
+     * @see MolochDaGod/grudge-third-person-controller
      */
-    distance: 6.2,
-    minDistance: 2.8,
-    maxDistance: 18,
-    zoomSpeed: 0.85,
+    /** Free / equip distance (m) — closer than old 6.2, still not ADS */
+    distance: 6.0,
+    /** Focus combat distance (Fortnite default 5.5) */
+    focusDistance: 5.5,
+    minDistance: 2.5,
+    maxDistance: 12,
+    zoomSpeed: 0.6,
     zoomDamping: 0.002,
     minPolar: 0.22,
-    maxPolar: 1.35,
-    fov: 58,
-    targetHeight: 1.45,
+    maxPolar: 1.4,
+    /** Free / equip FOV (WoW-ish 70°) */
+    fov: 70,
+    /** Focus / TPS FOV — Fortnite-wide awareness (85°) */
+    actionFov: 85,
+    /** FOV damp toward action/free */
+    fovDamping: 0.14,
+    /** Look-at height (m) — Fortnite lower shoulder (~1.8 human chest/head band) */
+    targetHeight: 1.55,
     damping: 0.06,
     autoFrame: 0.35,
-    tpsDamping: 0.16,
+    tpsDamping: 0.14,
     tpsDistanceScale: 1.0,
-    /** Over-the-shoulder offset (m) */
+    /** Free shoulder offset (m) */
     shoulderOffset: 0.72,
-    tpsDefaultPitch: 0.38,
-    minPitch: 0.08,
-    maxPitch: 1.25,
-    softLockLook: 0.28,
-    orbitSensitivity: 0.0038
+    /** Focus shoulder — Fortnite tighter 0.8 */
+    focusShoulderOffset: 0.8,
+    tpsDefaultPitch: 0.42,
+    minPitch: 0.12,
+    maxPitch: 1.35,
+    /**
+     * Soft-lock camera look bias 0..1 when focus + target (not hard snap).
+     * Higher when focused — soft lock is ON in focus.
+     */
+    softLockLook: 0.42,
+    softLockLookFocus: 0.55,
+    orbitSensitivity: 0.0042,
+    /** Shoulder: -1 left · 0 center · +1 right */
+    shoulderSide: 1,
+    /** Extra pitch bias when sprinting */
+    sprintPitchBias: 0.04
   },
 
   /* ------------------------------------------------------------------ */

@@ -181,6 +181,9 @@ export class RideIK {
       )
     };
     this.hips = pickBone(map, 'Bip001 Pelvis', 'Bip001_Pelvis', 'Pelvis', 'Hips', 'mixamorig:Hips');
+    // Bind local hip Y — grudge packs strip position tracks; mixer never restores this.
+    // Absolute offset only (never accumulate hips.position.y -= each frame).
+    this._hipBindY = this.hips ? this.hips.position.y : 0;
 
     const legs =
       this.chains.leftLeg.upper &&
@@ -198,7 +201,8 @@ export class RideIK {
         Rfoot: this.chains.rightLeg.end?.name,
         Lhand: this.chains.leftArm.end?.name,
         Rhand: this.chains.rightArm.end?.name,
-        hips: this.hips?.name
+        hips: this.hips?.name,
+        hipBindY: this._hipBindY
       });
     } else {
       console.warn('[RideIK] no usable chains on kit');
@@ -247,11 +251,15 @@ export class RideIK {
     const fw = this.footWeight * w;
     const hw = this.handWeight * w;
 
-    // Soft hip drop so knees can bend onto deck straps
+    // Soft hip drop so knees can bend onto deck straps.
+    // MUST be absolute vs bind — rotation-only clips never rewrite bone.position.
     const hipDrop = opts.hipDrop ?? 0.1;
-    if (this.hips && hipDrop > 0 && fw > 0.05) {
-      this.hips.position.y -= hipDrop * fw * 0.55;
+    if (this.hips && fw > 0.05) {
+      const bindY = Number.isFinite(this._hipBindY) ? this._hipBindY : 0;
+      this.hips.position.y = bindY - hipDrop * fw * 0.55;
       this.hips.updateMatrixWorld(true);
+    } else if (this.hips && this.weight < 0.05 && Number.isFinite(this._hipBindY)) {
+      this.hips.position.y = this._hipBindY;
     }
 
     const forward = opts.boardForward || _fwd;
@@ -276,27 +284,32 @@ export class RideIK {
       this._blendSolve(this.chains.rightLeg, this.targets.footR, _pole, fw);
     }
 
-    // Hands: R → sailRail (boom), L → sailBoomL (or sailBoomR / sailRail fallback)
+    // Hands: R → starboard boom, L → port boom (never same point — prevents arm cross)
     const handRTarget =
-      this.targets.sailRail || this.targets.sailBoomR || this.targets.sailBoomL;
+      this.targets.sailBoomR || this.targets.sailRail || this.targets.sailBoomL;
     const handLTarget =
-      this.targets.sailBoomL || this.targets.sailBoomR || this.targets.sailRail;
+      this.targets.sailBoomL || this.targets.sailRail || this.targets.sailBoomR;
 
+    // Elbows out + slightly down so grip looks natural (boom at ~chest/shoulder)
     if (handRTarget && this.chains.rightArm.upper) {
       _pole
         .copy(leftDir)
-        .multiplyScalar(-0.75)
-        .addScaledVector(_up, -0.5)
-        .addScaledVector(forward, -0.15);
+        .multiplyScalar(-1.1)
+        .addScaledVector(_up, -0.35)
+        .addScaledVector(forward, 0.25);
       this._blendSolve(this.chains.rightArm, handRTarget, _pole, hw);
     }
-    if (handLTarget && this.chains.leftArm.upper) {
+    if (
+      handLTarget &&
+      this.chains.leftArm.upper &&
+      (!handRTarget || handLTarget.distanceToSquared(handRTarget) > 0.01)
+    ) {
       _pole
         .copy(leftDir)
-        .multiplyScalar(0.75)
-        .addScaledVector(_up, -0.5)
-        .addScaledVector(forward, -0.15);
-      this._blendSolve(this.chains.leftArm, handLTarget, _pole, hw * 0.9);
+        .multiplyScalar(1.1)
+        .addScaledVector(_up, -0.35)
+        .addScaledVector(forward, 0.25);
+      this._blendSolve(this.chains.leftArm, handLTarget, _pole, hw * 0.95);
     }
   }
 

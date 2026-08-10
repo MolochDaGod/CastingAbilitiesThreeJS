@@ -1,0 +1,210 @@
+/**
+ * Warlords Dev Island UI — inventory shells + button atlas + mini bag.
+ * Textures via CSS vars from warlordsUiSkin.js.
+ */
+
+/* ── Mini inventory (DropBag / quick bag) ───────────────────────── */
+
+.drop-bag.wl-mini-inv {
+  --wl-slot: 40px;
+  bottom: 120px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(720px, calc(100vw - 24px));
+  max-height: min(52vh, 420px);
+  background:
+    linear-gradient(180deg, rgba(20, 12, 8, 0.55), rgba(12, 8, 6, 0.72)),
+    var(--wl-mini-inv-shell) center top / 100% auto no-repeat,
+    #1a120e;
+  border: 2px solid #5c3d28;
+  border-radius: 10px;
+  box-shadow:
+    0 0 0 1px #2a1a10,
+    0 16px 48px rgba(0, 0, 0, 0.65),
+    inset 0 0 40px rgba(0, 0, 0, 0.35);
+  backdrop-filter: none;
+  color: #e8d4b8;
+}
+
+.drop-bag.wl-mini-inv .drop-bag__head {
+  border-bottom: 1px solid #6b4a32;
+  background: linear-gradient(180deg, rgba(80, 50, 30, 0.55), transparent);
+  padding: 10px 14px 8px;
+}
+
+.drop-bag.wl-mini-inv .drop-bag__head h3 {
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #f0dcc0;
+  text-shadow: 0 1px 2px #000;
+}
+
+.drop-bag.wl-mini-inv .drop-bag__close {
+  color: #c9a87a;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid #6b4a32;
+}
+
+.drop-bag.wl-mini-inv .drop-bag__close:hover {
+  color: #fff;
+  background: rgba(120, 60, 30, 0.5);
+}
+
+.drop-bag.wl-mini-inv .drop-bag__hint {
+  color: #a89070;
+  margin: 4px 14px 2px;
+}
+
+/* 9×4 bag grid (matches miniinventory.png) */
+.drop-bag.wl-mini-inv .drop-bag__grid {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  gap: 4px;
+  padding: 10px 14px 8px;
+  overflow: auto;
+  min-height: 160px;
+}
+
+.drop-bag.wl-mini-inv .drop-bag__slot {
+  min-height: var(--wl-slot);
+  aspect-ratio: 1;
+  border-radius: 4px;
+  border: 1px solid #3d2a1c;
+  background:
+    linear-gradient(160deg, rgba(40, 28, 18, 0.9), rgba(18, 12, 8, 0.95));
+  box-shadow:
+    inset 0 0 0 1px rgba(90, 60, 40, 0.45),
+    0 0 8px color-mix(in srgb, var(--tier, #9aa3ad) 40%, transparent);
+  padding: 3px;
+  gap: 0;
+}
+
+.drop-bag.wl-mini-inv .drop-bag__slot:hover {
+  border-color: #c9a87a;
+  filter: brightness(1.08);
+}
+
+.drop-bag.wl-mini-inv .drop-bag__slot img {
+  width: 70%;
+  height: 70%;
+  margin: auto;
+}
+
+.drop-bag.wl-mini-inv .drop-bag__name {
+  display: none; /* dense mini grid — tooltip title only */
+}
+
+.drop-bag.wl-mini-inv .drop-bag__qty {
+  font-size: 9px;
+  top: 1px;
+  right: 2px;
+}
+
+.drop-bag.wl-mini-inv .drop-bag__empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: #8a7058;
+  padding: 24px 8px;
+}
+
+/* Hotbar strip under bag (labels 1–10) */
+.drop-bag.wl-mini-inv .drop-bag__hotbar {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px 14px 12px;
+  border-top: 1px solid #4a3220;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.drop-bag.wl-mini-inv .drop-bag__hotbar-slot {
+  position: relative;
+  aspect-ratio: 1;
+  min-height: 36px;
+  border-radius: 3px;
+  border: 1px solid #3d2a1c;
+  background: rgba(12, 8, 6, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.drop-bag.wl-mini-inv .drop-bag__hotbar-slot::before {
+  content: attr(data-n);
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 8px;
+  color: #a89070;
+  background: #2a1c12;
+  padding: 0 3px;
+  border-radius: 2px;
+  border: 1px solid #5c4030;
+}
+
+/* ── Main Panel: inventory.png shell accent ─────────────────────── */
+
+.inv-panel--main.wl-inv-shell {
+  background:
+    linear-gradient(165deg, rgba(12, 20, 32, 0.92) 0%, rgba(8, 14, 22, 0.94) 100%),
+    var(--wl-inv-shell) right 12px bottom 12px / min(220px, 28%) auto no-repeat;
+}
+
+.inv-panel--main.wl-inv-shell .mp-bag-grid,
+.inv-panel--main.wl-inv-shell [data-bag-grid] {
+  /* denser slots with wood-tint when bag tab active */
+  gap: 6px;
+}
+
+.inv-panel--main.wl-inv-shell .mp-slot,
+.inv-panel--main.wl-inv-shell .inv-slot {
+  border-color: #3a5a78;
+  background:
+    linear-gradient(160deg, rgba(20, 32, 48, 0.9), rgba(10, 16, 24, 0.95));
+}
+
+/* ── Button atlas utility icons ─────────────────────────────────── */
+
+.wl-btn-icon {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  background-image: var(--wl-btn-atlas);
+  background-repeat: no-repeat;
+  background-size: 192px 192px;
+  image-rendering: pixelated;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+/* Common chrome (row-major 8×8 atlas) — pick cells used in HUD menus */
+.wl-btn-icon--close {
+  background-position: -168px 0; /* approx last cell row0 */
+}
+.wl-btn-icon--bag {
+  background-position: 0 0;
+}
+.wl-btn-icon--gear {
+  background-position: -144px -144px;
+}
+
+/* Admin / menu buttons with wood + atlas */
+.admin-btn.wl-chrome,
+.hud__menu button.wl-chrome {
+  border-image: none;
+  border: 1px solid #5c4030;
+  background: linear-gradient(180deg, #3a2818, #24180e);
+  color: #f0dcc0;
+  image-rendering: auto;
+}
+
+.admin-btn.wl-chrome:hover,
+.hud__menu button.wl-chrome:hover {
+  border-color: #c9a87a;
+  filter: brightness(1.1);
+}

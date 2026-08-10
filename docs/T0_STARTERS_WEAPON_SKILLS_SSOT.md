@@ -44,7 +44,11 @@ Do **not** invent skill rows. Skills and stats come from ObjectStore / info host
 2. **I → Weapon** (loads `t0-weapons.json` live)  
 3. Equip **Apprentice Wand** or **Sapling Staff**  
 4. Combat **Q** · **1 / 2 / 3** = catalog slots  
-5. Slot 3: click alternate skill on list  
+5. **F** = weapon **primary** skill (slot 1 / starter attack) — same cast bar + prefab path as digits  
+6. Slot 3: click alternate skill on list  
+
+**Not F:** residual Getsuga default · class abilities (later).  
+**F resolve:** Showcase bind `f` → equipped weapon slot 0 → active tree slot 0.
 
 URL shortcuts: `?wand=1` · equip path always preferred.
 

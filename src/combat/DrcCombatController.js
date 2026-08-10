@@ -4,20 +4,27 @@ import {
   getMeleeStrikeSkill,
   setActiveSkillTree,
   setSkillKitPage,
-  skillBySlot
+  skillBySlot,
+  skillForFKey
 } from './drcSkills.js';
 import { settings } from '../config/settings.js';
 import { residualFromSettings } from '../vfx/effectPrefab.js';
 import { getSkillBinding } from './skillBindings.js';
 import { bindFromCatalogSkill, staffBindFor } from './staffWeaponSkillsBind.js';
 import { vfxIdForSkill, animRoleForSkill } from '../api/weaponSkillsCatalog.js';
-import { dodgeDistanceM } from './motionMath.js';
+import { dodgeDistanceM, mmToM, mToMm } from './motionMath.js';
 import {
   skillCastCosts,
   pathCastCosts,
   castIntensity
 } from './castResources.js';
 import { signatureForElement } from './staffSignatureSkills.js';
+import {
+  enrichSkillDelivery,
+  resolveDeliveryPose
+} from './skillDelivery.js';
+import { SkillProjectileSystem } from './SkillProjectileSystem.js';
+import { applyKnockback } from './hitReaction.js';
 
 const _origin = new Vector3();
 const _tip = new Vector3();
@@ -55,12 +62,24 @@ export class DrcCombatController {
     this.physics = opts.physics || null;
     this.vfx = opts.vfx || null;
     this.aim = opts.aim || null;
+    /** Mesh projectiles + contact force (fire/ice summons) */
+    this.projectiles =
+      opts.projectiles ||
+      (opts.scene
+        ? new SkillProjectileSystem({
+            scene: opts.scene,
+            vfx: this.vfx,
+            onHit: (hit) => this._onProjectileHit(hit)
+          })
+        : null);
     /** @type {import('./CombatFocus.js').CombatFocus|null} */
     this.combatFocus = opts.combatFocus || null;
     /** @type {import('../core/SessionState.js').SessionState|null} */
     this.sessionState = opts.sessionState || null;
     this.onToast = opts.onToast || (() => {});
     this.onSession = opts.onSession || (() => {});
+    /** Snow-brawl alternate hand for projectile spawn offset */
+    this._throwHand = 'right';
 
     /** @type {'equip'|'combat'} — mirrored in SessionState.drc */
     this.session = this.sessionState?.drc || 'combat';
@@ -68,7 +87,7 @@ export class DrcCombatController {
     /** Focus buff: until elapsed, spell damage mul (T0 Apprentice Wand Focus) */
     this._focusUntil = 0;
     this._focusMul = 1;
-    // Catalog starters: ?wand=1 Apprentice · ?sapling=1 Sapling Staff · ?arcane=1
+    // Catalog starters: ?wand=1 · ?sapling=1 · ?sword=1 Training Sword · ?arcane=1
     if (typeof location !== 'undefined') {
       if (/[?&]wand=1\b/.test(location.search)) {
         setActiveSkillTree('wand');
@@ -76,6 +95,10 @@ export class DrcCombatController {
       } else if (/[?&]sapling=1\b/.test(location.search)) {
         setActiveSkillTree('sapling');
         this.skills = getActiveSkills();
+      } else if (/[?&]sword=1\b/.test(location.search)) {
+        setActiveSkillTree('equipped');
+        this.skills = getActiveSkills();
+        this._pendingEquipId = 't0-sword';
       } else if (/[?&]arcane=1\b/.test(location.search)) {
         setActiveSkillTree('arcane');
         this.skills = getActiveSkills();
@@ -88,15 +111,43 @@ export class DrcCombatController {
     /** Mana pool (spells) — dual resource with stamina */
     this.mana = settings.drc?.manaMax ?? 100;
     this.maxMana = settings.drc?.manaMax ?? 100;
+    /** Health pool — real number (starts full; no fake regen UI when undamaged) */
+    this.maxHealth = settings.drc?.healthMax ?? 100;
+    this.health = this.maxHealth;
     this.elapsed = 0;
     /** Last path-cast intensity (for HUD / VFX) */
     this.lastCastIntensity = 1;
+
+    /**
+     * Active cast channel (cast bar + cast anim).
+     * @type {{
+     *   label: string,
+     *   element: string,
+     *   startedAt: number,
+     *   duration: number,
+     *   endsAt: number,
+     *   onComplete: () => void,
+     *   interruptible: boolean,
+     *   aim?: { x: number, y: number, z: number }
+     * }|null}
+     */
+    this._cast = null;
+    /** @type {((state: object|null) => void)|null} */
+    this.onCastBar = opts.onCastBar || null;
 
     this.moveSpeed = settings.drc?.moveSpeed ?? 3.6;
     this.sprintMul = settings.drc?.sprintMul ?? 1.65;
     this._moveX = 0;
     this._moveZ = 0;
     this._sprinting = false;
+    /** Toggle-sprint latch (when settings.controls.sprintToggle) */
+    this._sprintLatched = false;
+    /**
+     * Backtick (`) auto run / freeride sail — holds forward + sprint until toggled off.
+     * Same intent as Multiverse mvAutoTraverse.
+     */
+    this._autoTraverse = false;
+    this._wasShiftDown = false;
     this._yaw = 0;
     this._usePhysics = true;
 
@@ -105,9 +156,15 @@ export class DrcCombatController {
     this._wasJumpDown = false;
     this._grounded = true;
     this._airborne = false;
-    /** After backflip, keep reverse dash until land */
+    /** After backflip, reverse dash + hang window */
     this._backflipBoostT = 0;
     this._backflipDir = new Vector3();
+    this._backflipHardStopT = 0;
+    /** Look yaw held during backflip (camera does not whip reverse) */
+    this._flipHoldYaw = null;
+    this._hangT = 0;
+    this._frontflipBoostT = 0;
+    this._frontflipDir = new Vector3();
     /** @type {Map<string, number>} utility action max CD for HUD */
     this._cdMax = new Map();
 
@@ -183,26 +240,184 @@ export class DrcCombatController {
    * @param {Set<string>} keys InputManager.keys codes
    * @param {number} dt
    */
+  /**
+   * Projectile contact → knockback / hit reaction (physical results).
+   * @param {import('./SkillProjectileSystem.js').ProjectileHit} hit
+   */
+  _onProjectileHit(hit) {
+    // Soft-lock hostiles: if hit target is not self, still toast
+    const isSelf =
+      !hit.target ||
+      hit.target.kind === 'self' ||
+      hit.target.id === 'player';
+    if (isSelf || hit.target?.kind === 'hostile' || !hit.target) {
+      // Lab: apply knockback to player when testing self-hit or no target list
+      if (!hit.target || hit.target.kind === 'self' || hit.target.applyToPlayer) {
+        applyKnockback(
+          { character: this.character, physics: this.physics, drc: this },
+          {
+            forward: hit.forward,
+            knockbackMm: hit.knockbackMm,
+            knockupVy: hit.knockupVy,
+            playAnim: true
+          }
+        );
+      }
+    }
+    this.onToast?.(
+      `Hit · force ${hit.force?.toFixed?.(1) ?? hit.force} · ${hit.element || ''} · ${Math.round(hit.knockbackMm || 0)} MM`
+    );
+  }
+
+  /**
+   * Deploy skill by delivery pattern (over/under/around/projectile…).
+   * Catalog skills only — pattern inferred from skill row.
+   * @param {object} skill
+   * @param {{ origin: Vector3, forward: Vector3, aim?: Vector3 }} pose
+   */
+  _deploySkillDelivery(skill, pose) {
+    const enriched = enrichSkillDelivery(skill);
+    const pattern = enriched.delivery;
+    const phys = enriched.deliveryPhysics || {};
+
+    // Prefer snow-brawl launch origin from pose (chest + hand) when provided
+    if (pose?.origin) _origin.copy(pose.origin);
+    else this.character.getCastOrigin(_origin);
+    if (typeof this.character.getWeaponTip === 'function') {
+      this.character.getWeaponTip(_tip, settings.residual?.tipOffset ?? 0.55);
+    } else {
+      _tip.copy(_origin);
+    }
+
+    // 3D hit (focus) > soft-lock target > ground marker
+    const aimPt =
+      (this.aim?.valid && this.aim.hitPoint?.clone?.()) ||
+      pose.aim?.clone?.() ||
+      (this.aim?.valid && this.aim.point?.clone?.()) ||
+      this.character.position.clone().addScaledVector(pose.forward, skill.rangeM || 8);
+
+    const targetPt =
+      this.combatFocus?.selectedTarget?.point?.clone?.() || aimPt.clone();
+
+    const fwd3 =
+      pose.forward?.clone?.() ||
+      (this.aim?.forward3d?.lengthSq?.() > 1e-6
+        ? this.aim.forward3d.clone()
+        : null) ||
+      this.aim?.forward?.clone?.() ||
+      new Vector3(0, 0, 1);
+    if (fwd3.lengthSq() > 1e-8) fwd3.normalize();
+
+    const resolved = resolveDeliveryPose(pattern, {
+      casterPos: this.character.position.clone(),
+      castOrigin: _origin.clone(),
+      weaponTip: _tip.clone(),
+      aimPoint: aimPt,
+      targetPoint: targetPt,
+      forward: fwd3,
+      skyHeight: 8,
+      groundY: 0.05
+    });
+
+    // Hostiles as projectile contact targets (soft-lock)
+    const targets = [];
+    if (this.combatFocus?.selectedTarget?.point) {
+      targets.push({
+        id: this.combatFocus.selectedTarget.id,
+        point: this.combatFocus.selectedTarget.point.clone(),
+        mesh: this.combatFocus.selectedTarget.mesh,
+        kind: this.combatFocus.selectedTarget.kind || 'hostile'
+      });
+    }
+    // Aim point as soft target for lab (always)
+    targets.push({
+      id: 'aim',
+      point: resolved.target.clone(),
+      kind: 'aim'
+    });
+
+    // Cast tell VFX
+    if (enriched.castEffectId) {
+      this.vfx?.deploy?.(enriched.castEffectId, {
+        origin: resolved.origin.clone(),
+        forward: resolved.forward.clone(),
+        intensity: 0.9
+      });
+    }
+
+    if (pattern === 'toggle_aura' || pattern === 'around_caster' || pattern === 'around_target' || pattern === 'at_location') {
+      this.projectiles?.pulse?.({
+        origin: resolved.origin,
+        aoe: phys.aoe ?? 1.5,
+        force: phys.force,
+        knockbackMm: phys.knockbackMm,
+        knockupVy: phys.knockupVy,
+        element: enriched.element || enriched.abilityElement,
+        targets,
+        intensity: 1.1
+      });
+      return enriched;
+    }
+
+    if (pattern === 'weapon') {
+      this._fireMeleeResidual(skill, pose, {
+        rangeOverride: skill.rangeM,
+        hit: { kind: 'light', step: 0 }
+      });
+      return enriched;
+    }
+
+    // Traveling mesh projectile (fire fist / ice shard / holy tint)
+    if (this.projectiles && phys.meshKey !== 'residual') {
+      void this.projectiles.spawn({
+        origin: resolved.origin,
+        target: resolved.target,
+        forward: resolved.forward,
+        element: enriched.element || enriched.abilityElement || 'arcane',
+        meshUrl: enriched.summonMeshUrl,
+        speed: phys.speed,
+        gravity: phys.gravity,
+        contactRadius: phys.contactRadius,
+        life: phys.life,
+        force: phys.force,
+        knockbackMm: phys.knockbackMm,
+        knockupVy: phys.knockupVy,
+        aoe: phys.aoe,
+        size: phys.size,
+        targets,
+        explodeOnHit: phys.explodeOnHit !== false
+      });
+    }
+    return enriched;
+  }
+
   update(dt, keys) {
     this.elapsed += dt;
+    this.projectiles?.update?.(dt);
     // Dual resource regen (settings.drc)
     const staR = settings.drc?.staminaRegen ?? 18;
     const manaR = settings.drc?.manaRegen ?? 12;
     this.stamina = Math.min(this.maxStamina, this.stamina + dt * staR);
     this.mana = Math.min(this.maxMana, this.mana + dt * manaR);
 
+    // Cast channel tick (bar + complete) before loco so interrupt can cancel
+    this._tickCast(dt, keys);
+
     // Session gates (preferred) — land loco off while riding / equip / walk mode
     const g = this.gates;
+    const parentName = this.character.root?.parent?.name || '';
     const riding =
       g?.rideParented ||
       this.sessionState?.riding ||
       this.character._rideActive ||
       this.character._rideParented ||
       this.character.isRideParented ||
-      this.character.root?.parent?.name?.startsWith?.('socket_');
+      parentName === 'RideSeat' ||
+      parentName.startsWith('socket_');
     if (riding || (g && !g.landLoco)) {
       this.character.setGait?.(0, false);
       if (this.invuln > 0) this.invuln = Math.max(0, this.invuln - dt);
+      // Never write root.position while seat-parented (world coords would fling hero)
       // Skills still via useSkill when gates.combatSkills — no land move
       if (riding || !this.inCombat) return;
       if (g && !g.landLoco) return;
@@ -213,8 +428,8 @@ export class DrcCombatController {
     }
 
     const ctrlHeld = keys.has('ControlLeft') || keys.has('ControlRight');
-    // Shift **hold** = sprint
-    this._sprinting = keys.has('ShiftLeft') || keys.has('ShiftRight');
+    // Sprint: toggle (default) or hold — settings.controls.sprintToggle
+    this._updateSprint(keys);
 
     // I-frame timer (dodge sets this; other systems can extend)
     if (this.invuln > 0) this.invuln = Math.max(0, this.invuln - dt);
@@ -266,8 +481,8 @@ export class DrcCombatController {
     const focusOn = !!this.combatFocus?.focusEnabled;
     let ix = 0;
     let iz = 0;
-    if (keys.has('KeyW') || keys.has('ArrowUp')) iz -= 1;
-    if (keys.has('KeyS') || keys.has('ArrowDown')) iz += 1;
+    if (keys.has('KeyW') || keys.has('ArrowUp') || this._autoTraverse) iz -= 1;
+    if ((keys.has('KeyS') || keys.has('ArrowDown')) && !this._autoTraverse) iz += 1;
 
     if (focusOn) {
       // Strafe relative to camera (A/D don't turn body — camera yaw does)
@@ -335,12 +550,33 @@ export class DrcCombatController {
     // ── Jump / double-jump / S+Space backflip ─────────────────────────
     this._handleJump(dt, keys, moving);
 
-    // Backflip reverse dash override (second jump with S held)
-    if (this._backflipBoostT > 0) {
+    // Frontflip slight forward push
+    if (this._frontflipBoostT > 0) {
+      this._frontflipBoostT -= dt;
+      const sp = settings.drc?.frontflipSpeed ?? 3.2;
+      vx = this._frontflipDir.x * sp;
+      vz = this._frontflipDir.z * sp;
+    }
+
+    // Backflip: hard stop → reverse dash (horizontal-heavy)
+    if (this._backflipHardStopT > 0) {
+      this._backflipHardStopT -= dt;
+      vx = 0;
+      vz = 0;
+    } else if (this._backflipBoostT > 0) {
       this._backflipBoostT -= dt;
-      const sp = settings.drc?.backflipSpeed ?? 4.2;
+      const sp = settings.drc?.backflipSpeed ?? 6.8;
       vx = this._backflipDir.x * sp;
       vz = this._backflipDir.z * sp;
+    }
+
+    // Hang gravity window (after backflip — air attacks)
+    if (this._hangT > 0) {
+      this._hangT -= dt;
+      if (this._hangT <= 0) {
+        this.physics?.setGravityScale?.(1);
+        this._kinGravityScale = 1;
+      }
     }
 
     if (this.physics?.ready && this._usePhysics) {
@@ -351,13 +587,21 @@ export class DrcCombatController {
         this._jumpsLeft = settings.drc?.maxJumps ?? 2;
         this._airborne = false;
         this._backflipBoostT = 0;
+        this._backflipHardStopT = 0;
+        this._frontflipBoostT = 0;
+        this._hangT = 0;
+        this._flipHoldYaw = null;
+        this.physics?.setGravityScale?.(1);
         this.character.clearFlip?.();
+        this.character.clearAirJumpHold?.();
       } else {
         this._airborne = true;
+        // Keep jump pose blended while airborne (until flip/attack overrides)
+        this.character.holdAirJumpPose?.();
       }
     } else {
       // Kinematic fallback (no Rapier)
-      if (moving || this._backflipBoostT > 0) {
+      if (moving || this._backflipBoostT > 0 || this._frontflipBoostT > 0) {
         this.character.root.position.x += vx * dt;
         this.character.root.position.z += vz * dt;
       }
@@ -365,8 +609,26 @@ export class DrcCombatController {
     }
 
     // Gait: lock during jump/flip one-shots
+    // Focus: intelligent strafe — world move vs camera right/forward (not pure A/D only)
     if (!this.character._gaitLocked && this._grounded) {
-      this.character.setGait?.(moving ? (this._sprinting ? 2 : 1) : 0, this._sprinting);
+      if (!moving) {
+        this.character.setGait?.(0, false);
+      } else {
+        let strafe = null;
+        if (focusOn && moving) {
+          // lateral = move · cameraRight ; fwd = move · cameraFwd
+          const lat = _move.x * rx + _move.z * rz;
+          const fwd = _move.x * fx + _move.z * fz;
+          const absLat = Math.abs(lat);
+          const absFwd = Math.abs(fwd);
+          // Prefer side gait when lateral dominates or strong side component
+          if (absLat > 0.28 && absLat >= absFwd * 0.55) {
+            // KeyA → ix +1 maps to camera-left; lat sign matches move vs right
+            strafe = lat > 0 ? 'right' : 'left';
+          }
+        }
+        this.character.setGait?.(this._sprinting ? 2 : 1, this._sprinting, { strafe });
+      }
     } else if (!this._grounded && !this.character._gaitLocked) {
       // Air: keep last gait weight low — jump clip owns pose when present
       this.character.setGait?.(0, false);
@@ -382,15 +644,20 @@ export class DrcCombatController {
    * @param {boolean} moving
    */
   _updateFacingToAim(dt, moving) {
-    if (this._backflipBoostT > 0 && this._backflipDir.lengthSq() > 1e-6) {
-      this._yaw = Math.atan2(this._backflipDir.x, this._backflipDir.z);
-      this.character.setFacing(this._yaw);
+    // Backflip = setup move: keep facing look direction (do NOT snap body/cam 180°)
+    if (this.character?.isBackflip || (this._backflipBoostT > 0 && this._flipHoldYaw != null)) {
+      const hold =
+        this.character?._flipCameraHoldYaw ??
+        this._flipHoldYaw ??
+        this.character.facing;
+      this._yaw = hold;
+      this.character.setFacing(hold);
       return;
     }
     if (this._dodgeT > 0) return;
     const locked = this.character._gaitLocked;
     const st = this.character.animState;
-    if (locked && (st === 'dodge' || st === 'roll' || st === 'slide')) return;
+    if (locked && (st === 'dodge' || st === 'roll' || st === 'slide' || st === 'flip')) return;
 
     const focusOn = !!this.combatFocus?.focusEnabled;
     // Free aim: body yaw only from A/D tank turn in update() — do not follow camera/aim
@@ -399,28 +666,77 @@ export class DrcCombatController {
       return;
     }
 
-    // Focus: lock body yaw to camera forward (rotates with orbit)
+    // Focus: lag-follow camera yaw — do NOT snap body to every mouse twitch
+    if (settings.aim?.focusTurnOnlyWhenMoving && !moving) {
+      this._yaw = this.character.facing;
+      return;
+    }
     this.camera.getWorldDirection(_fwd);
     _fwd.y = 0;
     if (_fwd.lengthSq() < 1e-6) return;
     _fwd.normalize();
     const targetYaw = Math.atan2(_fwd.x, _fwd.z);
 
-    // Snappy follow so RMB orbit feels glued to the character
-    const turn = settings.aim?.focusTurnSpeed ?? 22;
     let cur = this.character.facing;
     let diff = targetYaw - cur;
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
+
+    // Deadzone: ignore small look offsets so camera pans without spinning body
+    const dead =
+      MathUtils.degToRad(settings.aim?.focusTurnDeadzoneDeg ?? 16);
+    if (Math.abs(diff) < dead) {
+      this._yaw = cur;
+      return;
+    }
+    // Pull only excess past deadzone (so we don't overshoot into twitchy center)
+    const sign = Math.sign(diff);
+    const excess = Math.abs(diff) - dead;
+    const turn = settings.aim?.focusTurnSpeed ?? 6.5;
     const maxStep = turn * dt;
-    if (Math.abs(diff) <= maxStep) cur = targetYaw;
-    else cur += Math.sign(diff) * maxStep;
+    const step = Math.min(excess, maxStep);
+    cur += sign * step;
     this._yaw = cur;
     this.character.setFacing(cur);
   }
 
   /**
-   * Edge-detect Space: ground jump, air double-jump, S+Space → backflip.
+   * Sprint: toggle on Shift press (default) or hold while Shift down.
+   * @param {Set<string>} keys
+   */
+  _updateSprint(keys) {
+    const shiftDown = keys.has('ShiftLeft') || keys.has('ShiftRight');
+    const toggle = settings.controls?.sprintToggle !== false;
+    if (toggle) {
+      if (shiftDown && !this._wasShiftDown) {
+        this._sprintLatched = !this._sprintLatched;
+        this.onToast?.(this._sprintLatched ? 'Sprint ON' : 'Sprint OFF');
+      }
+      this._sprinting = this._sprintLatched || this._autoTraverse;
+    } else {
+      this._sprinting = shiftDown || this._autoTraverse;
+      this._sprintLatched = false;
+    }
+    this._wasShiftDown = shiftDown;
+  }
+
+  /** Toggle ` auto run / freeride sail-row. */
+  toggleAutoTraverse() {
+    this._autoTraverse = !this._autoTraverse;
+    if (this._autoTraverse) this._sprintLatched = true;
+    this.onToast?.(this._autoTraverse ? 'Auto RUN/SAIL ON (`)' : 'Auto OFF (`)');
+    return this._autoTraverse;
+  }
+
+  isAutoTraverse() {
+    return !!this._autoTraverse;
+  }
+
+  /**
+   * Edge-detect Space:
+   *  - Ground → jump anim blend
+   *  - Air 2nd → frontflip (standard)
+   *  - Air 2nd + S → hard stop + horizontal backflip + hang (air attacks)
    * @param {number} dt
    * @param {Set<string>} keys
    * @param {boolean} moving
@@ -445,37 +761,79 @@ export class DrcCombatController {
     const wantBackflip = isSecond && holdS;
 
     if (wantBackflip) {
-      // Double jump backflip: reverse along current facing, spin, jump up
-      const yaw = this.character.facing;
-      this._backflipDir.set(-Math.sin(yaw), 0, -Math.cos(yaw));
-      this._backflipBoostT = cfg.backflipDuration ?? 0.55;
-      const jv = cfg.doubleJumpVelocity ?? 5.0;
-      if (this.physics?.ready) this.physics.jump(jv);
-      else this._kinVy = jv;
-      this.character.playBackflip?.(cfg.backflipDuration ?? 0.55);
+      // Hard stop → reverse horizontal boost · keep look yaw (setup for air attack)
+      this.camera.getWorldDirection(_fwd);
+      _fwd.y = 0;
+      if (_fwd.lengthSq() < 1e-6) {
+        const yaw0 = this.character.facing;
+        _fwd.set(Math.sin(yaw0), 0, Math.cos(yaw0));
+      } else _fwd.normalize();
+      // Hold look: do not face reverse
+      this._flipHoldYaw = Math.atan2(_fwd.x, _fwd.z);
+      this._backflipDir.set(-_fwd.x, 0, -_fwd.z);
+      this._backflipHardStopT = cfg.backflipHardStop ?? 0.1;
+      this._backflipBoostT = cfg.backflipDuration ?? 0.52;
+      this._frontflipBoostT = 0;
+      const jv = cfg.backflipVertical ?? 2.4;
+      if (this.physics?.ready) {
+        this.physics.zeroVerticalVelocity?.();
+        this.physics.jump(jv);
+        this.physics.setGravityScale?.(cfg.backflipHangGravity ?? 0.32);
+      } else {
+        this._kinVy = jv;
+        this._kinGravityScale = cfg.backflipHangGravity ?? 0.32;
+      }
+      this._hangT = cfg.backflipHangDuration ?? 1.15;
+      this.character.playBackflip?.(cfg.backflipDuration ?? 0.52, {
+        holdYaw: this._flipHoldYaw
+      });
+      this.character.setFacing(this._flipHoldYaw);
+      this._yaw = this._flipHoldYaw;
       this._jumpsLeft = 0;
       this._grounded = false;
-      this.onToast?.('Backflip');
+      this._airborne = true;
+      this.onToast?.('Backflip · camera hold · air setup');
       return;
     }
 
-    // Normal jump (1st) or air hop (2nd without S)
-    const jv = isSecond ? cfg.doubleJumpVelocity ?? 5.0 : cfg.jumpVelocity ?? 5.4;
+    if (isSecond) {
+      // Standard double jump = quick frontflip
+      const yaw = this.character.facing;
+      this._frontflipDir.set(Math.sin(yaw), 0, Math.cos(yaw));
+      this._frontflipBoostT = cfg.frontflipDuration ?? 0.48;
+      this._backflipBoostT = 0;
+      this._backflipHardStopT = 0;
+      const jv = cfg.doubleJumpVelocity ?? 5.0;
+      if (this.physics?.ready) this.physics.jump(jv);
+      else this._kinVy = jv;
+      this.character.playFrontflip?.(cfg.frontflipDuration ?? 0.48);
+      this._jumpsLeft = 0;
+      this._grounded = false;
+      this._airborne = true;
+      this.onToast?.('Frontflip');
+      return;
+    }
+
+    // First jump — blend jump clip, hold pose while airborne
+    const jv = cfg.jumpVelocity ?? 5.4;
     if (this.physics?.ready) this.physics.jump(jv);
     else this._kinVy = jv;
-    this.character.playJump?.(0.08);
+    this.character.playJump?.(0.1, { holdAir: true });
     this._jumpsLeft -= 1;
     this._grounded = false;
+    this._airborne = true;
   }
 
   /** Simple ballistic Y when Rapier unavailable. */
   _integrateKinematicJump(dt) {
     if (this._kinVy === undefined) this._kinVy = 0;
-    const g = -9.81;
+    if (this._kinGravityScale === undefined) this._kinGravityScale = 1;
+    const g = -9.81 * this._kinGravityScale;
     if (this._grounded && this._kinVy <= 0) {
       this.character.root.position.y = 0;
       this._kinVy = 0;
       this._jumpsLeft = settings.drc?.maxJumps ?? 2;
+      this._kinGravityScale = 1;
       return;
     }
     this._kinVy += g * dt;
@@ -486,20 +844,142 @@ export class DrcCombatController {
       this._grounded = true;
       this._jumpsLeft = settings.drc?.maxJumps ?? 2;
       this._backflipBoostT = 0;
+      this._backflipHardStopT = 0;
+      this._frontflipBoostT = 0;
+      this._hangT = 0;
+      this._kinGravityScale = 1;
       this.character.clearFlip?.();
+      this.character.clearAirJumpHold?.();
     } else {
       this._grounded = false;
+      this.character.holdAirJumpPose?.();
     }
   }
 
+  get isCasting() {
+    return !!this._cast;
+  }
+
+  getCastBarState() {
+    if (!this._cast) return null;
+    const c = this._cast;
+    const prog = MathUtils.clamp(
+      (this.elapsed - c.startedAt) / Math.max(0.001, c.duration),
+      0,
+      1,
+    );
+    return {
+      active: true,
+      label: c.label,
+      progress01: prog,
+      duration: c.duration,
+      remaining: Math.max(0, c.endsAt - this.elapsed),
+      element: c.element || 'arcane',
+    };
+  }
+
+  _beginCast(opts) {
+    const duration = Math.max(0, Number(opts.duration) || 0);
+    if (duration < 0.06) {
+      opts.onComplete?.();
+      return true;
+    }
+    if (this._cast) this._interruptCast('replaced', false);
+    this._cast = {
+      label: opts.label || 'Casting',
+      element: opts.element || 'arcane',
+      startedAt: this.elapsed,
+      duration,
+      endsAt: this.elapsed + duration,
+      onComplete: opts.onComplete,
+      interruptible: opts.interruptible !== false,
+      aim: opts.aim || null,
+    };
+    this.character.setCasting?.(true, opts.aim || null);
+    this.character.playWeaponCombat?.('cast') ||
+      this.character.playCastFlourish?.() ||
+      this.character.requestOneShot?.('cast');
+    this.onCastBar?.(this.getCastBarState());
+    return true;
+  }
+
+  _tickCast(dt, keys) {
+    if (!this._cast) return;
+    if (this._cast.interruptible && settings.drc?.castInterruptOnMove !== false) {
+      const moving =
+        keys?.has?.('KeyW') ||
+        keys?.has?.('KeyA') ||
+        keys?.has?.('KeyS') ||
+        keys?.has?.('KeyD') ||
+        keys?.has?.('ArrowUp') ||
+        keys?.has?.('ArrowDown') ||
+        keys?.has?.('ArrowLeft') ||
+        keys?.has?.('ArrowRight');
+      if (moving && this.elapsed - this._cast.startedAt > 0.12) {
+        this._interruptCast('moved');
+        return;
+      }
+    }
+    if (this.elapsed >= this._cast.endsAt) {
+      const done = this._cast.onComplete;
+      this._clearCast();
+      try {
+        done?.();
+      } catch (e) {
+        console.warn('[DrcCombat] cast complete', e);
+      }
+      this.onCastBar?.(null);
+      return;
+    }
+    this.character.setCasting?.(true, this._cast.aim || null);
+    this.onCastBar?.(this.getCastBarState());
+    void dt;
+  }
+
+  _interruptCast(reason = 'cancel', toast = true) {
+    if (!this._cast) return;
+    this._clearCast();
+    this.character.setCasting?.(false);
+    if (toast) this.onToast(reason === 'moved' ? 'Cast interrupted' : 'Cast cancelled');
+    this.onCastBar?.({ active: false, interrupted: true });
+  }
+
+  _clearCast() {
+    this._cast = null;
+    this.character.setCasting?.(false);
+  }
+
   /**
-   * Fire skill slot 0–3.
-   * @param {number} slot
+   * F key — equipped weapon skill (primary / Showcase bind `f`).
+   * Full cast-time + prefab path. Not residual, not class ability.
    * @returns {boolean}
    */
-  useSkill(slot) {
+  useWeaponSkillF() {
     if (!this.inCombat) {
-      this.onToast('Enter combat (Q) to use DRC skills');
+      this.onToast('Enter combat (Q) for weapon skills');
+      return false;
+    }
+    if (this._cast) {
+      this.onToast('Already casting');
+      return false;
+    }
+    const skill = skillForFKey();
+    if (!skill) {
+      this.onToast('No weapon skill — equip a weapon (I → Weapon)');
+      return false;
+    }
+    return this.useSkill('f', { skill, bound: getSkillBinding('f') });
+  }
+
+  /**
+   * Fire weapon skill slot 0–3, or F via opts.
+   * @param {number|string} slot 0–3 or 'f'
+   * @param {{ skill?: object, bound?: object|null }} [opts]
+   * @returns {boolean}
+   */
+  useSkill(slot, opts = {}) {
+    if (!this.inCombat) {
+      this.onToast('Enter combat (Q) to use weapon skills');
       return false;
     }
     const g = this.gates;
@@ -510,11 +990,14 @@ export class DrcCombatController {
     // Windsurf freeride: allow ranged/staff skills (tslda boat combat feel)
     if (this.character._rideActive && !this._allowRideSkill()) return false;
 
-    let skill = skillBySlot(slot);
+    let skill = opts.skill || (slot === 'f' || slot === -1 ? skillForFKey() : skillBySlot(slot));
     if (!skill) return false;
 
     // Catalog binding (Showcase) — true master-weaponSkills id when set
-    const bound = getSkillBinding(slot);
+    const bound =
+      opts.bound !== undefined
+        ? opts.bound
+        : getSkillBinding(slot === -1 ? 'f' : slot);
     const boundName = bound?.name || skill.label;
 
     // Merge WEAPON_SKILLS STAFF row only — no invented skills
@@ -563,37 +1046,53 @@ export class DrcCombatController {
     const costs = skillCastCosts(skill, 0, 0);
     if (!this._spendResources(costs.mana, costs.stamina, skill.label)) return false;
     this._cdUntil.set(skill.id, this.elapsed + skill.cooldown);
-
-    // Animation one-shot from equipped weapon pack (magic cast · sword attack · bow attack)
-    const animRole = bound
-      ? animRoleForSkill({
-          labStyle: bound.labPack === 'magic' ? 'spell' : skill.style,
-          animation: null,
-          id: bound.skillId,
-          name: bound.name,
-          slotType: 'ability'
-        })
-      : skill.animRole;
-    if (animRole === 'attack' || skill.animRole === 'attack') {
-      this.character.playWeaponCombat?.('attack') ||
-        this.character.playWeaponAttack?.() ||
-        this.character.requestOneShot?.('attack');
-    } else {
-      this.character.playWeaponCombat?.('cast') ||
-        this.character.requestOneShot?.(skill.animRole) ||
-        this.character.playCastFlourish?.();
+    if (this._cast) {
+      this.onToast('Already casting');
+      return false;
     }
 
     const yaw = this.character.facing;
-    if (this.aim?.valid) _fwd.copy(this.aim.forward);
+    // Focus: snow-brawl 3D launch vector; free: horizontal aim forward
+    const use3d =
+      settings.aim?.use3dLaunch !== false &&
+      this.aim?.forward3d &&
+      this.aim.forward3d.lengthSq() > 1e-6 &&
+      this.aim?.valid;
+    if (use3d) _fwd.copy(this.aim.forward3d).normalize();
+    else if (this.aim?.valid) _fwd.copy(this.aim.forward);
     else _fwd.set(Math.sin(yaw), 0, Math.cos(yaw));
     this.character.getCastOrigin(_origin);
+    // Prefer MouseAim.computeLaunch origin when available (hand offset + chest)
+    let spawnOrigin = _origin.clone();
+    let aimTarget = this.aim?.hitPoint?.clone?.() || null;
+    if (this.aim?.computeLaunch && this.character?.position) {
+      try {
+        const launch = this.aim.computeLaunch(this.character.position, {
+          hand: this._throwHand === 'left' ? 'left' : 'right'
+        });
+        if (launch?.origin) spawnOrigin.copy(launch.origin);
+        if (launch?.direction) _fwd.copy(launch.direction);
+        if (launch?.target) aimTarget = launch.target.clone();
+        this._throwHand = this._throwHand === 'left' ? 'right' : 'left';
+      } catch {
+        /* keep cast origin */
+      }
+    }
+    const rangeM = skill.rangeM || 8;
     const pose = {
-      origin: this.character.position.clone(),
+      origin: spawnOrigin.clone(),
       forward: _fwd.clone(),
-      aim: _end.copy(_origin).addScaledVector(_fwd, skill.rangeM * 0.65)
+      aim:
+        aimTarget ||
+        _end.copy(spawnOrigin).addScaledVector(_fwd, rangeM * 0.65)
     };
+    const aimPt = { x: pose.aim.x, y: pose.aim.y, z: pose.aim.z };
+    const castDur =
+      skill.style === 'melee'
+        ? 0
+        : Math.max(0, Number(skill.castDuration ?? skill.castTime ?? 0.55));
 
+    const releaseSpell = () => {
     // Catalog VFX when bound; else DRC skill beauty
     if (bound) {
       const vfxId = vfxIdForSkill({
@@ -614,11 +1113,6 @@ export class DrcCombatController {
       if (skill.castEffectId) {
         this.vfx?.deploy?.(skill.castEffectId, { ...pose, intensity: 0.85 });
       }
-      this.character.setCasting?.(true, {
-        aimX: pose.origin.x,
-        aimY: pose.origin.y + 1.2,
-        aimZ: pose.origin.z
-      });
       if (skill.isFocus) {
         this._focusUntil = this.elapsed + dur;
         this._focusMul = skill.focusDamageMul || 1.35;
@@ -635,7 +1129,18 @@ export class DrcCombatController {
       } else {
         this.onToast(`${skill.label} · buff ${dur}s`);
       }
-      return true;
+      return;
+    }
+
+    // Delivery pattern (over/under/around/projectile) + mesh force projectiles
+    try {
+      const deliv = this._deploySkillDelivery(skill, pose);
+      if (deliv?.deliveryLabel) {
+        // toast appended after elemental path
+        skill._deliveryLabel = deliv.deliveryLabel;
+      }
+    } catch (e) {
+      console.warn('[DrcCombat] delivery', e);
     }
 
     // VFX: spell → elemental ability + creative presentation (volley/meteor/vines/…)
@@ -682,12 +1187,6 @@ export class DrcCombatController {
         shield: isShield || presStyle === 'shield' || pathFromBind === 'wall'
       });
 
-      this.character.setCasting?.(true, {
-        aimX: _end.x,
-        aimY: _end.y,
-        aimZ: _end.z
-      });
-
       const dmg = skill.damage ? ` · ${Math.round(skill.damage * focusMul)} dmg` : '';
       const cat = skill.catalogSkillId ? ` → ${skill.catalogSkillId}` : '';
       const focusTag = focusOn ? ' · FOCUSED' : '';
@@ -697,30 +1196,105 @@ export class DrcCombatController {
           ? `${boundName} · ${bound.skillId}`
           : `${skill.label}${skill.pathMode ? ` · ${skill.pathMode}` : ''}${styleTag}${dmg}${focusTag}${cat}`
       );
-      return true;
+      return;
     }
 
     if (skill.style === 'melee') {
-      this._fireMeleeResidual(skill, pose);
+      // Guard / ward: no residual slash
+      if (!(skill.isWard || skill.animRole === 'block' || skill.skillKind === 'buff')) {
+        const aoe = skill.residualAoe;
+        this._fireMeleeResidual(skill, pose, {
+          rangeOverride: skill.rangeM,
+          hit: {
+            kind: skill.animRole === 'finisher' ? 'finisher' : 'light',
+            step: /^attack([123])$/.exec(skill.animRole || '')?.[1]
+              ? Number(RegExp.$1) - 1
+              : 0
+          }
+        });
+        // Wider contact for Wide Sweep etc.
+        if (aoe > 0 && settings.residual) {
+          /* residualFromSettings already used; rangeOverride covers reach */
+        }
+      }
       this.onToast(bound ? `${boundName} · ${bound.skillId}` : skill.label);
-      return true;
+      return;
     }
 
     // Bound catalog skill on a spell-less bar slot — still fire residual / path
     if (bound) {
       this._fireMeleeResidual(skill, pose);
       this.onToast(`${boundName} · ${bound.skillId}`);
+      return;
+    }
+    };
+
+    // Instant melee / ranged / near-zero castDuration
+    if (skill.style === 'melee' || skill.style === 'ranged' || castDur < 0.08) {
+      const animRole =
+        skill.animRole ||
+        (bound
+          ? animRoleForSkill({
+              labStyle:
+                bound.labPack === 'magic'
+                  ? 'spell'
+                  : bound.labPack === 'longbow'
+                    ? 'ranged'
+                    : skill.style,
+              animation: null,
+              id: bound.skillId,
+              name: bound.name,
+              slotType: 'ability'
+            })
+          : 'attack');
+      // T0 / catalog roles: attack1–3 light, block guard, attack ranged, cast buff
+      if (animRole === 'block' || animRole === 'parry' || skill.isWard) {
+        this.character.playParry?.() ||
+          this.character.requestOneShot?.('block') ||
+          this.character.requestOneShot?.('parry');
+      } else if (animRole === 'dodgeB' || /evade/i.test(skill.id + skill.label)) {
+        this.character.playDodge?.('back') || this.character.requestOneShot?.('dodgeB');
+      } else if (/^attack[123]$/.test(animRole)) {
+        this.character.requestOneShot?.(animRole) ||
+          this.character.playMeleeComboLight?.() ||
+          this.character.playWeaponAttack?.();
+      } else if (animRole === 'finisher' || animRole === 'finisherAir') {
+        this.character.playMeleeFinisher?.({
+          airborne: animRole === 'finisherAir' || !!this._airborne
+        });
+      } else if (skill.style === 'ranged' || animRole === 'attack') {
+        this.character.playWeaponCombat?.('attack') ||
+          this.character.requestOneShot?.('attack') ||
+          this.character.playWeaponAttack?.();
+      } else if (skill.style === 'melee') {
+        this.character.playMeleeAttack?.({
+          airborne: !!this._airborne || !this._grounded,
+          largeMmTowardTarget: this._isLargeMmTowardTarget?.()
+        }) ||
+          this.character.playWeaponCombat?.('attack') ||
+          this.character.playWeaponAttack?.() ||
+          this.character.requestOneShot?.('attack');
+      } else {
+        this.character.playWeaponCombat?.('cast') ||
+          this.character.requestOneShot?.(animRole || skill.animRole) ||
+          this.character.playCastFlourish?.();
+      }
+      releaseSpell();
       return true;
     }
 
-    return false;
+    this._beginCast({
+      label: skill.label,
+      duration: castDur,
+      element: skill.element || skill.abilityElement || 'arcane',
+      interruptible: true,
+      aim: aimPt,
+      onComplete: releaseSpell
+    });
+    this.onToast(`${skill.label} · cast ${castDur.toFixed(1)}s`);
+    return true;
   }
 
-  /**
-   * Standard attack: anim + Getsuga residual from weapon tip.
-   * Used as F best-next-action fallback (after pickup/harvest).
-   * Uses settings.residual knobs. Space is jump only — never residual.
-   */
   /** Skills while on windsurf: staff / bow packs only (settings.walk.skillsWhileRide). */
   _allowRideSkill() {
     if (settings.walk?.skillsWhileRide === false) return false;
@@ -728,55 +1302,62 @@ export class DrcCombatController {
     return pack === 'longbow' || pack === 'magic' || pack.includes('bow') || pack.includes('magic');
   }
 
+  /**
+   * @deprecated Use useWeaponSkillF — F is weapon skill, not residual-only strike.
+   * Kept for callers; routes to weapon skill path.
+   */
   useMeleeStrike() {
-    if (!this.inCombat) {
-      this.onToast('Enter combat (Q) to strike');
-      return false;
-    }
-    if (this.character._rideActive && !this._allowRideSkill()) return false;
-    const skill = getMeleeStrikeSkill();
-    const readyAt = this._cdUntil.get(skill.id) || 0;
-    if (this.elapsed < readyAt) {
-      this.onToast(`${skill.label} CD`);
-      return false;
-    }
-    if (this.stamina < skill.staminaCost) {
-      this.onToast('Low stamina');
-      return false;
-    }
-    this.stamina -= skill.staminaCost;
-    this._cdUntil.set(skill.id, this.elapsed + skill.cooldown);
+    return this.useWeaponSkillF();
+  }
 
-    this.character.playWeaponCombat?.('attack') ||
-      this.character.playWeaponAttack?.() ||
-      this.character.requestOneShot?.('attack');
-
-    // Residual aims along mouse aim when available
+  /**
+   * Large MM toward focus/aim: sprinting into aim or recent forward mobility impulse.
+   * Threshold from settings.meleeCombo.finisherMm (100 MM = 1 m).
+   */
+  _isLargeMmTowardTarget() {
+    const thrMm = settings.meleeCombo?.finisherMm ?? 280;
+    // Active dodge/lunge already large
+    if (this._dodgeT > 0 && this._dodgeVel.lengthSq() > 1e-6) {
+      const speed = this._dodgeVel.length();
+      const estMm = mToMm(speed * Math.max(this._dodgeDur, 0.2));
+      if (estMm >= thrMm * 0.55) return true;
+    }
+    // Sprint while moving roughly toward aim / focus
+    if (!this._sprinting) return false;
     if (this.aim?.valid) {
       _fwd.copy(this.aim.forward);
     } else {
-      const yaw = this.character.facing;
-      _fwd.set(Math.sin(yaw), 0, Math.cos(yaw));
+      this.camera.getWorldDirection(_fwd);
     }
-    const pose = {
-      origin: this.character.position.clone(),
-      forward: _fwd.clone()
-    };
-    this._fireMeleeResidual(skill, pose);
-    this.onToast(skill.label);
-    return true;
+    _fwd.y = 0;
+    if (_fwd.lengthSq() < 1e-6) return false;
+    _fwd.normalize();
+    // Body forward vs aim
+    const yaw = this.character.facing;
+    const bx = Math.sin(yaw);
+    const bz = Math.cos(yaw);
+    const align = bx * _fwd.x + bz * _fwd.z;
+    if (align < 0.55) return false;
+    // Sprint speed as continuous MM (sprint ≈ 3.6*1.65 m/s → ~594 MM/s)
+    const sprintMps = this.moveSpeed * this.sprintMul;
+    const continuousMm = mToMm(sprintMps * 0.55);
+    return continuousMm >= thrMm * 0.5 && (this._moveZ > 0.35 || align > 0.85);
   }
 
   /**
    * Spawn residual after hit-frame delay: tip origin + short path + VfxDirector.
    * @param {import('./drcSkills.js').DrcWeaponSkill} skill
    * @param {{ origin: Vector3, forward: Vector3 }} pose
+   * @param {{ rangeOverride?: number, hit?: { kind?: string, step?: number } }} [opts]
    */
-  _fireMeleeResidual(skill, pose) {
+  _fireMeleeResidual(skill, pose, opts = {}) {
     const prim = residualFromSettings();
     const delayMs = Math.max(0, (prim.hitFrameDelay ?? 0.18) * 1000);
-    const range = prim.range ?? skill.rangeM ?? 3.2;
-    const intensity = (prim.intensity ?? 1) * (settings.effect?.intensity ?? 1);
+    const range = opts.rangeOverride ?? prim.range ?? skill.rangeM ?? 3.2;
+    const intensity =
+      (prim.intensity ?? 1) *
+      (settings.effect?.intensity ?? 1) *
+      (opts.hit?.kind === 'finisher' || opts.hit?.kind === 'finisherAir' ? 1.25 : 1);
 
     const fire = () => {
       const tipOff = prim.tipOffset ?? settings.residual?.tipOffset ?? 0.55;
@@ -833,11 +1414,25 @@ export class DrcCombatController {
   /** Build CatmullRom from hand → aim point for Ability.spawn */
   _aimCurve(rangeM) {
     this.character.getCastOrigin(_origin);
-    // Prefer mouse aim forward when available
-    if (this.aim?.valid) _fwd.copy(this.aim.forward);
-    else {
+    // Prefer 3D focus launch, else horizontal mouse aim
+    if (
+      settings.aim?.use3dLaunch !== false &&
+      this.aim?.forward3d &&
+      this.aim.forward3d.lengthSq() > 1e-6
+    ) {
+      _fwd.copy(this.aim.forward3d).normalize();
+    } else if (this.aim?.valid) {
+      _fwd.copy(this.aim.forward);
+    } else {
       const yaw = this.character.facing;
       _fwd.set(Math.sin(yaw), 0, Math.cos(yaw));
+    }
+    if (this.aim?.hitPoint && this.aim.valid) {
+      // Path endpoint uses true 3D hit for elevated / soft-lock aims
+      _end.copy(this.aim.hitPoint);
+      _mid.lerpVectors(_origin, _end, 0.45);
+      _mid.y += Math.min(2.2, _origin.distanceTo(_end) * 0.08);
+      return new CatmullRomCurve3([_origin.clone(), _mid.clone(), _end.clone()]);
     }
     _end.copy(_origin).addScaledVector(_fwd, rangeM);
     _end.y = Math.max(0.15, _origin.y * 0.35);
@@ -935,17 +1530,10 @@ export class DrcCombatController {
 
     switch (actionId) {
       case 'primary':
-        // Weapon pack attack (melee swing or staff cast flourish)
-        if (this.character.animPackId === 'magic') {
-          return this.character.playWeaponCombat?.('cast') || this.useMeleeStrike();
-        }
-        return this.useMeleeStrike() || this.character.playWeaponCombat?.('attack') || false;
       case 'interact':
-        // F context is owned by App (_tryBestAction). Bar click → standard attack.
-        return this.useMeleeStrike() || this.character.playWeaponCombat?.('attack') || false;
       case 'fskill':
-        // Legacy id — same as interact attack fallback (pickup handled in App)
-        return this.useMeleeStrike();
+        // Weapon skill F (cast bar + prefab) — pickup/harvest handled in App before this
+        return this.useWeaponSkillF();
       case 'sig1':
         return this.useSkill(0);
       case 'sig2':
@@ -966,18 +1554,8 @@ export class DrcCombatController {
           this.onToast('Block (E)');
         });
       case 'heavy':
-        return this._utilityAction('heavy', 1.4, 14, () => {
-          this.useMeleeStrike();
-          _fwd.set(Math.sin(this.character.facing), 0, Math.cos(this.character.facing));
-          this.vfx?.deploy?.('getsuga_slash', {
-            origin: this.character.position.clone(),
-            forward: _fwd.clone(),
-            fromTip: true,
-            intensity: 1.35,
-            size: 1.2
-          });
-          this.onToast('Heavy (R)');
-        });
+        // Heavy = same weapon skill path for now (class ability later)
+        return this.useWeaponSkillF();
       case 'kick':
         return this._utilityAction('kick', 0.9, 6, () => {
           this.character.playWeaponAttack?.();
@@ -1040,7 +1618,8 @@ export class DrcCombatController {
   /** Map quick-action id → CD fraction for tight bar. */
   quickCd01(actionId) {
     if (actionId === 'fskill' || actionId === 'interact' || actionId === 'primary') {
-      return this.cooldown01('drc_melee_strike');
+      const fs = skillForFKey();
+      return fs ? this.cooldown01(fs.id) : 0;
     }
     if (actionId?.startsWith('sig')) {
       const slot = Number(actionId.slice(3)) - 1;
@@ -1241,6 +1820,7 @@ export class DrcCombatController {
 
   /**
    * Ghost Rider roll (Ctrl+A left · Ctrl+D right).
+   * Impulse duration matches clip so feet travel with the tumble (no foot-slide deform).
    * @param {'left'|'right'|'forward'|'back'} dir
    */
   roll(dir) {
@@ -1251,21 +1831,27 @@ export class DrcCombatController {
       this._cdUntil.set('roll', this.elapsed + cd);
       this._cdMax.set('roll', cd);
       const dist = settings.drc?.rollDistance ?? 3.0;
-      const dur = settings.drc?.rollDuration ?? 0.55;
-      this._startMobilityImpulse(d, dist, dur);
+      // Sync body travel to clip length (Ghost Rider ~0.77s)
+      const clipDur =
+        this.character.getRollClipDuration?.(d) ?? settings.drc?.rollDuration ?? 0.55;
+      const dur = Math.max(0.42, Math.min(1.1, clipDur * 0.98));
+      const played = this.character.playRoll?.(d);
+      const useDur =
+        played && typeof played === 'object' && played.duration > 0 ? played.duration : dur;
+      this._startMobilityImpulse(d, dist, useDur);
       // Side rolls keep aim facing (clip is lateral). F/B face the impulse.
       if ((d === 'forward' || d === 'back') && this._dodgeVel.lengthSq() > 1e-6) {
         this._yaw = Math.atan2(this._dodgeVel.x, this._dodgeVel.z);
         this.character.setFacing?.(this._yaw);
       }
-      const played = this.character.playRoll?.(d);
       const labels = {
         left: 'Ctrl+A left roll',
         right: 'Ctrl+D right roll',
         forward: 'Ctrl+W roll',
         back: 'Ctrl+S roll'
       };
-      this.onToast(`${labels[d] || d}${played ? ' · Ghost Rider' : ' (no clip)'}`);
+      const ok = played === true || played?.ok;
+      this.onToast(`${labels[d] || d}${ok ? ' · Ghost Rider' : ' (no clip)'}`);
     });
   }
 
@@ -1379,55 +1965,65 @@ export class DrcCombatController {
     if (!this._spendResources(costs.mana, costs.stamina, 'Path cast')) return null;
     this.lastCastIntensity = costs.intensity;
     const intensity = costs.intensity;
+    // Cast time scales with hold (min 0.35s, max 1.6s) — bar + cast anim before release
+    const pathCastTime = MathUtils.clamp(0.35 + holdSec * 0.35 + length * 0.02, 0.35, 1.6);
+    const endPt = curve.getPoint(1);
+    const aimPt = { x: endPt.x, y: endPt.y + 0.2, z: endPt.z };
+    const labels = { aoe: 'AOE place', spikes: 'Spikes', wall: 'Wall', stream: 'Stream' };
 
-    // Signature VFX at high intensity (Inferno / Blizzard / etc.)
-    const sig = signatureForElement(element === 'arcane' ? 'arcane' : element);
-    if (intensity >= 2.4 && sig) {
-      this.vfx?.deploy?.(sig.impactEffectId, {
+    const releasePath = () => {
+      const sig = signatureForElement(element === 'arcane' ? 'arcane' : element);
+      if (intensity >= 2.4 && sig) {
+        this.vfx?.deploy?.(sig.impactEffectId, {
+          origin: this.character.position.clone(),
+          forward: _fwd.set(Math.sin(this.character.facing), 0, Math.cos(this.character.facing)).clone(),
+          intensity: intensity * 0.85
+        });
+      }
+      const facing = _fwd.set(Math.sin(this.character.facing), 0, Math.cos(this.character.facing)).clone();
+      const pathPose = {
         origin: this.character.position.clone(),
-        forward: _fwd.set(Math.sin(this.character.facing), 0, Math.cos(this.character.facing)).clone(),
-        intensity: intensity * 0.85
-      });
-    }
-
-    const facing = _fwd.set(Math.sin(this.character.facing), 0, Math.cos(this.character.facing)).clone();
-    const pathPose = {
-      origin: this.character.position.clone(),
-      forward: facing,
-      aim: curve.getPoint(1),
-      intensity
+        forward: facing,
+        aim: curve.getPoint(1),
+        intensity
+      };
+      if (kind === 'aoe') {
+        const end = curve.getPoint(1);
+        const mid = end.clone();
+        mid.y += 0.4;
+        const start = end.clone().add(new Vector3(0.01, 0.8, 0.01));
+        const short = new CatmullRomCurve3([start, mid, end], false, 'catmullrom', 0.5);
+        this.abilities.select(element);
+        this.abilities.cast(short, element);
+        this.vfx?.deployPresentation?.(element, { ...pathPose, aim: end.clone() }, {
+          pathKind: 'aoe',
+          meteor: element === 'fire' && intensity >= 2.2
+        });
+      } else {
+        this.abilities.select(element);
+        this.abilities.cast(curve, element);
+        this.vfx?.deployPresentation?.(element, pathPose, {
+          pathKind: kind,
+          meteor: kind === 'stream' && element === 'fire' && intensity >= 2.4,
+          volley: kind === 'stream' && (element === 'fire' || element === 'arcane'),
+          shield: kind === 'wall' && element === 'storm'
+        });
+      }
+      const sigName = intensity >= 2.4 && sig ? ` · ${sig.label}` : '';
+      this.onToast(
+        `Staff · ${labels[kind]} (${element}) · ×${intensity.toFixed(1)} · −${costs.mana}MP −${costs.stamina}STA${sigName}`
+      );
     };
 
-    // AOE: compress path to short arc at endpoint for impact placement
-    if (kind === 'aoe') {
-      const end = curve.getPoint(1);
-      const mid = end.clone();
-      mid.y += 0.4;
-      const start = end.clone().add(new Vector3(0.01, 0.8, 0.01));
-      const short = new CatmullRomCurve3([start, mid, end], false, 'catmullrom', 0.5);
-      this.abilities.select(element);
-      this.abilities.cast(short, element);
-      this.vfx?.deployPresentation?.(element, { ...pathPose, aim: end.clone() }, {
-        pathKind: 'aoe',
-        meteor: element === 'fire' && intensity >= 2.2
-      });
-    } else {
-      this.abilities.select(element);
-      this.abilities.cast(curve, element);
-      this.vfx?.deployPresentation?.(element, pathPose, {
-        pathKind: kind,
-        meteor: kind === 'stream' && element === 'fire' && intensity >= 2.4,
-        volley: kind === 'stream' && (element === 'fire' || element === 'arcane'),
-        shield: kind === 'wall' && element === 'storm'
-      });
-    }
-
-    this.character.requestOneShot?.('cast') || this.character.playCastFlourish?.();
-    const labels = { aoe: 'AOE place', spikes: 'Spikes', wall: 'Wall', stream: 'Stream' };
-    const sigName = intensity >= 2.4 && sig ? ` · ${sig.label}` : '';
-    this.onToast(
-      `Staff · ${labels[kind]} (${element}) · ×${intensity.toFixed(1)} · −${costs.mana}MP −${costs.stamina}STA${sigName}`
-    );
-    return { kind, element, intensity, mana: costs.mana, stamina: costs.stamina };
+    if (this._cast) this._interruptCast('replaced', false);
+    this._beginCast({
+      label: `${labels[kind]} · ${element}`,
+      duration: pathCastTime,
+      element,
+      interruptible: true,
+      aim: aimPt,
+      onComplete: releasePath
+    });
+    return { kind, element, intensity, mana: costs.mana, stamina: costs.stamina, castTime: pathCastTime };
   }
 }

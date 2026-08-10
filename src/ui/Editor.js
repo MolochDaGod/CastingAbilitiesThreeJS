@@ -34,6 +34,7 @@ export class Editor {
     this._presetState = { name: 'My preset', selected: this.presets.names[0] ?? '' };
 
     this._buildPresets();
+    this._buildControls();
     this._buildEffectPrefab();
     this._buildGlobal();
     this._buildTrail();
@@ -41,11 +42,13 @@ export class Editor {
     this._buildEnvironment();
     this._buildPost();
     this._buildCamera();
+    this._buildCombatJump();
     this._buildCharacter();
     this._buildWalk();
 
-    // Element folders start closed — the global block is the common entry point.
+    // Element folders start closed — Controls + global open for real options.
     this.gui.folders.forEach((folder) => folder.close());
+    this.controlsFolder?.open();
     this.globalFolder.open();
   }
 
@@ -728,6 +731,59 @@ export class Editor {
     R(folder, p, 'flashStrength', 0, 2, 0.01, 'impact flash');
   }
 
+  /**
+   * Real control options: sprint/focus toggles, look, hotkey reference.
+   */
+  _buildControls() {
+    const folder = this.gui.addFolder('Controls');
+    this.controlsFolder = folder;
+    const c = settings.controls;
+    const aim = settings.aim;
+    const R = Editor.range;
+
+    folder
+      .add(c, 'sprintToggle')
+      .name('Sprint = toggle (Shift press)')
+      .onChange((v) => this.hooks.onToast?.(v ? 'Sprint: toggle' : 'Sprint: hold'));
+    folder
+      .add(c, 'focusToggle')
+      .name('Focus = toggle (RMB click)')
+      .onChange((v) => this.hooks.onToast?.(v ? 'Focus: toggle' : 'Focus: hold RMB'));
+    folder.add(c, 'showHotkeyChips').name('Show hotkey chips');
+    folder.add(c, 'invertLookY').name('Invert look Y');
+    R(folder, c, 'lookSensitivity', 0.25, 3, 0.05, 'Look sensitivity');
+
+    const aimF = folder.addFolder('Aim / crosshair');
+    aimF.add(aim, 'enabled').name('Aim enabled');
+    aimF.add(aim, 'crosshair').name('Crosshair');
+    aimF.add(aim, 'groundMarker').name('Ground ring (AoE/place only)');
+    aimF.add(aim, 'groundMarkerOnPathDraw').name('Ground ring on path draw');
+    R(aimF, aim, 'softLockBlend', 0, 1, 0.01, 'Soft-lock blend');
+    R(aimF, aim, 'focusTurnSpeed', 2, 20, 0.5, 'Focus body turn (lower=less spin)');
+    R(aimF, aim, 'focusTurnDeadzoneDeg', 0, 45, 1, 'Focus turn deadzone °');
+    aimF.add(aim, 'focusTurnOnlyWhenMoving').name('Focus turn only when moving');
+    R(aimF, aim, 'tankTurnSpeed', 0.5, 8, 0.1, 'Free A/D turn');
+
+    const keys = folder.addFolder('Hotkeys (reference)');
+    const hotkeyState = {
+      move: 'WASD',
+      sprint: 'Shift (toggle/hold)',
+      focus: 'RMB click (toggle) / hold',
+      attack: 'LMB focus · F strike',
+      jump: 'Space · 2nd = frontflip · S+Space backflip',
+      skills: '1–4',
+      dodge: 'AA / DD / WW / X',
+      roll: 'Ctrl+WASD',
+      slide: 'Shift+Ctrl sprint',
+      editor: 'G · Lab I · Showcase O'
+    };
+    for (const [k, v] of Object.entries(hotkeyState)) {
+      keys.add(hotkeyState, k).name(k).disable();
+    }
+    keys.close();
+    folder.open();
+  }
+
   _buildCamera() {
     const folder = this.gui.addFolder('Camera');
     const c = settings.camera;
@@ -740,12 +796,40 @@ export class Editor {
     R(folder, c, 'zoomSpeed', 0.1, 3, 0.01, 'zoom speed');
     R(folder, c, 'fov', 20, 90, 0.5, 'field of view');
     R(folder, c, 'targetHeight', 0, 4, 0.01, 'target height');
-    R(folder, c, 'minPolar', 0.05, 1.5, 0.01, 'min pitch');
-    R(folder, c, 'maxPolar', 0.2, 1.55, 0.01, 'max pitch');
-    R(folder, c, 'damping', 0.001, 0.5, 0.001, 'follow damping');
+    R(folder, c, 'minPolar', 0.05, 1.5, 0.01, 'min pitch (orbit)');
+    R(folder, c, 'maxPolar', 0.2, 1.55, 0.01, 'max pitch (orbit)');
+    R(folder, c, 'minPitch', 0.05, 1.2, 0.01, 'min pitch (TPS)');
+    R(folder, c, 'maxPitch', 0.2, 1.5, 0.01, 'max pitch (TPS)');
+    R(folder, c, 'tpsDefaultPitch', 0.05, 1.0, 0.01, 'default TPS pitch');
+    R(folder, c, 'shoulderOffset', 0, 1.5, 0.01, 'shoulder offset m');
+    R(folder, c, 'shoulderSide', -1, 1, 1, 'shoulder side −1/0/+1');
+    R(folder, c, 'orbitSensitivity', 0.001, 0.012, 0.0001, 'orbit / look base sens');
+    R(folder, c, 'softLockLook', 0, 1, 0.01, 'soft-lock look weight');
+    R(folder, c, 'tpsDamping', 0.02, 0.5, 0.01, 'TPS follow damping');
+    R(folder, c, 'damping', 0.001, 0.5, 0.001, 'orbit follow damping');
     R(folder, c, 'autoFrame', 0, 1, 0.01, 'auto framing');
 
     folder.add({ clear: () => this.hooks.onClear?.() }, 'clear').name('Clear effects (C)');
+  }
+
+  _buildCombatJump() {
+    const folder = this.gui.addFolder('Jump / air');
+    const d = settings.drc;
+    const R = Editor.range;
+    R(folder, d, 'jumpVelocity', 2, 12, 0.1, 'Jump velocity');
+    R(folder, d, 'doubleJumpVelocity', 2, 12, 0.1, 'Frontflip jump V');
+    R(folder, d, 'frontflipDuration', 0.2, 1.2, 0.01, 'Frontflip duration');
+    R(folder, d, 'frontflipSpeed', 0, 10, 0.1, 'Frontflip push m/s');
+    R(folder, d, 'backflipVertical', 0.5, 8, 0.1, 'Backflip up V');
+    R(folder, d, 'backflipSpeed', 1, 14, 0.1, 'Backflip reverse m/s');
+    R(folder, d, 'backflipDuration', 0.2, 1.2, 0.01, 'Backflip spin s');
+    R(folder, d, 'backflipHardStop', 0, 0.35, 0.01, 'Hard stop s');
+    R(folder, d, 'backflipHangGravity', 0.1, 1, 0.01, 'Hang gravity scale');
+    R(folder, d, 'backflipHangDuration', 0.2, 2.5, 0.05, 'Hang duration s');
+    folder
+      .add({ tip: 'Space · Space air=frontflip · S+Space=backflip hang' }, 'tip')
+      .name('Tip')
+      .disable();
   }
 
   _buildCharacter() {

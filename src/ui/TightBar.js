@@ -12,6 +12,7 @@ import {
 } from './quickActions.js';
 import { getActiveSkills, DRC_MELEE_STRIKE } from '../combat/drcSkills.js';
 import { getSkillBinding } from '../combat/skillBindings.js';
+import { settings } from '../config/settings.js';
 
 const TB_W = 3800;
 const TB_H = 726;
@@ -22,13 +23,21 @@ const TB_CELL_W = 230;
 const TB_CELL_H = 132;
 const TB_COLS = [776, 1028, 1274, 2276, 2526, 2772];
 const TB_ROWS = [378, 548];
-const TB_ORB_R = 150;
-const TB_ORB_HP = { cx: 354, cy: 360 };
-const TB_ORB_MP = { cx: 3446, cy: 360 };
+/**
+ * Orb geometry measured off hud-tight-bar.png (1900×363 → design 3800×726).
+ * Centers = glass centroid; R covers full chrome sphere (incl. tan lower
+ * reflection) so Island-Crusade globe discs replace baked placeholders.
+ */
+const TB_ORB_R = 176;
+const TB_ORB_HP = { cx: 351, cy: 400 };
+const TB_ORB_MP = { cx: 3444, cy: 392 };
 
 /** Prefer same-origin public art; fallback to Open CDN. */
 export const TIGHT_BAR_ART = './hud-tight-bar.png';
 export const TIGHT_BAR_ART_FALLBACK = 'https://open.grudge-studio.com/hud-tight-bar.png';
+/** Island-Crusade Danger Room globe fills (~164² RGBA, ~14px transparent pad). */
+export const ORB_HEALTH_GLOBE = './hud/health_globe.png';
+export const ORB_MANA_GLOBE = './hud/mana_globe.png';
 
 function tbSlotStyle(i) {
   const grid = i < QUICK_SLOTS_PER_SIDE ? 0 : 1;
@@ -58,6 +67,8 @@ function tbOrbStyle(orb) {
  * @property {number} maxHealth
  * @property {number} stamina
  * @property {number} maxStamina
+ * @property {number} [mana]
+ * @property {number} [maxMana]
  * @property {number} poise
  * @property {number} maxPoise
  * @property {string} character
@@ -85,9 +96,11 @@ export class TightBar {
       maxHealth: 100,
       stamina: 100,
       maxStamina: 100,
+      mana: 100,
+      maxMana: 100,
       poise: 100,
       maxPoise: 100,
-      character: 'Hero',
+      character: 'Warlord',
       raceId: 'WK'
     };
     this.el = document.createElement('div');
@@ -103,12 +116,20 @@ export class TightBar {
     const b2 = getSkillBinding(2);
     const b3 = getSkillBinding(3);
     const bf = getSkillBinding('f');
+    // F = weapon skill (primary / bind), not residual
+    let fName = bf?.name;
+    try {
+      // dynamic import avoided — labels from bar primary
+      fName = fName || bar.find((s) => s.slot === 0)?.label || bar[0]?.label || 'Weapon';
+    } catch {
+      fName = fName || 'Weapon';
+    }
     return {
-      fskill: bf?.name || 'Interact',
-      interact: bf?.name || 'Interact',
-      sig1: b0?.name || bar.find((s) => s.slot === 0)?.label || 'Fire Bolt',
-      sig2: b1?.name || bar.find((s) => s.slot === 1)?.label || 'Water Lash',
-      sig3: b2?.name || bar.find((s) => s.slot === 2)?.label || 'Earth Spike',
+      fskill: fName,
+      interact: fName,
+      sig1: b0?.name || bar.find((s) => s.slot === 0)?.label || 'Skill 1',
+      sig2: b1?.name || bar.find((s) => s.slot === 1)?.label || 'Skill 2',
+      sig3: b2?.name || bar.find((s) => s.slot === 2)?.label || 'Skill 3',
       sig4: b3?.name || bar.find((s) => s.slot === 3)?.label || 'Wind Tempest'
     };
   }
@@ -138,7 +159,10 @@ export class TightBar {
   _render() {
     const s = this.state;
     const hpPct = s.maxHealth > 0 ? Math.max(0, Math.min(100, (s.health / s.maxHealth) * 100)) : 0;
-    const mpPct = s.maxStamina > 0 ? Math.max(0, Math.min(100, (s.stamina / s.maxStamina) * 100)) : 0;
+    // Casting lab: right orb = mana; stamina falls back if mana unset
+    const manaVal = s.mana != null ? s.mana : s.stamina;
+    const manaMax = s.maxMana != null ? s.maxMana : s.maxStamina;
+    const mpPct = manaMax > 0 ? Math.max(0, Math.min(100, (manaVal / manaMax) * 100)) : 0;
     const poisePct = s.maxPoise > 0 ? Math.max(0, Math.min(100, (s.poise / s.maxPoise) * 100)) : 0;
 
     const slotHtml = this.slots
@@ -171,12 +195,20 @@ export class TightBar {
     this.el.innerHTML = `
       <div class="tightbar" data-tightbar style="background-image:url('${TIGHT_BAR_ART}')">
         <div class="tb-orb tb-orb-hp" style="left:${hpOrb.left};top:${hpOrb.top};width:${hpOrb.width};height:${hpOrb.height}" title="Health">
-          <div class="tb-orb-drain" data-hp-drain style="height:${100 - hpPct}%"></div>
+          <div class="tb-orb-clip">
+            <img class="tb-orb-globe" src="${ORB_HEALTH_GLOBE}" alt="" draggable="false" />
+            <div class="tb-orb-fill" data-hp-fill style="--orb-pct:${hpPct}%"></div>
+            <div class="tb-orb-drain" data-hp-drain style="height:${100 - hpPct}%"></div>
+          </div>
           <span class="tb-orb-val" data-hp-val>${Math.round(s.health)}</span>
         </div>
-        <div class="tb-orb tb-orb-mp" style="left:${mpOrb.left};top:${mpOrb.top};width:${mpOrb.width};height:${mpOrb.height}" title="Stamina">
-          <div class="tb-orb-drain" data-mp-drain style="height:${100 - mpPct}%"></div>
-          <span class="tb-orb-val" data-mp-val>${Math.round(s.stamina)}</span>
+        <div class="tb-orb tb-orb-mp" style="left:${mpOrb.left};top:${mpOrb.top};width:${mpOrb.width};height:${mpOrb.height}" title="Mana">
+          <div class="tb-orb-clip">
+            <img class="tb-orb-globe" src="${ORB_MANA_GLOBE}" alt="" draggable="false" />
+            <div class="tb-orb-fill tb-orb-fill--mp" data-mp-fill style="--orb-pct:${mpPct}%"></div>
+            <div class="tb-orb-drain" data-mp-drain style="height:${100 - mpPct}%"></div>
+          </div>
+          <span class="tb-orb-val" data-mp-val>${Math.round(manaVal)}</span>
         </div>
         ${slotHtml}
         <div class="tb-avatar" data-avatar title="${s.character}">
@@ -193,7 +225,8 @@ export class TightBar {
         <button type="button" class="tb-menu-btn" data-menu="bag" title="Drop bag · throw (B)">Bag</button>
         <button type="button" class="tb-menu-btn" data-menu="lab" title="Lab Panel (I)">Lab</button>
         <button type="button" class="tb-menu-btn" data-menu="editor" title="VFX Editor (G)">VFX</button>
-        <button type="button" class="tb-menu-btn" data-menu="help" title="Help (F1)">?</button>
+        <button type="button" class="tb-menu-btn" data-menu="admin" title="Admin Hub (F1–F5)">Admin</button>
+        <button type="button" class="tb-menu-btn" data-menu="help" title="Help (?)">?</button>
         <button type="button" class="tb-menu-btn" data-menu="clear" title="Clear VFX + drops (Shift+C)">Clr</button>
         <button type="button" class="tb-menu-btn" data-menu="mainpanel" title="Main Panel production">MP</button>
       </nav>
@@ -234,6 +267,8 @@ export class TightBar {
     this._nodes = {
       hpDrain: this.el.querySelector('[data-hp-drain]'),
       mpDrain: this.el.querySelector('[data-mp-drain]'),
+      hpFill: this.el.querySelector('[data-hp-fill]'),
+      mpFill: this.el.querySelector('[data-mp-fill]'),
       hpVal: this.el.querySelector('[data-hp-val]'),
       mpVal: this.el.querySelector('[data-mp-val]'),
       poise: this.el.querySelector('[data-poise]'),
@@ -249,17 +284,24 @@ export class TightBar {
     Object.assign(this.state, patch);
     const s = this.state;
     const hpPct = s.maxHealth > 0 ? Math.max(0, Math.min(100, (s.health / s.maxHealth) * 100)) : 0;
-    const mpPct = s.maxStamina > 0 ? Math.max(0, Math.min(100, (s.stamina / s.maxStamina) * 100)) : 0;
+    const manaVal = s.mana != null ? s.mana : s.stamina;
+    const manaMax = s.maxMana != null ? s.maxMana : s.maxStamina;
+    const mpPct = manaMax > 0 ? Math.max(0, Math.min(100, (manaVal / manaMax) * 100)) : 0;
     const poisePct = s.maxPoise > 0 ? Math.max(0, Math.min(100, (s.poise / s.maxPoise) * 100)) : 0;
     if (this._nodes?.hpDrain) this._nodes.hpDrain.style.height = `${100 - hpPct}%`;
     if (this._nodes?.mpDrain) this._nodes.mpDrain.style.height = `${100 - mpPct}%`;
+    if (this._nodes?.hpFill) this._nodes.hpFill.style.setProperty('--orb-pct', `${hpPct}%`);
+    if (this._nodes?.mpFill) this._nodes.mpFill.style.setProperty('--orb-pct', `${mpPct}%`);
     if (this._nodes?.hpVal) this._nodes.hpVal.textContent = String(Math.round(s.health));
-    if (this._nodes?.mpVal) this._nodes.mpVal.textContent = String(Math.round(s.stamina));
+    if (this._nodes?.mpVal) this._nodes.mpVal.textContent = String(Math.round(manaVal));
     if (this._nodes?.poise) this._nodes.poise.style.width = `${poisePct}%`;
     if (this._nodes?.avatarName) this._nodes.avatarName.textContent = s.character;
     if (this._nodes?.avatarLetter) {
       this._nodes.avatarLetter.textContent = (s.raceId || s.character || '?').slice(0, 2);
     }
+    // Controls: show/hide hotkey chips
+    const chips = this.el.querySelector('[data-chips]');
+    chips?.classList.toggle('is-hidden', settings.controls?.showHotkeyChips === false);
     // Refresh CD overlays on slots without full rebuild when possible
     this.el.querySelectorAll('[data-action]').forEach((btn) => {
       const id = btn.dataset.action;

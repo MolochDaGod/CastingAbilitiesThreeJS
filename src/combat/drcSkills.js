@@ -27,6 +27,8 @@ import {
   getEquippableWeaponsCache,
   loadEquippableWeapons
 } from '../api/t0WeaponCatalog.js';
+import { getSkillBinding } from './skillBindings.js';
+import { bindFromCatalogSkill, staffBindFor } from './staffWeaponSkillsBind.js';
 
 /** @typedef {'melee'|'spell'|'ranged'} SkillStyle */
 
@@ -297,9 +299,74 @@ export {
   t0ApprenticeWandHotbar
 };
 
-/** F fallback / light attack residual skill (when no pickup/harvest). */
+/**
+ * @deprecated Residual profile only — not the F key product skill.
+ * F = weapon skill (see skillForFKey). Kept for sword residual VFX profiles.
+ */
 export function getMeleeStrikeSkill() {
   return DRC_MELEE_STRIKE;
+}
+
+/**
+ * F key → weapon skill (not class ability, not residual default).
+ *
+ * Priority:
+ *  1. Showcase / saved bind `f`
+ *  2. Equipped weapon hotbar slot 0 (starter attack / primary)
+ *  3. Active tree slot 0
+ *
+ * Class abilities stay deferred — strengthen weapon skill + prefab pattern first.
+ * @returns {DrcWeaponSkill|null}
+ */
+export function skillForFKey() {
+  // 1) Showcase / saved F bind → catalog skill as weapon skill
+  const bind = getSkillBinding('f');
+  if (bind?.skillId) {
+    const fromId = skillById(bind.skillId);
+    const staffB =
+      bindFromCatalogSkill({
+        id: bind.skillId,
+        name: bind.name,
+        damageType: bind.damageType,
+        cooldown: bind.cooldown
+      }) || staffBindFor(bind.skillId);
+    if (fromId || staffB) {
+      return {
+        ...(fromId || {}),
+        id: bind.skillId,
+        label: bind.name || fromId?.label || staffB?.name || bind.skillId,
+        slot: -1,
+        hotkey: 'f',
+        isWeaponPrimary: true,
+        style: fromId?.style || (bind.labPack === 'magic' ? 'spell' : 'spell'),
+        element: fromId?.element || staffB?.element,
+        abilityElement: fromId?.abilityElement || staffB?.element,
+        castDuration: fromId?.castDuration || staffB?.castDuration || 0.5,
+        cooldown: bind.cooldown ?? fromId?.cooldown ?? staffB?.cooldown ?? 1,
+        animRole: fromId?.animRole || 'cast',
+        rangeM: fromId?.rangeM || staffB?.rangeM || 14,
+        castEffectId: fromId?.castEffectId || staffB?.castEffectId,
+        travelEffectId: fromId?.travelEffectId || staffB?.travelEffectId,
+        impactEffectId: fromId?.impactEffectId || staffB?.impactEffectId,
+        pathMode: fromId?.pathMode || staffB?.pathMode || 'stream',
+        catalogSkillId: bind.skillId,
+        staminaCost: fromId?.staminaCost ?? 10,
+        manaCost: fromId?.manaCost,
+        weaponTypeId: bind.weaponTypeId
+      };
+    }
+  }
+  // 2) Equipped weapon primary (slot 0) — T0 starter attack / weapon prefab
+  const equipped = equippedWeaponHotbar();
+  if (equipped?.length) {
+    const primary = equipped.find((s) => s.slot === 0) || equipped[0];
+    if (primary) return { ...primary, slot: -1, hotkey: 'f', isWeaponPrimary: true };
+  }
+  // 3) Active tree first skill (kit page weapon skills)
+  const bar = getActiveSkills();
+  const s0 = bar.find((s) => s.slot === 0) || bar[0];
+  if (s0) return { ...s0, slot: -1, hotkey: 'f', isWeaponPrimary: true };
+  return null;
 }
 
 /**

@@ -32,6 +32,20 @@ export function getEquippedSlot3Id() {
 export async function ensureWeaponCatalog() {
   if (_catalog) return _catalog;
   _catalog = await loadEquippableWeapons();
+  // DO merge already runs inside loadEquippableWeapons (t0 + remote equip mirror)
+  return _catalog;
+}
+
+/**
+ * Force re-load catalog + re-merge Cloudflare DO equipWeaponById mirror.
+ * Used after Casting promote / Multiverse push.
+ */
+export async function refreshWeaponCatalogFromDo() {
+  const { clearEquippableWeaponsCache } =
+    await import('../api/t0WeaponCatalog.js').catch(() => ({}));
+  if (typeof clearEquippableWeaponsCache === 'function') clearEquippableWeaponsCache();
+  _catalog = null;
+  _catalog = await loadEquippableWeapons();
   return _catalog;
 }
 
@@ -90,16 +104,18 @@ export async function equipWeapon(weapon, ctx) {
   // 1) Kit mesh_ids exclusive weapon slot
   const slot = weapon.meshSlot;
   if (character.equipment) {
-    const WEAPON_SLOTS = ['sword', 'axe', 'hammer', 'spear', 'staff', 'bow', 'shield'];
+    const WEAPON_SLOTS = ['sword', 'axe', 'hammer', 'spear', 'staff', 'bow', 'shield', 'pistol'];
     for (const w of WEAPON_SLOTS) {
       if (w !== slot) character.equipment.setSlot?.(w, null);
     }
-    // Prefer variant A / first available
+    // Prefer variant A / first available. Kit often has no pistol mesh_ids — skip set then.
     const summary = character.equipment.getCatalogSummary?.() || {};
     const variants = summary[slot]?.variants || [];
-    const pick =
-      variants.find((v) => v === 'A' || v === '_default') || variants[0] || 'A';
-    character.equipment.setSlot?.(slot, pick);
+    if (variants.length) {
+      const pick =
+        variants.find((v) => v === 'A' || v === '_default') || variants[0] || 'A';
+      character.equipment.setSlot?.(slot, pick);
+    }
     character._reGroundAfterEquip?.();
     character.ik?.setBones?.(character.equipment.findBones?.());
   }
@@ -118,19 +134,32 @@ export async function equipWeapon(weapon, ctx) {
     const id = String(weapon.id || '');
     let profile = 'melee';
     if (/WAND/i.test(wt) || id === 't0-wand') profile = 'wand';
-    else if (/STAFF|TOME/i.test(wt) || /staff|sapling/i.test(id)) profile = 'staff';
-    else if (/BOW|GUN|CROSSBOW/i.test(wt)) profile = 'bow';
+    else if (/STAFF|TOME|NATURE/i.test(wt) || /staff|sapling|tome/i.test(id)) profile = 'staff';
+    else if (/PISTOL|HANDGUN/i.test(wt) || /pistol|handgun/i.test(id)) profile = 'pistol';
+    else if (/GUN|RIFLE/i.test(wt) || /rifle|gun/i.test(id)) profile = 'pistol';
+    else if (/BOW|CROSSBOW/i.test(wt) || /bow|crossbow/i.test(id)) profile = 'bow';
     else if (/SHIELD/i.test(wt)) profile = 'shield';
+    const maxLengthM =
+      profile === 'wand'
+        ? 0.95
+        : profile === 'staff'
+          ? 1.25
+          : profile === 'pistol'
+            ? 0.45
+            : profile === 'bow'
+              ? 1.35
+              : /SPEAR/i.test(wt) || /spear/i.test(id)
+                ? 1.9
+                : /GREAT|2H|GREATAXE|WARHAMMER/i.test(wt) || /great|2h|greataxe|hammer2h/i.test(id)
+                  ? 1.75
+                  : /DAGGER/i.test(wt) || /dagger/i.test(id)
+                    ? 0.55
+                    : /TOOL/i.test(wt) || /tool/i.test(id)
+                      ? 0.9
+                      : 1.2;
     _attach = await attachWeaponModel(hand, weapon.modelUrl, {
       profile,
-      maxLengthM:
-        profile === 'wand'
-          ? 0.95
-          : profile === 'staff'
-            ? 1.25
-            : /SPEAR|GREAT|2H/i.test(wt)
-              ? 1.8
-              : 1.2
+      maxLengthM
     });
   }
 

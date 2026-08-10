@@ -28,6 +28,8 @@ export class CombatFocus extends EventEmitter {
     super();
     /** Sticky focus mode (RMB toggle) */
     this.focusEnabled = false;
+    /** Soft lock active (auto ON with focus when settings.aim.softLockOnFocus) */
+    this.softLockEnabled = false;
     /** RMB currently held (orbit) */
     this.rmbHeld = false;
     /**
@@ -43,6 +45,8 @@ export class CombatFocus extends EventEmitter {
     this.raycaster.far = 80;
     this._rmbDownAt = 0;
     this._rmbMoved = false;
+    /** Index into sorted target list for Tab cycle */
+    this._cycleIndex = -1;
   }
 
   /**
@@ -56,6 +60,15 @@ export class CombatFocus extends EventEmitter {
     if (!mesh) return;
     mesh.userData.selectable = kind;
     if (!this.selectables.includes(mesh)) this.selectables.push(mesh);
+  }
+
+  /**
+   * @param {import('three').Object3D} mesh
+   */
+  removeSelectable(mesh) {
+    if (!mesh) return;
+    this.selectables = this.selectables.filter((m) => m !== mesh);
+    if (this.selectedTarget?.mesh === mesh) this.clearTarget();
   }
 
   clearTarget() {
@@ -83,8 +96,22 @@ export class CombatFocus extends EventEmitter {
   toggleFocus() {
     this.focusEnabled = !this.focusEnabled;
     this.showCrosshair = this.focusEnabled;
+    // Soft lock engages with focus (Fortnite/TPS style — not free roam)
+    if (this.focusEnabled && settings.aim?.softLockOnFocus !== false) {
+      this.softLockEnabled = true;
+    } else if (!this.focusEnabled) {
+      // Keep selected target for re-focus, but mark soft lock idle
+      this.softLockEnabled = false;
+    }
     this.emit('focus', this.focusEnabled);
     return this.focusEnabled;
+  }
+
+  /** Human toast copy for focus mode. */
+  focusToast() {
+    return this.focusEnabled
+      ? 'Focus ON · mouse = look · crosshair aim · LMB attack'
+      : 'Focus OFF · free cursor · LMB select';
   }
 
   /**
@@ -98,6 +125,13 @@ export class CombatFocus extends EventEmitter {
     this._rmbMoved = false;
     this._lastX = e.clientX;
     this._lastY = e.clientY;
+    // Hold mode: focus while RMB down (settings.controls.focusToggle === false)
+    if (settings.controls?.focusToggle === false && !this.focusEnabled) {
+      this.focusEnabled = true;
+      this.showCrosshair = true;
+      this.emit('focus', true);
+      this.emit('toast', this.focusToast());
+    }
   }
 
   onPointerMove(e) {
@@ -119,10 +153,22 @@ export class CombatFocus extends EventEmitter {
     const wasHeld = this.rmbHeld;
     this.rmbHeld = false;
     if (!wasHeld) return;
-    // Click toggle (not a long orbit drag)
+
+    // Hold mode: release RMB ends focus
+    if (settings.controls?.focusToggle === false) {
+      if (this.focusEnabled) {
+        this.focusEnabled = false;
+        this.showCrosshair = false;
+        this.emit('focus', false);
+        this.emit('toast', this.focusToast());
+      }
+      return;
+    }
+
+    // Toggle mode (default): short click without drag
     if (!this._rmbMoved && held < 280) {
-      const on = this.toggleFocus();
-      this.emit('toast', on ? 'Focus ON · soft lock' : 'Focus OFF · free aim');
+      this.toggleFocus();
+      this.emit('toast', this.focusToast());
     }
   }
 
@@ -160,38 +206,142 @@ export class CombatFocus extends EventEmitter {
   }
 
   /**
-   * Soft-lock aim point: lerp ground aim toward target (no hard snap).
+   * Soft-lock aim point: magnetic blend toward target (no hard snap).
+   * Prefer 3D hit points from MouseAim.updateFocusAim (cone-limited).
    * @param {Vector3} playerPos
-   * @param {Vector3} groundAim MouseAim.point
+   * @param {Vector3} groundAim MouseAim.point or hitPoint
    * @param {Vector3} out
    * @returns {Vector3}
    */
   resolveAimPoint(playerPos, groundAim, out = new Vector3()) {
+    // Track moving soft-lock mesh first
+    if (this.selectedTarget?.mesh) {
+      this.selectedTarget.mesh.getWorldPosition(_hit);
+      _hit.y += 1.1;
+      this.selectedTarget.point.lerp(_hit, 0.4);
+    }
     if (!this.focusEnabled || !this.selectedTarget) {
       return out.copy(groundAim);
     }
-    // Soft lock: blend ground aim toward locked target XZ
+    // Soft lock: blend toward locked target (3D-aware)
     const soft = settings.aim?.softLockBlend ?? 0.55;
     out.copy(groundAim);
     out.x = MathUtils.lerp(out.x, this.selectedTarget.point.x, soft);
     out.z = MathUtils.lerp(out.z, this.selectedTarget.point.z, soft);
-    out.y = MathUtils.lerp(out.y, this.selectedTarget.point.y * 0.15, soft * 0.5);
-    // Keep ahead of player (min 1.5 m)
+    out.y = MathUtils.lerp(
+      out.y,
+      this.selectedTarget.point.y,
+      soft * 0.75
+    );
+    // Keep ahead of player (min 1.5 m XZ)
     _tmp.subVectors(out, playerPos);
     _tmp.y = 0;
     const d = _tmp.length();
     if (d < 1.5 && d > 1e-4) {
       _tmp.multiplyScalar(1.5 / d);
+      const y = out.y;
       out.copy(playerPos).add(_tmp);
-      out.y = groundAim.y;
+      out.y = y;
     }
-    // Update target point if mesh moved
+    return out;
+  }
+
+  /** Soft-lock world point for MouseAim magnetic cone (null if none). */
+  getSoftLockPoint() {
+    const softOn =
+      this.softLockEnabled ||
+      (this.focusEnabled && settings.aim?.softLockOnFocus !== false);
+    if (!softOn || !this.selectedTarget) return null;
     if (this.selectedTarget.mesh) {
+      // Drop dead / removed meshes
+      if (!this.selectedTarget.mesh.parent) {
+        this.clearTarget();
+        return null;
+      }
       this.selectedTarget.mesh.getWorldPosition(_hit);
       _hit.y += 1.1;
       this.selectedTarget.point.lerp(_hit, 0.35);
     }
+    return this.selectedTarget.point;
+  }
+
+  /**
+   * Live selectable entries with world points (for Tab cycle + auto-acquire).
+   * @param {Vector3} playerPos
+   * @param {number} [range]
+   * @returns {Array<{ id: string, point: Vector3, mesh: import('three').Object3D, kind: string, dist: number }>}
+   */
+  listTargetsInRange(playerPos, range) {
+    const maxR = range ?? settings.aim?.softLockRange ?? 28;
+    const maxR2 = maxR * maxR;
+    /** @type {Array<{ id: string, point: Vector3, mesh: import('three').Object3D, kind: string, dist: number }>} */
+    const out = [];
+    for (const mesh of this.selectables) {
+      if (!mesh || !mesh.parent || mesh.visible === false) continue;
+      if (mesh.userData?.dead || mesh.userData?.selectable === false) continue;
+      mesh.getWorldPosition(_hit);
+      _hit.y += 1.1;
+      const dx = _hit.x - playerPos.x;
+      const dz = _hit.z - playerPos.z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 > maxR2) continue;
+      out.push({
+        id: mesh.uuid,
+        point: _hit.clone(),
+        mesh,
+        kind: mesh.userData?.selectable || 'hostile',
+        dist: Math.sqrt(d2)
+      });
+    }
+    // Nearest first for stable Tab order
+    out.sort((a, b) => a.dist - b.dist);
     return out;
+  }
+
+  /**
+   * Auto soft-lock nearest target when focus engages (no Tab yet).
+   * @param {Vector3} playerPos
+   * @returns {boolean}
+   */
+  acquireNearest(playerPos) {
+    const list = this.listTargetsInRange(playerPos);
+    if (!list.length) return false;
+    const t = list[0];
+    this._cycleIndex = 0;
+    this.setTarget(t);
+    return true;
+  }
+
+  /**
+   * Tab / Shift+Tab soft-lock cycle (grudge-combat-targeting style).
+   * @param {Vector3} playerPos
+   * @param {boolean} [reverse]
+   * @returns {boolean}
+   */
+  cycleTarget(playerPos, reverse = false) {
+    const list = this.listTargetsInRange(playerPos);
+    if (!list.length) {
+      this.clearTarget();
+      this._cycleIndex = -1;
+      this.emit('toast', 'No targets in range');
+      return false;
+    }
+    // Find current in list
+    let idx = list.findIndex((t) => t.id === this.selectedTarget?.id);
+    if (idx < 0) idx = reverse ? 0 : -1;
+    idx = reverse
+      ? (idx - 1 + list.length) % list.length
+      : (idx + 1) % list.length;
+    this._cycleIndex = idx;
+    this.setTarget(list[idx]);
+    this.softLockEnabled = true;
+    const label =
+      list[idx].mesh?.userData?.displayName ||
+      list[idx].mesh?.name ||
+      list[idx].kind ||
+      'Target';
+    this.emit('toast', `Target · ${label} (${idx + 1}/${list.length})`);
+    return true;
   }
 
   /**
@@ -217,6 +367,9 @@ export class CombatFocus extends EventEmitter {
   snapshot() {
     return {
       focusEnabled: this.focusEnabled,
+      softLockEnabled:
+        this.softLockEnabled ||
+        (this.focusEnabled && settings.aim?.softLockOnFocus !== false),
       rmbHeld: this.rmbHeld,
       hasTarget: !!this.selectedTarget,
       targetId: this.selectedTarget?.id || null,

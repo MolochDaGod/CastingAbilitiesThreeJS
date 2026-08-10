@@ -1,0 +1,186 @@
+/**
+ * CraftPix cast bar — center under reticle.
+ * Vars: --cp-cast-bg, --cp-cast-fill, --cp-cast-icon (or local url()).
+ */
+
+.castbar {
+  position: fixed;
+  left: 50%;
+  top: calc(50% + 48px);
+  transform: translateX(-50%);
+  z-index: 28;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 220px;
+  max-width: min(360px, 70vw);
+  padding: 6px 10px 6px 6px;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.55));
+}
+
+.castbar.is-hidden {
+  opacity: 0;
+  transform: translateX(-50%) translateY(6px);
+  pointer-events: none;
+}
+
+.castbar.is-interrupt {
+  filter: hue-rotate(-20deg) saturate(0.5) brightness(0.85);
+}
+
+.castbar__icon-wrap {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+
+.castbar__icon-frame {
+  position: absolute;
+  inset: 0;
+  background-image: var(--cp-cast-icon);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  z-index: 2;
+}
+
+.castbar__icon {
+  position: absolute;
+  inset: 7px;
+  border-radius: 3px;
+  z-index: 1;
+  background: radial-gradient(circle at 40% 30%, rgba(255, 255, 255, 0.25), transparent 55%),
+    linear-gradient(145deg, rgba(80, 140, 255, 0.55), rgba(20, 30, 50, 0.9));
+}
+
+/* Element tint on icon gem */
+.castbar[data-element='fire'] .castbar__icon,
+.castbar__icon[data-element='fire'] {
+  background: radial-gradient(circle at 40% 30%, #ffb070, #c03010 70%);
+}
+.castbar[data-element='ice'] .castbar__icon,
+.castbar__icon[data-element='ice'] {
+  background: radial-gradient(circle at 40% 30%, #c8f0ff, #2080c0 70%);
+}
+.castbar[data-element='storm'] .castbar__icon,
+.castbar__icon[data-element='storm'] {
+  background: radial-gradient(circle at 40% 30%, #e0d0ff, #6040c0 70%);
+}
+.castbar[data-element='nature'] .castbar__icon,
+.castbar__icon[data-element='nature'] {
+  background: radial-gradient(circle at 40% 30%, #c0f0a0, #308020 70%);
+}
+.castbar[data-element='holy'] .castbar__icon,
+.castbar__icon[data-element='holy'] {
+  background: radial-gradient(circle at 40% 30%, #fff6c0, #c0a020 70%);
+}
+.castbar[data-element='arcane'] .castbar__icon,
+.castbar__icon[data-element='arcane'] {
+  background: radial-gradient(circle at 40% 30%, #e8c0ff, #8020c0 70%);
+}
+.castbar[data-element='water'] .castbar__icon {
+  background: radial-gradient(circle at 40% 30%, #a0d8ff, #1060a0 70%);
+}
+.castbar[data-element='earth'] .castbar__icon {
+  background: radial-gradient(circle at 40% 30%, #d0b080, #705020 70%);
+}
+
+.castbar__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.castbar__name {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #f4f8ff;
+  text-shadow: 0 1px 2px #000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.castbar__track {
+  position: relative;
+  height: 18px;
+  width: 100%;
+}
+
+.castbar__bg {
+  position: absolute;
+  inset: 0;
+  background-image: var(--cp-cast-bg);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  z-index: 0;
+}
+
+.castbar__fill-wrap {
+  position: absolute;
+  left: 5px;
+  right: 5px;
+  top: 4px;
+  bottom: 4px;
+  overflow: hidden;
+  z-index: 1;
+  border-radius: 1px;
+}
+
+.castbar__fill {
+  height: 100%;
+  width: 0%;
+  background-image: var(--cp-cast-fill);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  filter: hue-rotate(195deg) saturate(1.5) brightness(1.1);
+  transition: width 0.05s linear;
+  transform-origin: left center;
+}
+
+.castbar[data-element='fire'] .castbar__fill {
+  filter: hue-rotate(0deg) saturate(1.7) brightness(1.05);
+}
+.castbar[data-element='ice'] .castbar__fill,
+.castbar[data-element='water'] .castbar__fill {
+  filter: hue-rotate(175deg) saturate(1.6) brightness(1.1);
+}
+.castbar[data-element='nature'] .castbar__fill,
+.castbar[data-element='earth'] .castbar__fill {
+  filter: hue-rotate(85deg) saturate(1.5) brightness(1.05);
+}
+.castbar[data-element='storm'] .castbar__fill,
+.castbar[data-element='arcane'] .castbar__fill {
+  filter: hue-rotate(250deg) saturate(1.6) brightness(1.1);
+}
+.castbar[data-element='holy'] .castbar__fill {
+  filter: hue-rotate(40deg) saturate(1.4) brightness(1.15);
+}
+
+.castbar__meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  font-weight: 700;
+  color: rgba(230, 240, 255, 0.85);
+  text-shadow: 0 1px 2px #000;
+  letter-spacing: 0.04em;
+}
+
+@media (max-width: 600px) {
+  .castbar {
+    min-width: 180px;
+    top: calc(50% + 40px);
+  }
+  .castbar__icon-wrap {
+    width: 32px;
+    height: 32px;
+  }
+}

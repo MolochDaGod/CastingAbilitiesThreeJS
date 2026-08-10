@@ -1,0 +1,1 @@
+This folder contains the built output assets for the worker "grudge-weapon-skill-drafts" generated at 2026-08-10T04:36:53.995Z.

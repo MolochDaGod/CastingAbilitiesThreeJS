@@ -21,7 +21,12 @@ const envBlobs = [
   loadEnv('C:/Users/nugye/Documents/grudox/.env.local'),
   loadEnv('C:/Users/nugye/Documents/Game-Studio-Tool/gst-api-deploy/.env'),
   loadEnv('C:/Users/nugye/Documents/grudge-studio-auth/.env.local.production'),
-  loadEnv('C:/Users/nugye/Documents/1111111/GrudgeBuilder/.env.local')
+  loadEnv('C:/Users/nugye/Documents/1111111/GrudgeBuilder/.env.local'),
+  loadEnv('C:/Users/nugye/Desktop/grudgeproduction/.env'),
+  // Optional: export CF_DNS_API_TOKEN in shell after minting Edit zone DNS token
+  process.env.CF_DNS_API_TOKEN
+    ? `CF_DNS_API_TOKEN=${process.env.CF_DNS_API_TOKEN}\nCF_ZONE_ID=${process.env.CF_ZONE_ID || ''}`
+    : ''
 ];
 
 const zoneId =

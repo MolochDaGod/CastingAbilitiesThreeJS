@@ -46,15 +46,18 @@ Same industry layers as `_meta/canonical-equipment-pattern.json`:
 
 | Layer | Role | Example |
 |-------|------|---------|
-| **Definition** | Static catalog row | name, tier, slot, base stats |
-| **Ability binding** | SKIL-* / slots 1–5 | `skills.slots` on weapon prefabs |
-| **Assets** | CDN only | `iconUrl`, `modelUrl`, dropPrefab key |
+| **Definition** | Static catalog row | **ITEM-*** uuid, name, tier, slot, base stats |
+| **Ability binding** | **SKIL-*** / slots 1–5 | `skills.slots` + `skillUuids` on weapon prefabs |
+| **Assets** | CDN only | `iconUrl` (+ **ICON-***), `modelUrl`, dropPrefab key |
 | **Instance** | Player ownership | Railway bag / equip (not ObjectStore) |
 | **Presentation** | HUD / world drop | tier border, glow, sprite |
-| **Economy** | recipes · drops | RECP-*, drop tables |
+| **Economy** | recipes · drops | **RECP-***, drop tables |
 
 Weapon **runtime prefab** = definition + skills + assets (ready for Unity SO import + Three equip).  
 Armor is **definition+assets first**; full armor-prefab file planned (`master-armor-prefabs.json`).
+
+**Weapon UUID contract (deep dive):** `docs/WEAPON_PREFAB_UUID_SSOT.md` · `src/api/weaponPrefabContract.js`  
+What a weapon must **have** (6 layers) and **do** (bag · equip · controller · hotbar · combat · craft · export).
 
 ---
 
@@ -78,7 +81,7 @@ Armor is **definition+assets first**; full armor-prefab file planned (`master-ar
 | mainHand | sword, axe, staff, wand, bow… | sword_shield / magic / longbow |
 | offHand | shield, tome | sword_shield / magic |
 | head / body / arms / legs | armor | mesh_ids show/hide |
-| back | cape, pack, **windsurf** utility | back attach · ride gate |
+| back | cape, pack, **windsurf** utility | `BackSlotEquip` spine attach · deploy → vehicle · E get-off |
 | relic | RELC-* | HUD only / passive |
 | classItem | class relic / Mage Wand | class gate |
 | mount | MNT-* | mount controller |

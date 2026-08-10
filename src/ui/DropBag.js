@@ -1,7 +1,13 @@
 /**
- * Simple bag for world-drop throw / pickup demo.
- * Drag item onto canvas → throw to mouse aim on terrain/ocean.
+ * Lab bag for world-drop throw / pickup + harvest loot.
+ * Skin: Warlords miniinventory.png (9×4 + hotbar 1–10 chrome).
+ *
+ * @see docs/WARLORDS_DEV_UI_SSOT.md · warlordsUiSkin.js
  */
+
+import { MINI_INV } from './warlordsUiSkin.js';
+import './dropBag.css';
+import './warlords-dev-ui.css';
 
 const STORAGE = 'casting.lab.dropBag.v1';
 
@@ -21,8 +27,9 @@ export class DropBag {
 
     this.el = document.createElement('div');
     this.el.id = 'drop-bag';
-    this.el.className = 'drop-bag';
+    this.el.className = 'drop-bag wl-mini-inv';
     this.el.hidden = true;
+    this.el.setAttribute('aria-label', 'Mini inventory');
     document.body.appendChild(this.el);
     this._render();
   }
@@ -79,32 +86,52 @@ export class DropBag {
   }
 
   _render() {
+    const bagSlots = MINI_INV.bagSlots;
+    const hotN = MINI_INV.hotbarSlots;
+    const cells = [];
+    for (let i = 0; i < bagSlots; i++) {
+      const it = this.items[i];
+      if (it) {
+        cells.push(`
+          <div class="drop-bag__slot" draggable="true" data-id="${it.id}"
+            style="--tier:${it.borderColor || '#c9a87a'}"
+            title="${escapeAttr(it.name || it.id)} · T${it.tier ?? 0} ×${it.qty || 1}">
+            ${it.iconUrl ? `<img src="${escapeAttr(it.iconUrl)}" alt="" draggable="false" />` : '<span class="drop-bag__name">' + escapeHtml(it.name || '?') + '</span>'}
+            <span class="drop-bag__qty">${it.qty || 1}</span>
+          </div>`);
+      } else {
+        cells.push(`<div class="drop-bag__slot drop-bag__slot--empty" data-empty="${i}" title="Empty"></div>`);
+      }
+    }
+
+    const hotbar = Array.from({ length: hotN }, (_, i) => {
+      const n = i + 1;
+      // First 10 bag items can mirror as hotbar preview (visual only — combat bar stays DRC)
+      const it = this.items[i];
+      return `
+        <div class="drop-bag__hotbar-slot" data-n="${n}" title="${it ? escapeAttr(it.name) : 'Hotbar ' + n}">
+          ${it?.iconUrl ? `<img src="${escapeAttr(it.iconUrl)}" alt="" draggable="false" style="width:70%;height:70%;object-fit:contain" />` : ''}
+        </div>`;
+    }).join('');
+
     this.el.innerHTML = `
       <header class="drop-bag__head">
-        <h3>Bag · throw</h3>
-        <button type="button" class="drop-bag__close" data-close>×</button>
+        <h3>Bag · harvest loot</h3>
+        <button type="button" class="drop-bag__close" data-close aria-label="Close">×</button>
       </header>
-      <p class="drop-bag__hint">Drag item onto world to throw · F pickup drops</p>
+      <p class="drop-bag__hint">Drag onto world to throw · F pickup · harvest fills bag · 9×4 miniinventory</p>
       <div class="drop-bag__grid" data-grid>
-        ${this.items
-          .map(
-            (it) => `
-          <div class="drop-bag__slot" draggable="true" data-id="${it.id}"
-            style="--tier:${it.borderColor || '#9aa3ad'}"
-            title="${it.name} T${it.tier}">
-            <img src="${it.iconUrl || ''}" alt="" draggable="false" />
-            <span class="drop-bag__qty">${it.qty || 1}</span>
-            <span class="drop-bag__name">${it.name || it.id}</span>
-          </div>`
-          )
-          .join('') || '<p class="drop-bag__empty">Empty — spawn drops from Showcase / Loot</p>'}
+        ${cells.join('') || '<p class="drop-bag__empty">Empty — harvest nodes or spawn loot (L)</p>'}
+      </div>
+      <div class="drop-bag__hotbar" data-hotbar aria-hidden="true">
+        ${hotbar}
       </div>
     `;
 
     this.el.querySelector('[data-close]')?.addEventListener('click', () => this.setOpen(false));
     this.el.addEventListener('pointerdown', (e) => e.stopPropagation());
 
-    this.el.querySelectorAll('.drop-bag__slot').forEach((slot) => {
+    this.el.querySelectorAll('.drop-bag__slot[draggable="true"]').forEach((slot) => {
       slot.addEventListener('dragstart', (e) => {
         e.dataTransfer?.setData('text/drop-item-id', slot.dataset.id || '');
         e.dataTransfer.effectAllowed = 'copy';
@@ -130,4 +157,15 @@ export class DropBag {
   dispose() {
     this.el.remove();
   }
+}
+
+function escapeHtml(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function escapeAttr(s) {
+  return escapeHtml(s).replace(/"/g, '&quot;');
 }

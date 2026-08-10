@@ -46,7 +46,24 @@ export const BIP001_CORE_BONES = Object.freeze([
 
 export const BIP001_BONE_COUNT = BIP001_CORE_BONES.length;
 
-export const UTILITY_SLOTS = Object.freeze(['bag', 'wood', 'quiver']);
+/** Kit child mesh utility + inventory back family (windsurf is external attach) */
+export const UTILITY_SLOTS = Object.freeze(['bag', 'wood', 'quiver', 'back']);
+
+/**
+ * Equipment slot SSOT (matches info canonical-equipment-pattern + UMMORPG names).
+ * Hands use WeaponMeshAttach; back uses BackSlotEquip (deployable vehicle).
+ */
+export const EQUIPMENT_SLOTS = Object.freeze({
+  mainHand: { bone: 'R_hand_container', attach: 'weapon' },
+  offHand: { bone: 'L_hand_container', attach: 'weapon' },
+  head: { meshIds: true },
+  body: { meshIds: true },
+  arms: { meshIds: true },
+  legs: { meshIds: true },
+  back: { bone: 'Bip001 Spine1', attach: 'backSlot', deployable: true },
+  relic: { hudOnly: true },
+  mount: { controller: 'mount' }
+});
 
 export function normalizeBoneKey(name) {
   return String(name || '')

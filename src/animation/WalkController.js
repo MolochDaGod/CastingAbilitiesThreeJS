@@ -36,9 +36,10 @@ export const Phase = Object.freeze({
  *  5. Space hop; skills allowed while freeride when settings.walk.skillsWhileRide
  *
  * Mount contract (until dismount):
- *  - Character reparented to deck seat
- *  - RideIK feet→footL/R, hands→sailRail/boom (post-mixer)
+ *  - Character reparented to unscaled RideSeat (never boardRoot scale)
+ *  - RideIK feet→footL/R, hands→sailRail/boom (post-mixer; absolute hip Y)
  *  - Physics capsule glued to deck
+ *  - Back-slot stow mesh hidden while vehicle live
  *
  * Ref: https://github.com/Robpayot/tslda · docs/WINDSURF_RIDE_SSOT.md
  */
@@ -208,15 +209,47 @@ export class WalkController {
     return true;
   }
 
+  /**
+   * Hard abort: unparent rider, remove vehicle from scene, restore land loco.
+   * Prefer {@link requestDismount} for play (soft step-off + board fade).
+   */
   cancel() {
-    if (!this.active && !this._mounted) return;
-    this._dismountRider(true);
+    if (!this.active && !this._mounted && !this.scooter.active) return;
+    this._exitRideHard({ snapFeet: true });
+  }
+
+  /**
+   * Player get-off while mounted (freeride / path ride).
+   * Soft step-off → board release (fade out) → land controller normal.
+   * @returns {boolean} true if dismount started
+   */
+  requestDismount() {
+    if (this.phase !== Phase.RIDE && this.phase !== Phase.FREERIDE) return false;
+    if (this.phase === Phase.DISMOUNT) return true;
+    this._startDismount();
+    return true;
+  }
+
+  /**
+   * Full teardown: vehicle gone + character controller land state.
+   * @param {{ snapFeet?: boolean }} [opts]
+   */
+  _exitRideHard(opts = {}) {
+    const snapFeet = opts.snapFeet !== false;
+    this._dismountRider(snapFeet);
+    // Instant remove from scene (no lingering vehicle mesh)
     this.scooter.cancel();
     this.character.setRideActive?.(false);
+    this.character.setRideParented?.(false);
+    this.character.restoreFromRide?.(snapFeet ? { y: 0 } : undefined);
     this._setPhase(Phase.IDLE);
     this.curve = null;
-    this.character.setPose('idle', settings.walk.poseBlend);
-    this.character.resetPlacement();
+    this._vel.set(0, 0, 0);
+    this._vy = 0;
+    this._mounted = false;
+    this._sailSpawned = false;
+    this._softHip = 0;
+    this.character.setPose?.('idle', settings.walk.poseBlend);
     this._syncPhysicsToCharacter();
   }
 
@@ -271,7 +304,11 @@ export class WalkController {
    * @param {number} dt
    */
   applyRiderIk(dt) {
-    if (!this.active && !this.character._rideActive) return;
+    // Only while vehicle-mounted — not during dismount/idle land
+    if (this.phase !== Phase.RIDE && this.phase !== Phase.FREERIDE && this.phase !== Phase.LEAP) {
+      return;
+    }
+    if (!this.character._rideActive && this.phase !== Phase.LEAP) return;
     if (this.character._softHipRide !== undefined) {
       this.character._softHipRide = this._softHip || 0;
     } else {
@@ -286,25 +323,28 @@ export class WalkController {
   /* ------------------------------------------------------------------ */
 
   /**
-   * Parent character.root under windsurf vehicle seat (deckCenter).
-   * Board vehicle owns world transform until _dismountRider — do not
+   * Parent character.root under unscaled RideSeat (not boardRoot).
+   * Vehicle group owns world transform until _dismountRider — do not
    * write world XZ to character while mounted.
    */
   _mountRider() {
-    const seat = this.scooter.getSeat?.() || this.scooter.sockets?.deckCenter;
+    const seat = this.scooter.getSeat?.() || this.scooter.seatRoot || this.scooter.sockets?.deckCenter;
     if (!seat || !this.scooter.ready) {
       console.warn('[Walk] mount deferred — seat not ready');
       return;
     }
 
+    // Never inherit birth scale 0.01 (rips / shrinks hero off screen)
+    this.scooter.forceFullSize?.();
+    this.scooter.group.updateWorldMatrix(true, true);
+    seat.updateWorldMatrix(true, true);
+
     // Re-assert parent every call (recover if something stole root)
     if (this.character.root.parent !== seat) {
-      seat.updateWorldMatrix(true, true);
-      this.scooter.group.updateWorldMatrix(true, true);
       seat.attach(this.character.root);
     }
 
-    // Local feet on deck only — vehicle carries world pose
+    // Local feet on deck only — vehicle carries world pose; scale identity SI
     const stand = settings.walk.standOffset ?? 0.02;
     this.character.root.position.set(0, stand - (this._softHip || 0), 0);
     this.character.root.rotation.set(0, 0, 0);
@@ -316,10 +356,12 @@ export class WalkController {
     this.character.setRideParented?.(true);
     this.character.setRideActive?.(true, this._yaw);
     this.character.setRideSockets?.(this.scooter.getIkWorldTargets(), this._yaw);
+    // Back-slot stow mesh off while vehicle is live
+    this.character.setBackSlotDeployed?.(true);
     this._syncPhysicsToCharacter();
     if (!this._mountLogged) {
       this._mountLogged = true;
-      console.info('[Walk] mounted — character parented under', seat.name || 'deck seat');
+      console.info('[Walk] mounted — character parented under', seat.name || 'RideSeat');
     }
   }
 
@@ -348,8 +390,11 @@ export class WalkController {
     this.character.setLean(0);
     this.character.root.position.set(_p.x, snapY ? 0 : Math.max(0, _p.y), _p.z);
     this.character.root.rotation.set(0, worldYaw, 0);
+    this.character.root.scale.set(1, 1, 1);
     this._mounted = false;
     this.character.setRideActive?.(false);
+    // Stow back-slot item mesh again (windsurf utility)
+    this.character.setBackSlotDeployed?.(false);
     this._syncPhysicsToCharacter();
   }
 
@@ -511,9 +556,10 @@ export class WalkController {
       return;
     }
 
-    // Land on deck — group at surface Y=0 (+ target); deck local; then parent rider
+    // Land on deck — group at surface Y=0; force full board size; parent to unscaled seat
     this._anchor.set(this._target.x, 0, this._target.z);
     if (!this.scooter.active) this.scooter.spawn(this._anchor);
+    this.scooter.forceFullSize?.();
     _side.set(Math.cos(this._yaw), 0, -Math.sin(this._yaw));
     this.scooter.update(0, this._anchor, _side, 0, 0, this._yaw, 0);
     this.scooter.group.updateWorldMatrix(true, true);
@@ -663,24 +709,33 @@ export class WalkController {
     this._turnRate = turn;
 
     // Thrust along board forward (W) / reverse (S)
+    // Water physics: release W → gentle coast (not hard stop)
     const fwdX = Math.sin(this._yaw);
     const fwdZ = Math.cos(this._yaw);
     const maxSp = c.freerideSpeed ?? 7.2;
     const accel = c.freerideAccel ?? 4.5;
-    const drag = c.freerideDrag ?? 1.8;
+    const coastDrag = c.freerideDrag ?? 0.55;
+    const brakeDrag = c.freerideBrakeDrag ?? 2.4;
 
     if (iz < 0) {
-      // forward
+      // forward thrust
       this._vel.x += fwdX * accel * dt;
       this._vel.z += fwdZ * accel * dt;
     } else if (iz > 0) {
-      this._vel.x -= fwdX * accel * 0.55 * dt;
-      this._vel.z -= fwdZ * accel * 0.55 * dt;
+      // reverse + stronger drag while braking
+      this._vel.x -= fwdX * accel * 0.45 * dt;
+      this._vel.z -= fwdZ * accel * 0.45 * dt;
+      const spB = Math.hypot(this._vel.x, this._vel.z);
+      if (spB > 1e-4) {
+        const d = Math.min(spB, brakeDrag * dt);
+        this._vel.x -= (this._vel.x / spB) * d;
+        this._vel.z -= (this._vel.z / spB) * d;
+      }
     } else {
-      // coast drag
+      // water coast — keep glide when player releases W
       const sp = Math.hypot(this._vel.x, this._vel.z);
       if (sp > 1e-4) {
-        const d = Math.min(sp, drag * dt);
+        const d = Math.min(sp, coastDrag * dt);
         this._vel.x -= (this._vel.x / sp) * d;
         this._vel.z -= (this._vel.z / sp) * d;
       }
@@ -746,10 +801,19 @@ export class WalkController {
     // Capture world exit before unparent
     this.character.root.updateWorldMatrix(true, false);
     this.character.root.getWorldPosition(this._exit);
+    this._exit.y = Math.max(0, this._exit.y);
+
+    // Unparent first so character is free in scene
     this._dismountRider(false);
     this.character.setRideActive?.(false);
-    this.scooter.release();
+    this.character.setRideParented?.(false);
+
+    // Vehicle leaves scene (fade then retire; cancel if already gone)
+    if (this.scooter.active) this.scooter.release();
+    else this.scooter.cancel();
+
     this.character.setPose('idle', settings.walk.poseBlend);
+    this.character.clearFlip?.();
   }
 
   _updateDismount(dt) {
@@ -758,26 +822,36 @@ export class WalkController {
     const t = saturate(this._dismountTime / Math.max(0.05, c.dismountTime));
     const e = Easing.outCubic(t);
 
+    // Guarantee not parented mid-step
+    if (this.character.root.parent !== this.ctx.scene) {
+      this.ctx.scene.attach(this.character.root);
+      this.character.setRideParented?.(false);
+    }
+
     _t.set(Math.sin(this._yaw), 0, Math.cos(this._yaw));
     _p.copy(this._exit).addScaledVector(_t, e * 0.55);
     _p.y = MathUtils.lerp(Math.max(0, this._exit.y), 0, e);
     this.character.root.position.copy(_p);
-    this.character.root.rotation.y = this._yaw;
-    this.character.root.rotation.x = 0;
-    this.character.root.rotation.z = 0;
+    this.character.root.rotation.set(0, this._yaw, 0);
+    this.character.root.scale.set(1, 1, 1);
 
     this._lean = damp(this._lean, 0, 0.0005, dt);
     this.character.setLean(this._lean);
     this._syncPhysicsToCharacter();
 
-    // Board still releases at last anchor
-    this._anchor.set(this._exit.x, this.seatHeight, this._exit.z);
+    // Board fade anchor (vehicle no longer carries player)
+    this._anchor.set(this._exit.x, this._exit.y, this._exit.z);
 
     if (t < 1) return;
 
-    this.character.resetPlacement();
-    this.character.root.position.set(_p.x, 0, _p.z);
+    // Land normal: vehicle must be gone; controller fully land
+    this.scooter.cancel();
+    this.character.restoreFromRide?.({ x: _p.x, y: 0, z: _p.z, yaw: this._yaw });
     this.character.setFacing(this._yaw);
+    this._mounted = false;
+    this._vel.set(0, 0, 0);
+    this._vy = 0;
+    this._softHip = 0;
     this._syncPhysicsToCharacter();
     this._land(0.7);
 

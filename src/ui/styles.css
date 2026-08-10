@@ -41,29 +41,54 @@ body {
   cursor: crosshair;
 }
 
-/* Screen-center aim reticle (combat mouse aim) */
+/* Focus mode: OS cursor removed — screen crosshair is the only reticle */
+body.focus-aim,
+body.focus-aim canvas,
+body.focus-aim .hud {
+  cursor: none !important;
+}
+
+/* Screen-center aim reticle — positional ticks + dynamic spread (snow-brawl inspired) */
 .hud__crosshair {
+  --xh-spread: 0;
+  --xh-size: calc(30px + var(--xh-spread) * 18px);
   position: fixed;
   left: 50%;
   top: 50%;
-  width: 28px;
-  height: 28px;
-  margin: -14px 0 0 -14px;
+  width: var(--xh-size);
+  height: var(--xh-size);
+  margin: calc(var(--xh-size) / -2) 0 0 calc(var(--xh-size) / -2);
   z-index: 26;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 0.15s ease;
+  transition: opacity 0.12s ease, width 0.1s ease, height 0.1s ease, margin 0.1s ease;
 }
 .hud__crosshair.is-visible {
   opacity: 1;
+}
+.hud__crosshair.is-focus .hud__crosshair-ring {
+  border-color: rgba(180, 230, 255, 0.92);
+}
+.hud__crosshair.is-softlock .hud__crosshair-ring {
+  border-color: rgba(255, 120, 90, 0.9);
+  box-shadow: 0 0 12px rgba(255, 90, 60, 0.35);
+}
+.hud__crosshair.is-softlock .hud__crosshair-dot {
+  background: #ffb0a0;
+  box-shadow: 0 0 8px rgba(255, 120, 90, 0.95);
+}
+.hud__crosshair.is-fire .hud__crosshair-ring {
+  transform: scale(0.82);
+  border-color: #4ecdc4;
+  transition: transform 0.08s ease, border-color 0.08s ease;
 }
 .hud__crosshair-dot {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 4px;
-  height: 4px;
-  margin: -2px 0 0 -2px;
+  width: 3px;
+  height: 3px;
+  margin: -1.5px 0 0 -1.5px;
   border-radius: 50%;
   background: #e8f4ff;
   box-shadow: 0 0 6px rgba(127, 214, 255, 0.9);
@@ -74,26 +99,33 @@ body {
   border: 1.5px solid rgba(127, 214, 255, 0.75);
   border-radius: 50%;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.45);
+  transition: transform 0.12s ease, border-color 0.12s ease;
 }
-.hud__crosshair-ring::before,
-.hud__crosshair-ring::after {
-  content: '';
+.hud__crosshair-tick {
   position: absolute;
-  background: rgba(232, 244, 255, 0.7);
+  background: rgba(232, 244, 255, 0.85);
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
 }
-.hud__crosshair-ring::before {
+.hud__crosshair-tick--n,
+.hud__crosshair-tick--s {
   left: 50%;
-  top: -5px;
-  width: 1px;
-  height: 5px;
-  margin-left: -0.5px;
+  width: 1.5px;
+  height: 6px;
+  margin-left: -0.75px;
 }
-.hud__crosshair-ring::after {
-  left: 50%;
-  bottom: -5px;
-  width: 1px;
-  height: 5px;
-  margin-left: -0.5px;
+.hud__crosshair-tick--e,
+.hud__crosshair-tick--w {
+  top: 50%;
+  width: 6px;
+  height: 1.5px;
+  margin-top: -0.75px;
+}
+.hud__crosshair-tick--n { top: -1px; }
+.hud__crosshair-tick--s { bottom: -1px; }
+.hud__crosshair-tick--e { right: -1px; }
+.hud__crosshair-tick--w { left: -1px; }
+.hud__crosshair.is-softlock .hud__crosshair-tick {
+  background: rgba(255, 176, 160, 0.9);
 }
 
 /* ------------------------------------------------------------------ *
@@ -618,6 +650,10 @@ body {
 }
 
 /* RMB soft-lock focus outline (production targeting) */
+.hud--focus .hud__crosshair,
+body.focus-aim .hud__crosshair {
+  opacity: 1;
+}
 .hud--focus .hud__crosshair {
   opacity: 1;
 }

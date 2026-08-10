@@ -1,0 +1,4 @@
+Dev-island icon pack
+- Dreamland Minerals (see source License.txt)
+- Retro Inventory (Retr3o) — see pack Read Me
+Rocks mesh: Rocks.zip FBX+atlas ? models/dev-island/

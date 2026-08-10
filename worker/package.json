@@ -1,0 +1,15 @@
+{
+  "name": "grudge-weapon-skill-drafts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:prod": "wrangler deploy --env production",
+    "types": "wrangler types"
+  },
+  "devDependencies": {
+    "wrangler": "^4.87.0"
+  }
+}

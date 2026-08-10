@@ -1,0 +1,56 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "grudge-weapon-skill-drafts",
+  "main": "src/index.js",
+  "compatibility_date": "2026-07-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  "vars": {
+    "ENVIRONMENT": "development",
+    "CATALOG_VERSION": "1"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "WEAPON_SKILL_DRAFTS",
+        "class_name": "WeaponSkillDrafts"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["WeaponSkillDrafts"]
+    }
+  ],
+  "env": {
+    "production": {
+      "name": "grudge-weapon-skill-drafts",
+      "vars": {
+        "ENVIRONMENT": "production",
+        "CATALOG_VERSION": "1"
+      },
+      "routes": [
+        {
+          "pattern": "weapon-skills.grudge-studio.com/*",
+          "zone_name": "grudge-studio.com"
+        }
+      ],
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "WEAPON_SKILL_DRAFTS",
+            "class_name": "WeaponSkillDrafts"
+          }
+        ]
+      },
+      "migrations": [
+        {
+          "tag": "v1",
+          "new_sqlite_classes": ["WeaponSkillDrafts"]
+        }
+      ]
+    }
+  }
+}

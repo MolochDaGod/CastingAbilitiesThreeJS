@@ -57,6 +57,7 @@ export function buildBoneNameLookup(root) {
   });
 
   // Role aliases (clip may say Hips / LeftArm when kit is Bip001)
+  // Mixamo short names → Bip001 (combo bakes from Documents Mixamo FBX)
   const aliases = [
     ['bip001pelvis', 'hips'],
     ['bip001lupperarm', 'leftarm'],
@@ -72,7 +73,15 @@ export function buildBoneNameLookup(root) {
     ['bip001lfoot', 'leftfoot'],
     ['bip001rfoot', 'rightfoot'],
     ['bip001lclavicle', 'leftshoulder'],
-    ['bip001rclavicle', 'rightshoulder']
+    ['bip001rclavicle', 'rightshoulder'],
+    // Spine / head (Mixamo Spine / Spine01 / Spine02 / neck)
+    ['bip001spine', 'spine'],
+    ['bip001spine1', 'spine01'],
+    ['bip001spine1', 'spine1'],
+    ['bip001spine2', 'spine02'],
+    ['bip001spine2', 'spine2'],
+    ['bip001neck', 'neck'],
+    ['bip001head', 'head']
   ];
   for (const [a, b] of aliases) {
     const boneA = actualByKey.get(a);
@@ -80,8 +89,59 @@ export function buildBoneNameLookup(root) {
     if (boneA) lookup.set(b, boneA);
     if (boneB) lookup.set(a, boneB);
   }
+  // Prefer mapping Mixamo Spine02 → highest available Bip001 spine
+  const spine2 = actualByKey.get('bip001spine2') || actualByKey.get('bip001spine1') || actualByKey.get('bip001spine');
+  if (spine2) {
+    lookup.set('spine02', spine2);
+    lookup.set('spine2', spine2);
+    // Ghost Rider / Toon: clip may author Spine2 when kit only has Spine1/Spine
+    lookup.set('bip001spine2', spine2);
+  }
+  const spine1 = actualByKey.get('bip001spine1') || actualByKey.get('bip001spine');
+  if (spine1) {
+    lookup.set('spine01', spine1);
+    lookup.set('spine1', spine1);
+    if (!actualByKey.get('bip001spine1')) lookup.set('bip001spine1', spine1);
+  }
+  // Toe0 often missing on grudge6 kits — fold into Foot to avoid dropped foot pose
+  const lFoot = actualByKey.get('bip001lfoot');
+  const rFoot = actualByKey.get('bip001rfoot');
+  if (lFoot) {
+    lookup.set('bip001ltoe0', lFoot);
+    lookup.set('bip001ltoe', lFoot);
+    lookup.set('lefttoeBase', lFoot);
+    lookup.set('lefttoe', lFoot);
+  }
+  if (rFoot) {
+    lookup.set('bip001rtoe0', rFoot);
+    lookup.set('bip001rtoe', rFoot);
+    lookup.set('righttoeBase', rFoot);
+    lookup.set('righttoe', rFoot);
+  }
 
   return lookup;
+}
+
+/**
+ * Make quaternion keyframes continuous (no 180° flips) — reduces limb “pop” on rolls.
+ * @param {import('three').KeyframeTrack} track
+ */
+export function ensureQuaternionContinuity(track) {
+  if (!track || !/\.quaternion$/.test(track.name)) return track;
+  const v = track.values;
+  const n = Math.floor(v.length / 4);
+  for (let i = 1; i < n; i++) {
+    const o = (i - 1) * 4;
+    const c = i * 4;
+    const dot = v[o] * v[c] + v[o + 1] * v[c + 1] + v[o + 2] * v[c + 2] + v[o + 3] * v[c + 3];
+    if (dot < 0) {
+      v[c] = -v[c];
+      v[c + 1] = -v[c + 1];
+      v[c + 2] = -v[c + 2];
+      v[c + 3] = -v[c + 3];
+    }
+  }
+  return track;
 }
 
 /**
@@ -128,22 +188,16 @@ export function rematchClipToSkeleton(root, clip, { stripPositions = true } = {}
       continue;
     }
 
-    if (resolved === nodeName) {
-      tracks.push(track);
-      continue;
-    }
-
-    rewritten++;
     const dot = track.name.indexOf('.');
     const propSuffix = dot >= 0 ? track.name.slice(dot) : `.${parsed.propertyName || 'quaternion'}`;
     const Ctor = track.constructor;
-    tracks.push(
-      new Ctor(
-        `${resolved}${propSuffix}`,
-        track.times.slice ? track.times.slice() : track.times,
-        track.values.slice ? track.values.slice() : track.values
-      )
-    );
+    const times = track.times.slice ? track.times.slice() : Array.from(track.times);
+    const values = track.values.slice ? track.values.slice() : Array.from(track.values);
+    const nextName = resolved === nodeName ? track.name : `${resolved}${propSuffix}`;
+    if (resolved !== nodeName) rewritten++;
+    const nt = new Ctor(nextName, times, values);
+    if (/\.quaternion$/.test(nextName)) ensureQuaternionContinuity(nt);
+    tracks.push(nt);
   }
 
   if (rewritten || dropped) {

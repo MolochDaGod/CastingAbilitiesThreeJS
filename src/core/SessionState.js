@@ -138,11 +138,14 @@ export class SessionState extends EventEmitter {
     return {
       landLoco: combat && !walk && !riding,
       combatSkills: combat && (!riding || (skillsWhileRide && freeride) || (skillsWhileRide && leapOrRide)),
-      pathIsCast: !walk,
-      pathIsRide: walk,
+      // Path draw: cast on land casting OR freeride ranged; ride course only walk + not mounted
+      pathIsCast: !walk || freeride,
+      pathIsRide: walk && !riding,
       freerideDeploy: walk && !riding,
       rideParented: leapOrRide,
       combatKeys: combat,
+      /** Freeride path cast without focus lock (ranged/staff) */
+      freerideRangedCast: freeride && skillsWhileRide && settings.walk?.freerideRangedCast !== false,
       // TPS: combat land OR freeride; orbit: equip or walk path-draw idle
       tpsCamera: (combat && !walk) || freeride || (walk && riding && this._ridePhase !== RIDE_PHASE.LEAP),
       orbitCamera: equip || (walk && !riding),
@@ -261,8 +264,8 @@ export class SessionState extends EventEmitter {
   blurb() {
     const g = this.gates;
     if (this._mode === INTERACTION_MODE.WALK) {
-      if (this.freeriding) return 'Surf freeride · WASD boat · skills on board';
-      if (this.riding) return `Surf · ${this._ridePhase}`;
+      if (this.freeriding) return 'Windsurf vehicle · WASD · E get off · Space hop';
+      if (this.riding) return `Windsurf · ${this._ridePhase} · E get off`;
       return 'Surf · Space deploy · draw path = course';
     }
     if (this._drc === DRC_SESSION.EQUIP) return 'Equip / Lab · race · mesh · packs';

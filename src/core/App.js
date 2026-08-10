@@ -34,21 +34,54 @@ import { PostProcessing } from '../postprocessing/PostProcessing.js';
 import { HUD, LoadingScreen } from '../ui/HUD.js';
 import { Editor } from '../ui/Editor.js';
 import { InventoryPanel } from '../ui/InventoryPanel.js';
+import { AdminHub } from '../ui/AdminHub.js';
 import { ShowcasePanel } from '../ui/ShowcasePanel.js';
 import { DrcCombatController } from '../combat/DrcCombatController.js';
 import { loadWeaponSkillsCatalog } from '../api/weaponSkillsCatalog.js';
 import { loadSkillBindings } from '../combat/skillBindings.js';
 import { loadPrefabCatalog, pickSamplePrefab, bagItemFromPresent } from '../loot/prefabAssets.js';
 import { WorldDrops } from '../world/WorldDrops.js';
+import { DevIslandHarvest } from '../world/DevIslandHarvest.js';
+import { HARVEST_RANGE_M } from '../world/devIslandCatalog.js';
 import { DropBag } from '../ui/DropBag.js';
 import '../ui/dropBag.css';
+import {
+  applyWarlordsUiCssVars,
+  preloadWarlordsUi
+} from '../ui/warlordsUiSkin.js';
+import {
+  configureWarlordsCursors,
+  setCursorIntent,
+  preloadWarlordsCursors,
+  intentFromInteractKind
+} from '../ui/warlordsCursors.js';
+import '../ui/warlords-dev-ui.css';
+import { ModeRadial } from '../ui/ModeRadial.js';
+import {
+  RADIAL_HOLD_S,
+  nextActivityMode,
+  HARVEST_TOOL_RADIAL,
+  MODE_LABEL
+} from '../combat/playerActivity.js';
+import { getEquippedWeapon } from '../combat/equippedWeaponRuntime.js';
 import { PhysicsWorld } from '../physics/PhysicsWorld.js';
 import { VfxDirector } from '../vfx/VfxDirector.js';
 import { loadGeneratedCatalog, spawnGeneratedProp } from '../assets/generatedCatalog.js';
 
 import { settings, ELEMENTS, MODES, MODE_META } from '../config/settings.js';
 import { SessionState, INTERACTION_MODE, DRC_SESSION } from './SessionState.js';
+import {
+  resolvePlayerIdentity,
+  displayNameForKit
+} from '../player/playerIdentity.js';
+import { raceDef } from '../config/grudge6SSOT.js';
 import { CombatFocus } from '../combat/CombatFocus.js';
+import {
+  skillNeedsGroundMarker,
+  inferDeliveryPattern,
+  deliveryNeedsGroundMarker
+} from '../combat/skillDelivery.js';
+import { skillBySlot, skillForFKey } from '../combat/drcSkills.js';
 
 const HDR_URL = './hdri/spruit_sunrise.hdr';
 
@@ -150,9 +183,33 @@ export class App {
     this.rig.setCombatFocus?.(this.combatFocus);
     this.combatFocus.on('toast', (msg) => this.hud.showToast(msg));
     this.combatFocus.on('focus', (on) => {
-      this.hud.setCrosshairVisible?.(on || this.drc.inCombat);
+      this.hud.setCrosshairVisible?.(!!on);
       this.hud.root?.classList.toggle('hud--focus', !!on);
       this._applyMouseLockForFocus(!!on);
+      // Soft lock ON with focus: auto-acquire nearest selectable
+      if (on && settings.aim?.softLockOnFocus !== false) {
+        const feet = this.character?.position || this.character?.root?.position;
+        if (feet && !this.combatFocus.selectedTarget) {
+          this.combatFocus.acquireNearest(feet);
+        }
+        const t = this.combatFocus.selectedTarget;
+        if (t) {
+          this.hud.setTargetFrame?.({
+            name:
+              t.mesh?.userData?.displayName ||
+              t.mesh?.name ||
+              t.kind ||
+              'Target',
+            hp01: Number.isFinite(t.mesh?.userData?.hp01)
+              ? t.mesh.userData.hp01
+              : 1,
+            present: true
+          });
+        }
+      }
+      if (!on) {
+        this.hud.root?.classList.remove('hud--softlock');
+      }
     });
     // Ground aim ring under crosshair (combat)
     const ringGeo = new RingGeometry(0.18, 0.32, 32);
@@ -173,6 +230,18 @@ export class App {
     this.post = new PostProcessing(this.renderer, this.scene, this.camera);
 
     /* ---- UI ---- */
+    // Warlords-era bag shells + pirate cursor theme (dev island gameplay chrome)
+    applyWarlordsUiCssVars(document.documentElement);
+    void preloadWarlordsUi();
+    void preloadWarlordsCursors();
+    configureWarlordsCursors({
+      theme: 'pirate',
+      enabled: true,
+      target: canvas,
+      root: document.body
+    });
+    setCursorIntent('default');
+
     this.loading = new LoadingScreen();
     this.hud = new HUD(document.getElementById('hud'));
     this.editor = new Editor({
@@ -183,23 +252,52 @@ export class App {
       character: this.character,
       onToast: (message) => this.hud.showToast(message),
       onEquip: () => {
-        this.hud.setPlayerFrame?.({
-          raceId: this.character.raceId,
-          name: this.character.presetId || 'Hero'
-        });
+        this._syncPlayerFrame();
         this.hud.refreshSkillLabels?.();
       },
       onRace: async (raceId) => {
         await this.character.setRace(raceId);
-        this.hud.setPlayerFrame?.({
-          raceId,
-          name: this.character.presetId || raceId
-        });
-        this.hud.showToast(`Race · ${raceId}`);
+        if (this._playerIdentity) {
+          this._playerIdentity.raceId = raceId;
+          // Keep custom name; refresh kit default when name came from kit
+          if (
+            this._playerIdentity.source === 'kit' ||
+            this._playerIdentity.source === 'kit-default'
+          ) {
+            this._playerIdentity.displayName = displayNameForKit(
+              raceId,
+              this._playerIdentity.roleId
+            );
+            this._playerIdentity.raceLabel = raceDef(raceId).label;
+          }
+        }
+        this._syncPlayerFrame();
+        this.hud.showToast(`Race · ${raceDef(raceId).label}`);
       },
       onMode: (mode) => this.setMode(mode),
       onMountToggle: () => {},
       getDrc: () => this.drc
+    });
+    // Admin F1 + deep links open Main Panel tabs
+    if (typeof window !== 'undefined') {
+      window.__castingInventory = this.inventory;
+    }
+
+    /** F1–F5 admin tools: player · assets · creatures · prefabs · world */
+    this.adminHub = new AdminHub({
+      character: this.character,
+      getDrc: () => this.drc,
+      session: this.session,
+      onToast: (message) => this.hud.showToast(message),
+      onOpenInventoryPrefabs: () => {
+        this.showcase?.setOpen?.(false);
+        this.inventory.openTab?.('prefabs');
+      },
+      onHelp: () => this.hud.toggleHelp(),
+      spawnLoot: (n) => this.spawnWorldLoot?.(n),
+      respawnHarvest: () => this.worldHarvest?.spawnDefaultLayout?.(),
+      equipHarvestTool: () => this._equipHarvestTool?.(),
+      respawnDummies: () => this.worldHarvest?.spawnTrainingDummies?.()
     });
 
     this.showcase = new ShowcasePanel({
@@ -208,7 +306,19 @@ export class App {
       onToast: (message) => this.hud.showToast(message),
       onRace: async (raceId) => {
         await this.character.setRace(raceId);
-        this.hud.setPlayerFrame?.({ raceId, name: this.character.presetId || raceId });
+        if (this._playerIdentity) {
+          this._playerIdentity.raceId = raceId;
+          if (
+            this._playerIdentity.source === 'kit' ||
+            this._playerIdentity.source === 'kit-default'
+          ) {
+            this._playerIdentity.displayName = displayNameForKit(
+              raceId,
+              this._playerIdentity.roleId
+            );
+          }
+        }
+        this._syncPlayerFrame();
       },
       onShowcaseMode: (on) => {
         // Orbit for review; combat returns to TPS when closed if still in combat
@@ -228,6 +338,14 @@ export class App {
       onToast: (m) => this.hud.showToast(m),
       onThrow: (item, cx, cy) => this._throwBagItem(item, cx, cy)
     });
+
+    /** Activity: combat | harvest (Open Hold-Q parity) */
+    this.activityMode = 'combat';
+    this.harvestToolId = 'pick';
+    this.modeRadial = new ModeRadial();
+    this._qHold = { armed: false, t: 0, open: false };
+    this._rHold = { armed: false, t: 0, open: false };
+    this.input.setActivityMode?.(this.activityMode);
 
     /** @type {WorldDrops|null} filled after assets load */
     this.worldDrops = null;
@@ -253,10 +371,14 @@ export class App {
       aim: this.mouseAim,
       combatFocus: this.combatFocus,
       sessionState: this.session,
+      scene: this.scene,
       onToast: (message) => this.hud.showToast(message),
+      onCastBar: (st) => this.hud.setCastBar?.(st),
       // Side effects applied once via session.change — toast only here
       onSession: () => {}
     });
+    // Warm fire/ice summon projectiles (extracted SI meshes)
+    this.drc.projectiles?.warm?.().catch?.(() => {});
 
     this._bindEvents();
     this.session.on('change', (snap, prev, reason) => this._onSessionChange(snap, prev, reason));
@@ -316,7 +438,7 @@ export class App {
         if (this._assets && !this.walk.scooter?.ready) {
           this.walk.load(this._assets).catch(() => {});
         }
-        this.hud.showToast('Windsurf · Space = deploy · draw path = course · WASD steer');
+        this.hud.showToast('Windsurf · Space deploy vehicle · E get off · WASD steer · draw path = course');
       } else {
         const meta = MODE_META[snap.mode];
         if (meta) this.hud.showToast(`${meta.hint} — ${meta.blurb}`);
@@ -361,7 +483,7 @@ export class App {
       }
       this.selectElement(ELEMENTS[index]);
     });
-    this.input.on('action', (action) => this._handleAction(action));
+    this.input.on('action', (action, detail) => this._handleAction(action, detail));
     this.input.on('sandboxVfx', (effectId) => {
       if (this.drc.previewSandboxEffect(effectId)) {
         this.hud.showToast(`VFX · ${effectId}`);
@@ -371,13 +493,18 @@ export class App {
     // Path stroke meaning from SessionState.gates (not scattered settings.mode checks)
     this.pathDrawer.on('cast', (curve, _pts, _n, length = 0, holdSec = 0) => {
       const g = this.session.gates;
-      if (g.pathIsRide) {
+      // Freeride: path = cast (ranged/staff), never re-deploy course
+      if (g.pathIsRide && !this.session.freeriding) {
         if (!this.walk.begin(curve)) this.hud.showToast('Path too short to ride');
         return;
       }
-      if (this.drc.inCombat) {
+      if (this.drc.inCombat || this.session.freeriding) {
         this.pathDrawer.setCombatMinLength?.(settings.staffCast?.combatMinPathLength ?? 0.9);
-        this.drc.castPathAbility?.(curve, length || curve?.getLength?.() || 0, holdSec);
+        const ok = this.drc.castPathAbility?.(curve, length || curve?.getLength?.() || 0, holdSec);
+        if (!ok) {
+          this.abilities.cast(curve);
+          this.character.playCastFlourish?.();
+        }
         return;
       }
       this.abilities.cast(curve);
@@ -395,7 +522,8 @@ export class App {
       if (this.drc.inCombat) this.drc.useSkill(slot);
     };
     this.hud.onMelee = () => {
-      if (this.drc.inCombat) this.drc.useMeleeStrike?.();
+      // F slot = weapon skill (not residual)
+      if (this.drc.inCombat) this.drc.useWeaponSkillF?.();
     };
     this.hud.onQuickAction = (actionId) => {
       if (actionId === 'interact' || actionId === 'fskill') {
@@ -448,6 +576,9 @@ export class App {
       case 'editor':
         this.editor.toggle();
         break;
+      case 'admin':
+        this.adminHub?.openTab?.('prefabs');
+        break;
       case 'help':
         this.hud.toggleHelp();
         break;
@@ -465,11 +596,11 @@ export class App {
   }
 
   /**
-   * F — best next action (context priority):
+   * F — context priority then weapon skill:
    *  1. Pickup nearby world drop
-   *  2. Harvest nearby node (when wired)
-   *  3. Standard attack / melee residual (combat) or weapon attack (equip)
-   * E stays block; C stays parry — never steal those for interact.
+   *  2. Harvest nearest node within 5 m (tool in hand when required)
+   *  3. Equipped weapon skill (primary / Showcase F bind) — cast times + prefabs
+   * Class abilities deferred. Residual is not F.
    * @returns {boolean}
    */
   _tryBestAction() {
@@ -483,33 +614,73 @@ export class App {
       }
     }
 
-    // 2) Harvest / gather (Mine-Loader / Open pattern — hook when nodes exist)
-    if (typeof this.tryHarvest === 'function') {
-      const harvested = this.tryHarvest();
-      if (harvested) return true;
-    }
-    if (this.worldHarvest?.tryInteract) {
-      const ok = this.worldHarvest.tryInteract(this.character.position, 2.4);
-      if (ok) {
-        this.hud.showToast(typeof ok === 'string' ? ok : 'Harvested');
+    // 2) Harvest — always try if node in range; harvest mode prioritizes over skills
+    const wantHarvest =
+      this.activityMode === 'harvest' ||
+      this.worldHarvest?.nearestAlive?.(this.character.position, HARVEST_RANGE_M);
+    if (wantHarvest) {
+      if (typeof this.tryHarvest === 'function') {
+        const harvested = this.tryHarvest();
+        if (harvested) return true;
+      }
+      if (this.worldHarvest?.tryInteract) {
+        const ok = this.worldHarvest.tryInteract(
+          this.character.position,
+          HARVEST_RANGE_M
+        );
+        if (ok) return true;
+      }
+      if (this.activityMode === 'harvest') {
+        this.hud.showToast('No harvest node ≤5 m');
         return true;
       }
     }
 
-    // 3) Standard attack (melee residual from tip when in combat)
+    // 3) Weapon skill F (prefab + cast bar path) — combat mode
     if (this.drc?.inCombat) {
-      const ok =
-        this.drc.useMeleeStrike?.() ||
-        this.drc.performQuickAction?.('primary') ||
-        false;
-      return !!ok;
+      return !!(
+        this.drc.useWeaponSkillF?.() ||
+        this.drc.performQuickAction?.('fskill') ||
+        false
+      );
     }
     if (this.character.playWeaponAttack?.()) {
-      this.hud.showToast('Attack');
+      this.hud.showToast('Equip combat (Q) for weapon skills');
       return true;
     }
     this.hud.showToast('F · nothing nearby');
     return false;
+  }
+
+  /**
+   * Explicit harvest attempt (nearest ≤5 m). Used by F chain + Admin.
+   * @returns {boolean}
+   */
+  tryHarvest() {
+    if (!this.worldHarvest) return false;
+    const pos = this.character?.position || this.character?.root?.position;
+    if (!pos) return false;
+    const ok = this.worldHarvest.tryHarvestNearest(pos, HARVEST_RANGE_M);
+    return !!ok;
+  }
+
+  /**
+   * Equip t0-tool for mine/chop harvest swings (sword_shield attack anim).
+   */
+  async _equipHarvestTool() {
+    try {
+      const { equipWeaponById } = await import('../combat/equippedWeaponRuntime.js');
+      const { setActiveSkillTree } = await import('../combat/drcSkills.js');
+      await equipWeaponById('t0-tool', {
+        character: this.character,
+        onToast: (m) => this.hud.showToast(m)
+      });
+      setActiveSkillTree?.('equipped');
+      this.hud.refreshSkillLabels?.();
+      this.hud.showToast('Tool equipped · F harvest nearest ≤5 m');
+    } catch (err) {
+      this.hud.showToast(err?.message || 't0-tool equip failed');
+    }
   }
 
   /**
@@ -565,7 +736,7 @@ export class App {
     }
   }
 
-  _handleAction(action) {
+  _handleAction(action, detail) {
     const index = ELEMENTS.indexOf(this.abilities.selected);
     switch (action) {
       case 'nextElement':
@@ -577,8 +748,75 @@ export class App {
       case 'toggleDrcSession':
         this.drc.toggleSession();
         break;
+      case 'qHoldStart':
+        this._beginQHold();
+        break;
+      case 'qHoldEnd':
+        this._endQHold();
+        break;
+      case 'rHoldStart':
+        this._beginRHold();
+        break;
+      case 'rHoldEnd':
+        this._endRHold();
+        break;
       case 'toggleHelp':
         this.hud.toggleHelp();
+        break;
+      case 'adminTab': {
+        // F1–F4 · ] World → Admin Hub
+        const key = typeof detail === 'string' ? detail : 'F4';
+        this.adminHub?.openByKey?.(key);
+        break;
+      }
+      case 'toggleAutoTraverse': {
+        const on = this.drc?.toggleAutoTraverse?.();
+        // Freeride: keep board thrust via auto KeyW inject in input.keys
+        if (on) this.input?.keys?.add?.('KeyW');
+        else this.input?.keys?.delete?.('KeyW');
+        break;
+      }
+      case 'cycleTarget': {
+        // Tab / Shift+Tab soft-lock (grudge-combat-targeting)
+        if (settings.aim?.tabCycleTargets === false) break;
+        const feet = this.character?.position || this.character?.root?.position;
+        if (!feet || !this.combatFocus) break;
+        const reverse = !!(detail && detail.reverse);
+        // Focus + soft lock engage when cycling
+        if (!this.combatFocus.focusEnabled) {
+          this.combatFocus.focusEnabled = true;
+          this.combatFocus.showCrosshair = true;
+          this.combatFocus.softLockEnabled = true;
+          this.combatFocus.emit('focus', true);
+          this._applyMouseLockForFocus?.(true);
+        }
+        this.combatFocus.softLockEnabled = true;
+        this.combatFocus.cycleTarget(feet, reverse);
+        // HUD target frame
+        const t = this.combatFocus.selectedTarget;
+        if (t) {
+          const label =
+            t.mesh?.userData?.displayName ||
+            t.mesh?.name ||
+            t.kind ||
+            'Target';
+          this.hud.setTargetFrame?.({
+            name: label,
+            hp01: Number.isFinite(t.mesh?.userData?.hp01)
+              ? t.mesh.userData.hp01
+              : 1,
+            present: true
+          });
+        } else {
+          this.hud.setTargetFrame?.(null);
+        }
+        break;
+      }
+      case 'closeAdmin':
+        if (this.adminHub?.open) {
+          this.adminHub.setOpen(false);
+          this.hud.showToast('Admin closed');
+        }
         break;
       case 'toggleEditor':
         this.editor.toggle();
@@ -645,10 +883,166 @@ export class App {
    * @returns {'draw'|'attack'|'select'}
    */
   _lmbMode() {
+    // Freeride + ranged/staff: non-focus path cast (unlocked cursor)
+    if (this.session?.freeriding && this._isRangedOrStaffEquipped()) {
+      return 'draw';
+    }
     if (!this.drc?.inCombat) return 'draw';
-    if (this.session?.mode === INTERACTION_MODE.WALK) return 'draw';
+    // Walk land (not mounted): draw course for windsurf path
+    if (this.session?.mode === INTERACTION_MODE.WALK && !this.session?.riding) return 'draw';
+    if (this.session?.mode === INTERACTION_MODE.WALK && this.session?.freeriding) {
+      return this._isRangedOrStaffEquipped() ? 'draw' : 'select';
+    }
     if (this.combatFocus?.focusEnabled) return 'attack';
     return 'select';
+  }
+
+  /**
+   * Staff / bow / wand / magic = freeride non-focus cast path.
+   */
+  _isRangedOrStaffEquipped() {
+    const w = getEquippedWeapon?.() || this.character?.weapon || null;
+    const id = `${w?.id || ''} ${w?.weaponType || ''} ${w?.animPack || ''}`.toLowerCase();
+    if (/staff|wand|bow|longbow|crossbow|gun|pistol|rifle|magic|tome|spell/.test(id)) return true;
+    const pack = this.character?.animPack || this.character?.activePack || '';
+    if (/magic|longbow|pistol|bow/.test(String(pack))) return true;
+    // Default staff casting lab
+    if (!w) return true;
+    return false;
+  }
+
+  /* ── Hold Q / R radials (Open parity) ───────────────────────── */
+
+  _beginQHold() {
+    this._qHold = { armed: true, t: 0, open: false };
+  }
+
+  _endQHold() {
+    if (!this._qHold?.armed && !this._qHold?.open) return;
+    if (this._qHold.open) {
+      const aim = this.modeRadial?.getAimId?.();
+      if (aim === 'mode_harvest') this.setActivityMode('harvest');
+      else if (aim === 'mode_combat') this.setActivityMode('combat');
+      this.modeRadial?.hide?.();
+    } else if (this._qHold.armed && this._qHold.t < RADIAL_HOLD_S) {
+      // Tap Q → toggle combat ↔ harvest
+      this.setActivityMode(nextActivityMode(this.activityMode));
+    }
+    this._qHold = { armed: false, t: 0, open: false };
+  }
+
+  _beginRHold() {
+    if (this.activityMode !== 'harvest') return;
+    this._rHold = { armed: true, t: 0, open: false };
+  }
+
+  _endRHold() {
+    if (!this._rHold?.armed && !this._rHold?.open) return;
+    if (this._rHold.open) {
+      const aim = this.modeRadial?.getAimId?.();
+      if (aim) this._selectHarvestTool(aim);
+      this.modeRadial?.hide?.();
+    }
+    this._rHold = { armed: false, t: 0, open: false };
+  }
+
+  /**
+   * @param {'combat'|'harvest'} mode
+   */
+  setActivityMode(mode) {
+    const next = mode === 'harvest' ? 'harvest' : 'combat';
+    this.activityMode = next;
+    this.input.setActivityMode?.(next);
+    // Harvest: prefer equip session off, combat skills still for F fallback
+    if (next === 'combat' && this.drc?.session === 'equip') {
+      this.drc.setSession?.('combat');
+    }
+    this.hud.showToast?.(`${MODE_LABEL[next]} mode · Hold Q switch · ${
+      next === 'harvest' ? 'F nearest · Hold R tools' : 'F skill · 1–4'
+    }`);
+    this.hud.root?.classList.toggle('hud--harvest', next === 'harvest');
+  }
+
+  /**
+   * @param {string} toolId
+   */
+  async _selectHarvestTool(toolId) {
+    const def = HARVEST_TOOL_RADIAL.find((t) => t.id === toolId);
+    if (!def) return;
+    this.harvestToolId = toolId;
+    if (toolId === 'back_slot') {
+      this.setMode('walk');
+      this.hud.showToast('Back slot · Surf (M) · Space deploy windsurf');
+      return;
+    }
+    if (toolId === 'hand') {
+      try {
+        const { unequipWeapon } = await import('../combat/equippedWeaponRuntime.js');
+        unequipWeapon({ character: this.character, onToast: (m) => this.hud.showToast(m) });
+      } catch {
+        /* ok */
+      }
+      this.hud.showToast('Hands · gather herbs / pebbles');
+      return;
+    }
+    if (def.weaponId) {
+      try {
+        const { equipWeaponById } = await import('../combat/equippedWeaponRuntime.js');
+        const { setActiveSkillTree } = await import('../combat/drcSkills.js');
+        await equipWeaponById(def.weaponId, {
+          character: this.character,
+          onToast: (m) => this.hud.showToast(m)
+        });
+        setActiveSkillTree?.('equipped');
+        this.hud.refreshSkillLabels?.();
+        this.hud.showToast(`Tool · ${def.label} · F harvest nearest ≤5 m`);
+      } catch (e) {
+        this.hud.showToast(e?.message || `Equip ${def.label} failed`);
+      }
+    }
+  }
+
+  _tickRadials(dt) {
+    const cx = this.input?.clientX ?? window.innerWidth * 0.5;
+    const cy = this.input?.clientY ?? window.innerHeight * 0.5;
+
+    if (this._qHold?.armed || this._qHold?.open) {
+      this._qHold.t += dt;
+      if (this._qHold.t >= RADIAL_HOLD_S && !this._qHold.open) {
+        this._qHold.open = true;
+        // Unlock cursor for wedge aim
+        if (this.combatFocus?.focusEnabled) {
+          this.combatFocus.focusEnabled = false;
+          this.combatFocus.emit?.('focus', false);
+        }
+        setCursorIntent('default', { force: true });
+        this.modeRadial.show({
+          kind: 'mode',
+          current: this.activityMode,
+          aimId: this.activityMode === 'harvest' ? 'mode_harvest' : 'mode_combat'
+        });
+      }
+      if (this._qHold.open) this.modeRadial.aimFromPointer(cx, cy);
+    }
+
+    if (this._rHold?.armed || this._rHold?.open) {
+      this._rHold.t += dt;
+      if (this._rHold.t >= RADIAL_HOLD_S && !this._rHold.open) {
+        this._rHold.open = true;
+        if (this.combatFocus?.focusEnabled) {
+          this.combatFocus.focusEnabled = false;
+          this.combatFocus.emit?.('focus', false);
+        }
+        setCursorIntent('default', { force: true });
+        this.modeRadial.show({
+          kind: 'tool',
+          current: this.activityMode,
+          toolId: this.harvestToolId,
+          aimId: this.harvestToolId
+        });
+      }
+      if (this._rHold.open) this.modeRadial.aimFromPointer(cx, cy);
+    }
   }
 
   _onLmbAttack() {
@@ -662,18 +1056,85 @@ export class App {
   }
 
   /**
+   * World ground reticle — only for aim / AoE / placement skills.
+   * Screen crosshair (HUD) is independent and only shows in focus mode.
+   * @returns {boolean}
+   */
+  _shouldShowGroundAimMarker() {
+    if (settings.aim?.groundMarker === false) return false;
+
+    // Staff path stroke = placement / wall / aoe / stream
+    if (
+      settings.aim?.groundMarkerOnPathDraw !== false &&
+      this.pathDrawer?.active
+    ) {
+      return true;
+    }
+
+    // Active cast whose delivery needs a ground point
+    const cast = this.drc?._cast;
+    if (cast) {
+      const sk = cast.skill || cast.drcSkill || {
+        id: cast.skillId,
+        label: cast.label,
+        style: cast.style,
+        pathMode: cast.pathMode,
+        effects: cast.effects,
+        element: cast.element
+      };
+      if (skillNeedsGroundMarker(sk)) return true;
+      if (cast.delivery && deliveryNeedsGroundMarker(cast.delivery)) return true;
+      if (cast.pathMode && deliveryNeedsGroundMarker(`path_${cast.pathMode}`)) {
+        return true;
+      }
+    }
+
+    // Hotbar skill being charged / selected for placement (1–4)
+    // Only while LMB held or cast bar active — not idle focus look
+    const lmb =
+      this.input?.keys?.has?.('Mouse0') ||
+      this.input?.pointerButtons?.has?.(0) ||
+      this.input?.mouseDown === true;
+    if (lmb || this.drc?.isCasting) {
+      // Prefer cast skill; else F / last slot skill if placement type
+      const fSkill = skillForFKey?.() || null;
+      if (fSkill && skillNeedsGroundMarker(fSkill) && this.drc?.isCasting) {
+        return true;
+      }
+      for (let slot = 0; slot < 4; slot++) {
+        const sk = skillBySlot?.(slot);
+        if (sk && skillNeedsGroundMarker(sk) && this.drc?.isCasting) return true;
+      }
+    }
+
+    // Explicit placement preview while drawing path is enough; idle focus = no ring
+    return false;
+  }
+
+  /**
    * Free aim: LMB selects target (soft lock). Mouse stays unlocked.
    * @param {import('three').Vector2} ptr NDC
    */
   _onLmbSelect(ptr) {
     document.exitPointerLock?.();
-    if (this.canvas) this.canvas.style.cursor = 'default';
+    setCursorIntent('default');
     const picked = this.combatFocus?.pickFromNdc?.(this.camera, ptr);
     if (picked) {
-      this.hud.showToast('Target selected · soft lock');
+      const t = this.combatFocus.selectedTarget;
+      const label =
+        t?.mesh?.userData?.displayName ||
+        t?.mesh?.name ||
+        (t?.kind === 'hostile' ? 'Hostile' : t?.kind) ||
+        'Target';
+      if (t?.kind === 'hostile' || t?.mesh?.userData?.trainingDummy) {
+        setCursorIntent('attack');
+      }
+      this.hud.showToast(`Target · ${label}`);
       this.hud.setTargetFrame?.({
-        name: this.combatFocus.selectedTarget?.kind || 'Target',
-        hp01: 1,
+        name: label,
+        hp01: Number.isFinite(t?.mesh?.userData?.hp01)
+          ? t.mesh.userData.hp01
+          : 1,
         present: true
       });
     } else {
@@ -684,37 +1145,153 @@ export class App {
   }
 
   /**
-   * Focus ON can hide cursor for attack feel; OFF always unlocks mouse.
+   * Focus ON = remove OS mouse; mouse becomes look + center crosshair aim.
+   * Focus OFF = unlock cursor for free select / UI.
    * @param {boolean} focusOn
    */
   _applyMouseLockForFocus(focusOn) {
+    document.body?.classList.toggle('focus-aim', !!focusOn);
     if (!focusOn) {
-      document.exitPointerLock?.();
-      if (this.canvas) this.canvas.style.cursor = 'default';
+      if (document.pointerLockElement) document.exitPointerLock?.();
+      setCursorIntent('default', { force: true });
+      this.hud.setCrosshairVisible?.(false);
       return;
     }
-    // Focus: crosshair cursor (no forced pointer lock — free look with RMB orbit)
-    if (this.canvas) this.canvas.style.cursor = 'crosshair';
+    // Hide cursor; screen-center crosshair is the reticle
+    setCursorIntent('none', { force: true });
+    if (this.canvas) {
+      this.canvas.style.cursor = 'none';
+      // Pointer lock (user gesture = RMB focus toggle). Fallback: cursor none only.
+      try {
+        this.canvas.requestPointerLock?.();
+      } catch {
+        /* autoplay / gesture policy */
+      }
+    }
+    this.hud.setCrosshairVisible?.(true);
   }
 
   /**
-   * Walk mode Space edge → frontflip + sail deploy freeride (back-slot windsurf).
-   * Gate: session.gates.freerideDeploy
+   * Unlocked cursor: harvest node / loot proximity drives pirate intent.
    */
-  _pollWindsurfDeploy() {
-    if (!this.session.gates.freerideDeploy) {
-      this._wasWalkSpace = this.input.keys.has('Space');
+  _updateInteractCursor() {
+    if (this.combatFocus?.focusEnabled) return;
+    if (document.pointerLockElement) return;
+    const pos = this.character?.position || this.character?.root?.position;
+    if (!pos) return;
+
+    // World drop in pickup range
+    if (this.worldDrops?.items?.length) {
+      let nearDrop = false;
+      for (const it of this.worldDrops.items) {
+        if (it.throw) continue;
+        const dx = it.root.position.x - pos.x;
+        const dz = it.root.position.z - pos.z;
+        if (dx * dx + dz * dz <= 2.4 * 2.4) {
+          nearDrop = true;
+          break;
+        }
+      }
+      if (nearDrop) {
+        setCursorIntent('pickup');
+        return;
+      }
+    }
+
+    // Harvest nearest ≤5 m
+    if (this.worldHarvest?.nearestAlive) {
+      const hit = this.worldHarvest.nearestAlive(pos, HARVEST_RANGE_M);
+      if (hit?.node) {
+        setCursorIntent(intentFromInteractKind(hit.node.def?.classId || 'harvest'));
+        return;
+      }
+    }
+
+    // Soft-lock hostile → attack cursor
+    const t = this.combatFocus?.selectedTarget;
+    if (t && (t.kind === 'hostile' || t.mesh?.userData?.trainingDummy)) {
+      setCursorIntent('attack');
       return;
     }
-    const space = this.input.keys.has('Space');
-    const pressed = space && !this._wasWalkSpace;
+
+    setCursorIntent('default');
+  }
+
+  /** Push honest name/race into HUD + tight bar. */
+  _syncPlayerFrame() {
+    const id = this._playerIdentity;
+    const raceId = this.character?.raceId || id?.raceId || 'WK';
+    const name =
+      id?.displayName ||
+      displayNameForKit(raceId, id?.roleId || this.character?.presetId) ||
+      'Warlord';
+    const maxM = this.drc?.maxMana || 100;
+    const maxS = this.drc?.maxStamina || 100;
+    const maxH = this.drc?.maxHealth || 100;
+    const hp01 =
+      this.drc?.health != null
+        ? Math.max(0, Math.min(1, this.drc.health / maxH))
+        : 1;
+    this.hud.setPlayerFrame?.({
+      name,
+      raceId,
+      hp01,
+      mana01: (this.drc?.mana ?? maxM) / maxM,
+      sta01: (this.drc?.stamina ?? maxS) / maxS
+    });
+  }
+
+  /**
+   * Walk mode:
+   *  - Space (edge) while **not** riding → deploy windsurf vehicle (frontflip + board)
+   *  - E (edge) while freeride/ride → get off: unparent, remove board, land loco
+   * Gate: session.gates.freerideDeploy for Space; riding for E
+   */
+  _pollWindsurfDeploy() {
+    const keys = this.input.keys;
+    // ` auto traverse: hold forward while freeride / land sprint-run
+    if (this.drc?.isAutoTraverse?.()) {
+      keys.add('KeyW');
+      this._autoInjectedW = true;
+    } else if (this._autoInjectedW) {
+      keys.delete('KeyW');
+      this._autoInjectedW = false;
+    }
+    const space = keys.has('Space');
+    const eKey = keys.has('KeyE');
+    const spacePressed = space && !this._wasWalkSpace;
+    const ePressed = eKey && !this._wasWalkE;
     this._wasWalkSpace = space;
-    if (!pressed) return;
+    this._wasWalkE = eKey;
+
+    // Get off vehicle — board removed, controller back to normal
+    if (
+      ePressed &&
+      this.walk?.active &&
+      (this.walk.freeriding || this.walk.phase === 'ride' || this.walk.phase === 'freeride')
+    ) {
+      if (this.walk.requestDismount?.()) {
+        this.hud.showToast('Windsurf · dismount · board stowed');
+      }
+      return;
+    }
+
+    // Space while freeriding = hop (WalkController freerideJump) — do not redeploy
+    if (
+      this.walk?.freeriding ||
+      this.walk?.phase === 'freeride' ||
+      this.session?.freeriding
+    ) {
+      return;
+    }
+
+    if (!this.session.gates.freerideDeploy) return;
+    if (!spacePressed) return;
     if (!this.walk.scooter?.ready && this._assets) {
       this.walk.load(this._assets).catch(() => {});
     }
     this.walk.beginFreeride({ yaw: this.character.facing });
-    this.hud.showToast('Windsurf · frontflip deploy · sail from back');
+    this.hud.showToast('Windsurf vehicle · feet/hands IK · E = get off');
   }
 
   /**
@@ -758,19 +1335,34 @@ export class App {
     await this.environment.loadEnvironment(hdr);
     frame.uEnvMap.value = this.environment.equirect;
 
-    this.loading.setProgress(0.45, 'Loading Toon RTS kit (GLTF + Draco)…');
-    await this.character.load(assets, { raceId: 'WK', presetId: 'mage' });
+    // Identity from URL / Foundry handoff — never hardcode "Hero"
+    const id = resolvePlayerIdentity();
+    this._playerIdentity = id;
+    this.loading.setProgress(
+      0.45,
+      `Loading ${id.raceLabel} kit…`
+    );
+    await this.character.load(assets, {
+      raceId: id.raceId,
+      presetId: id.roleId || 'mage'
+    });
     // Feet at origin; keep model local ground from scaffold
     this.character.placeAt?.(0, 0, 0);
     this.character.resetPlacement?.();
     this.hud.setPlayerFrame?.({
-      name: this.character.presetId || 'Hero',
-      raceId: this.character.raceId,
+      name: id.displayName,
+      raceId: this.character.raceId || id.raceId,
       hp01: 1,
+      mana01: 1,
       sta01: 1
     });
+    this.hud.setAllies?.([]);
+    this.hud.setTargetFrame?.(null);
     this.hud.refreshSkillLabels?.();
     this.inventory.refresh();
+    if (id.source === 'url' || id.source === 'handoff') {
+      this.hud.showToast?.(`${id.displayName} · ${id.raceLabel}`, 2200);
+    }
     // Prefetch master weapon skills for Showcase (non-blocking)
     loadWeaponSkillsCatalog()
       .then((cat) => {
@@ -807,6 +1399,29 @@ export class App {
       })
       .catch((err) => console.warn('[App] prefab catalog', err));
 
+    // Dev Island: baked rocks + harvest + training dummies (replaces empty lab pad content)
+    this.loading.setProgress(0.74, 'Dev island harvest…');
+    try {
+      this.worldHarvest = new DevIslandHarvest({
+        scene: this.scene,
+        assets,
+        character: this.character,
+        combatFocus: this.combatFocus,
+        worldDrops: this.worldDrops,
+        dropBag: this.dropBag,
+        onToast: (m) => this.hud.showToast(m),
+        islandRadius: WORLD.islandRadius,
+        rangeM: HARVEST_RANGE_M
+      });
+      await this.worldHarvest.init();
+      console.info(
+        `[App] DevIsland harvest ready · F nearest ≤${HARVEST_RANGE_M}m · nodes=${this.worldHarvest.nodeCount}`
+      );
+    } catch (err) {
+      console.warn('[App] DevIsland harvest failed', err);
+      this.worldHarvest = null;
+    }
+
     this.generatedCatalog = null;
     if (/[?&]props=1\b/.test(location.search)) {
       this.loading.setProgress(0.78, 'Generated props catalog…');
@@ -833,7 +1448,18 @@ export class App {
     this.character.placeAt?.(0, 0, 0);
     this.rig.snapToCharacter?.(0, 0, 0, this.character.facing);
     this.rig.setAnchor(0, 0, 0);
-    this.rig.setCharacterYaw(this.character.facing);
+    // Backflip setup: hold camera yaw (do not follow reverse body)
+    if (this.character?.isBackflip || this.drc?._flipHoldYaw != null) {
+      const hold =
+        this.character?._flipCameraHoldYaw ??
+        this.drc?._flipHoldYaw ??
+        this.character?.facing ??
+        0;
+      this.rig.setHoldCharacterYaw?.(hold);
+    } else {
+      this.rig.setHoldCharacterYaw?.(null);
+      this.rig.setCharacterYaw(this.character?.facing ?? 0);
+    }
 
     const vis = this.character._countVisibleSkinned?.() ?? -1;
     console.info(
@@ -845,9 +1471,46 @@ export class App {
       this.character.height
     );
 
-    this.loading.setProgress(1, 'Ready — DRC combat');
+    this.loading.setProgress(1, 'Ready — Dev Island');
     this.loading.hide();
-    this.hud.showToast('DRC Combat · WASD · 1–4 skills · F strike · Q equip', 2800);
+    this.hud.showToast(
+      `Dev Island · F harvest ≤${HARVEST_RANGE_M}m (tool) · pickup · combat skill · Tab targets`,
+      3800
+    );
+
+    // T0 starter equip: ?sword=1 | ?wand=1 | ?t0=t0-axe1h (any catalog id)
+    {
+      const m = location.search.match(/[?&]t0=([a-z0-9-]+)/i);
+      const legacy =
+        /[?&]sword=1\b/.test(location.search)
+          ? 't0-sword'
+          : /[?&]wand=1\b/.test(location.search)
+            ? 't0-wand'
+            : /[?&]sapling=1\b/.test(location.search)
+              ? 't0-nature-staff'
+              : null;
+      const t0Id = m?.[1] || legacy;
+      if (t0Id) {
+        try {
+          const { equipWeaponById } = await import('../combat/equippedWeaponRuntime.js');
+          const { setActiveSkillTree, getActiveSkills } = await import('../combat/drcSkills.js');
+          const { T0_ALL_WEAPON_IDS } = await import('../api/t0WeaponCatalog.js');
+          const id = T0_ALL_WEAPON_IDS.includes(t0Id) ? t0Id : t0Id.startsWith('t0-') ? t0Id : null;
+          if (id) {
+            const result = await equipWeaponById(id, {
+              character: this.character,
+              onToast: (m) => this.hud.showToast(m)
+            });
+            setActiveSkillTree('equipped');
+            this.drc.skills = getActiveSkills();
+            const labels = (result.hotbar || []).map((s) => s.label).join(' · ');
+            this.hud.showToast(`${result.weapon?.name || id} T0 · ${labels}`, 4000);
+          }
+        } catch (err) {
+          console.warn('[App] t0 equip', t0Id, err);
+        }
+      }
+    }
 
     this.start();
   }
@@ -891,48 +1554,77 @@ export class App {
     this.environment.setFocus(this.character.position.x, this.character.position.z);
     this.environment.update();
 
-    // Mouse aim + soft lock (combat) — production targeting
+    // Mouse aim + soft lock (combat) — snow-brawl style 3D ray when focused
     const aimOn = this.drc.inCombat && settings.aim?.enabled !== false;
     const feetPos = this.character.getWorldPosition?.() || this.character.position;
     if (aimOn) {
-      this.mouseAim.updateFromNdc(this.input.pointer, feetPos);
-      // Soft-lock resolve aim point for marker / facing
+      // Focus: camera-center ray → hit (ground/colliders/far) + soft-lock cone.
+      // Free: NDC follows real pointer for select / ground pick.
       if (this.combatFocus?.focusEnabled) {
-        this.combatFocus.resolveAimPoint(feetPos, this.mouseAim.point, this.mouseAim.point);
-        this.mouseAim._fromPlayer?.(feetPos);
-        // Recompute yaw from soft point
-        this.mouseAim.yaw = Math.atan2(
-          this.mouseAim.point.x - feetPos.x,
-          this.mouseAim.point.z - feetPos.z
-        );
-        this.mouseAim.forward.set(
-          Math.sin(this.mouseAim.yaw),
-          0,
-          Math.cos(this.mouseAim.yaw)
-        );
-        this.mouseAim.right.set(this.mouseAim.forward.z, 0, -this.mouseAim.forward.x);
+        const softPt = this.combatFocus.getSoftLockPoint?.() || null;
+        this.mouseAim.updateFocusAim?.(feetPos, {
+          softTarget: softPt,
+          softBlend: settings.aim?.softLockBlend,
+          maxSoftAngleDeg: settings.aim?.softLockMaxAngleDeg
+        }) || this.mouseAim.updateFromCenter?.(feetPos);
+        // Keep XZ body forward aligned with look (player rotates with focus)
+        this.rig?.getCameraForward?.(this.mouseAim.forward);
+        if (this.mouseAim.forward.lengthSq() > 1e-6) {
+          this.mouseAim.forward.y = 0;
+          if (this.mouseAim.forward.lengthSq() > 1e-6) {
+            this.mouseAim.forward.normalize();
+            this.mouseAim.yaw = Math.atan2(this.mouseAim.forward.x, this.mouseAim.forward.z);
+            this.mouseAim.right.set(this.mouseAim.forward.z, 0, -this.mouseAim.forward.x);
+          }
+        }
+        // Refresh 3D launch after body axes update
+        this.mouseAim._refreshLaunch?.(feetPos);
+      } else {
+        this.mouseAim.updateFromNdc(this.input.pointer, feetPos);
+        if (this.combatFocus?.selectedTarget) {
+          this.combatFocus.resolveAimPoint(feetPos, this.mouseAim.point, this.mouseAim.point);
+          this.mouseAim._fromPlayer?.(feetPos);
+          this.mouseAim._refreshLaunch?.(feetPos);
+        }
       }
-      if (this.aimMarker && settings.aim?.groundMarker !== false) {
-        this.aimMarker.visible = this.mouseAim.valid || !!this.combatFocus?.selectedTarget;
+      // Ground ring ≠ screen crosshair. Only for placement / AoE / path skills.
+      if (this.aimMarker) {
+        const showGround = this._shouldShowGroundAimMarker();
+        this.aimMarker.visible = showGround && !!this.mouseAim.valid;
         if (this.aimMarker.visible) {
           this.aimMarker.position.x = this.mouseAim.point.x;
           this.aimMarker.position.z = this.mouseAim.point.z;
+          this.aimMarker.position.y = 0.05;
           const d = this.mouseAim.distanceTo(feetPos);
           const s = MathUtils.clamp(0.7 + d * 0.04, 0.7, 1.6);
           this.aimMarker.scale.setScalar(s);
-          // Outline state: focus ring style
           this.aimMarker.material.opacity = this.combatFocus?.focusEnabled ? 0.95 : 0.75;
           this.aimMarker.material.color?.setHex?.(
             this.combatFocus?.selectedTarget ? 0xff6a55 : 0x7fd6ff
           );
         }
       }
+      // Screen-center HUD only in focus (or settings.crosshair force) — not the ground ring
       const showXh =
-        settings.aim?.crosshair !== false &&
-        (this.combatFocus?.focusEnabled || settings.aim?.crosshair);
+        settings.aim?.crosshair !== false && !!this.combatFocus?.focusEnabled;
       this.hud.setCrosshairVisible?.(!!showXh);
+      const soft = !!this.combatFocus?.selectedTarget;
+      // Spread opens slightly when free-running / closes when soft-lock snug
+      const moving =
+        this.drc?._grounded &&
+        (this.input.keys.has('KeyW') ||
+          this.input.keys.has('KeyA') ||
+          this.input.keys.has('KeyS') ||
+          this.input.keys.has('KeyD'));
+      const spread = soft ? 0.12 : moving ? (this.drc?._sprinting ? 0.55 : 0.32) : 0.08;
+      this.hud.setCrosshairState?.({
+        focus: !!this.combatFocus?.focusEnabled,
+        softLock: soft,
+        fire: !!this.drc?._cast,
+        spread
+      });
       this.hud.root?.classList.toggle('hud--focus', !!this.combatFocus?.focusEnabled);
-      this.hud.root?.classList.toggle('hud--softlock', !!this.combatFocus?.selectedTarget);
+      this.hud.root?.classList.toggle('hud--softlock', soft);
     } else {
       if (this.aimMarker) this.aimMarker.visible = false;
       this.hud.setCrosshairVisible?.(false);
@@ -956,6 +1648,13 @@ export class App {
       this.walk.applyRiderIk?.(dt);
     }
     this.worldDrops?.update?.(dt);
+    this.worldHarvest?.update?.(
+      dt,
+      this.character?.position || this.character?.root?.position
+    );
+    // Pirate cursor intents when mouse unlocked (harvest / loot / attack)
+    this._updateInteractCursor?.();
+    this._tickRadials?.(dt);
 
     this.ground.update(this.elapsed);
     this.water?.update?.(this.elapsed);
@@ -964,12 +1663,21 @@ export class App {
     this.pathDrawer.update(raw);
     this.abilities.update(dt);
 
+    // Cast channel owns pose while bar is active; ability travel can keep cast soft-lock
+    const channeling = this.drc.isCasting;
     const focusAbility = this.abilities.focus;
-    const casting = this.abilities.active.length > 0;
-    if (casting && focusAbility?.position) {
+    const abilityTravel = this.abilities.active.length > 0;
+    if (channeling) {
+      const st = this.drc.getCastBarState?.();
+      this.character.setCasting?.(true, this.drc._cast?.aim || null);
+      this.hud.setCastBar?.(st);
+    } else if (abilityTravel && focusAbility?.position) {
       this.character.setCasting?.(true);
+      this.hud.setCastBar?.(null);
     } else {
-      this.character.setCasting?.(false);
+      // Do not clear cast pose mid-frame if DRC just finished (ability may start next frame)
+      if (!channeling) this.character.setCasting?.(false);
+      this.hud.setCastBar?.(null);
     }
 
     this.particles.flush();
@@ -985,11 +1693,33 @@ export class App {
     const focus = this.abilities.focus;
     if (focus) this.rig.lookAt(focus.position, MathUtils.clamp(1 - focus.u * 0.4, 0, 1));
     this.rig.setAnchor(px, py, pz);
-    this.rig.setCharacterYaw(this.character.facing);
+    // Backflip setup: hold camera yaw (do not follow reverse body)
+    if (this.character?.isBackflip || this.drc?._flipHoldYaw != null) {
+      const hold =
+        this.character?._flipCameraHoldYaw ??
+        this.drc?._flipHoldYaw ??
+        this.character?.facing ??
+        0;
+      this.rig.setHoldCharacterYaw?.(hold);
+    } else {
+      this.rig.setHoldCharacterYaw?.(null);
+      this.rig.setCharacterYaw(this.character?.facing ?? 0);
+    }
 
-    // Soft lock: bias camera look toward selected target (not hard snap)
-    if (this.combatFocus?.focusEnabled && this.combatFocus.selectedTarget) {
-      this.rig.setSoftLock?.(this.combatFocus.selectedTarget.point, 1);
+    // Soft lock ON in focus: bias camera look toward selected target (not hard snap)
+    const softPt = this.combatFocus?.getSoftLockPoint?.();
+    if (this.combatFocus?.focusEnabled && softPt) {
+      this.rig.setSoftLock?.(softPt, 1);
+    } else if (
+      this.combatFocus?.focusEnabled &&
+      settings.aim?.softLockOnFocus !== false &&
+      !this.combatFocus.selectedTarget
+    ) {
+      // Keep trying nearest while focused with no target
+      const feetPos = this.character?.position || this.character?.root?.position;
+      if (feetPos) this.combatFocus.acquireNearest?.(feetPos);
+      const p2 = this.combatFocus?.getSoftLockPoint?.();
+      this.rig.setSoftLock?.(p2 || null, p2 ? 1 : 0);
     } else {
       this.rig.setSoftLock?.(null, 0);
     }
@@ -1006,6 +1736,37 @@ export class App {
     this.post.sync(this.elapsed, this.flash);
     this.post.render();
 
+    const maxM = this.drc.maxMana || 100;
+    const maxS = this.drc.maxStamina || 100;
+    const maxH = this.drc.maxHealth || 100;
+    const hp01 =
+      this.drc.health != null
+        ? Math.max(0, Math.min(1, this.drc.health / maxH))
+        : 1;
+    const id = this._playerIdentity;
+    const displayName =
+      id?.displayName ||
+      displayNameForKit(this.character.raceId, this.character.presetId) ||
+      'Warlord';
+
+    // Live soft-lock target (was hard-null — frame lied as always empty)
+    let targetInfo = null;
+    const st = this.combatFocus?.selectedTarget;
+    if (st) {
+      const label =
+        st.mesh?.userData?.displayName ||
+        st.mesh?.name ||
+        (st.kind === 'hostile' ? 'Hostile' : st.kind) ||
+        'Target';
+      targetInfo = {
+        name: label,
+        hp01: Number.isFinite(st.mesh?.userData?.hp01)
+          ? st.mesh.userData.hp01
+          : 1,
+        present: true
+      };
+    }
+
     this.hud.update(raw, () => ({
       particles: this.particles.countLive(this.elapsed),
       calls: gl.info.render.calls,
@@ -1020,13 +1781,13 @@ export class App {
       meleeCd01: this.drc.cooldown01?.('drc_melee_strike') ?? 0,
       quickCd01: (actionId) => this.drc.quickCd01?.(actionId) ?? 0,
       player: {
-        name: this.character.presetId || 'Hero',
-        raceId: this.character.raceId,
-        hp01: 1,
-        mana01: (this.drc.mana ?? 100) / (this.drc.maxMana || 100),
-        sta01: (this.drc.stamina ?? 100) / (this.drc.maxStamina || 100)
+        name: displayName,
+        raceId: this.character.raceId || id?.raceId,
+        hp01,
+        mana01: (this.drc.mana ?? maxM) / maxM,
+        sta01: (this.drc.stamina ?? maxS) / maxS
       },
-      target: null
+      target: targetInfo
     }));
   }
 

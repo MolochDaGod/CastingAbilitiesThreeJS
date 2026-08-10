@@ -1,18 +1,53 @@
 /**
- * Thin client for Grudge deployable game API (Railway).
+ * Thin client for Grudge deployable game API (Railway Postgres SSOT).
  * SSOT: grudge-production-wiring — one account, Railway characters/bag.
  *
- * Lab only: health + optional character list for Main Panel parity testing.
- * No invented auth stack — uses existing Grudge ID cookie/token when present.
+ * Production casting host prefers **same-origin** `/api/*` (vercel.json rewrite → Railway)
+ * so the browser never needs CORS for player data. Absolute Railway URL is fallback
+ * (local vite without proxy, or VITE_FLEET_API override).
  *
- * Base (production):
- *   https://grudge-api-production-0d46.up.railway.app
- * Open / Warlords proxy same routes via /api/* rewrites.
+ * Database: never connect from the SPA. Characters/bag live on Railway Postgres
+ * via grudge-api. D1 is asset index only (ObjectStore/info), not player SSOT.
  */
 
-export const FLEET_API_DEFAULT =
-  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FLEET_API) ||
+/** Absolute Railway game API (player DB). */
+export const RAILWAY_API =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_RAILWAY_API) ||
   'https://grudge-api-production-0d46.up.railway.app';
+
+/**
+ * Resolve API base for browser:
+ *  - VITE_FLEET_API if set ("" or "same-origin" → relative /api)
+ *  - on casting / vercel.app hosts → same-origin (proxy)
+ *  - else Railway absolute
+ */
+export function resolveFleetApiBase() {
+  const env =
+    typeof import.meta !== 'undefined' ? import.meta.env?.VITE_FLEET_API : undefined;
+  if (env === '' || env === 'same-origin' || env === '/') return '';
+  if (typeof env === 'string' && env.trim()) return env.replace(/\/+$/, '');
+
+  if (typeof window !== 'undefined' && window.location?.hostname) {
+    const h = window.location.hostname;
+    // Control plane: casting.grudge.studio (primary) · legacy casting.grudge-studio.com
+    if (
+      h === 'casting.grudge.studio' ||
+      h.endsWith('.casting.grudge.studio') ||
+      h === 'casting.grudge-studio.com' ||
+      h.endsWith('.casting.grudge-studio.com') ||
+      h.includes('casting-abilities-threejs') ||
+      h === 'localhost' ||
+      h === '127.0.0.1'
+    ) {
+      // localhost: vite has no /api proxy unless configured — use Railway
+      if (h === 'localhost' || h === '127.0.0.1') return RAILWAY_API;
+      return '';
+    }
+  }
+  return RAILWAY_API;
+}
+
+export const FLEET_API_DEFAULT = resolveFleetApiBase();
 
 /** Production Main Panel / Open (do not fork UI here). */
 export const MAIN_PANEL_URL =
@@ -20,6 +55,8 @@ export const MAIN_PANEL_URL =
 export const OPEN_LIBRARY_URL = 'https://open.grudge-studio.com';
 export const CHARACTER_FOUNDRY_URL = 'https://character.grudge-studio.com/foundry';
 export const GRUDGE_ID_URL = 'https://id.grudge-studio.com';
+/** Inventory / crafting / char select product SSOT (Warlords craft suite) */
+export const CRAFT_SSOT_URL = 'https://grudgewarlords.com/craft/';
 
 /**
  * @typedef {object} FleetApiStatus
@@ -34,13 +71,20 @@ export class FleetApi {
    * @param {{ baseUrl?: string, getToken?: () => string|null }} [opts]
    */
   constructor(opts = {}) {
-    this.baseUrl = String(opts.baseUrl || FLEET_API_DEFAULT).replace(/\/+$/, '');
+    const base = opts.baseUrl !== undefined ? opts.baseUrl : resolveFleetApiBase();
+    // '' = same-origin (vercel /api rewrites)
+    this.baseUrl = String(base ?? '').replace(/\/+$/, '');
     this.getToken = opts.getToken || (() => {
       try {
+        // Fleet JWT keys used across Open / Foundry / client
         return (
           localStorage.getItem('grudge_token') ||
+          localStorage.getItem('grudge_jwt') ||
           localStorage.getItem('grudgeIdToken') ||
+          localStorage.getItem('grudge_id_token') ||
+          localStorage.getItem('grudge.sessionToken') ||
           localStorage.getItem('token') ||
+          sessionStorage.getItem('grudge_token') ||
           null
         );
       } catch {
@@ -58,14 +102,27 @@ export class FleetApi {
    * @param {RequestInit} [init]
    */
   async fetch(path, init = {}) {
-    const url = path.startsWith('http') ? path : `${this.baseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
+    let url;
+    if (path.startsWith('http')) {
+      url = path;
+    } else {
+      const p = path.startsWith('/') ? path : `/${path}`;
+      url = this.baseUrl ? `${this.baseUrl}${p}` : p;
+    }
     const headers = new Headers(init.headers || {});
     if (!headers.has('Accept')) headers.set('Accept', 'application/json');
     const token = this.getToken();
     if (token && !headers.has('Authorization')) {
       headers.set('Authorization', `Bearer ${token}`);
     }
-    const res = await fetch(url, { ...init, headers, mode: 'cors', credentials: 'omit' });
+    // Same-origin /api can use credentials; cross-origin Railway uses bearer only
+    const sameOrigin = !this.baseUrl || url.startsWith('/') || (typeof window !== 'undefined' && url.startsWith(window.location.origin));
+    const res = await fetch(url, {
+      ...init,
+      headers,
+      mode: 'cors',
+      credentials: sameOrigin ? 'include' : 'omit'
+    });
     const text = await res.text();
     let body = null;
     try {
@@ -116,36 +173,55 @@ export class FleetApi {
    */
   async listCharacters() {
     try {
-      const { res, body } = await this.fetch('/api/characters');
-      if (res.status === 401 || res.status === 403) {
-        this.lastCharacters = [];
+      // Warlords era only on this host (player frontend path)
+      const paths = [
+        '/api/characters?era=warlords',
+        '/api/characters'
+      ];
+      let lastStatus = 0;
+      let lastBody = null;
+      for (const p of paths) {
+        const { res, body } = await this.fetch(p);
+        lastStatus = res.status;
+        lastBody = body;
+        if (res.status === 401 || res.status === 403) {
+          this.lastCharacters = [];
+          return {
+            ok: false,
+            characters: [],
+            message:
+              'Not signed in — open Grudge ID, then return with a session token (grudge_token)'
+          };
+        }
+        if (!res.ok) continue;
+        let list = Array.isArray(body)
+          ? body
+          : body?.characters || body?.items || body?.data || [];
+        // Prefer Warlords-era rows when API returns mixed eras
+        const warlords = list.filter((c) => {
+          const era = String(c.gameEra || c.era || '').toLowerCase();
+          return !era || era === 'warlords' || era === 'warlord';
+        });
+        if (warlords.length) list = warlords;
+        this.lastCharacters = list;
         return {
-          ok: false,
-          characters: [],
-          message: 'Auth required — sign in via Grudge ID, then retry'
+          ok: true,
+          characters: list,
+          message: list.length
+            ? `${list.length} Warlords character(s)`
+            : 'Signed in — no Warlords characters on this account yet (create in Foundry)'
         };
       }
-      if (!res.ok) {
-        return {
-          ok: false,
-          characters: [],
-          message: `HTTP ${res.status}`
-        };
-      }
-      const list = Array.isArray(body)
-        ? body
-        : body?.characters || body?.items || body?.data || [];
-      this.lastCharacters = list;
       return {
-        ok: true,
-        characters: list,
-        message: `${list.length} character(s)`
+        ok: false,
+        characters: [],
+        message: `HTTP ${lastStatus}` + (lastBody?.error ? `: ${lastBody.error}` : '')
       };
     } catch (err) {
       return {
         ok: false,
         characters: [],
-        message: err?.message || 'fetch failed (CORS?)'
+        message: err?.message || 'fetch failed (CORS — use Grudge ID on a fleet host)'
       };
     }
   }

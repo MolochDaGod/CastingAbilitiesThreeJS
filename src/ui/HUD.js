@@ -1,21 +1,28 @@
 import { ELEMENTS, ELEMENT_META, MODES, MODE_META } from '../config/settings.js';
 import { ELEMENT_SIGILS } from './glyphs.js';
-import { getActiveSkills, DRC_MELEE_STRIKE } from '../combat/drcSkills.js';
+import { getActiveSkills, skillForFKey } from '../combat/drcSkills.js';
 import { getSkillBinding } from '../combat/skillBindings.js';
 import { TightBar } from './TightBar.js';
+import {
+  applyCraftpixCssVars,
+  preloadCraftpixUi,
+  racePortraitUrl
+} from './craftpixUi.js';
+import { CastBar } from './CastBar.js';
 import './tightBar.css';
 import './showcase.css';
+import './craftpix-hud.css';
+import './castbar.css';
 
 /**
- * Production-style combat HUD for casting lab:
- *  - Player frame (self) top-left
- *  - Target frame top-right (lab placeholder until targeting wired)
- *  - Ally strip under player frame
- *  - Bottom action bar (1–4 + F interact) with CD overlays
+ * Production-style combat HUD for Warlords casting frontend:
+ *  - Player frame (self) top-left — real race/name, live STA/MP
+ *  - Target frame top-right — only when soft-lock has a target
+ *  - Ally strip — hidden until party members exist (no fake A1–A3)
+ *  - Bottom action bar (1–6 elements + F residual) with CD overlays
  *  - Mode switch + compact help
  *
- * CraftPix / HYDRA layouts are the art SSOT — this is functional chrome
- * for the lab (no invented Main Panel).
+ * CraftPix / HYDRA layouts are the art SSOT — no invented Main Panel.
  */
 export class HUD {
   constructor(root) {
@@ -34,52 +41,65 @@ export class HUD {
     this._fps = 0;
     this._drcSession = 'combat';
     this._hp = 1;
-    this._mp = 1;
+    this._mana = 1;
     this._sta = 1;
 
+    applyCraftpixCssVars(root);
+    void preloadCraftpixUi();
+
     root.innerHTML = `
-      <div class="hud__panel hud__title">
-        Grudge Casting · Warlords lab
-        <span data-blurb>Staffs 1–6 · path cast · Surf mode (M)</span>
+      <div class="hud__panel hud__title cp-panel">
+        Grudge Warlords · Casting
+        <span data-blurb>1–6 elements · path cast · Surf (M)</span>
       </div>
 
-      <!-- Player unit frame -->
-      <div class="hud-frame hud-frame--player" data-player-frame>
-        <div class="hud-frame__portrait" data-portrait>WK</div>
-        <div class="hud-frame__body">
-          <div class="hud-frame__name" data-player-name>Hero</div>
-          <div class="hud-frame__bar hud-frame__bar--hp">
-            <div class="hud-frame__fill" data-hp-fill style="width:100%"></div>
+      <!-- Player unit frame — CraftPix UnitFrame layers -->
+      <div class="hud-frame hud-frame--player cp-frame" data-player-frame>
+        <div class="cp-frame__avatar" data-avatar>
+          <div class="cp-frame__avatar-bg"></div>
+          <img class="cp-frame__portrait-img" data-portrait-img alt="" />
+          <div class="cp-frame__avatar-border"></div>
+          <div class="cp-frame__avatar-overlay"></div>
+          <span class="cp-frame__glyph" data-portrait>WK</span>
+        </div>
+        <div class="cp-frame__body">
+          <div class="hud-frame__name" data-player-name>…</div>
+          <div class="cp-bar cp-bar--hp" title="Health">
+            <div class="cp-bar__track"></div>
+            <div class="cp-bar__fill-wrap"><div class="cp-bar__fill" data-hp-fill style="width:100%"></div></div>
             <span class="hud-frame__val" data-hp-text>100%</span>
           </div>
-          <div class="hud-frame__bar hud-frame__bar--mp" title="Mana">
-            <div class="hud-frame__fill" data-mp-fill style="width:100%"></div>
-            <span class="hud-frame__val" data-mp-text>MP</span>
+          <div class="cp-bar cp-bar--mp" title="Mana">
+            <div class="cp-bar__track cp-bar__track--sb"></div>
+            <div class="cp-bar__fill-wrap"><div class="cp-bar__fill cp-bar__fill--mp" data-mp-fill style="width:100%"></div></div>
+            <span class="hud-frame__val" data-mp-text>100</span>
           </div>
-          <div class="hud-frame__bar hud-frame__bar--sta" title="Stamina">
-            <div class="hud-frame__fill" data-sta-fill style="width:100%"></div>
-            <span class="hud-frame__val" data-sta-text>STA</span>
+          <div class="cp-bar cp-bar--sta" title="Stamina">
+            <div class="cp-bar__track cp-bar__track--sb"></div>
+            <div class="cp-bar__fill-wrap"><div class="cp-bar__fill cp-bar__fill--sta" data-sta-fill style="width:100%"></div></div>
+            <span class="hud-frame__val" data-sta-text>100</span>
           </div>
         </div>
       </div>
 
-      <!-- Ally strip -->
-      <div class="hud-allies" data-allies>
-        <div class="hud-ally is-empty" title="Ally slot (lab)"><span>A1</span></div>
-        <div class="hud-ally is-empty" title="Ally slot (lab)"><span>A2</span></div>
-        <div class="hud-ally is-empty" title="Ally slot (lab)"><span>A3</span></div>
-      </div>
+      <!-- Ally strip: hidden until setAllies receives members -->
+      <div class="hud-allies is-empty" data-allies hidden aria-hidden="true"></div>
 
-      <!-- Target unit frame -->
-      <div class="hud-frame hud-frame--target" data-target-frame>
-        <div class="hud-frame__body">
+      <!-- Target unit frame — CraftPix hostile chrome -->
+      <div class="hud-frame hud-frame--target cp-frame cp-frame--hostile is-empty" data-target-frame>
+        <div class="cp-frame__body">
           <div class="hud-frame__name" data-target-name>No target</div>
-          <div class="hud-frame__bar hud-frame__bar--hp hud-frame__bar--hostile">
-            <div class="hud-frame__fill" data-target-hp style="width:0%"></div>
+          <div class="cp-bar cp-bar--hp cp-bar--hostile" title="Target health">
+            <div class="cp-bar__track"></div>
+            <div class="cp-bar__fill-wrap"><div class="cp-bar__fill cp-bar__fill--hostile" data-target-hp style="width:0%"></div></div>
             <span class="hud-frame__val" data-target-hp-text>—</span>
           </div>
         </div>
-        <div class="hud-frame__portrait hud-frame__portrait--target" data-target-portrait>?</div>
+        <div class="cp-frame__avatar cp-frame__avatar--target" data-target-avatar>
+          <div class="cp-frame__avatar-bg"></div>
+          <div class="cp-frame__avatar-border"></div>
+          <span class="cp-frame__glyph" data-target-portrait>?</span>
+        </div>
       </div>
 
       <div class="hud__panel hud__stats">
@@ -93,8 +113,10 @@ export class HUD {
         <div><strong>Combat</strong> · staffs on 1–6 · F residual</div>
         <div><kbd>RMB</kbd> focus · LMB attack (focus) / select (free) · unlocked mouse free</div>
         <div><kbd>Shift</kbd> sprint · <kbd>Shift</kbd>+<kbd>Ctrl</kbd> slide · <kbd>Ctrl</kbd>+dir roll</div>
-        <div><kbd>LMB</kbd> path cast · <kbd>M</kbd> Surf · <kbd>O</kbd> Showcase · <kbd>I</kbd> lab</div>
-        <div data-help-elements>Staffs: Fire · Storm · Ice · Nature · Holy · Arcane (1–6)</div>
+        <div><kbd>F</kbd> weapon skill · <kbd>1–4</kbd> bar · <kbd>LMB</kbd> path · <kbd>I</kbd> panel</div>
+        <div><kbd>F1</kbd>–<kbd>F5</kbd> Admin · Player · Assets · Creatures · Prefabs · World · <kbd>Esc</kbd> close</div>
+        <div><kbd>?</kbd>/<kbd>H</kbd> this help · prefab create/save in Admin</div>
+        <div data-help-elements>Weapon skills (equip I→Weapon) · cast times on F / digits</div>
       </div>
 
       <div class="hud__modes">
@@ -113,22 +135,32 @@ export class HUD {
           const meta = ELEMENT_META[element];
           const title = meta.hint || meta.staffLabel || meta.label;
           return `
-            <div class="action-slot" data-element="${element}" data-slot="${index}" data-staff="${meta.staffWeaponId || ''}" style="--accent:${meta.accent}" title="${title}">
-              <div class="action-slot__cd" data-cd></div>
+            <div class="action-slot cp-slot" data-element="${element}" data-slot="${index}" data-staff="${meta.staffWeaponId || ''}" style="--accent:${meta.accent}" title="${title}">
+              <div class="cp-slot__bg"></div>
+              <div class="action-slot__cd cp-slot__cd" data-cd></div>
               <div class="action-slot__key">${index + 1}</div>
               <div class="action-slot__glyph">${ELEMENT_SIGILS[element] ?? meta.glyph}</div>
               <div class="action-slot__label" data-skill-label>${meta.short || meta.label}</div>
+              <div class="cp-slot__border"></div>
+              <div class="cp-slot__press"></div>
             </div>`;
         }).join('')}
-        <div class="action-slot action-slot--melee" data-melee="1" style="--accent:#7dd3fc" title="F — residual / interact">
-          <div class="action-slot__cd" data-cd-melee></div>
+        <div class="action-slot action-slot--melee cp-slot" data-melee="1" style="--accent:#7dd3fc" title="F — weapon skill (equip primary)">
+          <div class="cp-slot__bg"></div>
+          <div class="action-slot__cd cp-slot__cd" data-cd-melee></div>
           <div class="action-slot__key">F</div>
-          <div class="action-slot__glyph">⚔</div>
-          <div class="action-slot__label">${DRC_MELEE_STRIKE.label}</div>
+          <div class="action-slot__glyph">✦</div>
+          <div class="action-slot__label" data-f-skill-label>Weapon</div>
+          <div class="cp-slot__border"></div>
+          <div class="cp-slot__press"></div>
         </div>
       </div>
 
       <div class="hud__crosshair" data-crosshair aria-hidden="true">
+        <span class="hud__crosshair-tick hud__crosshair-tick--n"></span>
+        <span class="hud__crosshair-tick hud__crosshair-tick--e"></span>
+        <span class="hud__crosshair-tick hud__crosshair-tick--s"></span>
+        <span class="hud__crosshair-tick hud__crosshair-tick--w"></span>
         <span class="hud__crosshair-dot"></span>
         <span class="hud__crosshair-ring"></span>
       </div>
@@ -193,7 +225,15 @@ export class HUD {
       onMenu: (id) => this.onMenu?.(id)
     });
 
+    /** CraftPix cast bar (cast times + progress under reticle) */
+    this.castBar = new CastBar(root);
+
     this.refreshSkillLabels();
+  }
+
+  /** @param {object|null} state from DrcCombatController.getCastBarState */
+  setCastBar(state) {
+    this.castBar?.setState(state);
   }
 
   /**
@@ -215,9 +255,21 @@ export class HUD {
       if (meta?.hint) card.title = bound?.name ? `${bound.name} · ${meta.hint}` : meta.hint;
       i++;
     }
-    const fLab = this.root.querySelector('[data-melee] .action-slot__label');
+    const fLab =
+      this.root.querySelector('[data-f-skill-label]') ||
+      this.root.querySelector('[data-melee] .action-slot__label');
+    const fSkill = skillForFKey();
     const fBound = getSkillBinding('f');
-    if (fLab) fLab.textContent = fBound?.name || DRC_MELEE_STRIKE.label;
+    if (fLab) {
+      fLab.textContent = fBound?.name || fSkill?.label || 'Weapon';
+    }
+    const fSlot = this.root.querySelector('[data-melee]');
+    if (fSlot && fSkill) {
+      const ct = fSkill.castDuration ?? fSkill.castTime;
+      fSlot.title = `F · ${fLab?.textContent || 'Weapon skill'}${
+        ct > 0.05 ? ` · cast ${Number(ct).toFixed(1)}s` : ''
+      }`;
+    }
     this.tightBar?.refreshLabels?.();
   }
 
@@ -226,7 +278,19 @@ export class HUD {
    */
   setPlayerFrame(info = {}) {
     if (info.name && this._playerName) this._playerName.textContent = info.name;
-    if (info.raceId && this._portrait) this._portrait.textContent = String(info.raceId).slice(0, 3);
+    if (info.raceId && this._portrait) {
+      this._portrait.textContent = String(info.raceId).slice(0, 3);
+      const img = this.root.querySelector('[data-portrait-img]');
+      if (img) {
+        const url = racePortraitUrl(info.raceId);
+        if (img.dataset.race !== String(info.raceId)) {
+          img.dataset.race = String(info.raceId);
+          img.src = url;
+          img.onload = () => img.classList.add('is-loaded');
+          img.onerror = () => img.classList.remove('is-loaded');
+        }
+      }
+    }
     if (info.hp01 != null) {
       this._hp = Math.max(0, Math.min(1, info.hp01));
       if (this._hpFill) this._hpFill.style.width = `${Math.round(this._hp * 100)}%`;
@@ -283,18 +347,25 @@ export class HUD {
   setAllies(allies = []) {
     const host = this.root.querySelector('[data-allies]');
     if (!host) return;
-    const slots = host.querySelectorAll('.hud-ally');
-    slots.forEach((el, i) => {
-      const a = allies[i];
-      if (!a) {
-        el.classList.add('is-empty');
-        el.innerHTML = `<span>A${i + 1}</span>`;
-        return;
-      }
-      el.classList.remove('is-empty');
-      const pct = Math.round(Math.max(0, Math.min(1, a.hp01 ?? 1)) * 100);
-      el.innerHTML = `<span>${a.name || a.id}</span><i style="width:${pct}%"></i>`;
-    });
+    const list = Array.isArray(allies) ? allies.filter(Boolean) : [];
+    if (!list.length) {
+      host.innerHTML = '';
+      host.classList.add('is-empty');
+      host.hidden = true;
+      host.setAttribute('aria-hidden', 'true');
+      return;
+    }
+    host.hidden = false;
+    host.setAttribute('aria-hidden', 'false');
+    host.classList.remove('is-empty');
+    host.innerHTML = list
+      .slice(0, 4)
+      .map((a) => {
+        const pct = Math.round(Math.max(0, Math.min(1, a.hp01 ?? 1)) * 100);
+        const label = a.name || a.id || 'Ally';
+        return `<div class="hud-ally" title="${label}"><span>${label}</span><i style="width:${pct}%"></i></div>`;
+      })
+      .join('');
   }
 
   setElement(element) {
@@ -328,11 +399,11 @@ export class HUD {
     const el = this.root.querySelector('[data-help-elements]');
     if (!el) return;
     if (kind === 'walk') {
-      el.textContent = 'Surf: Space deploy · path = course · WASD boat · staff skills on board';
+      el.textContent = 'Surf: Space deploy · path = course · WASD boat · skills on board';
     } else if (kind === 'equip') {
-      el.textContent = 'Equip: I lab · O showcase · mesh_ids · staff / bow / sword packs';
+      el.textContent = 'Panel (I): race · mesh · weapon packs · skills · fleet API';
     } else {
-      el.textContent = 'Staffs: Fire · Ice · Nature · Storm (path cast + VFX)';
+      el.textContent = '1–6: Fire · Storm · Ice · Nature · Holy · Arcane · path cast';
     }
   }
 
@@ -351,7 +422,7 @@ export class HUD {
       this.setCrosshairVisible(this._mode !== 'walk' || true);
       this.refreshSkillLabels();
     } else {
-      this.blurb.textContent = 'Equip / Lab Panel · race · mesh · weapon packs';
+      this.blurb.textContent = 'Panel · race · mesh · weapon packs · fleet API';
       this.actionbar?.classList.add('is-dimmed');
       this.tightBar?.setVisible(true);
       this.setCrosshairVisible(false);
@@ -361,6 +432,20 @@ export class HUD {
 
   setCrosshairVisible(on) {
     this._crosshair?.classList.toggle('is-visible', !!on);
+  }
+
+  /**
+   * Dynamic reticle (snow-brawl style states).
+   * @param {{ softLock?: boolean, fire?: boolean, focus?: boolean, spread?: number }} [st]
+   */
+  setCrosshairState(st = {}) {
+    const el = this._crosshair;
+    if (!el) return;
+    el.classList.toggle('is-softlock', !!st.softLock);
+    el.classList.toggle('is-fire', !!st.fire);
+    el.classList.toggle('is-focus', !!st.focus);
+    const spread = Math.max(0, Math.min(1, Number(st.spread) || 0));
+    el.style.setProperty('--xh-spread', String(spread));
   }
 
   setCombatHud(cd01Fn, stamina, meleeCd01) {

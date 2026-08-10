@@ -9,16 +9,27 @@
 
 ## Product intent
 
+**Windsurf is a vehicle when deployed** (not a free-floating prop).
+
+| State | Rule |
+|-------|------|
+| **Deploy** | Space (walk mode) → frontflip · board materializes from back · lands as vehicle |
+| **Mounted** | Character **parented under** `deckCenter` · **RideIK** feet→deck, hands→boom · stay until get-off |
+| **Get off** | **E** (or mode leave / cancel) → unparent · **board removed** from scene · land character controller |
+| **Land** | `_rideActive` / `_rideParented` false · gait free · Rapier feet at land pose |
+
 Treat the board as a **tiny boat**:
 
 | Socket | Role |
 |--------|------|
-| `footL` / `footR` | Feet planted on deck |
-| `sailRail` / `sailBoomL/R` | Hands on sail bar (boom) |
-| `deckCenter` | Seat parent (character reparented) |
+| `footL` / `footR` | Feet planted on deck (IK) |
+| `sailRail` / `sailBoomL/R` | Hands on sail bar (boom IK) |
+| `deckCenter` | **Vehicle seat** — character reparented until dismount |
 | `mastBase` / sail mesh | Sail deploys from **back** mid-frontflip |
 
 **Body:** Bip001 stays **rigged** (one mixer). **Ragdoll-lite** = RideIK + soft hip/wave lean (not a second physics body). Full Rapier ragdoll is out of scope for lab.
+
+**Back slot:** same inventory family as glider/parachute (`settings.walk.backSlot = 'windsurf'`) — deployable utility vehicle.
 
 ---
 
@@ -37,8 +48,9 @@ Treat the board as a **tiny boat**:
 |-------|----------------|
 | **leap** | Parabolic / frontflip arc to path head. At `walk.tuck` IK weight ramps so hands/feet seek board sockets before landing. Sail deploys mid-flip (`sailDeployAt`). |
 | **ride** | Board + mast + boom + sail live. Rider on deck; path follow by arc length; bank with lean. |
-| **freeride** | After path (optional) or Space deploy: WASD boat (tslda), Space hop, soft wave body. |
-| **dismount** | IK blends off, board fades, step to floor → **idle**. |
+| **freeride** | WASD boat: **W thrust**, release W = **water coast** (low drag), A/D turn, **Space hop**, soft wave body. |
+| **ranged freeride** | Staff/bow/wand: **non-focus** LMB path cast (unlocked cursor) on board. |
+| **dismount** | **E** · IK off · board removed · land loco. |
 
 ### Apply order (hard)
 
@@ -51,20 +63,46 @@ walk.update → character.update (mixer) → walk.applyRiderIk
 While mounted, **windsurf vehicle owns the player transform**:
 
 ```
-HoverboardRide.group  (world XZ/Y + yaw)
-  └ boardRoot         (bank / deck height)
-       └ socket_deckCenter  (seat)
-            └ character.root   (local stand only — until dismount)
+HoverboardRide.group     (world XZ/Y + yaw)
+  ├ boardRoot            (bank / deck height / birth SCALE — visual only)
+  │    ├ mesh
+  │    └ socketGroup     (footL/R, sail*, deckCenter for IK targets)
+  └ seatRoot  RideSeat   (bank match, scale ALWAYS 1)
+       └ character.root  (local stand only — until dismount)
 ```
 
-- `seat.attach(character.root)` on mount; re-assert every freeride/ride frame
+**Why seat is not under boardRoot:** birth/death sets `boardRoot.scale` from 0.01→1.
+Parenting the hero under that tree multiplies SI body by scale → micro hero / “ripped off screen”.
+
+- `forceFullSize()` before mount; `seatRoot.attach(character.root)`
 - **Do not** write world XZ to `character.root.position` while `_rideParented`
 - Camera / dust use `character.getWorldPosition()` / `position` getter (world)
 - Dismount: `scene.attach(root)` once, then restore world feet
+- **RideIK hip drop is absolute vs bind Y** — never `hips.position.y -=` each frame
+  (rotation-only packs do not restore bone.position)
 
-Sockets (manifest SI): `footL`/`footR` deck straps · `sailRail`/`sailBoom*` boom grips · `deckCenter` seat.
+Sockets (manifest SI, **travel frame +Z forward**):
 
-Wind cushion: AirScooter-style streamlines may sit under deck (visual); seat is always deck.
+| Socket | Stance |
+|--------|--------|
+| `footL` | Port aft (staggered — no foot cross) |
+| `footR` | Starboard forward |
+| `sailBoomL` / `sailBoomR` | Hand grips ~1.05 m height (elbows out) |
+| `sailRail` | optional primary · prefer BoomR for R hand |
+| `deckCenter` | Seat / hip pad |
+
+**Art yaw:** `artYawDeg: 90` on mesh only (package +X → travel +Z). Sockets stay travel-frame.
+
+### Back-slot equip (equipment pattern)
+
+| State | Mesh | Code |
+|-------|------|------|
+| Land + equipped | Stowed board on `Bip001 Spine1` | `BackSlotEquip` |
+| Deployed vehicle | Stow **hidden** · full board vehicle | `setBackSlotDeployed(true)` |
+| Get-off | Vehicle gone · stow **shown** | `setBackSlotDeployed(false)` |
+
+Same attach family as `WeaponMeshAttach` (hands) — spine bone, SI length cap, catalog slot **Back**.
+Settings: `settings.walk.backSlot = 'windsurf'`.
 
 ## Deploy sequence
 
@@ -79,11 +117,25 @@ Wind cushion: AirScooter-style streamlines may sit under deck (visual); seat is 
 
 | Input | Action |
 |-------|--------|
-| **WASD** | Boat thrust / turn (tslda-like) |
-| **Space** | Wave hop |
+| **Space** (not riding) | Deploy vehicle (frontflip + board) |
+| **WASD** | Boat thrust / turn (tslda-like) while mounted |
+| **Space** (mounted) | Wave hop (board stays parented) |
+| **E** | **Get off** — unparent, remove windsurfer, restore land controller |
 | **1–4 / F** | Skills if staff or bow equipped (`skillsWhileRide`) |
-| **M** | Toggle mode off to cancel |
+| **M** | Leave walk mode → hard cancel (board removed) |
 | **Draw path** | Path-follow course; end → freeride if `freerideAfterPath` |
+
+### Get-off contract (hard)
+
+```
+requestDismount / cancel:
+  1. seat unparent → scene.attach(character.root)  [world feet kept]
+  2. setRideActive(false) · RideIK weight → 0
+  3. HoverboardRide.release() fade OR cancel() instant hide
+  4. character.restoreFromRide({ x,y,z,yaw })  [land loco normal]
+  5. physics.setPlayerFeet(land)
+  6. phase = idle · vehicle not in scene
+```
 
 ---
 

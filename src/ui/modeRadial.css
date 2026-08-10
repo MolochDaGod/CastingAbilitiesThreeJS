@@ -1,0 +1,172 @@
+.mode-radial {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0.35), transparent 55%);
+}
+
+.mode-radial[hidden] {
+  display: none !important;
+}
+
+.mode-radial-ring {
+  position: relative;
+  width: min(280px, 70vw);
+  height: min(280px, 70vw);
+  border-radius: 50%;
+  border: 2px solid rgba(200, 180, 140, 0.35);
+  background: rgba(8, 10, 14, 0.72);
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.55), inset 0 0 60px rgba(0, 0, 0, 0.4);
+}
+
+.mode-radial-wedge {
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  color: #c8d0dc;
+  opacity: 0.65;
+  transition: opacity 0.12s, color 0.12s, transform 0.12s;
+}
+
+.mode-radial-up {
+  top: 10%;
+}
+.mode-radial-down {
+  bottom: 10%;
+}
+
+.mode-radial-wedge.hot,
+.mode-radial-wedge.active {
+  opacity: 1;
+  color: #fff;
+  transform: scale(1.06);
+}
+.mode-radial-up.hot {
+  color: #ff9a9a;
+  text-shadow: 0 0 12px rgba(255, 100, 100, 0.5);
+}
+.mode-radial-down.hot {
+  color: #9ef0b8;
+  text-shadow: 0 0 12px rgba(80, 220, 120, 0.45);
+}
+
+.mode-radial-icon {
+  font-size: 28px;
+  line-height: 1;
+}
+.mode-radial-label {
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+.mode-radial-hint {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.mode-radial-core {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: linear-gradient(160deg, #1a2430, #0a1018);
+  border: 2px solid #3a5a78;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+.mode-radial-core-title {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: #8ab0d0;
+  text-transform: uppercase;
+}
+.mode-radial-core-sub {
+  font-size: 12px;
+  font-weight: 700;
+  color: #e8f0ff;
+}
+
+.mode-radial-foot {
+  position: absolute;
+  bottom: 12%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  font-size: 11px;
+  color: #a0a8b8;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* Tool radial */
+.tool-radial-ring {
+  position: relative;
+  width: min(320px, 78vw);
+  height: min(320px, 78vw);
+  border-radius: 50%;
+  border: 2px solid rgba(160, 140, 100, 0.4);
+  background: rgba(12, 10, 8, 0.78);
+}
+
+.tool-radial-wedge {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 50%;
+  height: 42px;
+  margin-top: -21px;
+  transform-origin: left center;
+  transform: rotate(var(--rot)) translateX(42px);
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+
+.tool-radial-inner {
+  transform: rotate(var(--irot));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  min-width: 56px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  background: rgba(30, 22, 14, 0.75);
+  border: 1px solid #5c4030;
+  color: #d8c8a8;
+  opacity: 0.7;
+}
+.tool-radial-wedge.hot .tool-radial-inner {
+  opacity: 1;
+  border-color: #e0c080;
+  color: #fff8e8;
+  box-shadow: 0 0 14px rgba(200, 160, 80, 0.45);
+}
+.tool-radial-inner b {
+  font-size: 18px;
+  line-height: 1;
+  font-weight: 400;
+}
+.tool-radial-inner small {
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tool-radial-core {
+  border-color: #6b4a32;
+}

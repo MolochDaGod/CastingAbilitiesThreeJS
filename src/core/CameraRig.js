@@ -64,6 +64,9 @@ export class CameraRig {
     this.controls.update();
 
     this.distance = settings.camera.distance;
+    this._fov = settings.camera.fov;
+    /** When set, TPS yaw ignores body reverse (backflip setup) */
+    this._holdCharacterYaw = null;
 
     this.domElement = domElement;
     this._onWheel = this._onWheel.bind(this);
@@ -170,7 +173,21 @@ export class CameraRig {
   }
 
   setCharacterYaw(yaw) {
+    // Backflip setup: freeze body-driven cam orbit (look stays where it was)
+    if (this._holdCharacterYaw != null && Number.isFinite(this._holdCharacterYaw)) {
+      this.characterYaw = this._holdCharacterYaw;
+      return;
+    }
     this.characterYaw = yaw;
+  }
+
+  /**
+   * Hold TPS body yaw (e.g. backflip) — camera does not whip with reverse dash facing.
+   * @param {number|null} yaw
+   */
+  setHoldCharacterYaw(yaw) {
+    this._holdCharacterYaw = Number.isFinite(yaw) ? yaw : null;
+    if (this._holdCharacterYaw != null) this.characterYaw = this._holdCharacterYaw;
   }
 
   lookAt(point, weight = 1) {
@@ -195,29 +212,69 @@ export class CameraRig {
     this._rmb = false;
   };
 
+  /**
+   * TPS look:
+   *  - Focus ON → mouse is aim (pointer-lock movementX/Y or free delta) — no cursor
+   *  - Focus OFF → RMB hold only (orbit), unlocked cursor for select
+   */
   _onPointerMove = (event) => {
     this.combatFocus?.onPointerMove?.(event);
-    if (this.viewMode !== 'tps' || !this._rmb) return;
-    const sens = settings.camera.orbitSensitivity ?? 0.0038;
-    const dx = event.clientX - this._lastX;
-    const dy = event.clientY - this._lastY;
+    if (this.viewMode !== 'tps') return;
+
+    const focusOn = !!this.combatFocus?.focusEnabled;
+    const locked = document.pointerLockElement === this.domElement;
+    // Focus: always look with mouse. Free: only while RMB held (orbit).
+    if (!focusOn && !this._rmb) return;
+
+    const base = settings.camera.orbitSensitivity ?? 0.0038;
+    const lookMul = settings.controls?.lookSensitivity ?? 1;
+    const sens = base * lookMul;
+    const invertY = !!settings.controls?.invertLookY;
+    let dx = 0;
+    let dy = 0;
+    if (locked || focusOn) {
+      // Prefer movementX (pointer lock / focus aim)
+      dx = event.movementX || 0;
+      dy = event.movementY || 0;
+      if (!locked && (dx === 0 && dy === 0) && this._rmb) {
+        dx = event.clientX - this._lastX;
+        dy = event.clientY - this._lastY;
+      }
+    } else {
+      dx = event.clientX - this._lastX;
+      dy = event.clientY - this._lastY;
+    }
     this._lastX = event.clientX;
     this._lastY = event.clientY;
+    if (dx === 0 && dy === 0) return;
+
     this._tpsYawOffset -= dx * sens;
     const minP = settings.camera.minPitch ?? 0.08;
     const maxP = settings.camera.maxPitch ?? 1.25;
-    this._tpsPitch = clamp(this._tpsPitch + dy * sens * 0.85, minP, maxP);
+    const dySign = invertY ? -1 : 1;
+    this._tpsPitch = clamp(this._tpsPitch + dy * sens * 0.85 * dySign, minP, maxP);
   };
 
   update(dt) {
     const cam = settings.camera;
 
-    if (this.camera.fov !== cam.fov && this.viewMode === 'tps') {
-      this.camera.fov = cam.fov;
-      this.camera.updateProjectionMatrix();
+    // Fortnite TPS FOV: free ~70 · focus ~85 (grudge-third-person-controller)
+    if (this.viewMode === 'tps') {
+      const focusOn = !!this.combatFocus?.focusEnabled;
+      const wantFov = focusOn ? (cam.actionFov ?? 85) : (cam.fov ?? 70);
+      this._fov = damp(this._fov, wantFov, cam.fovDamping ?? 0.14, dt);
+      if (Math.abs(this.camera.fov - this._fov) > 0.05) {
+        this.camera.fov = this._fov;
+        this.camera.updateProjectionMatrix();
+      }
     }
 
-    this.distance = damp(this.distance, cam.distance, cam.zoomDamping, dt);
+    // Focus pulls distance + shoulder tighter (Fortnite 5.5 / 0.8)
+    const focusOn = !!this.combatFocus?.focusEnabled;
+    const wantDist = focusOn
+      ? (cam.focusDistance ?? cam.distance ?? 5.5)
+      : (cam.distance ?? 6);
+    this.distance = damp(this.distance, wantDist, cam.zoomDamping, dt);
     this.focusWeight = damp(this.focusWeight, 0, 0.08, dt);
 
     if (this.viewMode === 'tps') {
@@ -266,22 +323,29 @@ export class CameraRig {
     const yaw = this.characterYaw + this._tpsYawOffset;
     const pitch = this._tpsPitch;
     const dist = this.distance * (cam.tpsDistanceScale ?? 1);
-    const shoulder = cam.shoulderOffset ?? 0.72;
+    const focusOn = !!this.combatFocus?.focusEnabled;
+    const shoulder = focusOn
+      ? (cam.focusShoulderOffset ?? cam.shoulderOffset ?? 0.8)
+      : (cam.shoulderOffset ?? 0.72);
 
     // Look target: chest + optional soft lock + ability frame
     _desiredTarget.copy(this.anchor);
     _desiredTarget.y += cam.targetHeight;
 
-    // Over-the-shoulder pivot (right of facing)
-    _shoulder.set(Math.cos(yaw) * shoulder, 0, -Math.sin(yaw) * shoulder);
+    // Over-the-shoulder pivot (side from settings.camera.shoulderSide)
+    const side = Math.sign(cam.shoulderSide ?? 1) || 1;
+    _shoulder.set(Math.cos(yaw) * shoulder * side, 0, -Math.sin(yaw) * shoulder * side);
     _desiredTarget.add(_shoulder);
 
     if (this.focusWeight > 0.05) {
       _desiredTarget.lerp(this.focus, Math.min(0.45, this.focusWeight * cam.autoFrame));
     }
 
-    // Soft lock bias (production soft lock — not hard camera snap)
-    const softW = (cam.softLockLook ?? 0.28) * (this.softLockWeight || 0);
+    // Soft lock bias — stronger in focus (soft lock ON); never hard snap
+    const softBase = focusOn
+      ? (cam.softLockLookFocus ?? cam.softLockLook ?? 0.55)
+      : (cam.softLockLook ?? 0.28);
+    const softW = softBase * (this.softLockWeight || 0);
     if (this.softLockPoint && softW > 0.01) {
       _soft.copy(this.softLockPoint);
       _desiredTarget.lerp(_soft, softW);

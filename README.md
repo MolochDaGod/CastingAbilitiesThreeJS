@@ -3,25 +3,21 @@
 Elemental casting sandbox for **Grudge Studio**: draw a path, release, and Fire / Water / Earth / Air travel the spline and detonate. Live VFX editor, DRC combat, Toon RTS hero, windsurf ride.
 
 **Repo:** [MolochDaGod/CastingAbilitiesThreeJS](https://github.com/MolochDaGod/CastingAbilitiesThreeJS)  
+**Live (control plane):** [casting.grudge.studio](https://casting.grudge.studio) — dev → production lab  
+**Weapon skill DO:** [weapon-skills.grudge-studio.com](https://weapon-skills.grudge-studio.com/api/health)  
 **Live (Vercel):** [casting-abilities-threejs.vercel.app](https://casting-abilities-threejs.vercel.app)  
-**Live (fleet):** [casting.grudge-studio.com](https://casting.grudge-studio.com) — requires Cloudflare DNS below  
+**API/DB:** same-origin `/api/*` → Railway `grudge-api` → Postgres · `docs/CASTING_DEPLOY_ENV_SSOT.md`  
+**Skills DO:** `docs/WEAPON_SKILL_DO_SSOT.md`  
 **Team:** Vercel `grudgenexus` · project `casting-abilities-threejs`
 
-### DNS for `casting.grudge-studio.com` (Cloudflare)
+### Hosts
 
-Apex `grudge-studio.com` NS → Cloudflare. Vercel project already has the domain + production alias.
-
-In **Cloudflare → grudge-studio.com → DNS → Add record**:
-
-| Type | Name | Target | Proxy |
-|------|------|--------|-------|
-| **CNAME** | `casting` | `0788085f42cc3574.vercel-dns-016.com` | **DNS only** (grey) first |
-| or **A** | `casting` | `76.76.21.21` | DNS only first |
-
-One-click Domain Connect (approve in Cloudflare):  
-https://vercel.com/api/v9/projects/prj_UqrvF6d04qmAFGF7N2cpzPKLoYE/domains/casting.grudge-studio.com/domain-connect/apply?teamId=team_VZ7uiFGiR9QBdqtzne04xygG
-
-Then: `vercel domains verify casting.grudge-studio.com` → SSL issues automatically.
+| Host | Role |
+|------|------|
+| `casting.grudge.studio` | **Primary lab** — equip / promote / handoff |
+| `weapon-skills.grudge-studio.com` | CF Worker + Durable Object (CNAME live) |
+| `casting-abilities-threejs.vercel.app` | Project hostname |
+| `casting.grudge-studio.com` | Legacy (optional) |
 
 ---
 
@@ -80,16 +76,18 @@ Code: `HoverboardRide.js` + `RideIK.js` (feet → deck, hands → boom/`sailRail
 | Input | Action |
 | --- | --- |
 | **Hold LMB + drag** | Draw path |
-| **Release** | Cast element — or **windsurf ride** in walk mode |
+| **Release** | Cast element — or **windsurf path course** in walk mode |
 | **RMB + drag** | Orbit (equip/sandbox) · TPS yaw offset in combat |
-| **M** | Cast ↔ **walk** (windsurf) |
-| **WASD** | Move (DRC combat) · Shift sprint |
+| **M** | Cast ↔ **walk** (windsurf vehicle mode) |
+| **Space** (walk, not riding) | Deploy windsurf **vehicle** (frontflip + board) |
+| **E** (mounted) | **Get off** — unparent, remove board, land controller |
+| **WASD** | Land move (DRC) · freeride boat thrust/turn when mounted |
 | **1–4** | Weapon skills (combat) / elements (equip) |
 | **Q** | Equip ↔ combat session |
 | **I** | Inventory panel |
 | **F** | Blade / attack skill |
 | **G** | VFX editor |
-| **C** | Clear effects / cancel ride |
+| **C** | Clear effects / hard cancel ride |
 | **P** | Pause |
 | **H** | Help |
 | **Alt+V/B/F/G/T/C** | Sandbox VFX previews |
@@ -103,14 +101,15 @@ Code: `HoverboardRide.js` + `RideIK.js` (feet → deck, hands → boom/`sailRail
 - **Equip:** mesh_ids visibility (`EquipmentManager`)  
 - **Anims:** Bip001 magic + sword_shield packs (Open baked JSON)  
 - **Combat:** `DrcCombatController` + Rapier CCT + TPS camera  
-- **Ride:** walk mode → leap → board sockets → **RideIK** post-mixer  
+- **Ride vehicle:** walk mode → deploy → **parent under deckCenter** → **RideIK** until **E** get-off → board removed  
 
 ```
 [ ] Height ~1.55–2.05 m (bone SI fit)
 [ ] Feet grounded (structural min.y / bone feet), not pelvis-as-feet
 [ ] Toon play GLB only (asset-packs/toon-rts-characters/…)
-[ ] One AnimationMixer; RideIK only while `_rideActive`
+[ ] One AnimationMixer; RideIK only while `_rideActive` / mounted
 [ ] windsurf_package.glb 200 on prod + manifest sockets
+[ ] Dismount: vehicle gone + character.restoreFromRide land loco
 ```
 
 ---

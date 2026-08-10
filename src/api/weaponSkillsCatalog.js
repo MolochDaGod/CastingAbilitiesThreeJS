@@ -36,9 +36,10 @@ export const WEAPON_TYPE_TO_LAB = Object.freeze({
   BOW: { slot: 'bow', pack: 'longbow', style: 'ranged' },
   LONGBOW: { slot: 'bow', pack: 'longbow', style: 'ranged' },
   CROSSBOW: { slot: 'bow', pack: 'longbow', style: 'ranged' },
-  GUN: { slot: 'bow', pack: 'longbow', style: 'ranged' },
   RIFLE: { slot: 'bow', pack: 'longbow', style: 'ranged' },
-  PISTOL: { slot: 'bow', pack: 'longbow', style: 'ranged' },
+  PISTOL: { slot: 'pistol', pack: 'pistol', style: 'ranged' },
+  GUN: { slot: 'pistol', pack: 'pistol', style: 'ranged' },
+  HANDGUN: { slot: 'pistol', pack: 'pistol', style: 'ranged' },
   STAFF: { slot: 'staff', pack: 'magic', style: 'spell' },
   FIRE_STAFF: { slot: 'staff', pack: 'magic', style: 'spell', element: 'fire' },
   FROST_STAFF: { slot: 'staff', pack: 'magic', style: 'spell', element: 'ice' },
@@ -242,6 +243,15 @@ export function animRoleForSkill(skill) {
   if (skill.labStyle === 'spell') return 'cast';
   if (skill.animation && /cast|spell/i.test(skill.animation)) return 'cast';
   if (skill.slotType === 'defense' || /parry|guard|block/i.test(skill.id + skill.name)) return 'block';
+  const blob = `${skill.id || ''} ${skill.name || ''} ${skill.weaponTypeId || ''}`.toLowerCase();
+  // T0 pistol: primary = gunplay spin, secondary = draw, power = charged / whip
+  if (/pistol|handgun|gun/.test(blob) || skill.labPack === 'pistol') {
+    if (skill.slotType === 'secondary' || /draw|reload|holster/.test(blob)) return 'draw';
+    if (skill.slotType === 'ability' || /charge|power|special/.test(blob)) return 'skill2';
+    if (/whip|bash|melee/.test(blob)) return 'skill3';
+    if (/spin|flourish|gunplay/.test(blob)) return 'gunplay';
+    return 'attack';
+  }
   return skill.labStyle === 'ranged' ? 'attack' : 'attack';
 }
 

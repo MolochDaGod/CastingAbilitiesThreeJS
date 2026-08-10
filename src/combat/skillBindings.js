@@ -3,8 +3,11 @@
  * Persisted so showcase "save to hotkey" is true for combat 1–4 + F.
  *
  * Slots:
- *   0–3 → Digit1–4 (sig1–4 / DRC skills)
- *   f   → F interact fallback attack (when no pickup/harvest)
+ *   0–3 → Digit1–4 (weapon skill bar / DRC)
+ *   f   → F weapon skill (primary / Showcase bind) — NOT class ability yet
+ *
+ * Product: F = weapon skill prefab path (cast times, anims). Pickup/harvest
+ * are context priority before F skill; residual is not the F default.
  */
 
 const STORAGE_KEY = 'casting.lab.skillBindings.v1';

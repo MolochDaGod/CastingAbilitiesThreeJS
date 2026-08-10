@@ -39,6 +39,28 @@ export const T0_STARTER_WEAPON_IDS = Object.freeze({
 });
 
 /**
+ * All catalog T0 starter weapon ids (api/v1/t0-weapons.json).
+ * Lab equip + `?t0=<id>` · do not invent extra starters.
+ */
+export const T0_ALL_WEAPON_IDS = Object.freeze([
+  't0-sword',
+  't0-axe1h',
+  't0-dagger',
+  't0-hammer1h',
+  't0-spear',
+  't0-greatsword',
+  't0-greataxe',
+  't0-hammer2h',
+  't0-bow',
+  't0-crossbow',
+  't0-gun',
+  't0-wand',
+  't0-nature-staff',
+  't0-tool',
+  't0-offhand-tome'
+]);
+
+/**
  * Production mesh overrides (R2 prod/gltf) when catalog still points at family staff.glb.
  * Uploaded 2026-08: arcane resonance → t0-wand · mushroom → t0-nature-staff · wand family.
  */
@@ -64,9 +86,11 @@ export const WEAPON_TYPE_TO_MESH_SLOT = Object.freeze({
   BOW: 'bow',
   LONGBOW: 'bow',
   CROSSBOW: 'bow',
-  GUN: 'bow',
+  /** Handgun uses dedicated pistol anim pack (gunplay spin · draw · whip) */
+  GUN: 'pistol',
   RIFLE: 'bow',
-  PISTOL: 'bow',
+  PISTOL: 'pistol',
+  HANDGUN: 'pistol',
   STAFF: 'staff',
   WAND: 'staff',
   TOME: 'staff',
@@ -115,6 +139,15 @@ export const WEAPON_TYPE_TO_MESH_SLOT = Object.freeze({
 
 let _cache = null;
 let _loading = null;
+
+/** Clear in-memory equippable catalog (e.g. after DO promote / Multiverse push). */
+export function clearEquippableWeaponsCache() {
+  _cache = null;
+  _loading = null;
+  if (typeof globalThis !== 'undefined') {
+    globalThis.__castingT0WeaponsCache = null;
+  }
+}
 
 async function fetchJson(urls) {
   for (const url of urls) {
@@ -174,27 +207,38 @@ export function labSlotsForWeaponType(weaponType) {
  */
 export function normalizeSkillDef(sk, slotType = 'ability', opts = {}) {
   if (!sk) return null;
+  // Catalog Instant = castTime null/undefined → 0. Do not invent 0.4/0.5.
+  const castRaw = sk.castTime;
+  const castTime =
+    castRaw == null || castRaw === '' || castRaw === 'Instant'
+      ? 0
+      : Number(castRaw) || 0;
+  const cdRaw = sk.cooldown;
+  const cooldown =
+    cdRaw == null || cdRaw === '' || cdRaw === '—' ? 0 : Number(cdRaw) || 0;
   return {
     id: sk.id,
     uuid: sk.uuid || null,
     name: sk.name || sk.id,
     description: sk.description || '',
     damage: Number(sk.damage) || 0,
-    cooldown: Number(sk.cooldown) || 0,
-    castTime: Number(sk.castTime) || (slotType === 'primary' ? 0.4 : 0.5),
-    range: sk.range ?? null,
+    cooldown,
+    castTime,
+    range: sk.range == null || sk.range === '' || sk.range === '—' ? null : sk.range,
     damageType: sk.damageType || 'physical',
     icon: sk.icon || opts.fallbackIcon || null,
     iconUrl: iconCdnUrl(sk.icon || opts.fallbackIcon) || opts.fallbackIconUrl || null,
-    effects: sk.effects || [],
-    resourceCost: sk.resourceCost || { mana: 0, stamina: 2 },
+    effects: Array.isArray(sk.effects) ? sk.effects.slice() : [],
+    resourceCost: sk.resourceCost || { mana: 0, stamina: 0 },
     slotType,
     fixed: opts.fixed ?? false,
     choice: opts.choice ?? false,
     tier: sk.tier ?? 0,
     animation: sk.animation || sk.prefab?.animationClip || null,
     prefab: sk.prefab || null,
-    castingSpellId: sk.castingSpellId || null
+    castingSpellId: sk.castingSpellId || null,
+    /** Provenance — never invent skill rows; only catalog or explicit stub */
+    source: opts.source || 'catalog'
   };
 }
 
@@ -294,34 +338,39 @@ export function buildEquippable(prefab, t0 = null, skillsCat = null) {
     }
   }
 
-  // Absolute last resort stub
+  // Absolute last resort stub — only if catalog fetch failed; marked source stub
   if (!slot1) {
+    console.warn(`[t0WeaponCatalog] missing catalog slot1 for ${id} — stub only`);
     slot1 = normalizeSkillDef(
       {
         id: `${id}_basic`,
         name: 'Basic Attack',
         damage: 10,
         cooldown: 0.5,
+        castTime: 0,
         damageType: lab.labStyle === 'spell' ? 'arcane' : 'physical'
       },
       'primary',
-      { fixed: true, fallbackIconUrl: iconUrl }
+      { fixed: true, fallbackIconUrl: iconUrl, source: 'stub-fallback' }
     );
   }
   if (!slot2) {
+    console.warn(`[t0WeaponCatalog] missing catalog slot2 for ${id} — stub only`);
     slot2 = normalizeSkillDef(
       {
         id: `${id}_style`,
         name: 'Stance',
         damage: 0,
         cooldown: 5,
+        castTime: 0,
         damageType: slot1.damageType
       },
       'secondary',
-      { fixed: true, fallbackIconUrl: iconUrl }
+      { fixed: true, fallbackIconUrl: iconUrl, source: 'stub-fallback' }
     );
   }
   if (!slot3Options.length) {
+    console.warn(`[t0WeaponCatalog] missing catalog slot3 for ${id} — stub only`);
     slot3Options = [
       normalizeSkillDef(
         {
@@ -329,10 +378,11 @@ export function buildEquippable(prefab, t0 = null, skillsCat = null) {
           name: 'Ability',
           damage: 12,
           cooldown: 4,
+          castTime: 0,
           damageType: slot1.damageType
         },
         'ability',
-        { choice: true, fallbackIconUrl: iconUrl }
+        { choice: true, fallbackIconUrl: iconUrl, source: 'stub-fallback' }
       )
     ];
   }
@@ -344,6 +394,9 @@ export function buildEquippable(prefab, t0 = null, skillsCat = null) {
 
   return {
     id,
+    /** GRUDGE ITEM-* identity (prefab or t0 row) */
+    uuid: prefab?.uuid || t0?.uuid || present?.uuid || null,
+    baseUuid: prefab?.baseUuid || prefab?.uuid || t0?.uuid || null,
     name: present?.name || t0?.name || prefab?.name || id,
     tier: present?.tier ?? t0?.tier ?? 0,
     weaponType,
@@ -429,7 +482,22 @@ export async function loadEquippableWeapons() {
       if (pa >= 0 || pb >= 0) return (pa < 0 ? 99 : pa) - (pb < 0 ? 99 : pb);
       return a.name.localeCompare(b.name);
     });
-    const byId = new Map(weapons.map((w) => [w.id, w]));
+    let byId = new Map(weapons.map((w) => [w.id, w]));
+    let doMerge = { merged: 0, doMeta: null };
+
+    // Merge Cloudflare DO equip mirror (lab drafts + Multiverse push) — t0 wins on id
+    try {
+      const { mergeDoEquipCatalog } = await import('./weaponSkillDoApi.js');
+      const merged = await mergeDoEquipCatalog({ weapons, byId }, { preferRemote: false });
+      if (merged.merged > 0) {
+        weapons.length = 0;
+        weapons.push(...merged.weapons);
+        byId = merged.byId;
+      }
+      doMerge = { merged: merged.merged, doMeta: merged.doMeta, remoteCount: merged.remoteCount };
+    } catch (e) {
+      console.warn('[t0WeaponCatalog] DO equip merge skipped', e?.message || e);
+    }
 
     _cache = {
       weapons,
@@ -437,6 +505,7 @@ export async function loadEquippableWeapons() {
       prefabCat,
       skillsCat,
       t0Data,
+      doMerge,
       starters: {
         apprenticeWand: byId.get(T0_STARTER_WEAPON_IDS.apprenticeWand) || null,
         saplingStaff: byId.get(T0_STARTER_WEAPON_IDS.saplingStaff) || null
@@ -482,21 +551,30 @@ export function skillDefToDrc(sk, barSlot, weapon) {
   const labStyle = weapon?.labStyle || 'melee';
   const dmg = String(sk.damageType || '').toLowerCase();
   const nameId = `${sk.id} ${sk.name}`;
-  const isHeal = sk.damage < 0 || /heal|sprout|radiant/i.test(nameId);
+  const isHeal = sk.damage < 0 || /heal|sprout|radiant|minor.?heal/i.test(nameId);
+  // Zero-damage utility / stance / aim — catalog buffs (not invented)
   const isBuff =
     !isHeal &&
-    (sk.damage === 0 || /focus|stance|guard|ward|buff|shield/i.test(nameId)) &&
-    !/slash|bolt|spark|ping|thrust|sweep|shot|lash|root|practice/i.test(nameId);
-  /** Focus = next-spell damage buff only (Apprentice Wand slot 2) */
-  const isFocus = isBuff && /focus/i.test(nameId);
-  /** Nature Ward / shields = defense buff, not focus mul */
-  const isWard = isBuff && /ward|shield|guard/i.test(nameId);
+    Number(sk.damage) === 0 &&
+    /focus|stance|guard|ward|buff|shield|brace|aim|reload|cover|evade|wind.?up|lumber|pole.?guard|read.?page|take.?aim|take.?cover/i.test(
+      nameId
+    );
+  /** Focus / Take Aim / Wind-Up / Power Stance = next-hit damage mul */
+  const isFocus =
+    isBuff && /focus|take.?aim|wind.?up|power.?stance|read.?page/i.test(nameId);
+  /** Ward / guard / brace / cover / lumber = defense */
+  const isWard =
+    isBuff && /ward|shield|guard|brace|cover|lumber|pole.?guard/i.test(nameId);
 
   let element = 'arcane';
   let abilityElement = null;
   let style = 'melee';
 
-  if (labStyle === 'spell' || /arcane|fire|frost|ice|holy|nature|lightning|water|earth|wind/.test(dmg)) {
+  if (labStyle === 'ranged') {
+    style = isBuff ? 'spell' : 'ranged';
+    element = 'physical';
+    abilityElement = null;
+  } else if (labStyle === 'spell' || /arcane|fire|frost|ice|holy|nature|lightning|water|earth|wind/.test(dmg)) {
     style = 'spell';
     if (dmg === 'fire') {
       element = 'fire';
@@ -518,6 +596,7 @@ export function skillDefToDrc(sk, barSlot, weapon) {
       abilityElement = 'wind';
     }
   } else {
+    // Melee / tool — buffs stay non-damage utility
     style = isBuff || isHeal ? 'spell' : 'melee';
     element = isHeal ? 'nature' : 'physical';
     abilityElement = isHeal ? 'earth' : null;
@@ -560,13 +639,22 @@ export function skillDefToDrc(sk, barSlot, weapon) {
     abilityElement: staffB ? staffB.element : abilityElement,
     pathMode: isBuff || isHeal ? null : staffB?.pathMode || (style === 'spell' ? 'stream' : null),
     presentation: staffB?.presentation || null,
-    animRole: isBuff || isHeal ? 'cast' : animRoleForSkill(catalogLike),
-    animPack: weapon?.animPack || (labStyle === 'spell' ? 'magic' : 'sword_shield'),
+    animRole: isBuff || isHeal ? (labStyle === 'melee' || labStyle === 'ranged' ? 'block' : 'cast') : animRoleForSkill(catalogLike),
+    animPack:
+      weapon?.animPack ||
+      (labStyle === 'spell' ? 'magic' : labStyle === 'ranged' ? 'longbow' : 'sword_shield'),
     castClip: sk.animation || staffB?.castClip || 'magic/standing 1h cast spell 01',
-    rangeM: sk.range || staffB?.rangeM || (style === 'spell' ? 12 : 3.2),
-    cooldown: sk.cooldown ?? staffB?.cooldown ?? (style === 'melee' ? 0.55 : 1),
-    castDuration: sk.castTime || staffB?.castDuration || 0.45,
-    staminaCost: sk.resourceCost?.stamina ?? (style === 'melee' ? 6 : 0),
+    rangeM:
+      sk.range ||
+      staffB?.rangeM ||
+      (style === 'spell' ? 12 : style === 'ranged' ? 18 : 3.2),
+    // Prefer catalog numbers; Instant castTime = 0 (do not invent cast windows)
+    cooldown: sk.cooldown ?? staffB?.cooldown ?? 0,
+    castDuration:
+      sk.castTime != null && sk.castTime !== ''
+        ? Number(sk.castTime) || 0
+        : staffB?.castDuration ?? 0,
+    staminaCost: sk.resourceCost?.stamina ?? 0,
     manaCost: sk.resourceCost?.mana ?? staffB?.manaCost ?? 0,
     damage: sk.damage ?? 0,
     castEffectId: staffB?.castEffectId || vfx,
@@ -585,13 +673,16 @@ export function skillDefToDrc(sk, barSlot, weapon) {
     tier: sk.tier ?? 0,
     fixed: !!sk.fixed,
     choice: !!sk.choice,
-    source: 'info.grudge-studio.com t0-weapons / WEAPON_SKILLS',
+    source: sk.source || 'info.grudge-studio.com/api/v1/t0-weapons.json',
+    catalogUuid: sk.uuid || null,
     hint: `${sk.name} · ${weapon?.name || weapon?.id || ''} · catalog`
   };
 }
 
 /**
- * Hotbar [slot1, slot2, slot3] for an equipped weapon.
+ * Hotbar for equipped weapon — **catalog skills only** (no invented rows).
+ * T0: slots 1–2 fixed, slot 3 = chosen option from slot3Options.
+ * Anim roles map presentation only; DMG/CD/cast/effects stay from JSON.
  * @param {EquippableWeapon} weapon
  * @param {string} [slot3Id]
  */
@@ -601,15 +692,104 @@ export function hotbarForWeapon(weapon, slot3Id) {
     weapon.slot3Options.find((s) => s.id === slot3Id) ||
     weapon.slot3Options.find((s) => s.id === weapon.defaultSlot3Id) ||
     weapon.slot3Options[0];
-  return [
+  const bar = [
     skillDefToDrc(weapon.slot1, 0, weapon),
     skillDefToDrc(weapon.slot2, 1, weapon),
     skillDefToDrc(s3, 2, weapon)
   ].filter(Boolean);
+
+  // Presentation only: anim role + effect-string hints (catalog numbers untouched)
+  applyT0Presentation(bar, weapon);
+  return bar;
 }
 
 /**
- * Warlords / fleet weapon prefab export (authoring snapshot).
+ * Map all T0 catalog skill names → anim roles / residual hints.
+ * Does not invent skills — only presentation for the 15 starters.
+ * @param {object[]} bar
+ * @param {EquippableWeapon} [weapon]
+ */
+export function applyT0Presentation(bar, weapon) {
+  const pack = weapon?.animPack || 'sword_shield';
+  for (const sk of bar) {
+    if (!sk) continue;
+    const idn = `${sk.id} ${sk.label}`.toLowerCase();
+    const fx = (sk.effects || []).join(' ').toLowerCase();
+
+    // --- Slot 2 style / utility (dmg 0) ---
+    if (sk.damage === 0 || sk.isBuff || sk.isWard || sk.isFocus) {
+      if (/evade/.test(idn)) {
+        sk.animRole = 'dodgeB';
+        sk.skillKind = 'buff';
+      } else if (pack === 'magic' || pack === 'longbow') {
+        sk.animRole = sk.isFocus || /aim|reload|focus|read/.test(idn) ? 'cast' : 'block';
+      } else {
+        sk.animRole = 'block';
+      }
+      const m = fx.match(/(\d+(?:\.\d+)?)\s*s/);
+      if (m) sk.focusDurationSec = Number(m[1]);
+      continue;
+    }
+
+    // --- Heals ---
+    if (sk.damage < 0 || sk.skillKind === 'heal') {
+      sk.animRole = 'cast';
+      sk.style = 'spell';
+      continue;
+    }
+
+    // --- Ranged T0 (bow / xbow / gun) ---
+    if (pack === 'longbow' || sk.style === 'ranged' || /shot|bolt|arrow|fire|pinning|rapid|piercing|knockback.?shot|burst|suppress/i.test(idn)) {
+      if (weapon?.labStyle === 'ranged' || pack === 'longbow') {
+        sk.style = 'ranged';
+        sk.animRole = 'attack';
+        if (!sk.rangeM || sk.rangeM < 5) sk.rangeM = 18;
+        if (/knockback/i.test(fx + idn)) {
+          sk.knockbackMm = 280;
+          sk.knockupVy = 1.2;
+        }
+        if (/double|rapid|burst|multi/i.test(fx + idn)) sk.multiHit = 2;
+        continue;
+      }
+    }
+
+    // --- Magic T0 (wand / staff / tome) ---
+    if (pack === 'magic' || sk.style === 'spell') {
+      sk.animRole = 'cast';
+      sk.style = 'spell';
+      continue;
+    }
+
+    // --- Melee / tool starters (sword_shield pack) ---
+    // Order: specials before generic "practice/stab/thrust" so Backstab ≠ attack1
+    if (
+      /overhead|heavy.?blow|crushing|stagger|backstab|reach.?strike|quick.?thrust|high single|armor break/i.test(
+        idn + fx
+      )
+    ) {
+      sk.animRole = 'attack3';
+    } else if (/sweep|cleaving|spinning|wide.?arc|shockwave|cone|\baoe\b|poison/i.test(idn + fx)) {
+      sk.animRole = 'attack2';
+      sk.residualAoe = sk.residualAoe || 1.3;
+    } else if (
+      /practice|starter|^chop$|^mine$|^skin$|^pry$|practice.?chop|practice.?stab|practice.?smash|practice.?thrust|practice.?cleave|practice.?hew/i.test(
+        idn
+      )
+    ) {
+      sk.animRole = 'attack1';
+    } else {
+      sk.animRole = sk.animRole && sk.animRole !== 'attack' ? sk.animRole : 'attack1';
+    }
+
+    if (/extended reach|extended range|reach/i.test(fx) && (!sk.rangeM || sk.rangeM < 4)) {
+      sk.rangeM = 3.8;
+    }
+    if (/small aoe|aoe|cone/i.test(fx)) sk.residualAoe = sk.residualAoe || 1.2;
+  }
+}
+
+/**
+ * Warlords / fleet weapon prefab export — full GRUDGE UUID contract + hotbar.
  * @param {EquippableWeapon} weapon
  * @param {{ slot3Id?: string }} [opts]
  */
@@ -617,10 +797,25 @@ export function exportWarlordsWeaponPrefab(weapon, opts = {}) {
   if (!weapon) return null;
   const slot3Id = opts.slot3Id || weapon.defaultSlot3Id;
   const hotbar = hotbarForWeapon(weapon, slot3Id);
-  return {
-    version: '1.0.0',
-    generated: new Date().toISOString(),
+  // Lazy import avoided circular issues — inline contract shape from raw rows
+  const raw = weapon.rawPrefab || weapon.rawT0 || {};
+  const t0 = weapon.rawT0 || null;
+  const contract = {
+    version: '1.1.0',
     kind: 'warlords-weapon-prefab',
+    generated: new Date().toISOString(),
+    uuids: {
+      item: weapon.uuid || raw.uuid || t0?.uuid || null,
+      baseItem: raw.baseUuid || weapon.uuid || t0?.uuid || null,
+      icon: raw.assets?.iconUuid || null,
+      recipe: raw.recipeUuid || null,
+      skills: [
+        weapon.slot1?.uuid,
+        weapon.slot2?.uuid,
+        ...(weapon.slot3Options || []).map((s) => s.uuid)
+      ].filter(Boolean),
+      activeSlot3: (weapon.slot3Options || []).find((s) => s.id === slot3Id)?.uuid || null
+    },
     id: weapon.id,
     name: weapon.name,
     tier: weapon.tier,
@@ -633,7 +828,9 @@ export function exportWarlordsWeaponPrefab(weapon, opts = {}) {
       dropPrefabUrl: weapon.dropPrefabUrl,
       worldSprite: weapon.iconUrl,
       meshSlot: weapon.meshSlot,
-      animPack: weapon.animPack
+      animPack: weapon.animPack,
+      dropPrefabR2Key: raw.assets?.dropPrefabR2Key || null,
+      worldDropVfxR2Key: raw.assets?.worldDropVfxR2Key || null
     },
     presentation: {
       iconUrl: weapon.iconUrl,
@@ -642,14 +839,25 @@ export function exportWarlordsWeaponPrefab(weapon, opts = {}) {
       glowColor: weapon.present?.glowColor,
       tierLabel: weapon.present?.tierLabel
     },
-    slotPattern: 'three-slot-starter',
+    slotPattern: weapon.tier === 0 ? 'three-slot-starter' : 'five-slot',
     skills: {
       slot1: weapon.slot1,
       slot2: weapon.slot2,
       slot3Options: weapon.slot3Options,
       defaultSlot3Id: weapon.defaultSlot3Id,
       activeSlot3Id: slot3Id,
-      hotbar
+      hotbar,
+      skillUuids: [
+        weapon.slot1?.uuid,
+        weapon.slot2?.uuid,
+        ...(weapon.slot3Options || []).map((s) => s.uuid)
+      ].filter(Boolean)
+    },
+    runtime: {
+      meshSlot: weapon.meshSlot,
+      animPack: weapon.animPack,
+      labStyle: weapon.labStyle,
+      jobs: ['bag', 'equip', 'controller', 'hotbar', 'combat', 'craft', 'export']
     },
     lab: {
       meshSlot: weapon.meshSlot,
@@ -660,7 +868,9 @@ export function exportWarlordsWeaponPrefab(weapon, opts = {}) {
     sources: {
       prefabs: 'api/v1/master-weapon-prefabs.json',
       t0: 'api/v1/t0-weapons.json',
-      skills: 'api/v1/master-weaponSkills.json'
+      skills: 'api/v1/master-weaponSkills.json',
+      registry: 'api/v1/master-registry.json'
     }
   };
+  return contract;
 }

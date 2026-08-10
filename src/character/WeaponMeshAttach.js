@@ -19,7 +19,7 @@ const loader = new GLTFLoader();
  * @param {{
  *   maxLengthM?: number,
  *   maxWidthM?: number,
- *   profile?: 'melee'|'wand'|'staff'|'bow'|'shield',
+ *   profile?: 'melee'|'wand'|'staff'|'bow'|'pistol'|'shield',
  *   clear?: boolean
  * }} [opts]
  * @returns {Promise<import('three').Object3D|null>}
@@ -37,18 +37,31 @@ export async function attachWeaponModel(handBone, modelUrl, opts = {}) {
       ? 'wand'
       : /t0-nature|staff|sapling|mushroom/i.test(urlLow)
         ? 'staff'
-        : /bow|crossbow|gun/i.test(urlLow)
-          ? 'bow'
-          : /shield/i.test(urlLow)
-            ? 'shield'
-            : 'melee');
+        : /pistol|handgun/i.test(urlLow)
+          ? 'pistol'
+          : /bow|crossbow/i.test(urlLow)
+            ? 'bow'
+            : /gun|rifle/i.test(urlLow)
+              ? 'pistol'
+              : /shield/i.test(urlLow)
+                ? 'shield'
+                : 'melee');
 
-  // SI: human ~1.8 m — wand shorter, staff a bit longer; width soft-cap for chunky heads
+  // SI: human ~1.8 m — pistol handgun short; wand/staff longer
   const maxLen =
     opts.maxLengthM ??
-    (profile === 'wand' ? 0.95 : profile === 'staff' ? 1.25 : profile === 'bow' ? 1.4 : 1.2);
+    (profile === 'wand'
+      ? 0.95
+      : profile === 'staff'
+        ? 1.25
+        : profile === 'pistol'
+          ? 0.42
+          : profile === 'bow'
+            ? 1.4
+            : 1.2);
   const maxWidth =
-    opts.maxWidthM ?? (profile === 'wand' || profile === 'staff' ? 0.55 : 0.4);
+    opts.maxWidthM ??
+    (profile === 'wand' || profile === 'staff' ? 0.55 : profile === 'pistol' ? 0.22 : 0.4);
 
   try {
     const gltf = await loader.loadAsync(modelUrl);

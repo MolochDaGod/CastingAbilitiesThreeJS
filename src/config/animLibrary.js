@@ -9,7 +9,7 @@
  * Vocabulary (use these words in UI, toasts, agent notes):
  * | Term        | Meaning |
  * |-------------|---------|
- * | pack        | Named clip set: magic · sword_shield · longbow · combat_mobility |
+ * | pack        | Named clip set: magic · sword_shield · longbow · pistol · combat_mobility |
  * | role        | Logical clip key: idle · walk · run · dodgeL · rollR · slide … |
  * | family      | gait | combat | mobility | utility |
  * | channel     | How it is driven: gait (setGait) · oneShot · mobility impulse |
@@ -17,7 +17,7 @@
  * | afterimage  | Trailing model ghosts during MM dodge — vfx/DodgeAfterimage.js |
  *
  * Bind order on hero load:
- *   1. weapon pack (magic | sword_shield | longbow)
+ *   1. weapon pack (magic | sword_shield | longbow | pistol)
  *   2. magic fallback if needed (idle/hands)
  *   3. combat_mobility (always — rolls, dodges, slide, parry)
  */
@@ -37,14 +37,92 @@ export const ANIM_ROLE_META = Object.freeze({
   idle: { family: 'gait', channel: 'gait', label: 'Idle' },
   walk: { family: 'gait', channel: 'gait', label: 'Walk' },
   run: { family: 'gait', channel: 'gait', label: 'Run / sprint' },
+  walkL: {
+    family: 'gait',
+    channel: 'gait',
+    label: 'Strafe walk left',
+    input: 'Focus · A'
+  },
+  walkR: {
+    family: 'gait',
+    channel: 'gait',
+    label: 'Strafe walk right',
+    input: 'Focus · D'
+  },
+  runL: {
+    family: 'gait',
+    channel: 'gait',
+    label: 'Strafe run left',
+    input: 'Focus · A + Shift'
+  },
+  runR: {
+    family: 'gait',
+    channel: 'gait',
+    label: 'Strafe run right',
+    input: 'Focus · D + Shift'
+  },
   jump: { family: 'gait', channel: 'oneShot', label: 'Jump', input: 'Space' },
+  frontflip: {
+    family: 'mobility',
+    channel: 'oneShot',
+    label: 'Frontflip (real clip / double-jump)',
+    input: 'Air Space'
+  },
+  backflip: {
+    family: 'mobility',
+    channel: 'oneShot',
+    label: 'Backflip (real clip · camera hold)',
+    input: 'Air S+Space'
+  },
+  hitReact: {
+    family: 'combat',
+    channel: 'oneShot',
+    label: 'Hit reaction (knocked up)',
+    input: 'on hit'
+  },
+  knockedUp: {
+    family: 'combat',
+    channel: 'oneShot',
+    label: 'Knocked up',
+    input: 'on heavy hit'
+  },
 
   cast: { family: 'combat', channel: 'oneShot', label: 'Cast', input: '1–4 / staff' },
   attack: {
     family: 'combat',
     channel: 'oneShot',
-    label: 'Attack',
-    input: 'F (when no pickup/harvest) / LMB'
+    label: 'Melee finisher (jump-dash)',
+    input: 'LMB air / large MM toward target'
+  },
+  attack1: {
+    family: 'combat',
+    channel: 'oneShot',
+    label: 'Melee combo 1 (into-out)',
+    input: 'LMB click 1'
+  },
+  attack2: {
+    family: 'combat',
+    channel: 'oneShot',
+    label: 'Melee combo 2 (inward slash)',
+    input: 'LMB click 2'
+  },
+  attack3: {
+    family: 'combat',
+    channel: 'oneShot',
+    label: 'Melee combo 3 (upward thrust)',
+    input: 'LMB click 3'
+  },
+  finisher: {
+    family: 'combat',
+    channel: 'oneShot',
+    label: 'Finisher (ground lunge)',
+    input: 'LMB + large MM toward focus'
+  },
+  finisherAir: {
+    family: 'combat',
+    channel: 'oneShot',
+    label: 'Air finisher (drop to target)',
+    input: 'LMB while airborne'
   },
   block: { family: 'combat', channel: 'oneShot', label: 'Block', input: 'E' },
   parry: { family: 'combat', channel: 'oneShot', label: 'Parry', input: 'C' },

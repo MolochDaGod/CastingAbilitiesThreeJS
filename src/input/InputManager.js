@@ -13,6 +13,7 @@ import { EventEmitter } from '../utils/EventEmitter.js';
  *   1–4 skills · F interact/attack · X dodge · C parry · E block
  *   Shift hold sprint · Shift+Ctrl slide · Ctrl(+dir) roll
  *   RMB focus toggle · Space jump
+ *   F1–F4 Admin · ] World · ` auto run / freeride sail
  */
 export class InputManager extends EventEmitter {
   constructor(domElement) {
@@ -37,6 +38,14 @@ export class InputManager extends EventEmitter {
     this.combatKeys = !!on;
   }
 
+  /**
+   * Activity mode from App (combat | harvest) — gates R heavy vs tool radial.
+   * @param {'combat'|'harvest'|string} mode
+   */
+  setActivityMode(mode) {
+    this.activityMode = mode === 'harvest' ? 'harvest' : 'combat';
+  }
+
   _bind() {
     this.dom.addEventListener('pointerdown', this._onPointerDown);
     window.addEventListener('pointermove', this._onPointerMove);
@@ -48,6 +57,8 @@ export class InputManager extends EventEmitter {
   }
 
   _updatePointer(event) {
+    this.clientX = event.clientX;
+    this.clientY = event.clientY;
     this.pointer.set(
       (event.clientX / window.innerWidth) * 2 - 1,
       -(event.clientY / window.innerHeight) * 2 + 1
@@ -162,6 +173,7 @@ export class InputManager extends EventEmitter {
     }
 
     // Danger Room combat actions when combatKeys
+    // Harvest mode: R is tool radial (not heavy); Q is mode radial (not equip)
     if (this.combatKeys) {
       const combatMap = {
         KeyX: 'dodge',
@@ -172,6 +184,11 @@ export class InputManager extends EventEmitter {
         KeyJ: 'heal',
         KeyH: 'bomb'
       };
+      if (event.code === 'KeyR' && this.activityMode === 'harvest') {
+        event.preventDefault();
+        this.emit('action', 'rHoldStart');
+        return;
+      }
       if (combatMap[event.code]) {
         event.preventDefault();
         this.emit('combatAction', combatMap[event.code]);
@@ -181,7 +198,19 @@ export class InputManager extends EventEmitter {
 
     switch (event.code) {
       case 'KeyQ':
-        this.emit('action', 'toggleDrcSession');
+        // Hold Q = mode radial (Open parity); Shift+Q = equip session toggle
+        if (event.shiftKey) {
+          this.emit('action', 'toggleDrcSession');
+        } else {
+          this.emit('action', 'qHoldStart');
+        }
+        break;
+      case 'KeyR':
+        // Non-combat: tool radial always available for harvest tools
+        if (this.activityMode === 'harvest') {
+          event.preventDefault();
+          this.emit('action', 'rHoldStart');
+        }
         break;
       case 'KeyE':
         // Equip mode only: cycle element (combat uses E as block)
@@ -189,7 +218,13 @@ export class InputManager extends EventEmitter {
         break;
       case 'Slash':
       case 'KeyH':
+        // ? / H = keyboard help (F1–F4 Admin · ] World — not help)
         if (!this.combatKeys) this.emit('action', 'toggleHelp');
+        break;
+      case 'Backquote':
+        // ` = auto run / freeride sail-row
+        event.preventDefault();
+        this.emit('action', 'toggleAutoTraverse');
         break;
       case 'KeyG':
         this.emit('action', 'toggleEditor');
@@ -221,9 +256,29 @@ export class InputManager extends EventEmitter {
         // Spawn sample world loot prefabs
         this.emit('action', 'spawnLoot');
         break;
-      case 'F1':
+      case 'Tab':
+        // Soft-lock cycle (Shift+Tab = previous) — combat / focus targeting
         event.preventDefault();
-        this.emit('action', 'toggleHelp');
+        this.emit('action', 'cycleTarget', { reverse: !!event.shiftKey });
+        break;
+      case 'F1':
+      case 'F2':
+      case 'F3':
+      case 'F4':
+        // Admin Hub: F1 Player · F2 Assets · F3 Creatures · F4 Prefabs
+        event.preventDefault();
+        this.emit('action', 'adminTab', event.code);
+        break;
+      case 'BracketRight':
+        // ] = World admin (replaces F5)
+        event.preventDefault();
+        this.emit('action', 'adminTab', 'BracketRight');
+        break;
+      case 'F5':
+        // Unbound — World moved to ]
+        break;
+      case 'Escape':
+        this.emit('action', 'closeAdmin');
         break;
       default:
         break;
@@ -232,6 +287,12 @@ export class InputManager extends EventEmitter {
 
   _onKeyUp = (event) => {
     this.keys.delete(event.code);
+    if (event.code === 'KeyQ' && !event.shiftKey) {
+      this.emit('action', 'qHoldEnd');
+    }
+    if (event.code === 'KeyR') {
+      this.emit('action', 'rHoldEnd');
+    }
   };
 
   dispose() {

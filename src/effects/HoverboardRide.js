@@ -61,6 +61,15 @@ export class HoverboardRide {
     this.socketGroup.name = 'RideSockets';
     this.boardRoot.add(this.socketGroup);
 
+    /**
+     * Unscaled rider seat — sibling of boardRoot so birth/death scale never
+     * multiplies the character (that "ripped away" / giant / micro bug).
+     * Bank/sway match the visual board; scale always identity.
+     */
+    this.seatRoot = new Group();
+    this.seatRoot.name = 'RideSeat';
+    this.group.add(this.seatRoot);
+
     /** @type {Record<string, Group>} */
     this.sockets = {};
     this.manifest = null;
@@ -145,13 +154,25 @@ export class HoverboardRide {
       scene.name = 'RideMesh';
       // Fit package: keep author SI bake; ensure deck roughly at y=0 if needed
       this._normalizeMesh(scene, pack);
+      // Art yaw: package often authored +X forward; travel frame is +Z.
+      // +90° right (from rider facing travel) points board the correct way at spawn.
+      const artYawDeg =
+        Number.isFinite(pack.artYawDeg)
+          ? pack.artYawDeg
+          : Number.isFinite(settings.walk?.boardArtYawDeg)
+            ? settings.walk.boardArtYawDeg
+            : 90;
+      scene.rotation.y = (artYawDeg * Math.PI) / 180;
       this.boardRoot.add(scene);
       this.mesh = scene;
+      this._artYawDeg = artYawDeg;
+      console.info(`[HoverboardRide] mesh artYaw=${artYawDeg}° travel=+Z`);
     } catch (err) {
       console.error('[HoverboardRide] GLB load failed', glbUrl, err);
       throw err;
     }
 
+    // Sockets stay in TRAVEL frame (+Z forward), not mesh art frame
     const sockets = pack.sockets || {};
     for (const [name, xyz] of Object.entries(sockets)) {
       const g = new Group();
@@ -160,7 +181,7 @@ export class HoverboardRide {
       this.socketGroup.add(g);
       this.sockets[name] = g;
     }
-    // Rider seat: parent character root here so bank/sway/bob stick until dismount
+    // IK socket deckCenter (on scaled board for visual pad markers)
     if (!this.sockets.deckCenter) {
       const deck = new Group();
       deck.name = 'socket_deckCenter';
@@ -168,7 +189,8 @@ export class HoverboardRide {
       this.socketGroup.add(deck);
       this.sockets.deckCenter = deck;
     }
-    this.seat = this.sockets.deckCenter;
+    // Character parents to unscaled seatRoot — local stand only (see WalkController)
+    this.seat = this.seatRoot;
     this.pack = pack;
     this._ready = true;
 
@@ -215,9 +237,21 @@ export class HoverboardRide {
     return this.pack?.deckY ?? settings.walk.hover ?? 0.06;
   }
 
-  /** Seat Object3D for mounting the character (world-banked with board). */
+  /** Seat Object3D for mounting the character (unscaled, banked with board). */
   getSeat() {
-    return this.seat || this.sockets.deckCenter || this.boardRoot;
+    return this.seatRoot || this.seat || this.sockets.deckCenter || this.boardRoot;
+  }
+
+  /**
+   * Snap birth scale to full size before parenting a rider.
+   * Call from WalkController._mountRider so the character never inherits 0.01.
+   */
+  forceFullSize() {
+    this._birth = 1;
+    this._death = 0;
+    this._releasing = false;
+    this.boardRoot.scale.setScalar(1);
+    this.seatRoot.scale.set(1, 1, 1);
   }
 
   /**
@@ -337,11 +371,21 @@ export class HoverboardRide {
 
     const sway =
       Math.sin(this._swayT * (motion.swayHz || 0.55) * TAU + 1.2) * (motion.swayM || 0.04);
+    const pitch = -MathUtils.clamp(speed * 0.012, 0, 0.12);
+    const deckY = this.deckHeight * birth;
     // Deck height local to group (group already at water/path Y)
-    this.boardRoot.position.set(sway, this.deckHeight * birth, 0);
+    this.boardRoot.position.set(sway, deckY, 0);
     this.boardRoot.rotation.z = this._bank;
-    this.boardRoot.rotation.x = -MathUtils.clamp(speed * 0.012, 0, 0.12);
+    this.boardRoot.rotation.x = pitch;
+    // Visual board only scales on birth/death — never the rider seat
     this.boardRoot.scale.setScalar(Math.max(0.001, birth * fade));
+
+    // Rider seat: same bank/sway/height, always scale 1 (SI character intact)
+    this.seatRoot.position.set(sway, deckY, 0);
+    this.seatRoot.rotation.z = this._bank;
+    this.seatRoot.rotation.x = pitch;
+    this.seatRoot.scale.set(1, 1, 1);
+    this.seatRoot.visible = fade > 0.05;
 
     if (this.light) {
       this.getSocketWorld('deckCenter', _pos);
@@ -406,16 +450,22 @@ export class HoverboardRide {
     this.ctx.shake.add(0.12 * c.landShake * settings.global.explosionIntensity, 0.75, 18);
   }
 
+  /** Instant remove — used on hard cancel / dismount complete. */
   cancel() {
     this._retire();
   }
 
+  /**
+   * Hide vehicle and clear VFX. Mesh stays loaded for next deploy;
+   * group is not in the playable scene (visible=false).
+   */
   _retire() {
     this.group.visible = false;
     this._releasing = false;
     this._birth = 0;
     this._death = 0;
     this._bank = 0;
+    this.boardRoot.scale.setScalar(0.01);
     if (this.light) {
       this.ctx.lights.release(this.light);
       this.light = null;

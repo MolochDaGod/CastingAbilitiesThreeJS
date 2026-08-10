@@ -6,7 +6,8 @@ import {
   OPEN_LIBRARY_URL,
   CHARACTER_FOUNDRY_URL,
   GRUDGE_ID_URL,
-  FLEET_API_DEFAULT
+  FLEET_API_DEFAULT,
+  CRAFT_SSOT_URL
 } from '../api/fleetApi.js';
 import {
   DRC_MELEE_STRIKE,
@@ -37,6 +38,7 @@ import {
   downloadEquippedPrefab,
   exportEquippedPrefab
 } from '../combat/equippedWeaponRuntime.js';
+import './warlords-dev-ui.css';
 import {
   loadGameItemCatalog,
   queryGameItems,
@@ -45,12 +47,49 @@ import {
   ITEM_BROWSER_URL,
   WEAPON_SKILLS_HTML
 } from '../api/gameItemCatalog.js';
+import {
+  loadPrefabScaffold,
+  buildItemScaffoldPack,
+  downloadJson,
+  SCAFFOLD_ENDPOINTS
+} from '../api/prefabScaffold.js';
+import {
+  exportWarlordsWeaponPrefab,
+  getEquippableWeaponsCache
+} from '../api/t0WeaponCatalog.js';
+import {
+  PAPERDOLL_LEFT,
+  PAPERDOLL_RIGHT,
+  BAG_LAYOUT,
+  BAG_SKINS,
+  PROFESSION_TREES,
+  getPaperdollSlots,
+  loadBag,
+  saveBag,
+  loadEquipMap,
+  saveEquipMap,
+  loadBagSkin,
+  saveBagSkin,
+  loadProfessionProgress,
+  unlockProfessionNode,
+  loadSlotAdminOverrides,
+  saveSlotAdminOverrides,
+  ensureDemoBag,
+  bagAdd,
+  itemFitsSlot,
+  ALL_PAPERDOLL_SLOTS
+} from './mainPanelSlots.js';
+import './mainPanel.css';
 
 /**
- * Left-side Lab Panel — Main Panel / character production tester (not a fork).
+ * Main Panel — Warlords / TI equipment look · inventory slots · production tester.
  *
- * Tabs: Character · Equipment · Weapon · Prefabs · Race · Mesh · Mount · Anims · API
- * Prefabs = full game item import (weapons, armour, relics, mounts…) from info SSOT.
+ * Character: paperdoll (LMB slot → inventory picker)
+ * Equipment / Inventory: bag grid + equip map
+ * Skills: WCS profession skill trees + combat trees
+ * Admin: slot accept filters (F1 / this panel)
+ *
+ * Refs: tactical-infinity equipment · Sample-InventorySlotsSet · Player-Inventory-System
  */
 export class InventoryPanel {
   /**
@@ -81,10 +120,16 @@ export class InventoryPanel {
     this._prefabQ = '';
     this._prefabSelected = null;
     this._gameItems = null;
+    /** LMB equip target paperdoll slot id */
+    this._equipTarget = null;
+    /** Bag index currently “picked” (Player-Inventory-System style) */
+    this._pickedBagIndex = null;
+    this._profTab = 'miner';
+    ensureDemoBag();
 
     this.el = document.createElement('div');
     this.el.id = 'inventory-panel';
-    this.el.className = 'inv-panel inv-panel--lab';
+    this.el.className = 'inv-panel inv-panel--lab inv-panel--main wl-inv-shell';
     this.el.hidden = true;
     document.body.appendChild(this.el);
 
@@ -95,13 +140,16 @@ export class InventoryPanel {
     return [
       { id: 'character', label: 'Character' },
       { id: 'equip', label: 'Equipment' },
+      { id: 'inventory', label: 'Inventory' },
       { id: 'weapon', label: 'Weapon' },
+      { id: 'skills', label: 'Skills' },
+      { id: 'professions', label: 'Professions' },
       { id: 'prefabs', label: 'Prefabs' },
       { id: 'race', label: 'Race' },
       { id: 'mesh', label: 'Mesh' },
       { id: 'mount', label: 'Mount' },
       { id: 'anims', label: 'Anims' },
-      { id: 'skills', label: 'Skills' },
+      { id: 'slots', label: 'Slots' },
       { id: 'api', label: 'API' }
     ];
   }
@@ -111,8 +159,8 @@ export class InventoryPanel {
     this.el.innerHTML = `
       <header class="inv-panel__head">
         <div>
-          <h2>Lab Panel</h2>
-          <p class="inv-panel__sub">Character · equip · 6 races · packs · fleet API</p>
+          <h2>Main Panel</h2>
+          <p class="inv-panel__sub">Character · Equipment · Inventory · Professions · production lab</p>
         </div>
         <button type="button" class="inv-panel__close" data-close aria-label="Close">×</button>
       </header>
@@ -128,19 +176,23 @@ export class InventoryPanel {
         <div class="inv-panel__body">
           <section class="inv-section" data-panel="character"></section>
           <section class="inv-section" data-panel="equip" hidden></section>
+          <section class="inv-section" data-panel="inventory" hidden></section>
           <section class="inv-section" data-panel="weapon" hidden></section>
+          <section class="inv-section" data-panel="skills" hidden></section>
+          <section class="inv-section" data-panel="professions" hidden></section>
           <section class="inv-section" data-panel="prefabs" hidden></section>
           <section class="inv-section" data-panel="race" hidden></section>
           <section class="inv-section" data-panel="mesh" hidden></section>
           <section class="inv-section" data-panel="mount" hidden></section>
           <section class="inv-section" data-panel="anims" hidden></section>
-          <section class="inv-section" data-panel="skills" hidden></section>
+          <section class="inv-section" data-panel="slots" hidden></section>
           <section class="inv-section" data-panel="api" hidden></section>
         </div>
       </div>
       <footer class="inv-panel__foot">
-        <kbd>I</kbd>/<kbd>Q</kbd> · mesh_ids only ·
-        <a href="${MAIN_PANEL_URL}" target="_blank" rel="noopener">Main Panel ↗</a>
+        <kbd>I</kbd> panel · <kbd>LMB</kbd> slot → inventory · mesh_ids ·
+        <a href="${CRAFT_SSOT_URL}" target="_blank" rel="noopener">Craft SSOT ↗</a> ·
+        <a href="${MAIN_PANEL_URL}" target="_blank" rel="noopener">ui Main Panel ↗</a>
       </footer>
     `;
 
@@ -163,6 +215,12 @@ export class InventoryPanel {
     this.refresh();
   }
 
+  /** Open lab panel on a tab (e.g. Admin Hub → Prefabs). */
+  openTab(tab) {
+    this.setOpen(true);
+    this._setTab(tab || 'character');
+  }
+
   toggle() {
     this.setOpen(!this.open);
   }
@@ -177,6 +235,7 @@ export class InventoryPanel {
     if (!this.open) return;
     this._fillCharacter();
     this._fillEquip();
+    this._fillInventory();
     this._fillWeapon();
     this._fillPrefabs();
     this._fillRace();
@@ -184,6 +243,8 @@ export class InventoryPanel {
     this._fillMount();
     this._fillAnims();
     this._fillSkills();
+    this._fillProfessions();
+    this._fillSlotsAdmin();
     this._fillApi();
   }
 
@@ -207,15 +268,172 @@ export class InventoryPanel {
     };
   }
 
-  /* ── Character ─────────────────────────────────────────────── */
+  /* ── Character paperdoll (TI / Warlords) ───────────────────── */
+
+  _slotButtonHtml(slot, equipMap) {
+    const item = equipMap[slot.id];
+    const isTarget = this._equipTarget === slot.id;
+    return `
+      <button type="button" class="mp-slot ${item ? 'is-filled' : ''} ${isTarget ? 'is-target' : ''}"
+        data-pd-slot="${slot.id}" title="${slot.label} · LMB open inventory">
+        ${
+          item?.icon
+            ? `<img class="mp-slot__icon" src="${item.icon}" alt="" referrerpolicy="no-referrer" />`
+            : `<span class="mp-slot__empty">+</span>`
+        }
+        <span class="mp-slot__label">${slot.label}</span>
+      </button>`;
+  }
+
+  _renderPaperdoll(host) {
+    const s = this.character.getLabSummary?.() || {};
+    const equipMap = loadEquipMap();
+    const left = PAPERDOLL_LEFT.map((sl) => this._slotButtonHtml(sl, equipMap)).join('');
+    const right = PAPERDOLL_RIGHT.map((sl) => this._slotButtonHtml(sl, equipMap)).join('');
+    const pack = s.animPackId || '—';
+
+    host.innerHTML = `
+      <div class="mp-doll" data-doll>
+        <div class="mp-doll__col">
+          <div class="mp-doll__col-title">Enhancements</div>
+          ${left}
+        </div>
+        <div class="mp-doll__center">
+          <div class="mp-doll__silhouette" aria-hidden="true"></div>
+          <div class="mp-doll__stats">${s.raceLabel || s.raceId || 'Hero'} · ${(s.heightM ?? 1.8).toFixed?.(2) || '1.80'} m · ${pack}</div>
+        </div>
+        <div class="mp-doll__col">
+          <div class="mp-doll__col-title">Enchant</div>
+          ${right}
+        </div>
+        <div class="mp-picker" data-picker hidden></div>
+      </div>
+      <p class="inv-hint">LMB equipment slot → inventory options (Player-Inventory-System). Drag pattern: pick bag item then LMB target slot.</p>
+      <div class="inv-btn-row">
+        <button type="button" class="inv-btn" data-open-inv>Open Inventory</button>
+        <button type="button" class="inv-btn inv-btn--ghost" data-unequip-all>Clear paperdoll</button>
+        <a class="inv-btn inv-btn--ghost" href="${CRAFT_SSOT_URL}" target="_blank" rel="noopener">Craft bag ↗</a>
+      </div>
+    `;
+
+    host.querySelectorAll('[data-pd-slot]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this._onPaperdollSlotClick(btn.dataset.pdSlot, host);
+      });
+    });
+    host.querySelector('[data-open-inv]')?.addEventListener('click', () => this._setTab('inventory'));
+    host.querySelector('[data-unequip-all]')?.addEventListener('click', () => {
+      saveEquipMap({});
+      this.onToast('Paperdoll cleared (local map)');
+      this.refresh();
+    });
+  }
+
+  _onPaperdollSlotClick(slotId, host) {
+    const slotDef = ALL_PAPERDOLL_SLOTS.find((s) => s.id === slotId);
+    if (!slotDef) return;
+
+    // If bag item picked → try equip
+    if (this._pickedBagIndex != null) {
+      const bag = loadBag();
+      const item = bag.slots[this._pickedBagIndex];
+      if (item && itemFitsSlot(item, slotDef)) {
+        this._equipItemToSlot(item, slotDef, this._pickedBagIndex);
+        this._pickedBagIndex = null;
+        this._equipTarget = null;
+        this.refresh();
+        return;
+      }
+      this.onToast('Item does not fit this slot');
+    }
+
+    this._equipTarget = slotId;
+    const bag = loadBag();
+    const fits = bag.slots
+      .map((it, i) => (it && itemFitsSlot(it, slotDef) ? { it, i } : null))
+      .filter(Boolean);
+
+    const picker = host.querySelector('[data-picker]');
+    if (!picker) return;
+    picker.hidden = false;
+    picker.innerHTML = `
+      <h4>${slotDef.label} — bag options</h4>
+      ${
+        fits.length
+          ? fits
+              .map(
+                ({ it, i }) => `
+            <button type="button" class="mp-picker__item" data-pick-i="${i}">
+              <img src="${it.icon || ''}" alt="" referrerpolicy="no-referrer" />
+              <span>${it.name} ×${it.qty || 1}</span>
+            </button>`
+              )
+              .join('')
+          : `<p class="mp-picker__empty">No matching items. Open Inventory or Craft SSOT.</p>`
+      }
+      <button type="button" class="inv-btn inv-btn--ghost" data-picker-close style="width:100%;margin-top:6px">Close</button>
+    `;
+    picker.querySelectorAll('[data-pick-i]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const i = Number(b.dataset.pickI);
+        const bag2 = loadBag();
+        const item = bag2.slots[i];
+        if (item) this._equipItemToSlot(item, slotDef, i);
+        this._equipTarget = null;
+        this.refresh();
+      });
+    });
+    picker.querySelector('[data-picker-close]')?.addEventListener('click', () => {
+      picker.hidden = true;
+      this._equipTarget = null;
+      this.refresh();
+    });
+  }
+
+  async _equipItemToSlot(item, slotDef, bagIndex) {
+    const map = loadEquipMap();
+    // Return previous to bag
+    if (map[slotDef.id]) bagAdd(map[slotDef.id]);
+    map[slotDef.id] = { ...item, qty: 1 };
+    saveEquipMap(map);
+    // Remove one from bag
+    const bag = loadBag();
+    if (bagIndex != null && bag.slots[bagIndex]) {
+      const q = (bag.slots[bagIndex].qty || 1) - 1;
+      if (q <= 0) bag.slots[bagIndex] = null;
+      else bag.slots[bagIndex].qty = q;
+      saveBag(bag);
+    }
+
+    // Live 3D: weapon catalog or mesh_ids
+    try {
+      if (slotDef.kind === 'hand' && item.id) {
+        await ensureWeaponCatalog();
+        await equipWeaponById(item.id, {
+          character: this.character,
+          onToast: this.onToast,
+        });
+      } else if (slotDef.kind === 'mesh' && slotDef.meshSlot) {
+        const cat = this.character.equipment?.getCatalogSummary?.() || {};
+        const variants = cat[slotDef.meshSlot]?.variants || [];
+        const pick = variants[0] || 'A';
+        this.character.equipment?.setSlot?.(slotDef.meshSlot, pick);
+        this.character._reGroundAfterEquip?.();
+      }
+    } catch (e) {
+      this.onToast(e?.message || 'Equip 3D skipped');
+    }
+    this.onToast(`Equipped ${item.name} → ${slotDef.label}`);
+    this.onEquip();
+  }
 
   _fillCharacter() {
     const host = this.el.querySelector('[data-panel="character"]');
     if (!host || this._tab !== 'character') return;
+    this._renderPaperdoll(host);
     const s = this.character.getLabSummary?.() || {};
-    const loadout = this.character.equipment?.loadout || {};
-    const wSlot = activeWeaponSlot(loadout);
-    const pack = animPackForLoadout(loadout, s.animPackId);
     const presets = this.character.presets || [];
     const presetOpts = presets
       .map(
@@ -223,53 +441,40 @@ export class InventoryPanel {
           `<option value="${p.id}" ${p.id === this.character.presetId ? 'selected' : ''}>${p.label || p.id}</option>`
       )
       .join('');
-
-    host.innerHTML = `
-      <div class="inv-card">
-        <div class="inv-card__row"><span>Race</span><b>${s.raceLabel || s.raceId || '—'}</b></div>
-        <div class="inv-card__row"><span>Height</span><b>${(s.heightM ?? 0).toFixed(2)} m</b></div>
-        <div class="inv-card__row"><span>Preset</span><b>${s.presetId || '—'}</b></div>
-        <div class="inv-card__row"><span>Weapon</span><b>${wSlot || s.weaponSlot || '—'}</b></div>
-        <div class="inv-card__row"><span>Anim pack</span><b>${pack || s.animPackId || '—'}</b></div>
-        <div class="inv-card__row"><span>Combat roles</span><b>${packCombatBlurb(pack).split(': ')[1] || '—'}</b></div>
+    host.insertAdjacentHTML(
+      'beforeend',
+      `
+      <div class="inv-card" style="margin-top:12px">
+        <div class="inv-card__row"><span>Kit</span><b class="inv-code">${(s.kitUrl || '').split('/').pop() || 'Toon RTS'}</b></div>
         <div class="inv-card__row"><span>Clips</span><b>${(s.clips || []).length}</b></div>
       </div>
-      <p class="inv-hint">Weapon → pack: staff=magic · bow=longbow · sword/axe/hammer=sword_shield</p>
-      <label class="inv-row">
-        <span>Class preset</span>
-        <select data-preset>${presetOpts}</select>
-      </label>
-      <p class="inv-hint">Kit: <code class="inv-code">${(s.kitUrl || '').split('/').pop() || '—'}</code></p>
-      <p class="inv-hint">Toon RTS GLB · mesh_ids equip · one mixer</p>
+      <label class="inv-row"><span>Class preset</span><select data-preset>${presetOpts}</select></label>
       <div class="inv-btn-row">
         <a class="inv-btn inv-btn--ghost" href="${CHARACTER_FOUNDRY_URL}" target="_blank" rel="noopener">Foundry ↗</a>
-        <a class="inv-btn inv-btn--ghost" href="${MAIN_PANEL_URL}" target="_blank" rel="noopener">Main Panel ↗</a>
+        <a class="inv-btn inv-btn--ghost" href="${MAIN_PANEL_URL}" target="_blank" rel="noopener">ui.grudge Main Panel ↗</a>
       </div>
-    `;
-
+    `
+    );
     host.querySelector('[data-preset]')?.addEventListener(
       'change',
       this._busyGuard(async (e) => {
         const id = e.target.value;
-        const report = this.character.applyPreset(id);
-        const pack = this.character.animPackId;
-        await this.character.setAnimPack?.(pack);
-        this.onToast(
-          `Equipped ${id}${report?.missing?.length ? ` (missing ${report.missing.length})` : ''}`
-        );
+        this.character.applyPreset(id);
+        await this.character.setAnimPack?.(this.character.animPackId);
+        this.onToast(`Preset ${id}`);
       })
     );
   }
 
-  /* ── Equipment ─────────────────────────────────────────────── */
+  /* ── Equipment (paperdoll + kit mesh selects) ─────────────── */
 
   _fillEquip() {
     const host = this.el.querySelector('[data-panel="equip"]');
     if (!host || this._tab !== 'equip') return;
+    this._renderPaperdoll(host);
 
     const c = this.character;
     const catalog = c.equipment?.getCatalogSummary?.() || {};
-
     const slotRows = EQUIP_SLOTS.map((slot) => {
       const info = catalog[slot];
       if (!info) return '';
@@ -280,20 +485,21 @@ export class InventoryPanel {
             `<option value="${v}" ${info.selected === v ? 'selected' : ''}>${v === '_default' ? 'default' : v}</option>`
         )
       ].join('');
-      const weaponNote = WEAPON_SLOTS.includes(slot) ? ' ⚔' : '';
       return `
         <label class="inv-row">
-          <span>${slot}${weaponNote}</span>
+          <span>${slot}${WEAPON_SLOTS.includes(slot) ? ' ⚔' : ''}</span>
           <select data-slot="${slot}">${opts}</select>
         </label>`;
     }).join('');
 
-    host.innerHTML = `
-      <p class="inv-hint">Visibility mesh_ids only — never body GLB swap. Pack: <b>${c.animPackId}</b></p>
-      <div class="inv-slots">${slotRows || '<p class="inv-hint">No equippable slots on kit.</p>'}</div>
+    host.insertAdjacentHTML(
+      'beforeend',
+      `
+      <p class="inv-hint" style="margin-top:12px">Kit mesh_ids (live 3D) — never body GLB swap</p>
+      <div class="inv-slots">${slotRows || '<p class="inv-hint">No mesh slots</p>'}</div>
       <button type="button" class="inv-btn" data-attack>Weapon attack (F)</button>
-    `;
-
+    `
+    );
     host.querySelectorAll('[data-slot]').forEach((sel) => {
       sel.addEventListener('change', () => {
         const slot = sel.dataset.slot;
@@ -303,13 +509,179 @@ export class InventoryPanel {
         c.ik?.setBones(c.equipment.findBones());
         this.onToast(`${slot} → ${variant}`);
         this.onEquip();
-        if (this._tab === 'weapon') this._fillWeapon();
       });
     });
-
     host.querySelector('[data-attack]')?.addEventListener('click', () => {
       if (c.playWeaponAttack?.()) this.onToast('Weapon attack');
       else this.onToast('No attack clip');
+    });
+  }
+
+  /* ── Inventory bag (Sample-InventorySlotsSet layout) ──────── */
+
+  _fillInventory() {
+    const host = this.el.querySelector('[data-panel="inventory"]');
+    if (!host || this._tab !== 'inventory') return;
+    const bag = loadBag();
+    const skin = loadBagSkin();
+    const mainN = BAG_LAYOUT.mainCols * BAG_LAYOUT.mainRows;
+    const mainSlots = bag.slots.slice(0, mainN);
+    const utilSlots = bag.slots.slice(mainN);
+
+    const cell = (item, i) => `
+      <button type="button" class="mp-bag-slot ${this._pickedBagIndex === i ? 'is-pick' : ''}" data-bag-i="${i}"
+        title="${item ? item.name : 'Empty'}">
+        ${
+          item
+            ? `<img class="mp-slot__icon" src="${item.icon || ''}" alt="" referrerpolicy="no-referrer" />
+               ${item.qty > 1 ? `<span class="mp-bag-slot__qty">${item.qty}</span>` : ''}`
+            : ''
+        }
+      </button>`;
+
+    host.innerHTML = `
+      <div class="mp-bag">
+        <div class="mp-bag__head">
+          <h3>Inventory</h3>
+          <label class="inv-row" style="margin:0">
+            <span>Skin</span>
+            <select data-bag-skin>
+              ${BAG_SKINS.map((s) => `<option value="${s.id}" ${s.id === skin ? 'selected' : ''}>${s.label}</option>`).join('')}
+            </select>
+          </label>
+        </div>
+        <div class="mp-bag__grid">${mainSlots.map((it, i) => cell(it, i)).join('')}</div>
+        <div class="mp-bag__util">${utilSlots.map((it, j) => cell(it, mainN + j)).join('')}</div>
+        <p class="inv-hint">LMB pick item · LMB paperdoll slot to equip (Character tab). Pattern: Player-Inventory-System.</p>
+        <div class="inv-btn-row">
+          <button type="button" class="inv-btn inv-btn--ghost" data-seed-bag>Reset demo bag</button>
+          <a class="mp-link-craft" href="${CRAFT_SSOT_URL}" target="_blank" rel="noopener">Open Warlords Craft bag ↗</a>
+        </div>
+      </div>
+    `;
+
+    host.querySelectorAll('[data-bag-i]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const i = Number(btn.dataset.bagI);
+        if (this._pickedBagIndex === i) {
+          this._pickedBagIndex = null;
+        } else {
+          this._pickedBagIndex = bag.slots[i] ? i : null;
+          if (this._pickedBagIndex != null) {
+            this.onToast(`Picked ${bag.slots[i].name} — open Character and LMB a slot`);
+          }
+        }
+        this._fillInventory();
+      });
+    });
+    host.querySelector('[data-bag-skin]')?.addEventListener('change', (e) => {
+      saveBagSkin(e.target.value);
+      this.onToast(`Bag skin · ${e.target.value}`);
+    });
+    host.querySelector('[data-seed-bag]')?.addEventListener('click', () => {
+      localStorage.removeItem('casting.mainPanel.bag.v1');
+      ensureDemoBag();
+      this.refresh();
+    });
+  }
+
+  _fillProfessions() {
+    const host = this.el.querySelector('[data-panel="professions"]');
+    if (!host || this._tab !== 'professions') return;
+    const prog = loadProfessionProgress();
+    const tree = PROFESSION_TREES.find((t) => t.id === this._profTab) || PROFESSION_TREES[0];
+    const p = prog[tree.id] || { level: 1, unlocked: [] };
+
+    host.innerHTML = `
+      <p class="inv-hint">WCS profession skill trees — production craft SSOT
+        <a href="${CRAFT_SSOT_URL}" target="_blank" rel="noopener">grudgewarlords.com/craft/</a>
+      </p>
+      <div class="mp-prof">
+        <div class="mp-prof__tabs">
+          ${PROFESSION_TREES.map(
+            (t) => `
+            <button type="button" class="mp-prof__tab ${t.id === tree.id ? 'is-on' : ''}" data-prof="${t.id}">
+              <img src="${t.icon}" alt="" referrerpolicy="no-referrer" />
+              ${t.label}
+            </button>`
+          ).join('')}
+        </div>
+        <div class="mp-prof__tree">
+          <div class="inv-card__row"><span>${tree.label}</span><b>Lv ${p.level} · ${p.unlocked?.length || 0} nodes</b></div>
+          ${tree.nodes
+            .map((n) => {
+              const on = p.unlocked?.includes(n.id);
+              return `
+              <div class="mp-prof__node ${on ? 'is-unlocked' : ''}">
+                <span class="tier">T${n.tier}</span>
+                <div>
+                  <b>${n.name}</b>
+                  <div class="inv-hint" style="margin:0">${n.desc}</div>
+                </div>
+                <button type="button" data-unlock="${n.id}" ${on ? 'disabled' : ''}>${on ? 'Unlocked' : 'Unlock'}</button>
+              </div>`;
+            })
+            .join('')}
+        </div>
+      </div>
+    `;
+    host.querySelectorAll('[data-prof]').forEach((b) => {
+      b.addEventListener('click', () => {
+        this._profTab = b.dataset.prof;
+        this._fillProfessions();
+      });
+    });
+    host.querySelectorAll('[data-unlock]').forEach((b) => {
+      b.addEventListener('click', () => {
+        unlockProfessionNode(tree.id, b.dataset.unlock);
+        this.onToast(`${tree.label} · unlocked`);
+        this._fillProfessions();
+      });
+    });
+  }
+
+  _fillSlotsAdmin() {
+    const host = this.el.querySelector('[data-panel="slots"]');
+    if (!host || this._tab !== 'slots') return;
+    const ovr = loadSlotAdminOverrides();
+    host.innerHTML = `
+      <p class="inv-hint">Admin · paperdoll slot labels &amp; accept filters (local). Used by LMB inventory picker.</p>
+      <div class="mp-admin-slots">
+        ${ALL_PAPERDOLL_SLOTS.map((s) => {
+          const o = ovr[s.id] || {};
+          return `
+          <label>
+            ${s.id}
+            <input data-slot-label="${s.id}" value="${o.label || s.label}" placeholder="Label" />
+            <input data-slot-accept="${s.id}" value="${(o.accepts || s.accepts).join(',')}" placeholder="accepts csv" />
+          </label>`;
+        }).join('')}
+      </div>
+      <div class="inv-btn-row" style="margin-top:12px">
+        <button type="button" class="inv-btn" data-save-slots>Save slot system</button>
+        <button type="button" class="inv-btn inv-btn--ghost" data-reset-slots>Reset defaults</button>
+      </div>
+      <p class="inv-hint">Dev tool: also under Admin F1 · Main Panel slots. Bag art: <code>/ui/inventory/inventory-slots-set.png</code></p>
+    `;
+    host.querySelector('[data-save-slots]')?.addEventListener('click', () => {
+      const next = {};
+      host.querySelectorAll('[data-slot-label]').forEach((inp) => {
+        const id = inp.dataset.slotLabel;
+        const acc = host.querySelector(`[data-slot-accept="${id}"]`)?.value || '';
+        next[id] = {
+          label: inp.value.trim(),
+          accepts: acc
+            .split(',')
+            .map((x) => x.trim())
+            .filter(Boolean),
+        };
+      });
+      saveSlotAdminOverrides(next);
+      this.onToast('Slot system saved');
+    });
+    host.querySelector('[data-reset-slots]')?.addEventListener('click', () => {
+      saveSlotAdminOverrides({});
+      this.refresh();
     });
   }
 
@@ -682,36 +1054,52 @@ export class InventoryPanel {
       })
       .join('');
 
+    // Scaffold pack for selected equippable (async fill below if needed)
+    const eqCache = getEquippableWeaponsCache();
+    const eqWeapon = sel && eqCache?.byId?.get?.(sel.id);
+
     const detail = sel
       ? `<div class="inv-equip-banner">
           <img src="${sel.iconUrl || ''}" alt="" />
           <div>
             <div><b>${sel.name}</b> · ${sel.category}</div>
             <div class="inv-hint">${(sel.description || '').slice(0, 160)}</div>
-            <div class="inv-hint">id: ${sel.id}</div>
+            <div class="inv-hint">id: ${sel.id}${sel.uuid ? ' · ' + sel.uuid : ''}</div>
             <div class="inv-hint">model: ${(sel.modelUrl || '—').split('/').pop()}</div>
             <div class="inv-hint">stats: ${sel.stats ? JSON.stringify(sel.stats).slice(0, 120) : '—'}</div>
           </div>
         </div>
-        <div class="inv-btn-row">
+        <div class="inv-btn-row" style="flex-wrap:wrap">
           ${sel.equippable ? `<button type="button" class="inv-btn" data-pequip>Equip (combat bar)</button>` : ''}
-          <button type="button" class="inv-btn inv-btn--ghost" data-pexport>Export prefab JSON</button>
+          <button type="button" class="inv-btn inv-btn--ghost" data-pexport>Export prefab</button>
           <button type="button" class="inv-btn inv-btn--ghost" data-pcopy>Copy JSON</button>
-        </div>`
-      : '<p class="inv-hint">Select a row to inspect · export for Warlords / HUD / combat binds.</p>';
+          <button type="button" class="inv-btn" data-pscaffold>Scaffold pack</button>
+        </div>
+        <div class="inv-btn-row" style="flex-wrap:wrap" data-scaffold-gen hidden>
+          <button type="button" class="inv-btn inv-btn--ghost" data-pgen="icon">Gen icon brief</button>
+          <button type="button" class="inv-btn inv-btn--ghost" data-pgen="sprite3d">Gen 3D sprite brief</button>
+          <button type="button" class="inv-btn inv-btn--ghost" data-pgen="script">Item script stub</button>
+          <button type="button" class="inv-btn inv-btn--ghost" data-pgen="craft">Craft formula</button>
+          <button type="button" class="inv-btn inv-btn--ghost" data-pgen="full">Full scaffold JSON</button>
+        </div>
+        <div class="inv-hint" data-scaffold-status>${eqWeapon ? 'T0/equip row linked — open Scaffold pack' : 'Scaffold works best on T0 / weapon equip rows'}</div>
+        <pre class="inv-hint" data-scaffold-out style="max-height:12rem;overflow:auto;white-space:pre-wrap;font-size:10px"></pre>`
+      : '<p class="inv-hint">Select a row to inspect · scaffold · export. UUID graph + craft + gen briefs.</p>';
 
     host.innerHTML = `
-      <p class="inv-hint"><b>Production prefab import</b> — weapons, armour, relics, mounts, class, off-hands, specials</p>
+      <p class="inv-hint"><b>Prefab scaffold control</b> — access catalogs · validate · generate briefs · export</p>
       <p class="inv-hint">
         <a href="${ITEM_BROWSER_URL}" target="_blank" rel="noopener">Item Database ↗</a> ·
         <a href="${WEAPON_SKILLS_HTML}" target="_blank" rel="noopener">WEAPON_SKILLS ↗</a> ·
-        no invented ITEM-* ids
+        <a href="${SCAFFOLD_ENDPOINTS.hub}" target="_blank" rel="noopener">Hub ↗</a> ·
+        <a href="${SCAFFOLD_ENDPOINTS.docs}" target="_blank" rel="noopener">API docs ↗</a>
       </p>
+      <p class="inv-hint">No invented ITEM-*/SKIL-* · gen = drafts · mint in ObjectStore pipelines</p>
       <div class="inv-btn-row" style="flex-wrap:wrap">${catBtns}</div>
       <input type="search" class="inv-input" data-pq placeholder="Search name / id…" value="${this._prefabQ.replace(/"/g, '&quot;')}" />
       ${detail}
       <div class="inv-weapon-equip-grid">${list || '<p class="inv-hint">No rows (try another category)</p>'}</div>
-      <p class="inv-hint">Consumers: items · character HUD · UI · controller · combat · this lab. Doc: GAME_ITEM_PREFAB_PRODUCTION_SSOT.md</p>
+      <p class="inv-hint">Docs: PREFAB_SCAFFOLD_CONTROL_SSOT · WEAPON_PREFAB_UUID_SSOT · GAME_ITEM_PREFAB_PRODUCTION</p>
     `;
 
     host.querySelectorAll('[data-pcat]').forEach((btn) => {
@@ -785,6 +1173,95 @@ export class InventoryPanel {
       } catch {
         this.onToast('Copy failed');
       }
+    });
+
+    const statusEl = host.querySelector('[data-scaffold-status]');
+    const outEl = host.querySelector('[data-scaffold-out]');
+    const genRow = host.querySelector('[data-scaffold-gen]');
+
+    const ensureScaffold = async () => {
+      if (!sel) return null;
+      if (this._scaffoldPack?.identity?.id === sel.id) return this._scaffoldPack;
+      statusEl && (statusEl.textContent = 'Building scaffold pack…');
+      await loadPrefabScaffold();
+      const eq = getEquippableWeaponsCache()?.byId?.get?.(sel.id);
+      const weapon =
+        eq ||
+        ({
+          id: sel.id,
+          uuid: sel.uuid,
+          name: sel.name,
+          tier: sel.tier,
+          weaponType: sel.weaponType,
+          stats: sel.stats,
+          iconUrl: sel.iconUrl,
+          modelUrl: sel.modelUrl,
+          meshSlot: sel.slot || 'sword',
+          animPack: 'sword_shield',
+          labStyle: 'melee',
+          slot1: null,
+          slot2: null,
+          slot3Options: [],
+          rawPrefab: sel.raw,
+          present: null
+        });
+      const pack = await buildItemScaffoldPack(weapon);
+      this._scaffoldPack = pack;
+      const v = pack.validation;
+      statusEl &&
+        (statusEl.textContent = `Scaffold · ${v?.score ?? '?'}/${v?.max ?? 6} layers · ${
+          v?.ok ? 'OK' : 'gaps: ' + (v?.missing || []).join(', ')
+        } · craft: ${pack.generation?.craft?.source || '—'}`);
+      genRow?.removeAttribute('hidden');
+      if (outEl) {
+        outEl.textContent = JSON.stringify(
+          {
+            uuids: pack.exportPrefab?.uuids || pack.contract?.uuids,
+            validation: pack.validation,
+            craft: pack.generation?.craft,
+            use: pack.use
+          },
+          null,
+          2
+        );
+      }
+      return pack;
+    };
+
+    host.querySelector('[data-pscaffold]')?.addEventListener('click', async () => {
+      try {
+        await ensureScaffold();
+        this.onToast('Scaffold ready · gen briefs below');
+      } catch (err) {
+        this.onToast(err?.message || 'Scaffold failed');
+      }
+    });
+
+    host.querySelectorAll('[data-pgen]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        try {
+          const pack = await ensureScaffold();
+          if (!pack) return;
+          const kind = btn.dataset.pgen;
+          const map = {
+            icon: pack.generation?.icon,
+            sprite3d: pack.generation?.sprite3d,
+            script: pack.generation?.itemScript,
+            craft: pack.generation?.craft,
+            full: pack
+          };
+          const data = map[kind];
+          if (!data) {
+            this.onToast('No data for ' + kind);
+            return;
+          }
+          if (outEl) outEl.textContent = JSON.stringify(data, null, 2);
+          downloadJson(data, `${sel.id}.${kind}.json`);
+          this.onToast(`Downloaded ${kind} · ${sel.id}`);
+        } catch (err) {
+          this.onToast(err?.message || 'Gen failed');
+        }
+      });
     });
   }
 
@@ -947,7 +1424,7 @@ export class InventoryPanel {
 
     const health = this.api.lastHealth;
     host.innerHTML = `
-      <p class="inv-hint">Deployable game API (Railway). Account bag / characters — not localStorage heroes.</p>
+      <p class="inv-hint">Railway player API — real account roster (Warlords era). Not fake local heroes.</p>
       <div class="inv-card">
         <div class="inv-card__row"><span>Base</span><b class="inv-code">${FLEET_API_DEFAULT.replace('https://', '')}</b></div>
         <div class="inv-card__row"><span>Health</span><b data-health>${health ? (health.ok ? `OK ${health.latencyMs}ms` : health.message) : 'not checked'}</b></div>
@@ -962,7 +1439,7 @@ export class InventoryPanel {
         <a class="inv-btn inv-btn--ghost" href="${OPEN_LIBRARY_URL}" target="_blank" rel="noopener">Open ↗</a>
         <a class="inv-btn inv-btn--ghost" href="${MAIN_PANEL_URL}" target="_blank" rel="noopener">Main Panel ↗</a>
       </div>
-      <p class="inv-hint">Lab does not invent auth — token from localStorage grudge_token if present. CORS may block browser calls; server proxy is production path.</p>
+      <p class="inv-hint">Auth: localStorage <code>grudge_token</code> (or grudge_jwt). CORS from this Vercel origin may block Railway — sign-in on Open/client is the production path. No invented auth here.</p>
     `;
 
     const out = host.querySelector('[data-api-out]');

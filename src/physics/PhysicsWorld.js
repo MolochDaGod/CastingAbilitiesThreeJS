@@ -39,6 +39,8 @@ export class PhysicsWorld {
     this.vy = 0;
     this.grounded = true;
     this.gravity = -9.81;
+    /** Multiplier on gravity (backflip hang = ~0.32 for air-aim window) */
+    this.gravityScale = 1;
   }
 
   async init(opts = {}) {
@@ -95,6 +97,19 @@ export class PhysicsWorld {
   }
 
   /**
+   * Scale world gravity for hang time (1 = normal). Clamped ≥ 0.05.
+   * @param {number} scale
+   */
+  setGravityScale(scale = 1) {
+    this.gravityScale = Math.max(0.05, Number(scale) || 1);
+  }
+
+  /** Kill vertical velocity (hard stop / float entry). */
+  zeroVerticalVelocity() {
+    this.vy = 0;
+  }
+
+  /**
    * Move player CCT with desired XZ velocity + integrated vertical jump.
    * @param {number} vx
    * @param {number} vz
@@ -108,7 +123,7 @@ export class PhysicsWorld {
     const entry = this.bodies.get('player');
     const r = entry.radius;
     const hh = entry.halfHeight;
-    const g = this.gravity;
+    const g = this.gravity * (this.gravityScale ?? 1);
 
     this.accumulator += Math.min(dt, 0.05);
     let grounded = this.grounded;
