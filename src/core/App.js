@@ -29,6 +29,11 @@ import { CameraShake } from '../effects/CameraShake.js';
 import { ScreenFlash } from '../effects/ScreenFlash.js';
 
 import { AbilityManager } from '../abilities/AbilityManager.js';
+import {
+  LinearSkillBridge,
+  LINEAR_HOTKEYS,
+  PRODUCT_TO_LINEAR
+} from '../skillshot/LinearSkillBridge.js';
 import { PostProcessing } from '../postprocessing/PostProcessing.js';
 
 import { HUD, LoadingScreen } from '../ui/HUD.js';
@@ -157,9 +162,29 @@ export class App {
       flash: this.flash
     });
 
+    /**
+     * Linear skillshots (LinearAbilityCastingThreeJS learnings):
+     * ice/thunder/meteor/beam/snare/glacier + MOBA aim indicators.
+     * Coexists with path-cast fire/storm/ice/nature/holy/arcane pools.
+     */
+    this.linearSkills = new LinearSkillBridge({
+      scene: this.scene,
+      camera: this.camera,
+      environment: this.environment,
+      particles: this.particles,
+      lights: this.lights,
+      decals: this.decals,
+      bursts: this.bursts,
+      shake: this.shake,
+      flash: this.flash,
+      character: null, // filled after CharacterController
+      onToast: (m) => this.hud?.showToast?.(m)
+    });
+
     /* ---- character ---- */
     this.character = new CharacterController(this.environment);
     this.scene.add(this.character.root);
+    this.linearSkills.ctx.character = this.character;
 
     // Walk mode: drawn path → windsurf ride (HoverboardRide + RideIK).
     this.walk = new WalkController(this.character, {
@@ -483,13 +508,42 @@ export class App {
       this.dust.setPixelRatio(pixelRatio);
     });
 
-    // LMB: focus→attack · free→select (unlocked) · else path draw
+    // LMB: skillshot confirm · focus→attack · free→select · else path draw
     this.input.getLmbMode = () => this._lmbMode();
-    this.input.on('lmb:attack', () => this._onLmbAttack());
-    this.input.on('lmb:select', (ptr) => this._onLmbSelect(ptr));
-    this.input.on('draw:start', (pointer) => this.pathDrawer.begin(pointer));
-    this.input.on('draw:move', (pointer) => this.pathDrawer.move(pointer));
-    this.input.on('draw:end', () => this.pathDrawer.end());
+    this.input.on('lmb:attack', () => {
+      if (this.linearSkills?.aim?.isArmed) {
+        this.linearSkills.confirm();
+        return;
+      }
+      this._onLmbAttack();
+    });
+    this.input.on('lmb:select', (ptr) => {
+      if (this.linearSkills?.aim?.isArmed) {
+        this.linearSkills.aim.point(ptr);
+        this.linearSkills.confirm();
+        return;
+      }
+      this._onLmbSelect(ptr);
+    });
+    this.input.on('draw:start', (pointer) => {
+      if (this.linearSkills?.aim?.isArmed) {
+        this.linearSkills.aim.point(pointer);
+        this.linearSkills.confirm();
+        return;
+      }
+      this.pathDrawer.begin(pointer);
+    });
+    this.input.on('draw:move', (pointer) => {
+      if (this.linearSkills?.aim?.isArmed) {
+        this.linearSkills.aim.point(pointer);
+        return;
+      }
+      this.pathDrawer.move(pointer);
+    });
+    this.input.on('draw:end', () => {
+      if (this.linearSkills?.aim?.isArmed) return;
+      this.pathDrawer.end();
+    });
 
     this.input.on('element', (index) => {
       // Combat: digits fire skills; also keep element aligned with staff slot
@@ -506,6 +560,16 @@ export class App {
       if (this.drc.previewSandboxEffect(effectId)) {
         this.hud.showToast(`VFX · ${effectId}`);
       }
+    });
+    // Linear skillshots (Alt+Shift+Q/E/R/F/V/G)
+    this.input.on('linearSkill', (id) => {
+      const feet = this.character?.position || this.character?.root?.position;
+      if (!feet || !this.linearSkills) return;
+      this.linearSkills.select(id);
+      this.linearSkills.arm(feet);
+      // Intensity follows settings.global.shaderIntensity if present
+      const inten = settings.global?.shaderIntensity ?? 1;
+      this.linearSkills.applyIntensity(inten);
     });
 
     // Path stroke meaning from SessionState.gates (not scattered settings.mode checks)
@@ -832,6 +896,7 @@ export class App {
         break;
       }
       case 'closeAdmin':
+        this.linearSkills?.cancel?.();
         if (this.adminHub?.open) {
           this.adminHub.setOpen(false);
           this.hud.showToast('Admin closed');
@@ -902,6 +967,8 @@ export class App {
    * @returns {'draw'|'attack'|'select'}
    */
   _lmbMode() {
+    // Skillshot armed → free cursor confirm (not path draw)
+    if (this.linearSkills?.aim?.isArmed) return 'select';
     // Freeride + ranged/staff: non-focus path cast (unlocked cursor)
     if (this.session?.freeriding && this._isRangedOrStaffEquipped()) {
       return 'draw';
@@ -1385,6 +1452,7 @@ export class App {
   clearEffects() {
     this.walk.cancel();
     this.abilities.clear();
+    this.linearSkills?.clear?.();
     this.particles.reset();
     this.decals.clear();
     this.bursts.clear();
@@ -1498,8 +1566,8 @@ export class App {
         `[App] DevIsland map · harvest=${this.worldHarvest.nodeCount} decor=${this.worldHarvest.decorCount} dummies=${this.worldHarvest.dummies?.length || 0} F≤${HARVEST_RANGE_M}m padR=${WORLD.islandRadius.toFixed(0)}`
       );
       this.hud.showToast?.(
-        `Dev Island · ${this.worldHarvest.nodeCount} nodes · ${this.worldHarvest.dummies?.length || 0} dummies · Hold Q mode`,
-        2800
+        `Dev Island · ${this.worldHarvest.nodeCount} nodes · dummies · Alt+Shift+Q/E/R/F/V/G skillshots`,
+        3200
       );
     } catch (err) {
       console.warn('[App] DevIsland harvest failed', err);
@@ -1754,6 +1822,11 @@ export class App {
 
     this.pathDrawer.update(raw);
     this.abilities.update(dt);
+    // Linear skillshots (MOBA aim + pooled VFX)
+    {
+      const feet = this.character?.position || this.character?.root?.position;
+      this.linearSkills?.update?.(dt, feet, this.input.pointer);
+    }
 
     // Cast channel owns pose while bar is active; ability travel can keep cast soft-lock
     const channeling = this.drc.isCasting;

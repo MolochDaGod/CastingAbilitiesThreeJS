@@ -19,7 +19,11 @@ export const DecalType = Object.freeze({
   CRACK: 2, // radial fractures with hot glow     (earth)
   SHOCKWAVE: 3, // thin expanding ring            (all impacts)
   DUSTRING: 4, // soft ground-hugging dust puff   (earth / wind)
-  FOAM: 5 // spreading sea foam over wet stone    (water)
+  FOAM: 5, // spreading sea foam over wet stone    (water)
+  /** Linear skillshot ice rime (LinearAbilityCasting) */
+  FROST: 6,
+  /** Linear skillshot electric burn (LinearAbilityCasting) */
+  ARC: 7
 });
 
 const DECAL_VERTEX = /* glsl */ `
@@ -92,6 +96,26 @@ const DECAL_FRAGMENT = /* glsl */ `
       float puff = smoothstep(radius, radius * 0.35, d) * (0.6 + n * 0.5);
       alpha = puff * (1.0 - uAge) * 0.7;
       color = mix(uColorA, uColorB, n * 0.5 + 0.5);
+
+    #elif DECAL == 6                                 /* FROST — skillshot rime */
+      float n = fbm3(vec3(c * 2.2, uSeed * 17.0));
+      float crust = smoothstep(1.05, 0.2, d + n * 0.35);
+      vec2 cell = voronoi2(c * 5.5 + uSeed * 9.0);
+      float plates = smoothstep(0.45, 0.05, cell.x);
+      float rim = smoothstep(0.12, 0.0, abs(d - mix(0.35, 0.95, sqrt(uAge))));
+      alpha = clamp(crust * (0.45 + plates * 0.55) + rim * 0.35, 0.0, 1.0) * fadeOut;
+      color = mix(uColorA, uColorB, plates * 0.6 + rim * 0.4);
+      color += uColorB * plates * 0.35 * (1.0 - uAge);
+
+    #elif DECAL == 7                                 /* ARC — electric burn */
+      float ang = atan(c.y, c.x);
+      float branch = ridged(vec3(cos(ang * 3.0), sin(ang * 2.0), uSeed * 11.0) * 3.2, 5);
+      float n = snoise(vec3(c * 8.0, uSeed * 5.0 + uTime * 2.5));
+      float burn = smoothstep(0.35, 0.9, branch + n * 0.2) * smoothstep(1.0, 0.15, d);
+      float flash = pow(max(0.0, n), 3.0) * (1.0 - smoothstep(0.0, 0.5, uAge));
+      alpha = clamp(burn * 0.9 + flash * 0.5, 0.0, 1.0) * fadeOut;
+      color = mix(uColorA, uColorB, flash + burn * 0.5);
+      color += uColorB * flash * 2.2;
 
     #else                                            /* FOAM */
       // A sheet of foam thrown outward by the impact, which then drains from

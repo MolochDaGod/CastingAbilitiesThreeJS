@@ -113,6 +113,23 @@ export class InputManager extends EventEmitter {
       event.preventDefault();
     }
 
+    // Alt+Shift+Q/E/R/F/V/G = Linear skillshots (MOBA line/zone aim)
+    if (event.altKey && event.shiftKey) {
+      const linearMap = {
+        KeyQ: 'ice',
+        KeyE: 'thunder',
+        KeyR: 'meteor',
+        KeyF: 'beam',
+        KeyV: 'snare',
+        KeyG: 'glacier'
+      };
+      if (linearMap[event.code]) {
+        event.preventDefault();
+        this.emit('linearSkill', linearMap[event.code]);
+        return;
+      }
+    }
+
     // Alt+sandbox VFX (never steal bare combat keys)
     if (event.altKey) {
       const map = {
