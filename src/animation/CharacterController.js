@@ -229,9 +229,22 @@ export class CharacterController {
     kit.userData.ssotVersion = GRUDGE6_SSOT_VERSION;
     const report = deployed.equip;
 
+    // Always re-apply exclusive loadout. preserveVisibility alone left multipack
+    // kits fully visible when mesh_id fuzzy match missed (all weapons/armor on).
     this.equipment = new EquipmentManager(kit, { preserveVisibility: true });
-    this.equipment.loadout = { ...cleanLoadout };
     this.equipment.carryMode = false;
+    const equipReport = this.equipment.applyLoadout(cleanLoadout);
+    // Second pass by mesh_ids catches author naming that classifyMesh misses
+    if ((equipReport?.matched || 0) < 3) {
+      const byIds = this.equipment.applyMeshIds(meshIds);
+      console.info(
+        `[CharacterController] equip fallback mesh_ids matched=${byIds.matched} missing=${byIds.missing?.length || 0}`,
+      );
+    } else {
+      console.info(
+        `[CharacterController] equip loadout matched=${equipReport.matched} missing=${(equipReport.missing || []).join(',')}`,
+      );
+    }
     this.equipment.hideUtility();
 
     kit.traverse((o) => {
@@ -279,9 +292,12 @@ export class CharacterController {
     else if (this.actions.size) this.play([...this.actions.keys()][0], 0);
 
     this.mixer.update(1 / 30);
+    // Re-ground after idle sample + exclusive equip (visibility changes bbox)
     reGroundToonKit(kit, 0);
     this.root.position.y = 0;
     this.height = kit.userData.deployHeightM || this.height;
+    // Face camera +Z (Toon play) — never leave sideways bind
+    kit.rotation.set(0, 0, 0);
 
     if (this.rideIk) this.rideIk.rebind(kit);
     else this.rideIk = new RideIK(kit);
@@ -895,10 +911,15 @@ export class CharacterController {
     delete clean.bag;
     delete clean.wood;
     delete clean.quiver;
+    delete clean.carry;
+    delete clean.showUtility;
     const meshIds = loadoutToMeshIds(race.prefix, clean);
-    const report = applyMeshIdsExclusive(this.model, meshIds);
+    // Prefer EquipmentManager exclusive apply (slot-safe) then mesh_ids safety net
+    let report = this.equipment?.applyLoadout?.(clean);
+    if (!report || (report.matched || 0) < 2) {
+      report = this.equipment?.applyMeshIds?.(meshIds) || applyMeshIdsExclusive(this.model, meshIds);
+    }
     this.equipment?.hideUtility?.();
-    if (this.equipment) this.equipment.loadout = { ...clean };
     reGroundToonKit(this.model, 0);
     this.height = this.model.userData.deployHeightM || this.height;
     this.headPosition.set(0, this.height * 0.86, 0);

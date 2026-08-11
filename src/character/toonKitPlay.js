@@ -197,17 +197,36 @@ export function applyMeshIdsExclusive(root, meshIds = []) {
 
   for (const w of want) {
     let hit = null;
+    // Prefer exact key match; avoid loose endsWith on short fragments (was
+    // matching every *A* variant and re-showing multipack weapons).
     for (const m of meshes) {
       const k = meshKey(m.name);
-      if (k === w || k.endsWith(w) || w.endsWith(k)) {
+      if (k === w) {
         hit = m;
         break;
+      }
+    }
+    if (!hit) {
+      for (const m of meshes) {
+        const k = meshKey(m.name);
+        // Only allow suffix match when both keys are long enough (full stems)
+        if (k.length >= 5 && w.length >= 5 && (k.endsWith(w) || w.endsWith(k))) {
+          hit = m;
+          break;
+        }
       }
     }
     if (hit) {
       hit.visible = true;
       shown.push(hit.name);
     } else missing.push(w);
+  }
+
+  // Hard-hide every equippable that was not explicitly shown (weapons multipack)
+  const shownSet = new Set(shown);
+  for (const m of meshes) {
+    if (!isEquippableName(m.name)) continue;
+    if (!shownSet.has(m.name)) m.visible = false;
   }
 
   // Rescue body if nothing matched

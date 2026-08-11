@@ -174,10 +174,11 @@ export class StageWater {
 
   _loadNormalMap() {
     const candidates = [
+      // Known-good first (fleet waternormals 404 on assets/water hosts as of 2026-08)
+      'https://threejs.org/examples/textures/waternormals.jpg',
+      'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r185/examples/textures/waternormals.jpg',
       'https://assets.grudge-studio.com/textures/water/waternormals.jpg',
       'https://water.grudge-studio.com/textures/waternormals.jpg',
-      // three.js example water normals (CORS usually OK)
-      'https://threejs.org/examples/textures/waternormals.jpg'
     ];
     const loader = new TextureLoader();
     loader.setCrossOrigin('anonymous');

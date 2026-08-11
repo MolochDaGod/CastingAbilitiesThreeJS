@@ -9,8 +9,24 @@
  */
 
 const CDN = 'https://assets.grudge-studio.com/ui/craftpix';
-/** Relative so Vite base `./` and nested hosts resolve correctly */
-const LOCAL = './ui/craftpix';
+
+/**
+ * Absolute URL for CraftPix files.
+ * CRITICAL: CSS `url()` in vars resolves relative to the *stylesheet* path
+ * (`/assets/main-*.css`), so `./ui/craftpix` became `/assets/ui/craftpix` → 404.
+ * Always return document-origin absolute or CDN absolute.
+ */
+function absoluteUiUrl(rel) {
+  const clean = String(rel || '').replace(/^\/+/, '');
+  if (typeof window !== 'undefined' && window.location?.href) {
+    try {
+      return new URL(`./ui/craftpix/${clean}`, window.location.href).href;
+    } catch {
+      /* fall through */
+    }
+  }
+  return `${CDN}/${clean}`;
+}
 
 /** @type {Record<string, string>} */
 export const CRAFTPIX = {
@@ -48,8 +64,17 @@ export const CRAFTPIX = {
  */
 export function craftpixUrl(rel, opts = {}) {
   const clean = String(rel || '').replace(/^\/+/, '');
-  if (opts.preferCdn) return `${CDN}/${clean}`;
-  return `${LOCAL}/${clean}`;
+  // Prefer CDN in production chrome so CSS/background never depends on deploy layout
+  if (opts.preferCdn !== false) {
+    // Try same-origin absolute first when files are shipped under public/ui
+    if (opts.preferCdn === true) return `${CDN}/${clean}`;
+  }
+  // Default: origin-absolute (not relative to /assets/*.css)
+  const localAbs = absoluteUiUrl(clean);
+  // If we know local is often missing on CDN-only deploys, still expose CDN as
+  // onerror fallback in preloadCraftpixUi — CSS vars use CDN when preferCdn true.
+  // Use CDN as primary for CSS vars (reliable on casting.grudge-studio.com).
+  return opts.localOnly ? localAbs : `${CDN}/${clean}`;
 }
 
 /**

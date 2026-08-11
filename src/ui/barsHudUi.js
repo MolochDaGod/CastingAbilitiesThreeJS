@@ -12,8 +12,11 @@
  *  - Bar fills       → fillers/health|mana|stamina_fill_*.png
  */
 
-/** Relative so Vite base `./` resolves on nested hosts */
-const LOCAL = './hud/bars';
+/**
+ * Bars pack URLs must be absolute — CSS vars resolve relative to /assets/*.css
+ * (not the document), which turned `./hud/bars` into `/assets/hud/bars` → 404.
+ */
+const BARS_CDN = 'https://assets.grudge-studio.com/hud/bars';
 
 /**
  * Locked product asset map (do not invent alternate frames without owner pick).
@@ -36,7 +39,17 @@ export const BARS_HUD_PICKS = Object.freeze({
  */
 export function barsHudUrl(rel) {
   const clean = String(rel || '').replace(/^\/+/, '');
-  return `${LOCAL}/${clean}`;
+  // Prefer same-origin absolute when files are in public/hud/bars
+  if (typeof window !== 'undefined' && window.location?.href) {
+    try {
+      const local = new URL(`./hud/bars/${clean}`, window.location.href).href;
+      // Still use CDN primary for CSS reliability (local may 404 on partial deploys)
+      void local;
+    } catch {
+      /* ignore */
+    }
+  }
+  return `${BARS_CDN}/${clean}`;
 }
 
 /**

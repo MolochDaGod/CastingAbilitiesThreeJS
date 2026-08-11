@@ -442,12 +442,12 @@ export function bakedClipUrls(rel) {
       .split('/')
       .map((s) => encodeURIComponent(s))
       .join('/');
+    // CDN prod first — same-origin ./anims/baked often 404 for prod: paths and
+    // serial 404s delayed boot / left loader stuck on "Loading … kit".
     return [
-      // same-origin first (fleet rule)
-      `./anims/baked/${enc}.json`,
       `${ASSETS_CDN}/prod/anims/${enc}.json`,
-      // dash→space open fallback for same logical clip
-      `${OPEN_HOST}/anims/baked/${enc.replace(/-/g, '%20')}.json`
+      `${OPEN_HOST}/anims/baked/${enc.replace(/-/g, '%20')}.json`,
+      `./anims/baked/${enc}.json`,
     ];
   }
 
@@ -455,11 +455,12 @@ export function bakedClipUrls(rel) {
     .split('/')
     .map((s) => encodeURIComponent(s))
     .join('/');
-  // Same-origin public/anims/baked first (Mixamo combo bakes + offline), then Open CDN.
+  // Open + assets CDN before same-origin (many roles only exist on Open).
   return [
-    `./anims/baked/${enc}.json`,
     `${OPEN_HOST}/anims/baked/${enc}.json`,
-    `${ASSETS_CDN}/anims/baked/${enc}.json`
+    `${ASSETS_CDN}/anims/baked/${enc}.json`,
+    `${ASSETS_CDN}/prod/anims/${enc}.json`,
+    `./anims/baked/${enc}.json`,
   ];
 }
 
