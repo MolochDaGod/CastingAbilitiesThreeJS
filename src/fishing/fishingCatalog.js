@@ -12,8 +12,14 @@
  * (see docs/FISHING_PROFESSION_SSOT.md).
  */
 
+import {
+  ROD_TYPES,
+  ROD_ABILITIES,
+  resolveRodMods,
+  rodById as rodTypeById
+} from './fishingRodTypes.js';
+
 const FISH = './models/fish/species';
-const POLE = './models/fish/poles';
 const LURE = './models/fish/lures';
 const DOCK = './models/fish/docks';
 
@@ -60,74 +66,41 @@ export const FISH_SPECIES = Object.freeze(
  * @property {string} id
  * @property {string} label
  * @property {string} meshUrl
- * @property {number} tier 0..4
+ * @property {number} tier 0..5 lab (fleet T0–T8 later)
  * @property {number} power      reel zone width multiplier
  * @property {number} control    zone move speed
  * @property {number} lineStrength tension max 0..1
  * @property {number} castRangeM
  * @property {string[]} abilities
  * @property {string} animPack
+ * @property {number} [nauticalSpeedMul]
+ * @property {string} [family]
  */
 
+/** Poles = Grudge Angler rod types (Animated Fish Bundle meshes) */
 export const FISHING_POLES = Object.freeze(
-  /** @type {FishingPoleDef[]} */ ([
-    {
-      id: 't0-fishing-pole',
-      label: 'T0 Fishing Pole',
-      meshUrl: `${POLE}/fishing_rod.glb`,
-      tier: 0,
-      power: 1.0,
-      control: 1.0,
-      lineStrength: 0.55,
-      castRangeM: 14,
-      abilities: ['steady_hand'],
+  /** @type {FishingPoleDef[]} */ (
+    ROD_TYPES.map((r) => ({
+      id: r.id,
+      label: r.label,
+      meshUrl: r.meshUrl,
+      tier: r.tier,
+      power: r.power,
+      control: r.control,
+      lineStrength: r.lineStrength,
+      castRangeM: r.castRangeM,
+      abilities: [...(r.abilities || [])],
+      reelSpeed: r.reelSpeed,
+      biteWindowS: r.biteWindowS,
+      nauticalSpeedMul: r.nauticalSpeedMul,
+      family: r.family,
+      rarity: r.rarity,
+      blurb: r.blurb,
       animPack: 'magic',
       weaponType: 'TOOL',
       professions: ['fishing']
-    },
-    {
-      id: 'fishing-pole-t1',
-      label: 'Shore Pole T1',
-      meshUrl: `${POLE}/fishing_rod-0yar0lg58p.glb`,
-      tier: 1,
-      power: 1.15,
-      control: 1.1,
-      lineStrength: 0.65,
-      castRangeM: 16,
-      abilities: ['steady_hand', 'quick_snag'],
-      animPack: 'magic',
-      weaponType: 'TOOL',
-      professions: ['fishing']
-    },
-    {
-      id: 'fishing-pole-t2',
-      label: 'River Pole T2',
-      meshUrl: `${POLE}/fishing_rod-9aohhrphe7.glb`,
-      tier: 2,
-      power: 1.3,
-      control: 1.2,
-      lineStrength: 0.75,
-      castRangeM: 20,
-      abilities: ['steady_hand', 'quick_snag', 'deep_cast'],
-      animPack: 'magic',
-      weaponType: 'TOOL',
-      professions: ['fishing']
-    },
-    {
-      id: 'fishing-pole-t3',
-      label: 'Sea Pole T3',
-      meshUrl: `${POLE}/fishing_rod-aoabqwh68m.glb`,
-      tier: 3,
-      power: 1.5,
-      control: 1.35,
-      lineStrength: 0.88,
-      castRangeM: 26,
-      abilities: ['steady_hand', 'quick_snag', 'deep_cast', 'iron_line'],
-      animPack: 'magic',
-      weaponType: 'TOOL',
-      professions: ['fishing']
-    }
-  ])
+    }))
+  )
 );
 
 export const FISHING_LURES = Object.freeze([
@@ -146,13 +119,10 @@ export const FISHING_BUILDABLES = Object.freeze([
   { id: 'fish_bucket', label: 'Fish Bucket', meshUrl: './models/fish/lures/worm.glb', kind: 'container', capacity: 12, professions: ['fishing', 'cooking'] }
 ]);
 
-/** Pole abilities (more on this bar version than generic tools) */
-export const POLE_ABILITIES = Object.freeze({
-  steady_hand: { id: 'steady_hand', label: 'Steady Hand', blurb: '+12% reel zone width', zoneMul: 1.12 },
-  quick_snag: { id: 'quick_snag', label: 'Quick Snag', blurb: '+0.12s bite window', biteWindowBonus: 0.12 },
-  deep_cast: { id: 'deep_cast', label: 'Deep Cast', blurb: '+20% cast range', castRangeMul: 1.2 },
-  iron_line: { id: 'iron_line', label: 'Iron Line', blurb: '+15% line strength', lineMul: 1.15 }
-});
+/** Pole abilities — Grudge Angler parity (+ sea_legs · void_line) */
+export const POLE_ABILITIES = ROD_ABILITIES;
+
+export { ROD_TYPES, ROD_ABILITIES, resolveRodMods, rodTypeById };
 
 export function fishById(id) {
   return FISH_SPECIES.find((f) => f.id === id) || null;
@@ -167,19 +137,21 @@ export function lureById(id) {
 }
 
 /**
- * Weighted pick using lure rarity bias + difficulty vs player fishing skill.
- * @param {{ lureId?: string, fishingSkill?: number }} [ctx]
+ * Weighted pick using lure rarity bias + skill + optional profession rareBias.
+ * @param {{ lureId?: string, fishingSkill?: number, rareBias?: number, legendaryBias?: number }} [ctx]
  */
 export function rollFishSpecies(ctx = {}) {
   const lure = lureById(ctx.lureId || 'lure_basic');
   const skill = Number(ctx.fishingSkill) || 0;
+  const rareBias = Number(ctx.rareBias) || 1;
+  const legendaryBias = Number(ctx.legendaryBias) || 1;
   const weights = FISH_SPECIES.map((f) => {
     let w = 1;
     if (f.rarity === 'common') w = 40;
     else if (f.rarity === 'uncommon') w = 22;
-    else if (f.rarity === 'rare') w = 10;
-    else if (f.rarity === 'epic') w = 3;
-    else w = 1;
+    else if (f.rarity === 'rare') w = 10 * rareBias;
+    else if (f.rarity === 'epic') w = 3 * rareBias;
+    else w = 1 * rareBias * legendaryBias;
     w *= lure.rarityBias?.[f.rarity] || 1;
     // Skill unlocks harder fish
     if (f.difficulty > 0.3 + skill * 0.01) w *= 0.35 + skill * 0.02;
@@ -196,30 +168,22 @@ export function rollFishSpecies(ctx = {}) {
   return FISH_SPECIES[0];
 }
 
-/** Effective reel zone width 0..1 from pole + abilities + fish */
-export function computeReelZoneWidth(pole, fish, abilityIds = []) {
-  let w = (fish?.zoneWidthBase ?? 0.18) * (pole?.power ?? 1);
-  for (const id of abilityIds) {
-    const a = POLE_ABILITIES[id];
-    if (a?.zoneMul) w *= a.zoneMul;
-  }
+/** Effective reel zone width 0..1 from pole + abilities + fish + tree zoneMul */
+export function computeReelZoneWidth(pole, fish, abilityIds = [], extraZoneMul = 1) {
+  const rod = rodTypeById(pole?.id);
+  const mods = resolveRodMods(rod || pole, abilityIds);
+  let w = (fish?.zoneWidthBase ?? 0.18) * (mods.power || pole?.power || 1) * (extraZoneMul || 1);
   return Math.min(0.42, Math.max(0.06, w));
 }
 
-export function computeLineMax(pole, abilityIds = []) {
-  let s = pole?.lineStrength ?? 0.55;
-  for (const id of abilityIds) {
-    const a = POLE_ABILITIES[id];
-    if (a?.lineMul) s *= a.lineMul;
-  }
-  return Math.min(1, s);
+export function computeLineMax(pole, abilityIds = [], extraLineMul = 1) {
+  const rod = rodTypeById(pole?.id);
+  const mods = resolveRodMods(rod || pole, abilityIds);
+  return Math.min(1, (mods.lineStrength || pole?.lineStrength || 0.55) * (extraLineMul || 1));
 }
 
 export function computeCastRange(pole, abilityIds = []) {
-  let r = pole?.castRangeM ?? 14;
-  for (const id of abilityIds) {
-    const a = POLE_ABILITIES[id];
-    if (a?.castRangeMul) r *= a.castRangeMul;
-  }
-  return r;
+  const rod = rodTypeById(pole?.id);
+  const mods = resolveRodMods(rod || pole, abilityIds);
+  return mods.castRangeM || pole?.castRangeM || 14;
 }

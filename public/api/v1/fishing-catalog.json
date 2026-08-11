@@ -1,6 +1,6 @@
 {
   "source": "casting-lab-fishing",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "profession": "fishing",
   "controls": {
     "aim": "RMB toggle",
@@ -14,10 +14,13 @@
   },
   "poles": [
     { "id": "t0-fishing-pole", "tier": 0, "mesh": "./models/fish/poles/fishing_rod.glb" },
-    { "id": "fishing-pole-t1", "tier": 1 },
-    { "id": "fishing-pole-t2", "tier": 2 },
-    { "id": "fishing-pole-t3", "tier": 3 }
+    { "id": "fishing-pole-t1", "tier": 1, "mesh": "./models/fish/poles/fishing_rod-0yar0lg58p.glb" },
+    { "id": "fishing-pole-t2", "tier": 2, "mesh": "./models/fish/poles/fishing_rod-9aohhrphe7.glb" },
+    { "id": "fishing-pole-t3", "tier": 3, "mesh": "./models/fish/poles/fishing_rod-aoabqwh68m.glb" },
+    { "id": "fishing-pole-t4", "tier": 4, "mesh": "./models/fish/poles/fishing_rod-ldlwqjn9zg.glb" },
+    { "id": "fishing-pole-t5", "tier": 5, "mesh": "./models/fish/poles/fishing_rod-ldlwqjn9zg.glb" }
   ],
   "buildables": ["dock_long", "dock_wide", "dock_stairs", "fishing_boat", "fish_bucket"],
-  "assetsRoot": "./models/fish/"
+  "assetsRoot": "./models/fish/",
+  "seeAlso": "./fishing-profession.json"
 }

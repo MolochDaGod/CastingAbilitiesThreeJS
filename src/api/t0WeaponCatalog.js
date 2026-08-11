@@ -79,8 +79,13 @@ export const T0_MODEL_CDN = Object.freeze({
   't0-nature-staff': `${CDN}/prod/gltf/weapons/t0-nature-staff.glb`,
   /** Flintlock Pistol — local lab mesh until R2 prod upload */
   't0-gun': './models/weapons/t0-flintlock.glb',
-  /** Fishing pole — Animated Fish Bundle (profession TOOL) */
-  't0-fishing-pole': './models/fish/poles/fishing_rod.glb'
+  /** Fishing poles — Animated Fish Bundle (profession TOOL · Grudge Angler tiers) */
+  't0-fishing-pole': './models/fish/poles/fishing_rod.glb',
+  'fishing-pole-t1': './models/fish/poles/fishing_rod-0yar0lg58p.glb',
+  'fishing-pole-t2': './models/fish/poles/fishing_rod-9aohhrphe7.glb',
+  'fishing-pole-t3': './models/fish/poles/fishing_rod-aoabqwh68m.glb',
+  'fishing-pole-t4': './models/fish/poles/fishing_rod-ldlwqjn9zg.glb',
+  'fishing-pole-t5': './models/fish/poles/fishing_rod-ldlwqjn9zg.glb'
 });
 
 /** category / id → kit mesh slot */

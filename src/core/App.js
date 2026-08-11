@@ -268,7 +268,9 @@ export class App {
       water: this.water,
       session: this.session,
       assets: null, // filled in load()
-      onToast: (m) => this.hud?.showToast?.(m)
+      onToast: (m) => this.hud?.showToast?.(m),
+      /** Fishing harvest tree + blue meals + rod sea_legs → freeride boat speed */
+      getNauticalSpeedMul: () => this.fishing?.getNauticalSpeedMul?.() ?? 1
     });
 
     /* ---- input ---- */
@@ -2143,7 +2145,11 @@ export class App {
           this.hud.showToast?.(`Bag + ${loot.name}`, 2800);
         }
       });
-      console.info('[App] fishing profession ready · Shift+F or equip pole + RMB aim');
+      if (typeof window !== 'undefined') {
+        window.__castingFishing = this.fishing;
+        window.__castingApp = this;
+      }
+      console.info('[App] fishing profession ready · Shift+F · rods/tree/meals · nautical freeride');
     } catch (e) {
       console.warn('[App] fishing', e);
       this.fishing = null;

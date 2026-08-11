@@ -27,7 +27,7 @@
  */
 
 /**
- * @param {{ zoneWidth: number, fishSpeed: number, fishStrength: number, lineMax: number, control: number }} params
+ * @param {{ zoneWidth: number, fishSpeed: number, fishStrength: number, lineMax: number, control: number, reelSpeed?: number }} params
  * @returns {FightState}
  */
 export function createFightState(params) {
@@ -54,13 +54,15 @@ export function createFightState(params) {
  *   slack?: boolean,
  *   moveRight?: number,
  *   moveLeft?: number,
- *   snag?: boolean
+ *   snag?: boolean,
+ *   reelSpeedMul?: number
  * }} input
  */
 export function stepFight(st, dt, input = {}) {
   if (st.phase === 'won' || st.phase === 'lost') return st;
   const p = st._params;
   const control = p.control ?? 1;
+  const reelMul = (input.reelSpeedMul || p.reelSpeed || 1);
 
   // —— Bite window (SCUM snag) ——
   if (st.phase === 'bite') {
@@ -108,10 +110,10 @@ export function stepFight(st, dt, input = {}) {
 
   if (input.reelIn) {
     // Reel pulls zone toward fish slightly + progress when on fish
-    const pull = (st.fishPos - st.zoneCenter) * 0.9 * dt * control;
+    const pull = (st.fishPos - st.zoneCenter) * 0.9 * dt * control * reelMul;
     st.zoneCenter += pull;
     st.tension += (inZone ? 0.08 : 0.22) * p.fishStrength * dt;
-    if (inZone) st.progress += (0.22 + 0.18 * control) * dt;
+    if (inZone) st.progress += (0.22 + 0.18 * control) * reelMul * dt;
     else st.progress -= 0.06 * dt;
   } else if (input.slack) {
     st.tension = Math.max(0, st.tension - 0.35 * dt);

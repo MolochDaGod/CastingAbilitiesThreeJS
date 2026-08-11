@@ -762,10 +762,12 @@ export class WalkController {
 
     // Thrust along board forward (W) / reverse (S)
     // Water physics: release W → gentle coast (not hard stop)
+    // Nautical speed: fishing skill tree + SWG blue meals + rod sea_legs
+    const nautical = Math.max(0.5, Number(this.ctx.getNauticalSpeedMul?.() ?? 1) || 1);
     const fwdX = Math.sin(this._yaw);
     const fwdZ = Math.cos(this._yaw);
-    const maxSp = c.freerideSpeed ?? 7.2;
-    const accel = c.freerideAccel ?? 4.5;
+    const maxSp = (c.freerideSpeed ?? 7.2) * nautical;
+    const accel = (c.freerideAccel ?? 4.5) * Math.sqrt(nautical);
     const coastDrag = c.freerideDrag ?? 0.55;
     const brakeDrag = c.freerideBrakeDrag ?? 2.4;
 

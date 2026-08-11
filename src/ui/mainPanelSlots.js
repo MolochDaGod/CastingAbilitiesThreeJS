@@ -106,8 +106,30 @@ export const BAG_SKINS = Object.freeze([
   { id: 'green', label: 'Green', row: 1, col: 4 },
 ]);
 
-/** WCS profession skill trees (crafting SSOT surface) */
+/** WCS profession skill trees (crafting SSOT surface) + gathering fisher */
 export const PROFESSION_TREES = Object.freeze([
+  {
+    id: 'fisher',
+    label: 'Fishing',
+    kind: 'gathering',
+    /** Live lab tree: src/fishing/fishingSkillTree.js (not stub nodes) */
+    liveTree: true,
+    icon: 'https://grudgewarlords.com/craft/crafting-icons/chef.png',
+    nodes: [
+      { id: 'fish_init', name: "Fisher's Initiation", tier: 1, desc: 'Shore fishing unlock' },
+      { id: 'fish_qty_1', name: 'Double Hook', tier: 1, desc: '+1 catch qty' },
+      { id: 'fish_bite_1', name: 'Patient Angler', tier: 1, desc: '+15% bite rate' },
+      { id: 'nautical_1', name: 'Sea Legs I', tier: 2, desc: '+5% nautical speed' },
+      { id: 'fish_zone_1', name: 'Wider Reel', tier: 2, desc: '+8% fight zone' },
+      { id: 'fish_line_1', name: 'Braided Line', tier: 2, desc: '+10% line' },
+      { id: 'fish_qty_2', name: 'Net Haul', tier: 3, desc: '+1 qty stack' },
+      { id: 'nautical_2', name: 'Sea Legs II', tier: 3, desc: '+8% nautical' },
+      { id: 'fish_rare_1', name: 'Lucky Tide', tier: 3, desc: '+20% rare+' },
+      { id: 'fish_meal_link', name: "Fisher's Kitchen", tier: 4, desc: 'Blue meal crafts' },
+      { id: 'nautical_3', name: 'Tide Runner', tier: 4, desc: '+10% nautical freeride' },
+      { id: 'fish_master', name: 'Grandmaster Angler', tier: 5, desc: 'Qty · zone · legendary' },
+    ],
+  },
   {
     id: 'miner',
     label: 'Miner',
@@ -138,7 +160,7 @@ export const PROFESSION_TREES = Object.freeze([
     icon: 'https://grudgewarlords.com/craft/crafting-icons/chef.png',
     nodes: [
       { id: 'c1', name: 'Campfire', tier: 1, desc: 'Cook basic food' },
-      { id: 'c2', name: 'Stew', tier: 2, desc: 'Buff meals' },
+      { id: 'c2', name: 'Stew', tier: 2, desc: 'Buff meals (RGB SWG)' },
       { id: 'c3', name: 'Feast', tier: 3, desc: 'Party food' },
       { id: 'c4', name: 'Preserves', tier: 4, desc: 'Long buffs' },
       { id: 'c5', name: 'Master Chef', tier: 5, desc: 'Double cook yield' },

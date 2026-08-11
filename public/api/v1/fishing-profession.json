@@ -1,0 +1,159 @@
+{
+  "source": "casting-lab-fishing",
+  "version": "1.1.0",
+  "profession": "fishing",
+  "kind": "gathering",
+  "fleetAlign": {
+    "objectStore": "https://objectstore.grudge-studio.com/api/v1/professions.json",
+    "gatheringKey": "gathering.Fishing",
+    "feedsInto": ["Chef", "Mystic"],
+    "chefFoodSystem": "ONE meal each Red / Green / Blue (SWG-style)"
+  },
+  "controls": {
+    "start": "Shift+F",
+    "aim": "RMB toggle",
+    "cast": "LMB",
+    "snag": "S or RMB in bite window",
+    "reel": "mouse wheel down",
+    "slack": "mouse wheel up",
+    "zoneRight": "LMB hold",
+    "zoneLeft": "RMB hold",
+    "panel": "Inventory · Professions · Fishing"
+  },
+  "rods": [
+    {
+      "id": "t0-fishing-pole",
+      "tier": 0,
+      "label": "Novice Stick Pole",
+      "family": "shore",
+      "mesh": "./models/fish/poles/fishing_rod.glb",
+      "power": 1.0,
+      "control": 1.0,
+      "lineStrength": 0.5,
+      "castRangeM": 12,
+      "nauticalSpeedMul": 1.0,
+      "abilities": ["steady_hand"]
+    },
+    {
+      "id": "fishing-pole-t1",
+      "tier": 1,
+      "label": "Shore Angler T1",
+      "family": "shore",
+      "mesh": "./models/fish/poles/fishing_rod-0yar0lg58p.glb",
+      "power": 1.12,
+      "control": 1.08,
+      "lineStrength": 0.58,
+      "castRangeM": 15,
+      "nauticalSpeedMul": 1.02,
+      "abilities": ["steady_hand", "quick_snag"]
+    },
+    {
+      "id": "fishing-pole-t2",
+      "tier": 2,
+      "label": "River Angler T2",
+      "family": "river",
+      "mesh": "./models/fish/poles/fishing_rod-9aohhrphe7.glb",
+      "power": 1.25,
+      "control": 1.18,
+      "lineStrength": 0.68,
+      "castRangeM": 18,
+      "nauticalSpeedMul": 1.05,
+      "abilities": ["steady_hand", "quick_snag", "deep_cast"]
+    },
+    {
+      "id": "fishing-pole-t3",
+      "tier": 3,
+      "label": "Sea Angler T3",
+      "family": "sea",
+      "mesh": "./models/fish/poles/fishing_rod-aoabqwh68m.glb",
+      "power": 1.4,
+      "control": 1.28,
+      "lineStrength": 0.78,
+      "castRangeM": 24,
+      "nauticalSpeedMul": 1.08,
+      "abilities": ["steady_hand", "quick_snag", "deep_cast", "iron_line"]
+    },
+    {
+      "id": "fishing-pole-t4",
+      "tier": 4,
+      "label": "Deep Sea Rod T4",
+      "family": "deep",
+      "mesh": "./models/fish/poles/fishing_rod-ldlwqjn9zg.glb",
+      "power": 1.55,
+      "control": 1.35,
+      "lineStrength": 0.86,
+      "castRangeM": 30,
+      "nauticalSpeedMul": 1.12,
+      "abilities": ["steady_hand", "quick_snag", "deep_cast", "iron_line", "sea_legs"]
+    },
+    {
+      "id": "fishing-pole-t5",
+      "tier": 5,
+      "label": "Abyss Angler T5",
+      "family": "void",
+      "mesh": "./models/fish/poles/fishing_rod-ldlwqjn9zg.glb",
+      "power": 1.7,
+      "control": 1.45,
+      "lineStrength": 0.92,
+      "castRangeM": 36,
+      "nauticalSpeedMul": 1.15,
+      "abilities": ["steady_hand", "quick_snag", "deep_cast", "iron_line", "sea_legs", "void_line"]
+    }
+  ],
+  "rodAbilities": [
+    "steady_hand",
+    "quick_snag",
+    "deep_cast",
+    "iron_line",
+    "sea_legs",
+    "void_line"
+  ],
+  "skillTree": [
+    { "id": "fish_init", "label": "Fisher's Initiation", "requiresLevel": 1, "cost": 0, "bonuses": { "fishingUnlocked": 1 } },
+    { "id": "fish_qty_1", "label": "Double Hook", "requiresLevel": 5, "cost": 1, "bonuses": { "catchQty": 1 } },
+    { "id": "fish_bite_1", "label": "Patient Angler", "requiresLevel": 5, "cost": 1, "bonuses": { "biteMul": 1.15 } },
+    { "id": "fish_zone_1", "label": "Wider Reel", "requiresLevel": 10, "cost": 1, "bonuses": { "zoneMul": 1.08 } },
+    { "id": "nautical_1", "label": "Sea Legs I", "requiresLevel": 10, "cost": 1, "bonuses": { "nauticalSpeedMul": 1.05 } },
+    { "id": "fish_line_1", "label": "Braided Line", "requiresLevel": 12, "cost": 1, "bonuses": { "lineMul": 1.1 } },
+    { "id": "fish_qty_2", "label": "Net Haul", "requiresLevel": 20, "cost": 2, "bonuses": { "catchQty": 1 } },
+    { "id": "nautical_2", "label": "Sea Legs II", "requiresLevel": 20, "cost": 2, "bonuses": { "nauticalSpeedMul": 1.08 } },
+    { "id": "fish_rare_1", "label": "Lucky Tide", "requiresLevel": 22, "cost": 2, "bonuses": { "rareBias": 1.2 } },
+    { "id": "fish_meal_link", "label": "Fisher's Kitchen", "requiresLevel": 25, "cost": 2, "bonuses": { "mealCraft": 1 } },
+    { "id": "nautical_3", "label": "Tide Runner", "requiresLevel": 30, "cost": 2, "bonuses": { "nauticalSpeedMul": 1.1 } },
+    { "id": "fish_master", "label": "Grandmaster Angler", "requiresLevel": 50, "cost": 3, "bonuses": { "catchQty": 2, "zoneMul": 1.12, "rareBias": 1.35, "legendaryBias": 1.25 } }
+  ],
+  "meals": {
+    "rule": "One active meal per color (Red · Green · Blue) — SWG / chef.foodSystem",
+    "recipes": [
+      { "id": "meal_fish_stew", "color": "blue", "label": "Fish Stew", "nauticalSpeedMul": 1.03 },
+      { "id": "meal_salmon_broth", "color": "blue", "label": "Salmon Broth", "nauticalSpeedMul": 1.05 },
+      { "id": "meal_tuna_curry", "color": "blue", "label": "Tuna Curry", "nauticalSpeedMul": 1.08 },
+      { "id": "meal_moonfish_soup", "color": "blue", "label": "Moonfish Soup", "nauticalSpeedMul": 1.12 },
+      { "id": "meal_grilled_filet", "color": "red", "label": "Grilled Filet" },
+      { "id": "meal_piranha_seared", "color": "red", "label": "Seared Piranha" },
+      { "id": "meal_shore_salad", "color": "green", "label": "Shore Salad" },
+      { "id": "meal_seaweed_wrap", "color": "green", "label": "Seaweed Wrap" }
+    ]
+  },
+  "nauticalSpeed": {
+    "appliesTo": ["windsurf freeride", "boat", "swim (future)"],
+    "sources": ["skillTree nautical_1..3", "rod sea_legs / rod.nauticalSpeedMul", "blue meal buffs"],
+    "combine": "multiplicative"
+  },
+  "assets": {
+    "species": "./models/fish/species/",
+    "poles": "./models/fish/poles/",
+    "lures": "./models/fish/lures/",
+    "docks": "./models/fish/docks/",
+    "uiBar": "./ui/fishing/"
+  },
+  "code": {
+    "rodTypes": "src/fishing/fishingRodTypes.js",
+    "skillTree": "src/fishing/fishingSkillTree.js",
+    "meals": "src/fishing/mealBuffs.js",
+    "state": "src/fishing/professionState.js",
+    "controller": "src/fishing/FishingController.js",
+    "catalog": "src/fishing/fishingCatalog.js"
+  },
+  "storageKey": "grudge.casting.fishing.profession.v1"
+}
