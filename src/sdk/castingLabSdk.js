@@ -180,6 +180,7 @@ export {
   FLIGHT_DEFAULTS,
   WING_ASSET_DROP,
   getBackMobility,
+  getBackWaterBuffs,
   canDeployBackItem,
   reduceTravelerFlight
 } from '../config/backSlotMobilitySsot.js';

@@ -37,6 +37,7 @@
  * @property {number[]} [stowEulerDeg]
  * @property {boolean} [cloth]
  * @property {object} [flight]              air mobility knobs
+ * @property {object} [waterBuffs]          passive water buffs (shark fin etc.)
  * @property {string} [notes]
  */
 
@@ -109,6 +110,36 @@ export const BACK_MOBILITY_CATALOG = Object.freeze({
     deployable: false,
     modelUrl: null,
     notes: 'Land shell / pack — armor silhouette; no air deploy.'
+  },
+
+  /**
+   * Shark Fin — passive water utility (Poly by Google).
+   * Stow on spine; always-on buffs while equipped (no vehicle deploy).
+   *  - Swim on / under water **100% faster** (×2)
+   *  - **No aggro** from sharks
+   *  - **Breathe** underwater (no drown)
+   */
+  shark_fin: {
+    id: 'shark_fin',
+    label: 'Shark Fin',
+    domain: 'water',
+    deployKind: 'cosmetic_land',
+    deployable: false,
+    modelUrl: './models/ride/shark_fin.glb',
+    stowLengthM: 0.55,
+    stowOffset: [0.0, 0.12, -0.18],
+    stowEulerDeg: [15, 180, 0],
+    cloth: false,
+    waterBuffs: {
+      /** Surface + submerged loco speed multiplier (1 = base, 2 = 100% faster) */
+      swimSpeedMul: 2.0,
+      /** Combat / fauna: sharks do not aggro the wearer */
+      sharkAggroImmune: true,
+      /** No oxygen drain / drown while submerged */
+      breatheUnderwater: true
+    },
+    notes:
+      'Back slot · Poly by Google shark fin. Passive: 2× swim (on & under water), shark aggro immune, underwater breath.'
   },
 
   /**
@@ -225,6 +256,27 @@ export function getBackMobility(id) {
 }
 
 /**
+ * Passive water buffs from equipped back-slot item (shark fin, etc.).
+ * @param {string|null|undefined} itemId
+ * @returns {{
+ *   swimSpeedMul: number,
+ *   sharkAggroImmune: boolean,
+ *   breatheUnderwater: boolean,
+ *   id: string|null
+ * }}
+ */
+export function getBackWaterBuffs(itemId) {
+  const def = getBackMobility(itemId);
+  const b = def?.waterBuffs || null;
+  return {
+    id: def?.id || null,
+    swimSpeedMul: Number(b?.swimSpeedMul) > 0 ? Number(b.swimSpeedMul) : 1,
+    sharkAggroImmune: !!b?.sharkAggroImmune,
+    breatheUnderwater: !!b?.breatheUnderwater
+  };
+}
+
+/**
  * Can this item deploy at current surface?
  * @param {BackMobilityDef|null} def
  * @param {{ onWater?: boolean, onLand?: boolean, airborne?: boolean }} surface
@@ -232,6 +284,8 @@ export function getBackMobility(id) {
 export function canDeployBackItem(def, surface = {}) {
   if (!def?.deployable) return { ok: false, reason: 'not deployable' };
   if (def.domain === 'water') {
+    // Passive water items (shark_fin) are equip-only, not deploy vehicles
+    if (def.id === 'shark_fin') return { ok: false, reason: 'passive water buff — always on while equipped' };
     if (surface.onWater) return { ok: true };
     return { ok: false, reason: 'Windsurf is water-only — move to ocean / wet shore' };
   }

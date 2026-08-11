@@ -75,3 +75,27 @@ export function labAdminStatusLine() {
   if (!a.admin) return 'lab admin: off (?admin=1)';
   return `lab admin: on · maxTier=${a.maxTier} · lv=${a.playerLevel} · default=${a.defaultWeaponId || '—'}`;
 }
+
+/**
+ * Persist lab admin flags (AdminHub). Partial patch over loadLabAdmin().
+ * @param {{ admin?: boolean, level?: number, maxTier?: number, classId?: string, defaultWeaponId?: string|null }} patch
+ */
+export function saveLabAdmin(patch = {}) {
+  try {
+    if (patch.admin === true) localStorage.setItem(STORAGE_KEY, '1');
+    else if (patch.admin === false) localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    /* private */
+  }
+  // Query overrides still win on next load; optional keys stashed for status
+  try {
+    if (patch.level != null) localStorage.setItem('grudge_lab_level', String(patch.level));
+    if (patch.maxTier != null) localStorage.setItem('grudge_lab_max_tiers', String(patch.maxTier));
+    if (patch.defaultWeaponId != null) {
+      localStorage.setItem('grudge_lab_default_weapon', String(patch.defaultWeaponId));
+    }
+  } catch {
+    /* */
+  }
+  return loadLabAdmin();
+}

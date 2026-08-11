@@ -64,6 +64,7 @@ export const BACK_SLOT_DEFS = Object.freeze(
         label: m.label,
         cloth: !!m.cloth,
         flight: m.flight || null,
+        waterBuffs: m.waterBuffs || null,
         notes: m.notes || ''
       }
     ])

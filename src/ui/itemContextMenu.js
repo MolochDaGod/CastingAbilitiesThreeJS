@@ -278,7 +278,7 @@ export function bestSlotForItem(item) {
     }
     return slots.find((s) => s.id === 'offHand') || null;
   }
-  if (/back|cape|wing|windsurf|shell|glider/.test(kind + hint)) {
+  if (/back|cape|wing|windsurf|shell|glider|shark|fin/.test(kind + hint)) {
     return slots.find((s) => s.id === 'back') || null;
   }
   if (/relic|class/.test(kind)) return slots.find((s) => s.id === 'relic') || null;

@@ -395,6 +395,14 @@ export function ensureDemoBag() {
       kind: 'back',
       slotHint: 'back',
       qty: 1
+    },
+    {
+      id: 'shark_fin',
+      name: 'Shark Fin',
+      kind: 'back',
+      slotHint: 'back',
+      qty: 1,
+      blurb: '2× swim · no shark aggro · breathe underwater'
     }
   ];
   for (const d of demos) bagAdd(enrichBagSlotIcon(d));
@@ -477,7 +485,7 @@ export function itemFitsSlot(item, slotDef) {
   ) {
     return true;
   }
-  if (slotDef.id === 'back' && /back|cape|wing|windsurf|shell|glider/.test(kind + id + hint)) {
+  if (slotDef.id === 'back' && /back|cape|wing|windsurf|shell|glider|shark|fin/.test(kind + id + hint)) {
     return true;
   }
   if (slotDef.id === 'relic' && /relic|class/.test(kind)) return true;

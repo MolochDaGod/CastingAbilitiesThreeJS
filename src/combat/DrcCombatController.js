@@ -71,6 +71,8 @@ import {
 import { SkillStatusSystem } from './skillStatusSystem.js';
 import { WeaponTipTrailSystem } from '../vfx/weaponTipTrail.js';
 import { pointHitsWeaponVolume } from '../character/weaponMeshCollider.js';
+import { getBackWaterBuffs } from '../config/backSlotMobilitySsot.js';
+import { WORLD } from '../config/worldScale.js';
 
 const _origin = new Vector3();
 const _tip = new Vector3();
@@ -269,11 +271,63 @@ export class DrcCombatController {
     /** Edge state for Ctrl roll + Shift+Ctrl slide */
     this._ctrlWasDown = false;
     this._rollKeyWas = { KeyA: false, KeyD: false, KeyW: false, KeyS: false };
+
+    /** Underwater oxygen (s) — shark_fin sets breatheUnderwater → never drains */
+    this.oxygen = 20;
+    this.maxOxygen = 20;
+    this._drownTick = 0;
+    this._inWater = false;
+    this._submerged = false;
+  }
+
+  /**
+   * Equipped back-slot water buffs (shark fin → 2× swim · no shark aggro · breath).
+   */
+  getBackWaterBuffs() {
+    const id =
+      this.character?.backSlot?.itemId ||
+      settings.walk?.backSlot ||
+      'none';
+    return getBackWaterBuffs(id);
+  }
+
+  /** Shark / fauna AI: true = do not aggro player */
+  get sharkAggroImmune() {
+    return !!this.getBackWaterBuffs().sharkAggroImmune;
   }
 
   /** True while dodge MM + afterimage invuln window is active. */
   get isInvincible() {
     return this.invuln > 0 || this._dodgeT > 0;
+  }
+
+  /**
+   * Oxygen while submerged; shark_fin.breatheUnderwater → full O₂ forever.
+   * @param {number} dt
+   * @param {{ breatheUnderwater?: boolean }} buffs
+   */
+  _tickUnderwaterBreath(dt, buffs) {
+    if (!this._submerged) {
+      // Surface recovery
+      this.oxygen = Math.min(this.maxOxygen, this.oxygen + dt * 4);
+      this._drownTick = 0;
+      return;
+    }
+    if (buffs?.breatheUnderwater) {
+      this.oxygen = this.maxOxygen;
+      this._drownTick = 0;
+      return;
+    }
+    this.oxygen = Math.max(0, this.oxygen - dt);
+    if (this.oxygen <= 0) {
+      this._drownTick += dt;
+      // Damage every ~0.5s while drowning
+      if (this._drownTick >= 0.5) {
+        this._drownTick = 0;
+        this.health = Math.max(0, (this.health || 0) - (settings.drc?.drownDamage ?? 4));
+        this.onToast?.('Drowning… equip Shark Fin to breathe');
+      }
+    }
   }
 
   setPhysics(physics) {
@@ -954,11 +1008,53 @@ export class DrcCombatController {
     }
     if (_move.lengthSq() > 1e-6) _move.normalize();
 
+    // Water surface / submerge (shark fin back-slot buffs)
+    const waterY = WORLD.waterY ?? settings.walk?.freerideWaterY ?? -0.04;
+    const feetY = this.character?.position?.y ?? this.character?.root?.position?.y ?? 0;
+    const headY = feetY + (this.character?.height || 1.8) * 0.88;
+    this._inWater = feetY < waterY + 0.35;
+    this._submerged = headY < waterY - 0.05;
+    const waterBuffs = this.getBackWaterBuffs();
+    // Sync for AI / fishing / other systems
+    try {
+      if (this.character) {
+        this.character.sharkAggroImmune = !!waterBuffs.sharkAggroImmune;
+        this.character.userData = this.character.userData || {};
+        this.character.userData.sharkAggroImmune = !!waterBuffs.sharkAggroImmune;
+        this.character.userData.breatheUnderwater = !!waterBuffs.breatheUnderwater;
+        this.character.userData.swimSpeedMul = waterBuffs.swimSpeedMul;
+      }
+    } catch {
+      /* optional */
+    }
+
+    let swimMul = 1;
+    if (this._inWater || this._submerged) {
+      swimMul = waterBuffs.swimSpeedMul || 1;
+    }
+
     const speed =
-      this.moveSpeed * (this._sprinting ? this.sprintMul : 1) * (settings.global?.animationSpeed || 1);
+      this.moveSpeed *
+      (this._sprinting ? this.sprintMul : 1) *
+      (settings.global?.animationSpeed || 1) *
+      swimMul;
     const moving = _move.lengthSq() > 1e-6;
     let vx = moving ? _move.x * speed : 0;
     let vz = moving ? _move.z * speed : 0;
+
+    // Underwater vertical assist (kinematic vy sample — no dedicated swim API yet)
+    if (this._submerged) {
+      if (keys.has('Space')) this._kinVy = Math.max(this._kinVy || 0, 2.8 * swimMul);
+      else if (keys.has('ControlLeft') || keys.has('ControlRight') || keys.has('KeyC')) {
+        this._kinVy = Math.min(this._kinVy || 0, -2.4 * swimMul);
+      } else if (waterBuffs.breatheUnderwater) {
+        // Fin: slight neutral buoyancy (hold depth)
+        this._kinVy = (this._kinVy || 0) * 0.9;
+      }
+    }
+
+    // Breath / drown
+    this._tickUnderwaterBreath(dt, waterBuffs);
 
     // Face: focus → match camera; free → A/D already turned body
     this._updateFacingToAim(dt, moving);

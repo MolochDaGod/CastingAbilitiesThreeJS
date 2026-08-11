@@ -9,11 +9,24 @@
 
 | Domain | Item | Deploy on land? | Deploy on water? | Air? |
 |--------|------|-----------------|------------------|------|
-| **water** | Windsurf | **No** | **Yes** | No |
+| **water** | Windsurf | **No** | **Yes** (vehicle) | No |
+| **water** | **Shark Fin** | Equip yes | **Passive always-on** | No |
 | **land** | Cape · shell · pack | Cosmetic / passive | No vehicle | No |
 | **air** | Holy / Traveler wings | Equip yes | Equip yes | **Flight deploy** |
 
 **Windsurf is a water mobility tool only.** Dry island pad → deploy rejected.
+
+### Shark Fin (passive water)
+
+| Buff | Value |
+|------|--------|
+| Swim on + under water | **×2** (100% faster) |
+| Shark aggro | **Immune** (`sharkAggroImmune`) |
+| Underwater breath | **Yes** (no oxygen drain / drown) |
+
+Equip: `character.equipBackSlot('shark_fin')` · mesh `public/models/ride/shark_fin.glb`  
+Source: `D:\Games\Models\Shark fin by Poly by Google - 1L9OjE5KOlC.glb`  
+Code: `waterBuffs` on catalog · applied in `DrcCombatController` loco + breath tick.
 
 ---
 

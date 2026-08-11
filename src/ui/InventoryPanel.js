@@ -548,8 +548,14 @@ export class InventoryPanel {
           n++;
         }
         // Back mobility always
-        for (const id of ['windsurf', 'holy_wings', 'traveler_wings']) {
-          bagAdd({ id, name: id, kind: 'back', slotHint: 'back', qty: 1 });
+        for (const id of ['windsurf', 'holy_wings', 'traveler_wings', 'shark_fin']) {
+          bagAdd({
+            id,
+            name: id === 'shark_fin' ? 'Shark Fin' : id,
+            kind: 'back',
+            slotHint: 'back',
+            qty: 1
+          });
           n++;
         }
         this.onToast(`Seeded ${n} catalog items into bag`);
