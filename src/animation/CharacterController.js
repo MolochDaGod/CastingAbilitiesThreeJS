@@ -56,7 +56,12 @@ import { LAYER } from '../core/Layers.js';
 import { settings } from '../config/settings.js';
 import { disposeObject } from '../utils/dispose.js';
 import { loadBakedClipJson, rematchClipToSkeleton } from './bakeClip.js';
-import { loadFbxClipRematched, FLIP_FBX_URLS, FALL_FBX_URLS } from './fbxClip.js';
+import {
+  loadFbxClipRematched,
+  FLIP_FBX_URLS,
+  FALL_FBX_URLS,
+  MELEE_FBX_URLS
+} from './fbxClip.js';
 import {
   FALL_ROLES,
   FALL_THRESHOLDS,
@@ -824,7 +829,34 @@ export class CharacterController {
       let loaded = false;
       /** @type {{ url: string, matched: import('three').AnimationClip }|null} */
       let fallbackNoHands = null;
+
+      // 2H melee idle — author FBX first (sword_shield pack stance)
+      if (
+        !loaded &&
+        role === 'idle' &&
+        packId === 'sword_shield' &&
+        this.model &&
+        MELEE_FBX_URLS?.idle2h
+      ) {
+        for (const fbxUrl of MELEE_FBX_URLS.idle2h) {
+          try {
+            const clip = await loadFbxClipRematched(fbxUrl, this.model, name);
+            if (clip?.tracks?.length) {
+              this._registerClip(name, clip, LoopRepeat);
+              console.info(
+                `[CharacterController] clip ${name} ← 2H MELEE FBX ${fbxUrl} tracks=${clip.tracks.length}`
+              );
+              loaded = true;
+              break;
+            }
+          } catch {
+            /* next url */
+          }
+        }
+      }
+
       for (const url of urls) {
+        if (loaded) break;
         try {
           const raw = await loadBakedClipJson(url);
           raw.name = name;

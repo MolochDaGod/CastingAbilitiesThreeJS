@@ -34,6 +34,7 @@ import { DODGE_MM, mmToM } from '../combat/motionMath.js';
  * @type {Record<string, { family: AnimFamily, channel: AnimChannel, label: string, input?: string }>}
  */
 export const ANIM_ROLE_META = Object.freeze({
+  /** sword_shield idle prefers 2H FBX (meleeAnimSsot · 2hand Idle.fbx) */
   idle: { family: 'gait', channel: 'gait', label: 'Idle' },
   walk: { family: 'gait', channel: 'gait', label: 'Walk' },
   run: { family: 'gait', channel: 'gait', label: 'Run / sprint' },

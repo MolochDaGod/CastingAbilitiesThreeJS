@@ -56,3 +56,9 @@ export const FLIP_FBX_URLS = Object.freeze({
  * @see config/fallAnimSsot.js
  */
 export { FALL_FBX_URLS } from '../config/fallAnimSsot.js';
+
+/**
+ * 2H melee idle FBX (author D:\Games\Models\2hand Idle.fbx → public/anim/melee/).
+ * @see config/meleeAnimSsot.js
+ */
+export { MELEE_FBX_URLS, MELEE_2H_IDLE_FBX_URLS } from '../config/meleeAnimSsot.js';

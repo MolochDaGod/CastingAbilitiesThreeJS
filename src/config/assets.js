@@ -79,9 +79,12 @@ export const ANIM_PACKS = {
     jump: ['prod:magic/standing-jump', 'locomotion/jump']
   },
   sword_shield: {
+    // Idle: 2H melee FBX (public/anim/melee/2hand-idle.fbx) is bound first in CharacterController.
+    // Baked S&S idle remains fallback if FBX missing.
     idle: ['sword_shield/sword and shield idle'],
     /**
      * Melee roles (see docs/MELEE_COMBO_SSOT.md):
+     * - idle = 2H idle (author: D:\Games\Models\2hand Idle.fbx)
      * - attack1–3 = grounded light combo (3 LMB clicks)
      * - attack / finisher = jump-dash finisher (CDN Bip001 “sword and shield attack”)
      * - finisherAir = drop-to-target when airborne
