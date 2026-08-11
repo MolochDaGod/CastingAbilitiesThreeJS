@@ -49,7 +49,7 @@ export class PhysicsWorld {
     this.world = new RAPIER.World({ x: 0, y: g, z: 0 });
     this.world.timestep = FIXED_DT;
 
-    // Infinite ground plane at y=0 (fixed cuboid thin slab)
+    // Default flat ground — replaced by addHeightfield when island terrain loads
     const groundBody = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, -0.05, 0));
     const half = WORLD.physicsGroundHalf;
     const groundCol = this.world.createCollider(
@@ -57,6 +57,10 @@ export class PhysicsWorld {
       groundBody
     );
     this.bodies.set('ground', { body: groundBody, collider: groundCol, kind: 'ground' });
+    /** Optional water surface Y sampler (ocean layer) */
+    this.waterHeightAt = null;
+    /** Optional land height sampler (matches heightfield) */
+    this.landHeightAt = null;
 
     // Player kinematic capsule (CCT)
     const r = opts.radius ?? HUMAN_CAPSULE.radius;
@@ -162,10 +166,17 @@ export class PhysicsWorld {
 
     this.grounded = grounded;
     const t = this.playerBody.translation();
-    const feetY = t.y - hh - r;
+    let feetY = t.y - hh - r;
+    // Snap feet to land sampler if CCT slightly floats (heightfield edge cases)
+    if (grounded && typeof this.landHeightAt === 'function') {
+      const landY = this.landHeightAt(t.x, t.z);
+      if (Number.isFinite(landY) && Math.abs(feetY - landY) < 0.45) {
+        feetY = landY;
+      }
+    }
     return {
       x: t.x,
-      y: Math.max(0, feetY),
+      y: feetY,
       z: t.z,
       grounded,
       vy: this.vy
@@ -194,6 +205,109 @@ export class PhysicsWorld {
     const entry = this.bodies.get('player');
     const t = this.playerBody.translation();
     return { x: t.x, y: t.y - entry.halfHeight - entry.radius, z: t.z };
+  }
+
+  /**
+   * Replace flat ground with Rapier heightfield (island terrain).
+   * Official: https://rapier.rs/docs/user_guides/javascript/colliders#heightfield
+   * three.js example: physics_rapier_terrain
+   *
+   * @param {{
+   *   nrows: number,
+   *   ncols: number,
+   *   heights: Float32Array,
+   *   scale: { x: number, y: number, z: number }
+   * }} desc
+   * @param {{ landHeightAt?: (x:number,z:number)=>number, waterHeightAt?: (x:number,z:number,t?:number)=>number }} [samplers]
+   */
+  addHeightfield(desc, samplers = {}) {
+    if (!this.ready || !this.world || !desc?.heights) return false;
+    // Remove flat ground collider
+    const old = this.bodies.get('ground');
+    if (old) {
+      try {
+        if (old.collider) this.world.removeCollider(old.collider, true);
+        if (old.body) this.world.removeRigidBody(old.body);
+      } catch {
+        /* ok */
+      }
+      this.bodies.delete('ground');
+    }
+
+    // Rapier heightfield: heights length (nrows+1)*(ncols+1)
+    const nrows = desc.nrows | 0;
+    const ncols = desc.ncols | 0;
+    const scale = desc.scale || { x: 1, y: 1, z: 1 };
+    const body = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, 0, 0));
+    let colliderDesc;
+    try {
+      colliderDesc = RAPIER.ColliderDesc.heightfield(nrows, ncols, desc.heights, scale)
+        .setFriction(0.95)
+        .setRestitution(0.02);
+    } catch (err) {
+      console.warn('[PhysicsWorld] heightfield create failed — keep flat ground', err);
+      // Restore flat
+      const half = WORLD.physicsGroundHalf;
+      const gb = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, -0.05, 0));
+      const gc = this.world.createCollider(
+        RAPIER.ColliderDesc.cuboid(half, 0.05, half).setFriction(0.9),
+        gb
+      );
+      this.bodies.set('ground', { body: gb, collider: gc, kind: 'ground' });
+      return false;
+    }
+    const col = this.world.createCollider(colliderDesc, body);
+    this.bodies.set('ground', { body, collider: col, kind: 'heightfield' });
+    this.landHeightAt = samplers.landHeightAt || null;
+    this.waterHeightAt = samplers.waterHeightAt || null;
+    console.info(
+      `[PhysicsWorld] heightfield ${nrows}×${ncols} scale=(${scale.x.toFixed(1)},${scale.y},${scale.z.toFixed(1)})`
+    );
+    return true;
+  }
+
+  /**
+   * Water terrain layer — sample only (visual StageWater + freeride).
+   * Optional cuboid sensor under water plane for future buoyancy queries.
+   * @param {{ waterY?: number, halfXZ?: number }} [opts]
+   */
+  addWaterLayer(opts = {}) {
+    if (!this.ready || !this.world) return;
+    const waterY = opts.waterY ?? WORLD.waterY ?? -0.04;
+    const half = opts.halfXZ ?? WORLD.physicsGroundHalf * 1.5;
+    // Thin sensor slab at water surface — collision events later; not solid walk
+    if (this.bodies.has('water')) return;
+    const body = this.world.createRigidBody(
+      RAPIER.RigidBodyDesc.fixed().setTranslation(0, waterY - 0.5, 0)
+    );
+    const col = this.world.createCollider(
+      RAPIER.ColliderDesc.cuboid(half, 0.5, half)
+        .setSensor(true)
+        .setFriction(0),
+      body
+    );
+    this.bodies.set('water', { body, collider: col, kind: 'water_sensor', waterY });
+  }
+
+  /**
+   * Sample land height if sampler set (post-heightfield).
+   * @param {number} x
+   * @param {number} z
+   */
+  sampleLandY(x, z) {
+    if (typeof this.landHeightAt === 'function') return this.landHeightAt(x, z);
+    return 0;
+  }
+
+  /**
+   * Sample water surface (waves) if set.
+   * @param {number} x
+   * @param {number} z
+   * @param {number} [t]
+   */
+  sampleWaterY(x, z, t = 0) {
+    if (typeof this.waterHeightAt === 'function') return this.waterHeightAt(x, z, t);
+    return WORLD.waterY ?? -0.04;
   }
 
   /**

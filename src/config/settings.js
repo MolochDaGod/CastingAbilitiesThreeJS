@@ -610,6 +610,25 @@ export const settings = {
     lookSensitivity: 1.0
   },
 
+  /**
+   * Island heightfield + terrain layers (land / water).
+   * Patterns: snakey-locomotion heightAt · three-stylized Terrain · Rapier heightfield.
+   */
+  terrain: {
+    enabled: true,
+    seed: 17,
+    /** Peak hill height on pad (m) — SI human yardstick */
+    amp: 0.85,
+    segments: 96,
+    /** Rapier grid verts ≈ grid; cells = grid-1 */
+    grid: 65,
+    shoreBand: null, // null → WORLD.shoreBand
+    flatCore: 8,
+    /** Growing forest count (harvestable trees) */
+    forestCount: 48,
+    forestEnabled: true
+  },
+
   /* ------------------------------------------------------------------ */
   /* Camera rig — combat angles from grudge-third-person-controller      */
   /* ------------------------------------------------------------------ */

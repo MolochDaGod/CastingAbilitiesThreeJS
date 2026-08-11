@@ -82,6 +82,9 @@ export class DevIslandHarvest {
     this.onToast = opts.onToast || (() => {});
     this.islandRadius = opts.islandRadius ?? WORLD.islandRadius ?? 51;
     this.rangeM = opts.rangeM ?? HARVEST_RANGE_M;
+    /** Terrain height sample (IslandHeightfield) — feet on hills */
+    this.heightSample =
+      typeof opts.heightSample === 'function' ? opts.heightSample : (x, z) => 0;
 
     this.group = new Group();
     this.group.name = 'DevIslandHarvest';
@@ -199,7 +202,8 @@ export class DevIslandHarvest {
 
     const root = new Group();
     root.name = `harvest_${def.id}_${this.nodes.length}`;
-    root.position.set(x, 0, z);
+    const landY = this.heightSample(x, z) || 0;
+    root.position.set(x, landY, z);
     root.userData.harvestNode = true;
     root.userData.defId = def.id;
     root.userData.classId = def.classId;
@@ -219,14 +223,14 @@ export class DevIslandHarvest {
       root.add(model);
     }
 
-    // Snap feet to y=0 from model bounds
+    // Snap mesh soles to terrain surface (local min.y → landY)
     try {
       _box.setFromObject(root);
-      if (Number.isFinite(_box.min.y) && _box.min.y !== 0) {
-        root.position.y -= _box.min.y;
+      if (Number.isFinite(_box.min.y)) {
+        root.position.y += landY - _box.min.y;
       }
     } catch {
-      /* keep y */
+      root.position.y = landY;
     }
 
     // Soft interact ring (hidden until nearest)

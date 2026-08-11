@@ -59,6 +59,9 @@ export class WorldDrops {
     this.assets = opts.assets;
     this.waterY = opts.waterY ?? WORLD.waterY ?? -0.04;
     this.groundY = opts.groundY ?? 0;
+    /** Optional island heightfield sample */
+    this.heightSample =
+      typeof opts.heightSample === 'function' ? opts.heightSample : null;
     this.onToast = opts.onToast || (() => {});
 
     /** @type {WorldDropItem[]} */
@@ -73,15 +76,18 @@ export class WorldDrops {
   }
 
   /**
-   * Surface Y at xz — simple stage: ground 0, water band uses waterY when far from origin island pad.
-   * Lab stage is flat ground + water skirt; prefer ground near center, water further out.
+   * Surface Y at xz — land heightfield on pad, water skirt beyond.
    * @param {number} x
    * @param {number} z
    */
   surfaceY(x, z) {
     const r = Math.hypot(x, z);
-    // Stage ground is large island pad; water around/below — use ground if r small
-    if (r < 22) return this.groundY + 0.02;
+    const pad = WORLD.islandRadius ?? 22;
+    if (r < pad && this.heightSample) {
+      const h = this.heightSample(x, z);
+      if (Number.isFinite(h)) return h + 0.04;
+    }
+    if (r < pad) return this.groundY + 0.02;
     return Math.max(this.waterY + 0.06, this.groundY + 0.02);
   }
 

@@ -9,6 +9,8 @@ import { Environment } from '../world/Environment.js';
 import { Ground } from '../world/Ground.js';
 import { StageWater } from '../world/StageWater.js';
 import { OceanWindIndicators } from '../effects/OceanWindIndicators.js';
+import { IslandHeightfield } from '../world/IslandHeightfield.js';
+import { GrowingForest } from '../world/GrowingForest.js';
 import { OpenSeaShells } from '../world/OpenSeaShells.js';
 import { DustMotes } from '../world/DustMotes.js';
 import { ContactShadows } from '../world/ContactShadows.js';
@@ -138,6 +140,10 @@ export class App {
 
     this.ground = new Ground(this.environment);
     this.water = new StageWater();
+    /** Heightfield land (snakey / three-stylized / Rapier terrain patterns) */
+    this.islandTerrain =
+      settings.terrain?.enabled !== false ? new IslandHeightfield() : null;
+    this.growingForest = null;
     this.dust = new DustMotes();
     this.contactShadows = new ContactShadows(this.renderer, {
       size: 2.6 * Math.sqrt(WORLD.mapScale),
@@ -146,9 +152,15 @@ export class App {
     });
 
     this.scene.add(this.water.mesh, this.ground.mesh, this.dust.points, this.contactShadows.group);
+    if (this.islandTerrain?.mesh) {
+      // Visual hills on pad — flat Ground still used for far void ring if needed
+      this.scene.add(this.islandTerrain.mesh);
+      // Hide flat ground under island extent so heightfield reads clean
+      if (this.ground.mesh) this.ground.mesh.visible = false;
+    }
     this.dust.setPixelRatio(this.renderer.gl.getPixelRatio());
     console.info(
-      `[App] world SI mapScale=${WORLD.mapScale} ground=${WORLD.groundSize}m fogFar=${WORLD.fogFar}m water=${WORLD.waterSize}m`
+      `[App] world SI mapScale=${WORLD.mapScale} ground=${WORLD.groundSize}m fogFar=${WORLD.fogFar}m water=${WORLD.waterSize}m terrain=${!!this.islandTerrain}`
     );
 
     /* ---- shared VFX services ---- */
@@ -443,11 +455,14 @@ export class App {
       combatFocus: this.combatFocus,
       sessionState: this.session,
       scene: this.scene,
+      linearSkills: this.linearSkills,
       onToast: (message) => this.hud.showToast(message),
       onCastBar: (st) => this.hud.setCastBar?.(st),
       // Side effects applied once via session.change — toast only here
       onSession: () => {}
     });
+    // Elemental skills ↔ linear skillshot bridge (learned LinearAbilityCasting)
+    this.drc.setLinearSkills?.(this.linearSkills);
     // Warm fire/ice summon projectiles (extracted SI meshes)
     this.drc.projectiles?.warm?.().catch?.(() => {});
 
@@ -760,14 +775,44 @@ export class App {
 
   /**
    * Explicit harvest attempt (nearest ≤5 m). Used by F chain + Admin.
+   * Rocks/ore via DevIslandHarvest; mature growing trees (wood) via GrowingForest.
    * @returns {boolean}
    */
   tryHarvest() {
-    if (!this.worldHarvest) return false;
     const pos = this.character?.position || this.character?.root?.position;
     if (!pos) return false;
-    const ok = this.worldHarvest.tryHarvestNearest(pos, HARVEST_RANGE_M);
-    return !!ok;
+    // Prefer catalog nodes first
+    if (this.worldHarvest?.tryHarvestNearest) {
+      const ok = this.worldHarvest.tryHarvestNearest(pos, HARVEST_RANGE_M);
+      if (ok) return true;
+    }
+    // Growing forest trees (hatchet / wood class)
+    if (this.growingForest) {
+      const tree = this.growingForest.findNearest(pos, HARVEST_RANGE_M);
+      if (tree) {
+        const tool = this.harvestToolId || 'pick';
+        if (tool !== 'hatchet' && tool !== 'hand' && this.activityMode === 'harvest') {
+          // still allow with any tool in combat F path
+        }
+        const result = this.growingForest.damage(tree, 14);
+        if (result?.chopped && result.loot) {
+          for (const L of result.loot) {
+            this.dropBag?.add?.({
+              id: L.id,
+              name: L.label,
+              qty: L.qty,
+              icon: L.icon
+            });
+          }
+          this.character?.playWeaponCombat?.('attack') ||
+            this.character?.playRoleOnce?.('attack');
+        } else if (result && !result.chopped) {
+          this.character?.playWeaponCombat?.('attack');
+        }
+        return !!result;
+      }
+    }
+    return false;
   }
 
   /**
@@ -1247,7 +1292,16 @@ export class App {
   }
 
   _onLmbAttack() {
-    // Focus mode: primary attack (weapon pack / residual)
+    // Focus + LMB: staff/wand → hotbar slot 1 normal attack (shared staff primary).
+    // Melee / other → weapon primary (F / residual path).
+    if (this._isRangedOrStaffEquipped?.()) {
+      const ok =
+        this.drc.useSkill?.(0) ||
+        this.drc.useWeaponSkillF?.() ||
+        this.drc.performQuickAction?.('primary');
+      if (!ok) this.hud.showToast('Staff normal (slot 1)');
+      return;
+    }
     const ok =
       this.drc.useMeleeStrike?.() ||
       this.drc.performQuickAction?.('primary') ||
@@ -1586,9 +1640,23 @@ export class App {
     this.loading.setProgress(0.05, 'Init Rapier physics…');
     try {
       await this.physics.init();
+      // Land heightfield + water sensor layer (must learn: one height source)
+      if (this.islandTerrain) {
+        const ok = this.physics.addHeightfield(this.islandTerrain.rapierDesc(), {
+          landHeightAt: (x, z) => this.islandTerrain.sample(x, z),
+          waterHeightAt: (x, z, t) =>
+            this.water?.sampleHeight?.(x, z, t ?? this.elapsed) ?? WORLD.waterY
+        });
+        console.info('[App] terrain heightfield physics', ok ? 'ok' : 'fallback flat');
+      }
+      this.physics.addWaterLayer({
+        waterY: WORLD.waterY,
+        halfXZ: WORLD.physicsGroundHalf * 1.4
+      });
       this.drc.setPhysics(this.physics);
       this.walk.setPhysics?.(this.physics);
-      this.physics.setPlayerFeet(0, 0, 0);
+      const y0 = this.islandTerrain?.sample?.(0, 0) ?? 0;
+      this.physics.setPlayerFeet(0, y0, 0);
     } catch (err) {
       console.warn('[App] Rapier init failed — kinematic fallback', err);
     }
@@ -1609,9 +1677,13 @@ export class App {
       raceId: id.raceId,
       presetId: id.roleId || 'mage'
     });
-    // Feet at origin; keep model local ground from scaffold
-    this.character.placeAt?.(0, 0, 0);
-    this.character.resetPlacement?.();
+    // Feet on heightfield at spawn
+    {
+      const y0 = this.islandTerrain?.sample?.(0, 0) ?? 0;
+      this.character.placeAt?.(0, y0, 0);
+      this.character.resetPlacement?.();
+      this.physics?.setPlayerFeet?.(0, y0, 0);
+    }
     this.hud.setPlayerFrame?.({
       name: id.displayName,
       raceId: this.character.raceId || id.raceId,
@@ -1653,6 +1725,7 @@ export class App {
       assets,
       waterY: WORLD.waterY,
       groundY: 0,
+      heightSample: (x, z) => this.islandTerrain?.sample?.(x, z) ?? 0,
       onToast: (m) => this.hud.showToast(m)
     });
     loadPrefabCatalog()
@@ -1661,6 +1734,19 @@ export class App {
         console.info(`[App] weapon prefabs ${cat.total} (icon/model presentation)`);
       })
       .catch((err) => console.warn('[App] prefab catalog', err));
+
+    // Growing forest (forestoutline / snakey trees) on heightfield
+    if (settings.terrain?.forestEnabled !== false && this.islandTerrain) {
+      this.growingForest = new GrowingForest({
+        scene: this.scene,
+        heightSample: (x, z) => this.islandTerrain.sample(x, z),
+        count: settings.terrain?.forestCount ?? 48,
+        islandRadius: WORLD.islandRadius * 0.9,
+        clearRadius: 11,
+        onToast: (m) => this.hud.showToast(m)
+      });
+      console.info(`[App] growing forest ×${this.growingForest.trees.length}`);
+    }
 
     // Dev Island: baked rocks + harvest + training dummies (replaces empty lab pad content)
     this.loading.setProgress(0.74, 'Dev island harvest…');
@@ -1674,7 +1760,8 @@ export class App {
         dropBag: this.dropBag,
         onToast: (m) => this.hud.showToast(m),
         islandRadius: WORLD.islandRadius,
-        rangeM: HARVEST_RANGE_M
+        rangeM: HARVEST_RANGE_M,
+        heightSample: (x, z) => this.islandTerrain?.sample?.(x, z) ?? 0
       });
       await this.worldHarvest.init();
       console.info(
@@ -1984,6 +2071,7 @@ export class App {
       dt,
       this.character?.position || this.character?.root?.position
     );
+    this.growingForest?.update?.(dt, this.elapsed);
     // Pirate cursor intents when mouse unlocked (harvest / loot / attack)
     this._updateInteractCursor?.();
     this._tickRadials?.(dt);
