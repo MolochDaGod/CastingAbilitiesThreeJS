@@ -147,6 +147,10 @@ export class DrcCombatController {
     this._weaponRestUntil = 0;
     /** Short global combat timer between weapon attacks */
     this._weaponGcdUntil = 0;
+    /** Air fall locomotion (deterministic) */
+    this._airTime = 0;
+    this._lastVy = 0;
+    this._impactVy = 0;
     // Catalog starters: ?wand=1 · ?sapling=1 · ?sword=1 Training Sword · ?arcane=1
     if (typeof location !== 'undefined') {
       if (/[?&]wand=1\b/.test(location.search)) {
@@ -947,25 +951,58 @@ export class DrcCombatController {
       }
     }
 
+    // Vertical velocity sample for fall state machine
+    let sampleVy = this._kinVy || 0;
     if (this.physics?.ready && this._usePhysics) {
       const pose = this.physics.movePlayer(vx, vz, dt);
       this.character.root.position.set(pose.x, pose.y, pose.z);
+      // Prefer physics vertical speed when available
+      if (Number.isFinite(pose.vy)) sampleVy = pose.vy;
+      else if (Number.isFinite(pose.velocityY)) sampleVy = pose.velocityY;
+      else sampleVy = (pose.y - (this._lastPoseY ?? pose.y)) / Math.max(1e-4, dt);
+      this._lastPoseY = pose.y;
+
+      const wasGrounded = this._grounded;
       this._grounded = !!pose.grounded;
       if (this._grounded) {
+        if (!wasGrounded && this._airborne) {
+          // Deterministic land: impact vy + horizontal speed
+          this._impactVy = this._lastVy < 0 ? this._lastVy : sampleVy;
+          const horiz = Math.hypot(vx, vz);
+          const wantRoll =
+            keys?.has?.('KeyW') || keys?.has?.('ShiftLeft') || keys?.has?.('ShiftRight');
+          const land = this.character.playFallLand?.({
+            impactVy: this._impactVy,
+            horizSpeed: horiz,
+            wantRoll
+          });
+          if (!land?.ok) {
+            this.character.clearFlip?.();
+            this.character.clearAirJumpHold?.();
+          }
+        } else {
+          this.character.clearFlip?.();
+        }
         this._jumpsLeft = settings.drc?.maxJumps ?? 2;
         this._airborne = false;
+        this._airTime = 0;
         this._backflipBoostT = 0;
         this._backflipHardStopT = 0;
         this._frontflipBoostT = 0;
         this._hangT = 0;
         this._flipHoldYaw = null;
         this.physics?.setGravityScale?.(1);
-        this.character.clearFlip?.();
-        this.character.clearAirJumpHold?.();
       } else {
         this._airborne = true;
-        // Keep jump pose blended while airborne (until flip/attack overrides)
-        this.character.holdAirJumpPose?.();
+        this._airTime = (this._airTime || 0) + dt;
+        this._lastVy = sampleVy;
+        // Jump hold → fallLoop when descending (author fall FBX)
+        this.character.updateAirLocomotion?.({
+          airborne: true,
+          vy: sampleVy,
+          airTime: this._airTime,
+          flipping: !!(this.character._flipActive || this._backflipBoostT > 0 || this._frontflipBoostT > 0)
+        });
       }
     } else {
       // Kinematic fallback (no Rapier)
@@ -974,6 +1011,18 @@ export class DrcCombatController {
         this.character.root.position.z += vz * dt;
       }
       this._integrateKinematicJump(dt, keys);
+      if (!this._grounded) {
+        this._airTime = (this._airTime || 0) + dt;
+        this._lastVy = this._kinVy || 0;
+        this.character.updateAirLocomotion?.({
+          airborne: true,
+          vy: this._kinVy || 0,
+          airTime: this._airTime,
+          flipping: !!(this.character._flipActive || this._backflipBoostT > 0)
+        });
+      } else {
+        this._airTime = 0;
+      }
     }
 
     // Gait: lock during jump/flip one-shots
@@ -1193,7 +1242,7 @@ export class DrcCombatController {
   }
 
   /** Simple ballistic Y when Rapier unavailable. */
-  _integrateKinematicJump(dt) {
+  _integrateKinematicJump(dt, keys) {
     if (this._kinVy === undefined) this._kinVy = 0;
     if (this._kinGravityScale === undefined) this._kinGravityScale = 1;
     const g = -9.81 * this._kinGravityScale;
@@ -1207,6 +1256,7 @@ export class DrcCombatController {
     this._kinVy += g * dt;
     this.character.root.position.y += this._kinVy * dt;
     if (this.character.root.position.y <= 0) {
+      const impactVy = this._kinVy;
       this.character.root.position.y = 0;
       this._kinVy = 0;
       this._grounded = true;
@@ -1217,10 +1267,17 @@ export class DrcCombatController {
       this._hangT = 0;
       this._kinGravityScale = 1;
       this.character.clearFlip?.();
-      this.character.clearAirJumpHold?.();
+      const wantRoll =
+        keys?.has?.('KeyW') || keys?.has?.('ShiftLeft') || keys?.has?.('ShiftRight');
+      const land = this.character.playFallLand?.({
+        impactVy,
+        horizSpeed: 2.5,
+        wantRoll
+      });
+      if (!land?.ok) this.character.clearAirJumpHold?.();
     } else {
       this._grounded = false;
-      this.character.holdAirJumpPose?.();
+      // fall loop driven by outer updateAirLocomotion
     }
   }
 

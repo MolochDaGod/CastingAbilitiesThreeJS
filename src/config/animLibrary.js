@@ -62,6 +62,36 @@ export const ANIM_ROLE_META = Object.freeze({
     input: 'Focus · D + Shift'
   },
   jump: { family: 'gait', channel: 'oneShot', label: 'Jump', input: 'Space' },
+  fallLoop: {
+    family: 'gait',
+    channel: 'gait',
+    label: 'Fall loop (air descend)',
+    input: 'Air · vy↓'
+  },
+  fall: {
+    family: 'gait',
+    channel: 'gait',
+    label: 'Falling body',
+    input: 'Air deep fall'
+  },
+  fallLand: {
+    family: 'mobility',
+    channel: 'oneShot',
+    label: 'Fall → landing',
+    input: 'Land soft/hard'
+  },
+  fallRoll: {
+    family: 'mobility',
+    channel: 'oneShot',
+    label: 'Fall → roll out',
+    input: 'Land hard + forward'
+  },
+  fallIdle: {
+    family: 'gait',
+    channel: 'gait',
+    label: 'Fall idle (air hang)',
+    input: 'Air'
+  },
   frontflip: {
     family: 'mobility',
     channel: 'oneShot',

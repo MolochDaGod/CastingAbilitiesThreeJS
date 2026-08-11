@@ -46,7 +46,13 @@ import { LAYER } from '../core/Layers.js';
 import { settings } from '../config/settings.js';
 import { disposeObject } from '../utils/dispose.js';
 import { loadBakedClipJson, rematchClipToSkeleton } from './bakeClip.js';
-import { loadFbxClipRematched, FLIP_FBX_URLS } from './fbxClip.js';
+import { loadFbxClipRematched, FLIP_FBX_URLS, FALL_FBX_URLS } from './fbxClip.js';
+import {
+  FALL_ROLES,
+  FALL_THRESHOLDS,
+  pickLandRole,
+  shouldEnterFall
+} from '../config/fallAnimSsot.js';
 
 const _castOrigin = new Vector3();
 const _rideFwd = new Vector3();
@@ -749,6 +755,11 @@ export class CharacterController {
       runL: LoopRepeat,
       runR: LoopRepeat,
       jump: LoopOnce,
+      fallLoop: LoopRepeat,
+      fall: LoopRepeat,
+      fallIdle: LoopRepeat,
+      fallLand: LoopOnce,
+      fallRoll: LoopOnce,
       dodgeL: LoopOnce,
       dodgeR: LoopOnce,
       dodgeF: LoopOnce,
@@ -816,6 +827,30 @@ export class CharacterController {
                 this._registerClip(name, clip, LoopOnce);
                 console.info(
                   `[CharacterController] clip ${name} ← FBX ${fbxUrl} tracks=${clip.tracks.length}`
+                );
+                loaded = true;
+                break;
+              }
+            } catch {
+              /* next */
+            }
+          }
+        }
+        // Fall locomotion FBX (author D:\Games\Models → public/anim/locomotion/fall)
+        const fallRoles = ['fallLoop', 'fall', 'fallLand', 'fallRoll', 'fallIdle'];
+        if (!loaded && fallRoles.includes(role) && this.model) {
+          const fbxList = FALL_FBX_URLS[role] || [];
+          const loop =
+            role === 'fallLoop' || role === 'fall' || role === 'fallIdle'
+              ? LoopRepeat
+              : LoopOnce;
+          for (const fbxUrl of fbxList) {
+            try {
+              const clip = await loadFbxClipRematched(fbxUrl, this.model, role);
+              if (clip?.tracks?.length) {
+                this._registerClip(name, clip, loop);
+                console.info(
+                  `[CharacterController] clip ${name} ← FALL FBX ${fbxUrl} tracks=${clip.tracks.length}`
                 );
                 loaded = true;
                 break;
@@ -1297,6 +1332,7 @@ export class CharacterController {
     if (!this._airJumpHold) return;
     if (this._flipActive) return;
     if (this.animState === 'attack' || this.animState === 'cast_loop') return;
+    if (this.animState === 'fall' || this.animState === 'fallLoop') return;
     if (this.actions.has('jump') && this.animState !== 'jump') {
       this.animState = 'jump';
       this.play('jump', 0.12);
@@ -1305,15 +1341,122 @@ export class CharacterController {
     this._oneShotTimer = Math.max(this._oneShotTimer, 0.5);
   }
 
-  /** Release jump hold on land. */
+  /**
+   * Deterministic air locomotion: jump hold → fallLoop when descending.
+   * @param {{ airborne: boolean, vy: number, airTime: number, flipping?: boolean }} state
+   */
+  updateAirLocomotion(state) {
+    if (!state?.airborne) return;
+    if (this._flipActive || state.flipping) return;
+    if (this.animState === 'attack' || this.animState === 'cast_loop' || this.animState === 'charge') {
+      return;
+    }
+    if (this.animState === 'fallLand' || this.animState === 'fallRoll') return;
+
+    if (shouldEnterFall(state)) {
+      this.playFallLoop(FALL_THRESHOLDS.fallInBlend);
+    } else if (this._airJumpHold) {
+      this.holdAirJumpPose();
+    }
+  }
+
+  /**
+   * Loop falling cycle (Fall A Loop.fbx) — preferred while descending.
+   * @param {number} [fade]
+   */
+  playFallLoop(fade = FALL_THRESHOLDS.fallInBlend) {
+    const role =
+      (this.actions.has('fallLoop') && 'fallLoop') ||
+      (this.actions.has('combat_mobility:fallLoop') && 'combat_mobility:fallLoop') ||
+      (this.actions.has('fall') && 'fall') ||
+      (this.actions.has('combat_mobility:fall') && 'combat_mobility:fall') ||
+      (this.actions.has('fallIdle') && 'fallIdle') ||
+      null;
+    if (!role) {
+      // No fall clips — keep jump hold
+      this.holdAirJumpPose();
+      return false;
+    }
+    if (this.animState === 'fallLoop' || this.animState === 'fall') {
+      this._gaitLocked = true;
+      this._oneShotTimer = Math.max(this._oneShotTimer, 0.5);
+      return true;
+    }
+    this._airJumpHold = false;
+    this._gaitLocked = true;
+    this.animState = role.includes('fallLoop') || role === 'fallLoop' ? 'fallLoop' : 'fall';
+    this.play(role, fade);
+    // Loop clips stay locked until land
+    this._oneShotTimer = 999;
+    const act = this.actions.get(role);
+    try {
+      if (act) {
+        act.setLoop(LoopRepeat, Infinity);
+        act.clampWhenFinished = false;
+        act.timeScale = 1;
+      }
+    } catch {
+      /* */
+    }
+    return true;
+  }
+
+  /**
+   * Landing recovery — fallLand or fallRoll (deterministic pick).
+   * @param {{ impactVy: number, horizSpeed: number, wantRoll?: boolean }} impact
+   * @returns {{ role: string, ok: boolean }}
+   */
+  playFallLand(impact = {}) {
+    const pick = pickLandRole(impact);
+    const candidates =
+      pick === FALL_ROLES.fallRoll
+        ? ['fallRoll', 'combat_mobility:fallRoll', 'fallLand', 'combat_mobility:fallLand', 'rollF']
+        : ['fallLand', 'combat_mobility:fallLand', 'fallRoll', 'combat_mobility:fallRoll'];
+    let role = null;
+    for (const r of candidates) {
+      if (this.actions.has(r)) {
+        role = r;
+        break;
+      }
+    }
+    this._airJumpHold = false;
+    if (!role) {
+      this.clearAirJumpHold();
+      return { role: 'idle', ok: false };
+    }
+    const fade = FALL_THRESHOLDS.landOutBlend;
+    this.play(role, fade, { exclusive: true });
+    const act = this.actions.get(role);
+    const dur = act?.getClip?.()?.duration ?? FALL_THRESHOLDS.landLockFloor;
+    try {
+      if (act) {
+        act.setLoop(LoopOnce, 1);
+        act.clampWhenFinished = true;
+        act.timeScale = 1;
+        act.paused = false;
+      }
+    } catch {
+      /* */
+    }
+    this._gaitLocked = true;
+    this._oneShotTimer = Math.max(FALL_THRESHOLDS.landLockFloor, dur * 0.95);
+    this.animState = pick === FALL_ROLES.fallRoll ? 'fallRoll' : 'fallLand';
+    return { role, ok: true };
+  }
+
+  /** Release jump hold on land. Prefer playFallLand when fall clips exist. */
   clearAirJumpHold() {
     this._airJumpHold = false;
-    if (this.animState === 'jump') {
+    if (
+      this.animState === 'jump' ||
+      this.animState === 'fall' ||
+      this.animState === 'fallLoop'
+    ) {
       this._gaitLocked = false;
       this._oneShotTimer = 0;
       if (this.actions.has('idle')) {
         this.animState = 'idle';
-        this.play('idle', 0.15);
+        this.play('idle', FALL_THRESHOLDS.landOutBlend);
       }
     }
   }

@@ -301,7 +301,16 @@ export const ANIM_PACKS = {
      * Baked JSON preferred if present; FBX is author SSOT on open.grudge-studio.com.
      */
     frontflip: ['extra/front-flip', 'extra/running-forward-flip', 'extra/front-twist-flip'],
-    backflip: ['striker/backflip', 'striker/back_flip_to_uppercut']
+    backflip: ['striker/backflip', 'striker/back_flip_to_uppercut'],
+    /**
+     * Fall locomotion — author FBX rematch (fallAnimSsot / public/anim/locomotion/fall).
+     * Baked JSON candidates first when promoted to Open CDN.
+     */
+    fallLoop: ['locomotion/fall-loop', 'locomotion/fall_a_loop', 'extra/fall-loop'],
+    fall: ['locomotion/falling', 'locomotion/fall', 'extra/falling'],
+    fallLand: ['locomotion/fall-to-landing', 'locomotion/falling-to-landing'],
+    fallRoll: ['locomotion/fall-to-roll', 'locomotion/falling-to-roll'],
+    fallIdle: ['locomotion/fall-idle', 'locomotion/falling-idle']
   }
 };
 
@@ -321,9 +330,9 @@ export const ANIM_PACK_META = {
   },
   locomotion_8way: { label: 'Locomotion 8-way', skills: '—', locomotion: 'walk·run·jump' },
   combat_mobility: {
-    label: 'Shared rolls / dodges / slide / parry',
-    skills: 'roll·dodge·slide·parry',
-    locomotion: '—'
+    label: 'Shared rolls / dodges / slide / parry / fall',
+    skills: 'roll·dodge·slide·parry·fall',
+    locomotion: 'fallLoop·fallLand·fallRoll'
   }
 };
 

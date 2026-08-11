@@ -50,3 +50,9 @@ export const FLIP_FBX_URLS = Object.freeze({
     'https://open.grudge-studio.com/anim/animations/striker/Back_Flip_To_Uppercut.fbx'
   ]
 });
+
+/**
+ * Jump / fall locomotion FBX (author on D:\Games\Models · lab under public/anim/locomotion/fall).
+ * @see config/fallAnimSsot.js
+ */
+export { FALL_FBX_URLS } from '../config/fallAnimSsot.js';

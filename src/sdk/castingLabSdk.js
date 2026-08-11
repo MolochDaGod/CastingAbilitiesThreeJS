@@ -148,6 +148,15 @@ export {
   CHARGE_LEVELS
 } from '../combat/weaponChargeSystem.js';
 
+export {
+  FALL_ROLES,
+  FALL_FBX_URLS,
+  FALL_THRESHOLDS,
+  FALL_AUTHOR_MAP,
+  pickLandRole,
+  shouldEnterFall
+} from '../config/fallAnimSsot.js';
+
 // ── Terrain ──────────────────────────────────────────────────────────
 export {
   TERRAIN_LAYER,
