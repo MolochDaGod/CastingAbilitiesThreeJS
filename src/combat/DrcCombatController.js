@@ -32,7 +32,11 @@ import {
   staffProjectileMeshUrl
 } from '../vfx/staffOrbVfx.js';
 import { inferElementAttackKind } from '../vfx/elementAttackVfx.js';
-import { isPistolBulletSkill, PISTOL_BULLET } from '../vfx/pistolBulletVfx.js';
+import {
+  isPistolBulletSkill,
+  pistolBulletCount,
+  PISTOL_BULLET
+} from '../vfx/pistolBulletVfx.js';
 import {
   planElementalLinearCast,
   fireLinearFromPlan
@@ -112,6 +116,9 @@ export class DrcCombatController {
     /** Focus buff: until elapsed, spell damage mul (T0 Apprentice Wand Focus) */
     this._focusUntil = 0;
     this._focusMul = 1;
+    /** Ward / Take Cover: until elapsed, incoming damage mul (1 − reduce) */
+    this._wardUntil = 0;
+    this._wardReduce = 0;
     // Catalog starters: ?wand=1 · ?sapling=1 · ?sword=1 Training Sword · ?arcane=1
     if (typeof location !== 'undefined') {
       if (/[?&]wand=1\b/.test(location.search)) {
@@ -510,17 +517,73 @@ export class DrcCombatController {
     // Traveling mesh projectile — staff normals use per-element orbs (gd_orbs split)
     if (this.projectiles && phys.meshKey !== 'residual') {
       const el = enriched.element || enriched.abilityElement || 'arcane';
-      // Flintlock / handgun primary — Styloo bullet, blood vs terrain
+      // Flintlock / handgun — Styloo bullet, blood vs terrain
+      // Burst Fire: three-round multi-hit (catalog Multi-hit / three-round)
       if (isPistolBulletSkill(enriched) && this.projectiles.spawnBullet) {
-        void this.projectiles.spawnBullet({
-          origin: resolved.origin,
-          target: resolved.target,
-          forward: resolved.forward,
-          targets,
-          speed: enriched.projectileSpeed || PISTOL_BULLET.speed,
-          meshUrl: enriched.projectileMeshUrl || PISTOL_BULLET.meshUrl
-        });
-        enriched._deliveryLabel = 'Bullet · flintlock';
+        const count = pistolBulletCount(enriched);
+        const speed = enriched.projectileSpeed || PISTOL_BULLET.speed;
+        const meshUrl = enriched.projectileMeshUrl || PISTOL_BULLET.meshUrl;
+        const origin = resolved.origin.clone();
+        const forward = resolved.forward.clone();
+        const fireOne = (spreadYaw = 0) => {
+          const f = forward.clone();
+          if (spreadYaw !== 0) {
+            // Small horizontal fan for multi-round (lab readable, not sniper)
+            const c = Math.cos(spreadYaw);
+            const s = Math.sin(spreadYaw);
+            const x = f.x * c - f.z * s;
+            const z = f.x * s + f.z * c;
+            f.x = x;
+            f.z = z;
+            f.normalize();
+          }
+          const tgt = origin.clone().addScaledVector(f, 40);
+          void this.projectiles.spawnBullet({
+            origin: origin.clone(),
+            target: tgt,
+            forward: f,
+            targets,
+            speed,
+            meshUrl
+          });
+        };
+        if (count <= 1) {
+          fireOne(0);
+          enriched._deliveryLabel = 'Bullet · flintlock';
+        } else {
+          // Stagger rounds ~80 ms apart (homemade flintlock loud burst feel)
+          const gapMs = 80;
+          for (let i = 0; i < count; i++) {
+            const yaw = (i - (count - 1) / 2) * 0.028; // ~1.6° per step
+            if (i === 0) fireOne(yaw);
+            else {
+              setTimeout(() => {
+                try {
+                  fireOne(yaw);
+                } catch {
+                  /* dispose mid-cast */
+                }
+              }, i * gapMs);
+            }
+          }
+          enriched._deliveryLabel = `Bullet · burst ×${count}`;
+        }
+        // Apply on-hit statuses to soft-lock (slow from Suppressing Shot)
+        if (this.statuses && enriched.statuses?.length && this.combatFocus?.selectedTarget) {
+          this.statuses.applyHit({
+            target: {
+              id: this.combatFocus.selectedTarget.id,
+              point: this.combatFocus.selectedTarget.point,
+              mesh: this.combatFocus.selectedTarget.mesh,
+              kind: this.combatFocus.selectedTarget.kind || 'hostile'
+            },
+            skill: enriched,
+            hit: { damage: enriched.damage, force: phys.force },
+            character: this.character,
+            physics: this.physics,
+            drc: this
+          });
+        }
         return enriched;
       }
       // Nature stream: prefer rocks over orbs for earth school staffs
@@ -1339,7 +1402,7 @@ export class DrcCombatController {
       this.vfx?.deploySkill?.(skill.id, pose, 'cast');
     }
 
-    // Catalog buffs: Focus (next spell) · Nature Ward / shields (defense VFX only)
+    // Catalog buffs: Focus (next spell) · Take Cover / Nature Ward (self DR)
     if (skill.isFocus || skill.isWard || skill.skillKind === 'buff') {
       const dur = skill.focusDurationSec || 3;
       if (skill.castEffectId) {
@@ -1349,14 +1412,40 @@ export class DrcCombatController {
         this._focusUntil = this.elapsed + dur;
         this._focusMul = skill.focusDamageMul || 1.35;
         this.onToast(`Focus · next spell +${Math.round((this._focusMul - 1) * 100)}% (${dur}s)`);
-      } else if (skill.isWard || /ward|shield/i.test(skill.id + skill.label)) {
-        // Nature Ward etc. — catalog effects; no invented trap system
+      } else if (
+        skill.isWard ||
+        /ward|shield|cover|guard|brace|lumber/i.test(`${skill.id} ${skill.label}`)
+      ) {
+        // Take Cover / Nature Ward — self damage reduction for catalog duration
+        const reduce =
+          skill.wardDamageReduce != null
+            ? Number(skill.wardDamageReduce)
+            : (() => {
+                const blob = (skill.effects || []).join(' ').toLowerCase();
+                const pct = /(\d+)\s*%/.exec(blob);
+                return pct ? Math.min(0.9, Number(pct[1]) / 100) : 0.2;
+              })();
+        this._wardUntil = this.elapsed + dur;
+        this._wardReduce = reduce;
+        this.statuses?.applyHit?.({
+          target: { id: 'player', kind: 'player' },
+          skill: {
+            ...skill,
+            statuses: skill.statuses?.length
+              ? skill.statuses
+              : [{ id: 'ward', durationSec: dur, magnitude: reduce }]
+          },
+          applyToPlayer: true,
+          character: this.character,
+          physics: this.physics,
+          drc: this
+        });
         this.vfx?.deploy?.(skill.impactEffectId || 'earth_surge', {
           ...pose,
           intensity: 0.9
         });
         this.onToast(
-          `${skill.label} · ${(skill.effects || []).join(', ') || 'ward'} · ${dur}s`
+          `${skill.label} · −${Math.round(reduce * 100)}% dmg taken · ${dur}s`
         );
       } else {
         this.onToast(`${skill.label} · buff ${dur}s`);
@@ -1485,6 +1574,20 @@ export class DrcCombatController {
         }
       }
       this.onToast(bound ? `${boundName} · ${bound.skillId}` : skill.label);
+      return;
+    }
+
+    // Ranged (flintlock · bow · xbow) — delivery already fired bullets/arrows
+    if (skill.style === 'ranged') {
+      const n = pistolBulletCount(skill);
+      const dmg = skill.damage ? ` · ${skill.damage} dmg` : '';
+      const multi = n > 1 ? ` · ×${n}` : '';
+      const del = skill._deliveryLabel ? ` · ${skill._deliveryLabel}` : '';
+      this.onToast(
+        bound
+          ? `${boundName} · ${bound.skillId}${multi}`
+          : `${skill.label}${dmg}${multi}${del}`
+      );
       return;
     }
 

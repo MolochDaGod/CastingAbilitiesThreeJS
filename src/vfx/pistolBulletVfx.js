@@ -77,28 +77,70 @@ export function isLivingTarget(target) {
 }
 
 /**
- * Skill looks like flintlock / gun primary shot.
+ * Skill looks like flintlock / handgun bullet shot (Practice · Burst · Suppress).
+ * Buffs (Take Cover) are excluded by callers via isWard / damage 0.
  * @param {object} skill
  */
 export function isPistolBulletSkill(skill) {
   if (!skill) return false;
-  if (skill.projectileKind === 'bullet' || skill.useBulletProjectile === true) return true;
+  if (skill.isWard || skill.isFocus || skill.skillKind === 'buff') return false;
+  if (Number(skill.damage) === 0 && skill.skillKind !== 'ranged') return false;
+  if (
+    skill.projectileKind === 'bullet' ||
+    skill.projectile === 'bullet' ||
+    skill.useBulletProjectile === true
+  ) {
+    return true;
+  }
   const blob = [
     skill.id,
     skill.label,
     skill.catalogSkillId,
     skill.weaponId,
     skill.weaponTypeId,
-    skill.animPack
+    skill.animPack,
+    skill.description
   ]
     .filter(Boolean)
     .join(' ')
     .toLowerCase();
-  if (/flint|pistol|handgun|t0-gun|t0_gun|gunplay|musket|revolver/.test(blob)) return true;
-  if (skill.style === 'ranged' && /physical|pierce|bullet/.test(String(skill.damageType || skill.element || '').toLowerCase())) {
-    if (skill.slotType === 'primary' || skill.slot === 0 || skill.slot === -1 || skill.isWeaponPrimary) {
-      return /gun|pistol|flint/.test(blob) || skill.animPack === 'pistol';
+  // Catalog ids t0_gun_* match t0_gun
+  if (/flint|pistol|handgun|t0-gun|t0_gun|gunplay|musket|revolver/.test(blob)) {
+    // Exclude pure utility names without shot/fire language when damage is 0
+    if (Number(skill.damage) <= 0) return false;
+    return true;
+  }
+  if (
+    skill.style === 'ranged' &&
+    /physical|pierce|bullet/.test(String(skill.damageType || skill.element || '').toLowerCase())
+  ) {
+    if (
+      skill.slotType === 'primary' ||
+      skill.slotType === 'ability' ||
+      skill.slot === 0 ||
+      skill.slot === 2 ||
+      skill.slot === -1 ||
+      skill.isWeaponPrimary ||
+      skill.animPack === 'pistol'
+    ) {
+      return /gun|pistol|flint|burst|suppress|shot/i.test(blob) || skill.animPack === 'pistol';
     }
   }
   return false;
+}
+
+/**
+ * Burst / multi-round count for pistol skills (catalog-first).
+ * @param {object} skill
+ * @returns {number} 1 = single shot
+ */
+export function pistolBulletCount(skill) {
+  if (!skill) return 1;
+  const n = Number(skill.multiHit);
+  if (n > 1) return Math.min(8, Math.floor(n));
+  const blob = `${skill.id || ''} ${skill.label || ''} ${skill.description || ''} ${(skill.effects || []).join(' ')}`.toLowerCase();
+  if (/three.?round|3.?round|triple/i.test(blob)) return 3;
+  if (/double|twin|2.?hit|two.?round/i.test(blob)) return 2;
+  if (/burst|multi.?hit/i.test(blob)) return 3;
+  return 1;
 }

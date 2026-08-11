@@ -76,8 +76,18 @@ export function parseCatalogEffects(effects, ctx = {}) {
   if (/\+spell|\+dmg|next.?spell|focus|power.?stance|take.?aim/.test(blob)) {
     pushSec('focus_buff', parseDuration(blob, 3), parsePct(blob, 0.35) + 1);
   }
-  if (/ward|guard.?stance|defense|\+def|−15%|-\d+% damage/.test(blob)) {
-    pushSec('ward', parseDuration(blob, 2), parsePct(blob, 0.15));
+  // Take Cover / Guard Stance / Nature Ward — self DR (catalog "-dmg taken 2s" etc.)
+  if (
+    /ward|guard.?stance|defense|\+def|take.?cover|cover|−15%|-\d+%\s*damage|-\s*dmg\s*taken|dmg\s*taken|damage\s*taken/.test(
+      blob
+    )
+  ) {
+    const mag = /-\d+%/.test(blob) ? parsePct(blob, 0.15) : parsePct(blob, 0.2);
+    pushSec('ward', parseDuration(blob, 2), mag);
+  }
+  // Suppressing Shot etc. — enemy attack / fire-rate slow (already caught by /slow/)
+  if (/slow\s*fire|fire\s*rate|suppress/.test(blob) && !out.find((x) => x.id === 'slow')) {
+    pushSec('slow', parseDuration(blob, 2.0), parsePct(blob, 0.35));
   }
 
   // Element defaults when catalog text empty but element known

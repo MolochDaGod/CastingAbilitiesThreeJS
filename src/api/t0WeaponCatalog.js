@@ -236,6 +236,11 @@ export function normalizeSkillDef(sk, slotType = 'ability', opts = {}) {
     castTime,
     range: sk.range == null || sk.range === '' || sk.range === '—' ? null : sk.range,
     damageType: sk.damageType || 'physical',
+    /** Catalog projectile token: bullet | null — keep for gun / bow delivery */
+    projectile:
+      sk.projectile == null || sk.projectile === '' || sk.projectile === '—'
+        ? null
+        : String(sk.projectile),
     icon: sk.icon || opts.fallbackIcon || null,
     iconUrl: iconCdnUrl(sk.icon || opts.fallbackIcon) || opts.fallbackIconUrl || null,
     effects: Array.isArray(sk.effects) ? sk.effects.slice() : [],
@@ -751,23 +756,33 @@ export function hotbarForWeapon(weapon, slot3Id) {
  */
 export function applyT0Presentation(bar, weapon) {
   const pack = weapon?.animPack || 'sword_shield';
+  const isRangedPack =
+    pack === 'longbow' || pack === 'pistol' || weapon?.labStyle === 'ranged';
   for (const sk of bar) {
     if (!sk) continue;
     const idn = `${sk.id} ${sk.label}`.toLowerCase();
+    const desc = String(sk.description || '').toLowerCase();
     const fx = (sk.effects || []).join(' ').toLowerCase();
+    const blob = `${idn} ${fx} ${desc}`;
 
     // --- Slot 2 style / utility (dmg 0) ---
     if (sk.damage === 0 || sk.isBuff || sk.isWard || sk.isFocus) {
       if (/evade/.test(idn)) {
         sk.animRole = 'dodgeB';
         sk.skillKind = 'buff';
-      } else if (pack === 'magic' || pack === 'longbow') {
+      } else if (pack === 'magic') {
         sk.animRole = sk.isFocus || /aim|reload|focus|read/.test(idn) ? 'cast' : 'block';
+      } else if (isRangedPack) {
+        // Take Cover / Reload / Take Aim — block or cast (pistol kneel-ready later)
+        sk.animRole =
+          sk.isFocus || /aim|reload|focus|read/.test(idn) ? 'cast' : 'block';
       } else {
         sk.animRole = 'block';
       }
       const m = fx.match(/(\d+(?:\.\d+)?)\s*s/);
       if (m) sk.focusDurationSec = Number(m[1]);
+      // Take Cover: default 2s ward if catalog effect has no number (still "-dmg taken 2s")
+      if (sk.isWard && !(sk.focusDurationSec > 0)) sk.focusDurationSec = 2;
       continue;
     }
 
@@ -778,9 +793,16 @@ export function applyT0Presentation(bar, weapon) {
       continue;
     }
 
-    // --- Ranged T0 (bow / xbow / gun) ---
-    if (pack === 'longbow' || sk.style === 'ranged' || /shot|bolt|arrow|fire|pinning|rapid|piercing|knockback.?shot|burst|suppress/i.test(idn)) {
-      if (weapon?.labStyle === 'ranged' || pack === 'longbow') {
+    // --- Ranged T0 (bow / xbow / flintlock pistol) ---
+    if (
+      isRangedPack ||
+      sk.style === 'ranged' ||
+      sk.projectile === 'bullet' ||
+      sk.projectileKind === 'bullet' ||
+      sk.useBulletProjectile ||
+      /shot|bolt|arrow|fire|pinning|rapid|piercing|knockback.?shot|burst|suppress/i.test(idn)
+    ) {
+      if (isRangedPack || sk.style === 'ranged' || sk.useBulletProjectile) {
         sk.style = 'ranged';
         sk.animRole = 'attack';
         if (!sk.rangeM || sk.rangeM < 5) sk.rangeM = 18;
@@ -788,7 +810,24 @@ export function applyT0Presentation(bar, weapon) {
           sk.knockbackMm = 280;
           sk.knockupVy = 1.2;
         }
-        if (/double|rapid|burst|multi/i.test(fx + idn)) sk.multiHit = 2;
+        // Multi-hit count from catalog text (Burst Fire = three-round → 3)
+        if (/double|rapid|burst|multi|three.?round|3.?round|triple/i.test(blob)) {
+          if (/three.?round|3.?round|triple/i.test(blob)) sk.multiHit = 3;
+          else if (/double|twin|2.?hit/i.test(blob)) sk.multiHit = 2;
+          else if (/burst|multi/i.test(blob)) sk.multiHit = sk.multiHit || 3;
+          else sk.multiHit = sk.multiHit || 2;
+        }
+        // Flintlock / gun: ensure bullet delivery flags survive presentation
+        if (
+          pack === 'pistol' ||
+          weapon?.id === 't0-gun' ||
+          /t0_gun|flint|pistol|handgun/i.test(idn) ||
+          sk.projectile === 'bullet'
+        ) {
+          sk.useBulletProjectile = true;
+          sk.projectileKind = 'bullet';
+          if (sk.projectile == null) sk.projectile = 'bullet';
+        }
         continue;
       }
     }

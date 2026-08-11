@@ -37,7 +37,7 @@ Keys **1–3** fire hotbar. Slot 3 = chosen option (Inventory skill list).
 | `t0-hammer2h` | Training Warhammer | sword_shield | Practice Smash | Brace | Shockwave · Stagger Blow |
 | `t0-bow` | Short Bow | longbow | Practice Shot | Take Aim | Pinning Arrow · Rapid Fire |
 | `t0-crossbow` | Light Crossbow | longbow | Practice Bolt | Reload | Piercing Bolt · Knockback Shot |
-| `t0-gun` | Flintlock Pistol | longbow | Practice Shot | Take Cover | Burst Fire · Suppressing Shot |
+| `t0-gun` | Flintlock Pistol | pistol | Practice Shot | Take Cover | Burst Fire · Suppressing Shot |
 | `t0-wand` | Apprentice Wand | magic | Practice Bolt | Focus | Frost Spark · Arcane Ping |
 | `t0-nature-staff` | Sapling Staff | magic | Practice Root | Nature Ward | Vine Lash · Healing Sprout |
 | `t0-tool` | Crude Tool | sword_shield | Chop | Mine | Skin · Pry |
@@ -57,7 +57,9 @@ Numbers (dmg / CD / cast / effects) = live JSON only.
 | Guard / brace / ward / cover / stance | `block` (or `cast` on magic) |
 | Focus / aim / wind-up / power / read | buff + next-hit mul |
 | Evade Step | `dodgeB` |
-| Ranged shots | `attack` (longbow pack) |
+| Ranged shots | `attack` (longbow / **pistol** pack) |
+| Take Cover (gun) | `block` + ward −dmg taken 2s |
+| Burst Fire | multiHit **3** · bullets staggered |
 | Spells / heals | `cast` |
 
 Delivery: melee residual · ranged projectile · spell path/element · see `SKILL_DELIVERY_SSOT.md`.

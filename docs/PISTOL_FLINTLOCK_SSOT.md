@@ -1,9 +1,47 @@
 # T0 Flintlock pistol · grudgepistolzio · bullets
 
 **Catalog:** `t0-gun` · **name:** Flintlock Pistol  
+**Live JSON:** https://info.grudge-studio.com/api/v1/t0-weapons.json  
 **Lab mesh:** `public/models/weapons/t0-flintlock.glb` (from `D:\Games\Models\flintlock.glb`)  
 **Bullet:** `public/models/vfx/projectiles/bullet1.glb` (Styloo Guns pack)  
-**Code:** `src/vfx/pistolBulletVfx.js` · `SkillProjectileSystem.spawnBullet` · `weaponSkillProduction`
+**Code:** `src/vfx/pistolBulletVfx.js` · `SkillProjectileSystem.spawnBullet` · `weaponSkillProduction` · `DrcCombatController`
+
+**Equip lab:** `?t0=t0-gun` · Inventory Weapon tab
+
+---
+
+## Weapon stats (catalog SSOT)
+
+| Stat | Value |
+|------|-------|
+| DMG | **28** |
+| CRIT | **3%** |
+| DEF | **3** |
+| Flavor | Homemade · more loud than accurate |
+| Craft T1 | starter + 2× scrap-ingot · 1× driftwood-log · 1× rough-stone @ Anywhere |
+| Slots | 1–2 auto · slot 3 choose one · T0 only until T1 five-slot |
+
+---
+
+## T0 skill kit (catalog ids — do not invent)
+
+| Slot | Id | Name | Role | DMG | CD | Cast | Effects | Runtime |
+|------|-----|------|------|-----|----|------|---------|---------|
+| 1 auto | `t0_gun_practice_shot` | Practice Shot | Starter Attack | 28 | — | Instant | Starter · bullet | 1× `spawnBullet` |
+| 2 auto | `t0_gun_take_cover` | Take Cover | Starter Style | — | 5s | Instant | −dmg taken 2s | Ward · 20% DR 2s · block anim |
+| 3 pick | `t0_gun_burst_fire` | Burst Fire | Choose (default) | 20 | 6s | Instant | Multi-hit · bullet | **3×** bullets · 80 ms gap · small fan |
+| 3 pick | `t0_gun_suppressing_shot` | Suppressing Shot | Choose | 16 | 4s | Instant | Slow fire rate enemy · bullet | 1× bullet + **slow** status on soft-lock |
+
+Default slot 3: **Burst Fire**.
+
+**Best practices (lab):**
+
+- Catalog numbers only — never invent damage/CD
+- `projectile: "bullet"` preserved through `normalizeSkillDef`
+- Pack = **`pistol`** (not longbow) · meshSlot `pistol`
+- Blood only on living · terrain = micro explosion
+- Take Cover is ward (not focus) — sets `_wardUntil` / `_wardReduce`
+- Burst multiHit = 3 from description “Three-round burst”
 
 ---
 
@@ -68,9 +106,14 @@ Config: `src/config/pistolAnimSsot.js` · `GRUDGE_PISTOL_ZIO_INCOMING`
 ## Wiring path
 
 ```
-Equip t0-gun → flintlock mesh + pistol anim pack
-  → primary skill compile useBulletProjectile
-  → focus LMB / 1 / F → spawnBullet
+Equip t0-gun (?t0=t0-gun)
+  → flintlock mesh + pistol anim pack
+  → hotbar: Practice Shot · Take Cover · Burst Fire|Suppressing Shot
+  → compileProductionWeaponSkill (bullet / ward / multiHit)
+  → keys 1–3 / F
+       1 Practice Shot → spawnBullet ×1
+       2 Take Cover → ward −dmg taken 2s
+       3 Burst → spawnBullet ×3 · Suppress → bullet + slow
   → hit living → blood · hit terrain → micro boom
 ```
 
@@ -84,6 +127,9 @@ Equip t0-gun → flintlock mesh + pistol anim pack
 [x] Blood only on living
 [x] Micro explode on terrain
 [x] grudgepistolzio reviewed in SSOT
+[x] Practice Shot / Take Cover / Burst Fire / Suppressing Shot runtime
+[x] multiHit 3 for Burst · ward DR for Take Cover · slow for Suppress
+[x] anim pack pistol (not longbow) in presentation
 [ ] Upload flintlock to R2 prod
 [ ] Bake zio loco → Open CDN
 [ ] Crossbow pack choice (longbow vs pistol) product decision

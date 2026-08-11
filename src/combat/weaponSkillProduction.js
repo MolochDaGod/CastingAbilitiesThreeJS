@@ -297,18 +297,46 @@ export function compileProductionWeaponSkill(catalogSkill, ctx = {}) {
     });
 
   const gunBlob = `${catalogSkill.id} ${catalogSkill.name || ''} ${weaponTypeId} ${animPack}`;
+  const catalogProjectile = String(
+    catalogSkill.projectile || catalogSkill.projectileKind || ''
+  ).toLowerCase();
   const useBullet =
-    ov.useBulletProjectile === true ||
-    isPistolBulletSkill({
-      ...catalogSkill,
-      style,
-      animPack,
-      weaponTypeId,
-      slot: ctx.barSlot ?? 0,
-      slotType: catalogSkill.slotType
-    }) ||
-    (/t0-gun|flint|pistol|handgun/i.test(gunBlob) &&
-      (catalogSkill.slotType === 'primary' || ctx.barSlot === 0));
+    !isBuff &&
+    !isHeal &&
+    (ov.useBulletProjectile === true ||
+      catalogProjectile === 'bullet' ||
+      isPistolBulletSkill({
+        ...catalogSkill,
+        style,
+        animPack,
+        weaponTypeId,
+        slot: ctx.barSlot ?? 0,
+        slotType: catalogSkill.slotType,
+        projectile: catalogSkill.projectile,
+        projectileKind: catalogProjectile || catalogSkill.projectileKind
+      }) ||
+      // Any non-buff t0-gun / flintlock skill (Practice · Burst · Suppress)
+      (/t0-gun|t0_gun|flint|pistol|handgun/i.test(gunBlob) &&
+        (style === 'ranged' || labStyle === 'ranged' || animPack === 'pistol')));
+
+  // Multi-hit from catalog effects/description (Burst Fire three-round = 3)
+  const multiBlob = `${catalogSkill.id} ${catalogSkill.name || ''} ${(effects || []).join(' ')} ${catalogSkill.description || ''}`.toLowerCase();
+  let multiHit = Number(ov.multiHit || catalogSkill.multiHit) || 0;
+  if (!multiHit && /double|rapid|burst|multi|three.?round|3.?round|triple/i.test(multiBlob)) {
+    if (/three.?round|3.?round|triple/i.test(multiBlob)) multiHit = 3;
+    else if (/double|twin|2.?hit/i.test(multiBlob)) multiHit = 2;
+    else if (/burst|multi/i.test(multiBlob)) multiHit = 3;
+  }
+
+  // Ward / cover duration from effects (Take Cover: "-dmg taken 2s")
+  const effectBlob = effects.join(' ').toLowerCase();
+  const durMatch = /(\d+(?:\.\d+)?)\s*s(?:ec)?/.exec(effectBlob);
+  const wardDurationSec = isWard
+    ? Number(ov.focusDurationSec || ov.wardDurationSec || (durMatch ? durMatch[1] : 2)) || 2
+    : undefined;
+  const focusDurationSec = isFocus
+    ? Number(ov.focusDurationSec || (durMatch ? durMatch[1] : 3)) || 3
+    : wardDurationSec;
 
   const useOrb =
     !useBullet &&
@@ -422,11 +450,23 @@ export function compileProductionWeaponSkill(catalogSkill, ctx = {}) {
     useOrbProjectile: !!useOrb,
     useBulletProjectile: !!useBullet,
     projectileKind: useBullet ? 'bullet' : useOrb ? 'orb' : null,
+    projectile: useBullet
+      ? 'bullet'
+      : catalogSkill.projectile || null,
+    multiHit: multiHit || undefined,
     isFocus,
     isWard,
     isHeal,
-    focusDurationSec: isFocus ? 3 : undefined,
+    focusDurationSec,
     focusDamageMul: isFocus ? 1.35 : undefined,
+    /** Take Cover / wards: fraction of damage reduced while active */
+    wardDamageReduce: isWard
+      ? (() => {
+          if (ov.wardDamageReduce != null) return Number(ov.wardDamageReduce);
+          const pct = /(\d+)\s*%/.exec(effectBlob);
+          return pct ? Math.min(0.9, Number(pct[1]) / 100) : 0.2;
+        })()
+      : undefined,
     catalogSkillId: catalogSkill.id,
     source: catalogSkill.source || 'catalog',
     prefab: catalogSkill.prefab || null,
@@ -439,9 +479,12 @@ export function compileProductionWeaponSkill(catalogSkill, ctx = {}) {
     impactEffectId,
     projectileMeshUrl:
       ov.projectileMeshUrl ||
+      (useBullet ? PISTOL_BULLET.meshUrl : null) ||
       staffB?.projectileMeshUrl ||
       (useOrb ? staffProjectileMeshUrl(element) : null),
-    chargeMeshUrl: ov.chargeMeshUrl || staffB?.chargeMeshUrl || STAFF_CHARGE.path,
+    chargeMeshUrl: useBullet
+      ? null
+      : ov.chargeMeshUrl || staffB?.chargeMeshUrl || STAFF_CHARGE.path,
     force: physics.force,
     knockbackMm: physics.knockbackMm,
     knockupVy: physics.knockupVy,
@@ -553,6 +596,8 @@ export function productionToDrcSkill(prod) {
     useOrbProjectile: prod.useOrbProjectile,
     useBulletProjectile: prod.useBulletProjectile,
     projectileKind: prod.projectileKind,
+    projectile: prod.projectile,
+    multiHit: prod.multiHit,
     pathMode: prod.pathMode,
     presentation: prod.presentation,
     delivery: prod.delivery,
@@ -565,7 +610,9 @@ export function productionToDrcSkill(prod) {
     isWard: prod.isWard,
     focusDurationSec: prod.focusDurationSec,
     focusDamageMul: prod.focusDamageMul,
+    wardDamageReduce: prod.wardDamageReduce,
     catalogSkillId: prod.catalogSkillId,
+    description: prod.description,
     icon: prod.icon,
     iconUrl: prod.iconUrl,
     production: prod,

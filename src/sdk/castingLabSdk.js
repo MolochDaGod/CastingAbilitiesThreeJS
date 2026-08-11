@@ -109,7 +109,8 @@ export {
   PISTOL_BULLET,
   FLINTLOCK_WEAPON,
   isLivingTarget,
-  isPistolBulletSkill
+  isPistolBulletSkill,
+  pistolBulletCount
 } from '../vfx/pistolBulletVfx.js';
 
 // ── Terrain ──────────────────────────────────────────────────────────
