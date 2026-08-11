@@ -33,6 +33,8 @@ export const PISTOL_BIP001_ROLES = Object.freeze({
   gunplay: 'pistol/gunplay',
   spin: 'pistol/gunplay',
   draw: 'pistol/drawing-gun',
+  /** Powder reload — baked alias of drawing-gun until dedicated FBX */
+  reload: 'pistol/reload',
   charged: 'pistol/charged-pistol',
   whip: 'pistol/pistol-whip',
   jump: 'pistol/pistol-jump'
@@ -147,8 +149,14 @@ export const FLINTLOCK_RELOAD = Object.freeze({
   barrelTiltDeg: 22,
   /** 0..1 how hard gun pulls toward chest midline */
   gunInWeight: 0.72,
-  /** Play reload after Practice / Burst / Suppress (lab feel) */
-  afterShot: true
+  /**
+   * Auto procedural reload after every shot — OFF for production chamber model.
+   * Empty → digit 1 is Reload (user must press 1). Lab can set true.
+   */
+  afterShot: false,
+  /** Baked clip role (ANIM_PACKS.pistol.reload) */
+  bakedRole: 'reload',
+  bakedClip: 'pistol/reload'
 });
 
 /**
@@ -180,9 +188,21 @@ export const TPS_PISTOL_REF_URL = './models/reference/minecraft_tps_pistol.glb';
 export function pistolRoleForSkillSlot(slotType, abilityIndex = 0) {
   if (slotType === 'primary') return 'attack'; // gunplay spin
   if (slotType === 'secondary') return 'draw';
+  if (slotType === 'reload') return 'reload';
   const skills = ['skill1', 'skill2', 'skill3', 'skill4', 'skill5'];
   return skills[abilityIndex % skills.length] || 'gunplay';
 }
+
+/**
+ * Open Danger weapon-live-packs pistol.skillSlots → casting / anim map.
+ * @see gameopen/content/anims/weapon-live-packs.json
+ */
+export const OPEN_DANGER_PISTOL_SLOTS = Object.freeze([
+  { id: 'pistol_shot', label: 'Shot', anim: 'gunplay', t0: 't0_gun_practice_shot', needsLoad: true },
+  { id: 'pistol_double', label: 'Double/Burst', anim: 'gunplay', t0: 't0_gun_burst_fire', needsLoad: true },
+  { id: 'pistol_fan', label: 'Fan/Suppress', anim: 'charged-pistol', t0: 't0_gun_suppressing_shot', needsLoad: true },
+  { id: 'pistol_reload', label: 'Reload', anim: 'reload', t0: 't0_gun_reload', needsLoad: false }
+]);
 
 /**
  * Hit-frame delay (s) for bullet spawn — catalog override wins.

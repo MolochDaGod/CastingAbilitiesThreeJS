@@ -103,6 +103,16 @@ Config: `src/config/pistolAnimSsot.js` · `GRUDGE_PISTOL_ZIO_INCOMING`
 
 ---
 
+## Chamber (production) — empty → **1 = Reload**
+
+| State | Key 1 | Fire (1 loaded / 3) |
+|-------|-------|---------------------|
+| **Loaded** | Practice Shot | bullet · then empty |
+| **Empty** | **Reload** (baked) | blocked · toast “press 1” |
+| **Reloading** | locked | blocked |
+
+Code: `src/combat/flintlockChamber.js` · single powder load (capacity 1).
+
 ## Fire timing · barrel · soft-lock · reload
 
 | Concern | SSOT | Value |
@@ -113,21 +123,35 @@ Config: `src/config/pistolAnimSsot.js` · `GRUDGE_PISTOL_ZIO_INCOMING`
 | Muzzle | `WeaponAttach` → `WeaponMuzzle` | farthest mesh tip from grip |
 | Soft-lock blend | `settings.aim.pistolSoftLockBlend` | **0.82** · max **34°** |
 | Crosshair | App pistol spread | tight on lock · wider free (inaccurate) |
-| Reload | `PistolReloadPose` | gun → chest · L-hand barrel · barrel tilt up ~22° |
+| **Baked reload** | `public/anims/baked/pistol/reload.json` | drawing-gun tracks · role `reload` |
+| Reload pose | `PistolReloadPose` | gun → chest · L-hand barrel · tilt ~22° (post-mixer) |
+| Auto after shot | `FLINTLOCK_RELOAD.afterShot` | **false** (must press 1) |
 
-Reload is **procedural** (not a second mixer): layers on `drawing-gun` + weapon/hand IK after shot.
+## Open Danger pistol skill review (weapon-live-packs)
+
+| Open slot | Anim clip | Casting T0 | Needs load |
+|-----------|-----------|------------|------------|
+| `pistol_shot` | gunplay | Practice Shot | yes |
+| `pistol_double` | gunplay ×3 | Burst Fire | yes |
+| `pistol_fan` | charged-pistol | Suppressing Shot | yes |
+| `pistol_reload` | **reload** | empty → key 1 | no |
+| (review) | pistol-whip | melee whip | no |
+| (review) | charged-pistol | power | yes |
+
+SSOT: `OPEN_DANGER_PISTOL_SLOTS` · `OPEN_PISTOL_SKILL_SLOTS` · `FLINTLOCK_ANIM_REVIEW`
 
 ## Wiring path
 
 ```
 Equip t0-gun (?t0=t0-gun)
-  → flintlock mesh + pistol anim pack + muzzle marker
-  → hotbar: Practice Shot · Take Cover · Burst Fire|Suppressing Shot
-  → keys 1–3 / F  (+ RMB focus for soft-lock assist)
-       1 Practice → gunplay @ fire scale → hit 0.14s → muzzle bullet → powder reload
-       2 Take Cover → ward −dmg taken 2s
-       3 Burst → ×3 muzzle · Suppress → bullet + slow → reload
-  → hit living → blood · hit terrain → micro boom
+  → flintlock mesh + pistol anim pack + muzzle + chamber Loaded
+  → hotbar: Practice Shot · Take Cover · Burst|Suppress
+  → keys 1–3 / F  (+ RMB focus)
+       1 Loaded  → gunplay → hit 0.14s → muzzle bullet → Empty
+       1 Empty   → Reload (baked pistol/reload + powder pose) → Loaded
+       2 Take Cover → ward (no ammo)
+       3 Burst/Suppress → needs load · empties chamber
+  → Showcase Anims: idle/walk/gunplay/reload/whip/charged review
 ```
 
 ---
@@ -145,9 +169,12 @@ Equip t0-gun (?t0=t0-gun)
 [x] anim pack pistol (not longbow) in presentation
 [x] Fire hit-frame timing + muzzle barrel spawn
 [x] Soft-lock / crosshair assist for pistol pack
-[x] Procedural reload (gun in · off-hand · barrel tilt)
-[ ] Upload flintlock to R2 prod
+[x] Chamber: empty → key 1 Reload
+[x] Baked pistol/reload.json (drawing-gun stamp) + procedural pour layer
+[x] Open Danger skillSlots mapped (shot/double/fan/reload)
+[ ] Promote reload.json to Open CDN anims/baked/pistol/reload.json
+[ ] Dedicated Mixamo pistol reload FBX (replace drawing-gun stamp)
+[ ] Upload flintlock mesh to R2 prod
 [ ] Bake zio loco → Open CDN
-[ ] Authored Bip001 reload clip (optional replace procedural)
 [ ] Crossbow pack choice (longbow vs pistol) product decision
 ```

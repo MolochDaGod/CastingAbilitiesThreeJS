@@ -244,12 +244,14 @@ export function animRoleForSkill(skill) {
   if (skill.animation && /cast|spell/i.test(skill.animation)) return 'cast';
   if (skill.slotType === 'defense' || /parry|guard|block/i.test(skill.id + skill.name)) return 'block';
   const blob = `${skill.id || ''} ${skill.name || ''} ${skill.weaponTypeId || ''}`.toLowerCase();
-  // T0 pistol: primary = gunplay spin, secondary = draw, power = charged / whip
+  // T0 pistol: primary = gunplay, empty = reload, secondary = cover/draw, power = charged / whip
   if (/pistol|handgun|gun/.test(blob) || skill.labPack === 'pistol') {
-    if (skill.slotType === 'secondary' || /draw|reload|holster/.test(blob)) return 'draw';
-    if (skill.slotType === 'ability' || /charge|power|special/.test(blob)) return 'skill2';
+    if (skill.isReload || skill.skillKind === 'reload' || /reload/i.test(blob)) return 'reload';
+    if (skill.slotType === 'secondary' || /draw|holster|cover/i.test(blob)) return 'draw';
+    if (skill.slotType === 'ability' || /charge|power|special|suppress|fan/i.test(blob))
+      return 'skill2';
     if (/whip|bash|melee/.test(blob)) return 'skill3';
-    if (/spin|flourish|gunplay/.test(blob)) return 'gunplay';
+    if (/spin|flourish|gunplay|burst|double|shot/i.test(blob)) return 'gunplay';
     return 'attack';
   }
   return skill.labStyle === 'ranged' ? 'attack' : 'attack';

@@ -117,6 +117,7 @@ export {
   FLINTLOCK_FIRE,
   FLINTLOCK_RELOAD,
   PISTOL_SOFT_LOCK,
+  OPEN_DANGER_PISTOL_SLOTS,
   pistolTimeScale,
   pistolHitFrameSec
 } from '../config/pistolAnimSsot.js';
@@ -127,6 +128,15 @@ export {
   getMuzzleWorld,
   getBarrelForward
 } from '../animation/pistolReloadPose.js';
+
+export {
+  createFlintlockChamber,
+  skillNeedsLoad,
+  isFlintlockContext,
+  makeReloadSkillDef,
+  OPEN_PISTOL_SKILL_SLOTS,
+  FLINTLOCK_ANIM_REVIEW
+} from '../combat/flintlockChamber.js';
 
 // ── Terrain ──────────────────────────────────────────────────────────
 export {

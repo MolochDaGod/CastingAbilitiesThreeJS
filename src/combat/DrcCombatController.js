@@ -44,6 +44,13 @@ import {
   pistolHitFrameSec
 } from '../config/pistolAnimSsot.js';
 import {
+  createFlintlockChamber,
+  skillNeedsLoad,
+  isFlintlockContext,
+  makeReloadSkillDef
+} from './flintlockChamber.js';
+import { getEquippedWeapon } from './equippedWeaponRuntime.js';
+import {
   planElementalLinearCast,
   fireLinearFromPlan
 } from './elementalLinearCast.js';
@@ -125,6 +132,8 @@ export class DrcCombatController {
     /** Ward / Take Cover: until elapsed, incoming damage mul (1 − reduce) */
     this._wardUntil = 0;
     this._wardReduce = 0;
+    /** Flintlock single-load chamber (empty → key 1 = Reload) */
+    this.flintlock = createFlintlockChamber();
     // Catalog starters: ?wand=1 · ?sapling=1 · ?sword=1 Training Sword · ?arcane=1
     if (typeof location !== 'undefined') {
       if (/[?&]wand=1\b/.test(location.search)) {
@@ -597,6 +606,11 @@ export class DrcCombatController {
         };
 
         const scheduleFire = () => {
+          // Consume chamber on first round leave barrel (single-load flintlock)
+          if (this.flintlock && isFlintlockContext(enriched, getEquippedWeapon?.(), this.character?.animPackId)) {
+            this.flintlock.consume();
+            this.onSession?.({ flintlock: this.flintlock.state });
+          }
           if (count <= 1) {
             fireOne(0);
             enriched._deliveryLabel = 'Bullet · muzzle';
@@ -633,22 +647,23 @@ export class DrcCombatController {
               drc: this
             });
           }
-          // Procedural powder reload after shot(s)
-          if (FLINTLOCK_RELOAD.afterShot !== false && this.character?.playPistolReload) {
+          // Optional lab auto-reload (default OFF — production uses key 1 when empty)
+          if (FLINTLOCK_RELOAD.afterShot === true && this.character?.playPistolReload) {
             const lastRound = (count - 1) * gapSec;
             const reloadAt = Math.round(
               (lastRound + FLINTLOCK_FIRE.reloadAfterShotSec) * 1000
             );
-            const power = /charged|power|suppress/i.test(
-              `${enriched.id} ${enriched.label}`
-            );
             setTimeout(() => {
               try {
-                this.character.playPistolReload({ power });
+                if (this.flintlock?.isEmpty()) {
+                  this.useSkill(0, { skill: makeReloadSkillDef() });
+                }
               } catch {
                 /* */
               }
             }, reloadAt);
+          } else if (this.flintlock?.isEmpty()) {
+            this.onToast('Empty · 1 Reload');
           }
         };
 
@@ -728,6 +743,7 @@ export class DrcCombatController {
     this.elapsed += dt;
     this.projectiles?.update?.(dt);
     this.statuses?.update?.(this.elapsed);
+    this.flintlock?.tick?.(this.elapsed);
     // Dual resource regen (settings.drc)
     const staR = settings.drc?.staminaRegen ?? 18;
     const manaR = settings.drc?.manaRegen ?? 12;
@@ -1362,6 +1378,37 @@ export class DrcCombatController {
     let skill = opts.skill || (slot === 'f' || slot === -1 ? skillForFKey() : skillBySlot(slot));
     if (!skill) return false;
 
+    // ── Flintlock chamber: empty → digit 1 is Reload (production Warlords) ──
+    const pack = this.character?.animPackId || '';
+    const weapon = typeof getEquippedWeapon === 'function' ? getEquippedWeapon() : null;
+    const flintCtx = isFlintlockContext(skill, weapon, pack);
+    if (flintCtx && this.flintlock) {
+      this.flintlock.tick(this.elapsed);
+      const slotN = slot === 'f' || slot === -1 ? 0 : Number(slot);
+      // Key 1 (slot 0) or F primary when empty → Reload
+      if (
+        (slotN === 0 || slot === 'f' || slot === -1) &&
+        this.flintlock.isEmpty() &&
+        !this.flintlock.isReloading() &&
+        !skill.isReload
+      ) {
+        skill = makeReloadSkillDef();
+        this.onToast('Empty · Reload');
+      } else if (skillNeedsLoad(skill) && this.flintlock.isEmpty()) {
+        this.onToast('Empty · press 1 to Reload');
+        return false;
+      } else if (skillNeedsLoad(skill) && this.flintlock.isReloading()) {
+        this.onToast('Reloading…');
+        return false;
+      } else if (
+        (skill.isReload || /reload/i.test(`${skill.id} ${skill.label}`)) &&
+        this.flintlock.isLoaded()
+      ) {
+        this.onToast('Already loaded');
+        return false;
+      }
+    }
+
     // Catalog binding (Showcase) — true master-weaponSkills id when set
     const bound =
       opts.bound !== undefined
@@ -1424,6 +1471,39 @@ export class DrcCombatController {
     }
     // Production hit package for projectiles / melee residual
     this._lastSkill = skill;
+
+    // Flintlock reload path (baked pistol/reload + procedural powder pose)
+    if (
+      skill.isReload ||
+      skill.skillKind === 'reload' ||
+      /reload/i.test(`${skill.id} ${skill.label}`)
+    ) {
+      if (flintCtx && this.flintlock) {
+        const dur = FLINTLOCK_RELOAD.durationSec;
+        if (!this.flintlock.beginReload(dur, this.elapsed)) {
+          this.onToast(this.flintlock.isLoaded() ? 'Already loaded' : 'Reload busy');
+          return false;
+        }
+        // Baked clip first
+        this.character.playPistolReload?.({ power: false }) ||
+          this.character.requestOneShot?.('reload') ||
+          this.character.requestOneShot?.('draw');
+        this._cdUntil.set(skill.id, this.elapsed + Math.max(skill.cooldown || 0, 0.5));
+        // Complete chamber when reload anim ends
+        setTimeout(() => {
+          try {
+            this.flintlock?.completeReload();
+            this.onToast('Loaded · flintlock ready');
+            this.onSession?.({ flintlock: this.flintlock?.state });
+          } catch {
+            /* */
+          }
+        }, Math.round(dur * 1000));
+        this.onToast('Reload · powder + ball');
+        this.onSession?.({ flintlock: this.flintlock.state });
+        return true;
+      }
+    }
 
     const yaw = this.character.facing;
     // Focus: snow-brawl 3D launch vector; free: horizontal aim forward

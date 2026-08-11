@@ -204,13 +204,26 @@ export const ANIM_PACKS = {
     gunplay: ['pistol/gunplay'],
     spin: ['pistol/gunplay'],
     draw: ['pistol/drawing-gun', 'pistol/gunplay'],
-    /** Powder reload base clip — procedural pose layers gun-in + L-hand to barrel */
-    reload: ['pistol/drawing-gun', 'pistol/charged-pistol', 'pistol/gunplay'],
-    skill1: ['pistol/drawing-gun', 'pistol/gunplay'],
+    /**
+     * Powder reload — prefer local/CDN baked pistol/reload (drawing-gun stamp),
+     * then drawing-gun, then rifle reloading for review parity with Open skillSlots.
+     * Procedural PistolReloadPose layers on top after mixer.
+     */
+    reload: [
+      'pistol/reload',
+      'pistol/drawing-gun',
+      'rifle/reloading',
+      'pistol/charged-pistol'
+    ],
+    /** Open Danger: pistol_shot */
+    skill1: ['pistol/gunplay', 'pistol/drawing-gun'],
+    /** Open Danger: pistol_fan / charged */
     skill2: ['pistol/charged-pistol', 'pistol/gunplay'],
+    /** Open Danger: whip review */
     skill3: ['pistol/pistol-whip', 'pistol/gunplay'],
     skill4: ['pistol/charged-pistol', 'pistol/pistol-whip'],
-    skill5: ['pistol/pistol-whip', 'pistol/drawing-gun'],
+    /** Open Danger: pistol_reload */
+    skill5: ['pistol/reload', 'pistol/drawing-gun', 'rifle/reloading'],
     walk: ['pistol/walk-forward', 'pistol/pistol walk', 'prod:magic/standing-walk-forward'],
     run: ['pistol/run-forward', 'pistol/pistol run', 'prod:magic/standing-run-forward'],
     walkL: ['pistol/strafe-left', 'prod:magic/standing-walk-left', 'longbow/standing-walk-left'],
