@@ -77,9 +77,13 @@ export function applyMeshAppearance(root, app = {}) {
         root;
 
   if (scale != null && scale > 0.05) {
-    const base = holder.userData._appBaseScale || holder.scale.x || 1;
-    if (!holder.userData._appBaseScale) holder.userData._appBaseScale = base;
-    holder.scale.setScalar(holder.userData._appBaseScale * scale);
+    // Base = post-fit attach scale (usually 1); lab multiplies for SI edit
+    if (holder.userData._appBaseScale == null) {
+      holder.userData._appBaseScale = holder.scale.x || 1;
+    }
+    const base = holder.userData._appBaseScale || 1;
+    holder.scale.setScalar(base * scale);
+    holder.userData.labScale = scale;
   }
 
   if (Array.isArray(euler) && euler.length >= 3) {

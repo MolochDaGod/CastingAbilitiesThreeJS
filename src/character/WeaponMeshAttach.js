@@ -115,11 +115,25 @@ export async function attachWeaponModel(handBone, modelUrl, opts = {}) {
     }
     root.position.set(0, 0, 0);
 
+    // SI fit metadata — lab scale editor multiplies this base
+    holder.userData._fitScale = 1;
+    holder.userData._appBaseScale = 1;
+    holder.userData.fitLengthM = maxLen;
+    holder.userData.sourceLongestM = longest;
+    holder.userData.meshFitScale = s;
+    root.userData.meshFitScale = s;
+
     // Parent first so world AABB / hand origin are valid for muzzle tip
     handBone.add(holder);
     // Barrel tip marker (muzzle) — farthest mesh extent from hand grip
     placeMuzzleMarker(holder, profile);
     handBone.updateWorldMatrix?.(true, true);
+    _box.setFromObject(holder);
+    _box.getSize(_size);
+    holder.userData.worldLengthM = Math.max(_size.x, _size.y, _size.z);
+    console.info(
+      `[WeaponMeshAttach] ${profile} fit×${s.toFixed(3)} → ~${holder.userData.worldLengthM.toFixed(2)} m (target ${maxLen} m)`
+    );
     return holder;
   } catch (err) {
     console.warn('[WeaponMeshAttach] load failed', modelUrl, err);

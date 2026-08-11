@@ -82,22 +82,74 @@ export function terrainOpts() {
     /** Peak hill height on pad interior (m) — keep modest for SI human yardstick */
     amp: t.amp ?? 0.85,
     /** Segments for mesh (higher = smoother) */
-    segments: t.segments ?? 96,
+    segments: t.segments ?? 128,
     /** Heightfield grid resolution (verts per side) for Rapier */
-    grid: t.grid ?? 65,
-    /** Shore blend width (m) inside islandRadius */
-    shoreBand: t.shoreBand ?? WORLD.shoreBand ?? 4.5,
+    grid: t.grid ?? 97,
+    /** Shore drop band (m) inside islandRadius — slow then sharp to shelf */
+    shoreBand: t.shoreBand ?? WORLD.shoreBand ?? 6.5,
     islandRadius: t.islandRadius ?? WORLD.islandRadius,
     waterY: t.waterY ?? WORLD.waterY ?? 0,
+    /** Island shelf weld (−5 m) */
     seafloorY: t.seafloorY ?? WORLD.seafloorY ?? -5,
+    /** Deep ocean floor (−50 m) */
+    oceanFloorY: t.oceanFloorY ?? WORLD.oceanFloorY ?? -50,
+    /** Radial metres past pad to reach oceanFloorY */
+    oceanDepthBand: t.oceanDepthBand ?? WORLD.oceanDepthBand ?? 80,
     /** Flat pad radius (spawn / path cast comfort) before hills rise */
-    flatCore: t.flatCore ?? 8
+    flatCore: t.flatCore ?? 8,
+    /**
+     * Shore ease power (>1 = slow first, sharper later into −5 m).
+     * 1.0 = linear · 1.75 = preferred beach drop
+     */
+    shoreEasePow: t.shoreEasePow ?? 1.75
   };
 }
 
 /**
- * Exact CPU land height at world XZ (metres). Same function as mesh bake.
- * Outside island pad → seafloorY (−5 m); water surface is WORLD.waterY (0).
+ * Shore / ocean bathymetry only (no land FBM).
+ * - Inside shore band: slow then sharp drop from near waterY → seafloorY (−5)
+ * - Past pad: deepen seafloorY → oceanFloorY (−50)
+ * @param {number} r radial metres from origin
+ * @param {ReturnType<typeof terrainOpts>} opts
+ * @param {number} [landH] interior land height at this xz (for shore start)
+ */
+export function bathymetryAt(r, opts = terrainOpts(), landH = 0) {
+  const pad = opts.islandRadius;
+  const waterY = opts.waterY ?? 0;
+  const shelfY = opts.seafloorY ?? WORLD.seafloorY ?? -5;
+  const deepY = opts.oceanFloorY ?? WORLD.oceanFloorY ?? -50;
+  const shoreBand = Math.max(1.5, opts.shoreBand ?? 6.5);
+  const oceanBand = Math.max(8, opts.oceanDepthBand ?? 80);
+  const pow = Math.max(1.05, opts.shoreEasePow ?? 1.75);
+
+  // Open ocean beyond island shelf weld
+  if (r >= pad) {
+    const t = Math.min(1, (r - pad) / oceanBand);
+    // Slight ease into deep — most drop early past shelf, then approach −50
+    const u = 1 - Math.pow(1 - t, 1.35);
+    return shelfY * (1 - u) + deepY * u;
+  }
+
+  const shoreInner = Math.max(0, pad - shoreBand);
+  if (r <= shoreInner) {
+    // Dry interior — caller uses land FBM
+    return landH;
+  }
+
+  // Entering water: t=0 at dry edge, t=1 at pad (shelf weld −5 m)
+  const t = (r - shoreInner) / Math.max(1e-4, pad - shoreInner);
+  // Slow first, sharper later (power > 1)
+  const u = Math.pow(Math.min(1, Math.max(0, t)), pow);
+  // Start just under waterline from land (or waterY if land already low)
+  const startY = Math.min(Math.max(landH, waterY - 0.02), waterY + 0.08);
+  // Mid-shore stays shallow, then drops hard toward shelf
+  return startY * (1 - u) + shelfY * u;
+}
+
+/**
+ * Exact CPU land/seafloor height at world XZ (metres). Same function as mesh bake.
+ * Continuous into water: shore slope → −5 m weld → deep ocean to −50 m.
+ * Water surface is WORLD.waterY (0) — separate StageWater layer.
  * @param {number} x
  * @param {number} z
  * @param {ReturnType<typeof terrainOpts>} [opts]
@@ -105,9 +157,12 @@ export function terrainOpts() {
 export function heightAt(x, z, opts = terrainOpts()) {
   const r = Math.hypot(x, z);
   const pad = opts.islandRadius;
-  const waterY = opts.waterY;
-  const seafloorY = opts.seafloorY ?? WORLD.seafloorY ?? -5;
-  if (r >= pad) return seafloorY;
+  const shoreInner = Math.max(0, pad - Math.max(1.5, opts.shoreBand ?? 6.5));
+
+  // Open ocean — no land FBM
+  if (r >= pad) {
+    return bathymetryAt(r, opts, opts.seafloorY ?? -5);
+  }
 
   // Snakey-style multi-band FBM (scaled down for lab SI)
   const rolling = (fbm(x * 0.012 + 13.7, z * 0.012 + 71.3, opts.seed, 3) - 0.5) * 2.0;
@@ -119,10 +174,10 @@ export function heightAt(x, z, opts = terrainOpts()) {
   const core = smooth01(r, opts.flatCore * 0.65, opts.flatCore * 1.35);
   h *= core;
 
-  // Shore: blend land height down toward water line (0), not seafloor
-  const shoreInner = Math.max(0, pad - opts.shoreBand);
-  const shore = smooth01(r, shoreInner, pad);
-  h = h * (1 - shore) + waterY * shore;
+  // Shore / underwater: continuous bathymetry (slow→sharp to −5 m)
+  if (r > shoreInner) {
+    return bathymetryAt(r, opts, h);
+  }
 
   return h;
 }
@@ -148,7 +203,12 @@ export function heightAtFromGrid(heights, n, size, x, z) {
   const u = (x + half) / size;
   const v = (z + half) / size;
   if (u < 0 || u > 1 || v < 0 || v > 1) {
-    return terrainOpts().seafloorY ?? WORLD.seafloorY ?? -5;
+    // Outside baked field — full bathymetry (shelf → deep ocean)
+    const half = size * 0.5;
+    const wx = (u - 0.5) * size;
+    const wz = (v - 0.5) * size;
+    // u/v out of range: use world xz from caller context — fall back deep
+    return terrainOpts().oceanFloorY ?? WORLD.oceanFloorY ?? -50;
   }
   const fx = u * n;
   const fz = v * n;
@@ -174,7 +234,9 @@ export function heightAtFromGrid(heights, n, size, x, z) {
 export function bakeHeightGrid(opts = terrainOpts()) {
   const n = Math.max(8, (opts.grid | 0) - 1); // segments
   const verts = n + 1;
-  const size = opts.islandRadius * 2.15; // slightly past shore for collider
+  // Cover island + shore weld + ocean depth band so Rapier walks into water / deep shelf
+  const oceanBand = opts.oceanDepthBand ?? WORLD.oceanDepthBand ?? 80;
+  const size = (opts.islandRadius + oceanBand * 0.85) * 2;
   const half = size * 0.5;
   const heights = new Float32Array(verts * verts);
   for (let j = 0; j < verts; j++) {
@@ -217,6 +279,9 @@ export class IslandHeightfield {
     ).clone();
     const dirt = getColor(t.dirtColor || '#6f5435').clone();
     const sandDeep = getColor(WORLD.seafloorColor || '#8a7350').clone();
+    const deepOcean = getColor('#4a3a28').clone();
+    const waterY = this.opts.waterY ?? 0;
+    const shelfY = this.opts.seafloorY ?? -5;
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
       const z = pos.getZ(i);
@@ -225,12 +290,14 @@ export class IslandHeightfield {
       const r = Math.hypot(x, z);
       const shoreAmt = smooth01(r, this.opts.islandRadius - this.opts.shoreBand, this.opts.islandRadius);
       const wetSand = smooth01(r, this.opts.islandRadius - this.opts.shoreBand * 0.45, this.opts.islandRadius);
+      const under = h < waterY - 0.02 ? smooth01(waterY - h, 0, Math.abs(shelfY) + 2) : 0;
+      const deepAmt = h < shelfY + 1 ? smooth01(shelfY - h, 0, 40) : 0;
       const dirtAmt = fbm(x * 0.27, z * 0.27, this.opts.seed + 3, 3);
-      const sandCol = shore.clone().lerp(sandDeep, wetSand * 0.55);
+      const sandCol = shore.clone().lerp(sandDeep, wetSand * 0.55).lerp(deepOcean, deepAmt * 0.7);
       const c = meadow
         .clone()
         .lerp(dirt, dirtAmt * 0.35 * (1 - shoreAmt))
-        .lerp(sandCol, shoreAmt * 0.92);
+        .lerp(sandCol, Math.max(shoreAmt, under) * 0.95);
       // Guard: never allow near-white terrain (snow bug)
       const lum = (c.r + c.g + c.b) / 3;
       if (lum > 0.72) c.lerp(sandDeep, 0.55);

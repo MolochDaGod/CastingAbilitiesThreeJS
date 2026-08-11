@@ -42,6 +42,16 @@ import {
   listEquippableWeapons,
   equipWeaponById
 } from '../combat/equippedWeaponRuntime.js';
+import {
+  measureWeaponScale,
+  importWeaponGlb,
+  assignModelToDraft,
+  equipWeaponForLab,
+  setLiveWeaponScale,
+  setLiveWeaponAppearance,
+  formatScaleReadout
+} from '../equipment/weaponPrefabLab.js';
+import { getAppearance } from '../equipment/meshAppearance.js';
 import { PREFAB_CATEGORIES, ITEM_BROWSER_URL, WEAPON_SKILLS_HTML } from '../api/gameItemCatalog.js';
 import { raceDef, RACES as RACE_MAP, DEFAULT_RACE } from '../config/grudge6SSOT.js';
 
@@ -638,13 +648,18 @@ export class AdminHub {
     const t0 = weapons.filter((w) => w.tier === 0).slice(0, 16);
     const sel = this._selected?.adminTab === 'prefabs' ? this._selected : null;
     const val = sel ? validateDeployableDraft(sel) : null;
+    const measure = measureWeaponScale(this.character);
+    const scaleReadout = formatScaleReadout(measure);
+    const appId = sel?.id || this._labWeaponId || '';
+    const app = appId ? getAppearance(appId) : {};
+    const scaleVal = app.scale ?? 1;
 
     const t0Html = t0.length
       ? t0
           .map(
             (w) =>
               `<button type="button" class="admin-list__item" data-t0="${w.id}">
-                <span><strong>${escapeHtml(w.name)}</strong><small>${w.id} · T${w.tier}</small></span>
+                <span><strong>${escapeHtml(w.name)}</strong><small>${w.id} · T${w.tier}${w.modelUrl ? ' · mesh' : ''}</small></span>
                 <span class="admin-score">T0</span>
               </button>`
           )
@@ -658,7 +673,7 @@ export class AdminHub {
             .map(
               (d) =>
                 `<button type="button" class="admin-list__item ${sel?.id === d.id ? 'is-selected' : ''}" data-pick="${d.id}">
-                  <span><strong>${escapeHtml(d.name)}</strong><small>${d.kind}</small></span>
+                  <span><strong>${escapeHtml(d.name)}</strong><small>${d.kind}${d.modelUrl ? ' · model' : ''}</small></span>
                   <span class="admin-score">${validateDeployableDraft(d).score}</span>
                 </button>`
             )
@@ -667,7 +682,7 @@ export class AdminHub {
     return `
       <div class="admin-card">
         <h3>Weapon & item prefabs</h3>
-        <p class="admin-hint">Scaffold control · 6 layers · 7 jobs · UUID graph ITEM→SKIL/ICON/RECP. Mint only in ObjectStore.</p>
+        <p class="admin-hint">Edit · import GLB · assign model · live SI scale. Scaffold / UUID mint stays ObjectStore.</p>
         <div class="admin-btn-row">
           <button type="button" class="admin-btn admin-btn--primary" data-act="refresh-cat">Refresh catalog</button>
           <button type="button" class="admin-btn" data-act="open-inv">Lab Prefabs tab</button>
@@ -678,8 +693,42 @@ export class AdminHub {
           ${PREFAB_CATEGORIES.map((c) => `<span class="admin-chip">${c.label}</span>`).join('')}
         </div>
       </div>
+
+      <div class="admin-card admin-card--weapon-lab">
+        <h3>Live weapon scale & mesh</h3>
+        <p class="admin-hint" data-scale-readout>${escapeHtml(scaleReadout)}</p>
+        <div class="admin-row"><span>SI length</span><b data-len-m>${measure ? measure.lengthM.toFixed(2) + ' m' : '—'}</b></div>
+        <div class="admin-row"><span>Lab scale</span><b data-lab-scale>×${Number(scaleVal).toFixed(2)}</b></div>
+        <label class="admin-row admin-row--slider">
+          <span>Scale</span>
+          <input type="range" data-wlab-scale min="0.25" max="3" step="0.02" value="${scaleVal}" ${appId ? '' : 'disabled'} />
+        </label>
+        <label class="admin-row admin-row--slider">
+          <span>Yaw °</span>
+          <input type="range" data-wlab-yaw min="-180" max="180" step="1" value="${app.eulerDeg?.[1] ?? 0}" ${appId ? '' : 'disabled'} />
+        </label>
+        <label class="admin-row admin-row--slider">
+          <span>Pitch °</span>
+          <input type="range" data-wlab-pitch min="-90" max="90" step="1" value="${app.eulerDeg?.[0] ?? 0}" ${appId ? '' : 'disabled'} />
+        </label>
+        <label class="admin-row">
+          <span>modelUrl</span>
+          <input type="text" data-wlab-url class="admin-input" placeholder="https://…/weapon.glb or blob:" value="${escapeHtml(sel?.modelUrl || '')}" />
+        </label>
+        <div class="admin-btn-row">
+          <button type="button" class="admin-btn admin-btn--primary" data-act="wlab-equip" ${appId || sel ? '' : 'disabled'}>Equip on hand</button>
+          <button type="button" class="admin-btn" data-act="wlab-assign" ${sel ? '' : 'disabled'}>Assign URL → draft</button>
+          <label class="admin-btn" style="cursor:pointer">
+            Import GLB
+            <input type="file" data-wlab-import accept=".glb,.gltf,model/gltf-binary" hidden />
+          </label>
+          <button type="button" class="admin-btn" data-act="wlab-measure">Re-measure</button>
+        </div>
+        <p class="admin-hint">Select a T0 or draft first. Import attaches a local GLB blob to that prefab id. Scale is live on the hero hand.</p>
+      </div>
+
       <div class="admin-card">
-        <h3>T0 starters (live catalog)</h3>
+        <h3>T0 starters (equip / draft)</h3>
         <div class="admin-list">${t0Html}</div>
       </div>
       <div class="admin-card">
@@ -691,6 +740,7 @@ export class AdminHub {
           ? `<div class="admin-card">
               <h3>${escapeHtml(sel.name)}</h3>
               <div class="admin-row"><span>score</span><b>${val.score}</b></div>
+              <div class="admin-row"><span>model</span><b style="font-size:10px;word-break:break-all">${escapeHtml(sel.modelUrl || '—')}</b></div>
               ${val.warnings?.map((w) => `<p class="admin-warn">⚠ ${escapeHtml(w)}</p>`).join('') || ''}
               <div class="admin-btn-row">
                 <button type="button" class="admin-btn admin-btn--primary" data-act="export">Export</button>
@@ -711,6 +761,20 @@ export class AdminHub {
   }
 
   _bindPrefabs(body) {
+    const refreshMeasure = () => {
+      const m = measureWeaponScale(this.character);
+      const el = body.querySelector('[data-scale-readout]');
+      const len = body.querySelector('[data-len-m]');
+      const lab = body.querySelector('[data-lab-scale]');
+      if (el) el.textContent = formatScaleReadout(m);
+      if (len) len.textContent = m ? `${m.lengthM.toFixed(2)} m` : '—';
+      if (lab) {
+        const id = this._selected?.id || this._labWeaponId;
+        const sc = id ? getAppearance(id).scale ?? 1 : 1;
+        lab.textContent = `×${Number(sc).toFixed(2)}`;
+      }
+    };
+
     body.querySelector('[data-act="refresh-cat"]')?.addEventListener('click', async () => {
       try {
         await ensureWeaponCatalog();
@@ -727,6 +791,7 @@ export class AdminHub {
     body.querySelector('[data-act="new-weapon"]')?.addEventListener('click', () => {
       const d = createAndSaveDraft('weapon', { name: 'New weapon draft', weaponType: 'SWORD' });
       this._selected = d;
+      this._labWeaponId = d.id;
       this.onToast('Weapon draft saved');
       this.refresh();
     });
@@ -736,9 +801,96 @@ export class AdminHub {
       this.onToast('Armour draft saved');
       this.refresh();
     });
+
+    // ── Live scale / import / assign ────────────────────────────
+    body.querySelector('[data-wlab-scale]')?.addEventListener('input', (e) => {
+      const id = this._selected?.id || this._labWeaponId;
+      if (!id || !this.character) return;
+      const sc = Number(e.target.value) || 1;
+      setLiveWeaponScale(id, sc, this.character);
+      refreshMeasure();
+    });
+    const applyEuler = () => {
+      const id = this._selected?.id || this._labWeaponId;
+      if (!id || !this.character) return;
+      const pitch = Number(body.querySelector('[data-wlab-pitch]')?.value) || 0;
+      const yaw = Number(body.querySelector('[data-wlab-yaw]')?.value) || 0;
+      const scale = Number(body.querySelector('[data-wlab-scale]')?.value) || 1;
+      setLiveWeaponAppearance(id, { scale, eulerDeg: [pitch, yaw, 0] }, this.character);
+      refreshMeasure();
+    };
+    body.querySelector('[data-wlab-yaw]')?.addEventListener('input', applyEuler);
+    body.querySelector('[data-wlab-pitch]')?.addEventListener('input', applyEuler);
+
+    body.querySelector('[data-act="wlab-equip"]')?.addEventListener('click', async () => {
+      const id = this._selected?.id || this._labWeaponId;
+      if (!id) return this.onToast('Select a weapon draft or T0 first');
+      try {
+        const url = body.querySelector('[data-wlab-url]')?.value?.trim();
+        const catalogId = id.replace(/^draft-from-/, '');
+        await equipWeaponForLab(
+          catalogId.startsWith('t0-') ? catalogId : id,
+          { character: this.character, onToast: this.onToast },
+          url ? { modelUrl: url } : {}
+        );
+        this._labWeaponId = id;
+        this.onToast(`Equipped · ${formatScaleReadout(measureWeaponScale(this.character))}`);
+        refreshMeasure();
+      } catch (e) {
+        this.onToast(e?.message || 'Equip failed');
+      }
+    });
+
+    body.querySelector('[data-act="wlab-assign"]')?.addEventListener('click', () => {
+      if (!this._selected?.id) return this.onToast('Select a draft');
+      const url = body.querySelector('[data-wlab-url]')?.value?.trim();
+      if (!url) return this.onToast('Paste a modelUrl or import GLB first');
+      try {
+        const scale = Number(body.querySelector('[data-wlab-scale]')?.value) || 1;
+        this._selected = assignModelToDraft(this._selected.id, url, { scale });
+        this.onToast(`Assigned model → ${this._selected.name}`);
+        this.refresh();
+      } catch (e) {
+        this.onToast(e?.message || 'Assign failed');
+      }
+    });
+
+    body.querySelector('[data-wlab-import]')?.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      let id = this._selected?.id;
+      if (!id) {
+        const d = createAndSaveDraft('weapon', {
+          name: file.name.replace(/\.(glb|gltf)$/i, ''),
+          weaponType: 'SWORD'
+        });
+        this._selected = d;
+        id = d.id;
+      }
+      try {
+        const rec = await importWeaponGlb(file, id);
+        this._selected = assignModelToDraft(id, rec.url, { name: rec.name });
+        body.querySelector('[data-wlab-url]').value = rec.url;
+        await equipWeaponForLab(id, { character: this.character, onToast: this.onToast }, {
+          modelUrl: rec.url
+        });
+        this._labWeaponId = id;
+        this.onToast(`Imported ${rec.name} · ${formatScaleReadout(measureWeaponScale(this.character))}`);
+        this.refresh();
+      } catch (err) {
+        this.onToast(err?.message || 'Import failed');
+      }
+    });
+
+    body.querySelector('[data-act="wlab-measure"]')?.addEventListener('click', () => {
+      refreshMeasure();
+      this.onToast(formatScaleReadout(measureWeaponScale(this.character)));
+    });
+
     body.querySelectorAll('[data-pick]').forEach((btn) => {
       btn.addEventListener('click', () => {
         this._selected = getDraft(btn.dataset.pick);
+        this._labWeaponId = this._selected?.id;
         this.refresh();
       });
     });
@@ -749,6 +901,9 @@ export class AdminHub {
           await ensureWeaponCatalog();
           const w = listEquippableWeapons().find((x) => x.id === id);
           if (!w) throw new Error('Weapon not found');
+          // Equip immediately so scale is visible on the hero
+          await equipWeaponById(id, { character: this.character, onToast: this.onToast });
+          this._labWeaponId = id;
           const pack = await buildItemScaffoldPack(w);
           downloadJson(pack, `scaffold-${id}.json`);
           // also save a draft linked to catalog id
@@ -770,7 +925,10 @@ export class AdminHub {
             note: 'From T0 catalog — full bodies in scaffold export'
           };
           this._selected = saveDraft(d);
-          this.onToast(`Scaffold + draft · ${w.name}`);
+          this._labWeaponId = d.id;
+          this.onToast(
+            `Equipped + draft · ${w.name} · ${formatScaleReadout(measureWeaponScale(this.character))}`
+          );
           this.refresh();
         } catch (e) {
           this.onToast(e?.message || 'Scaffold failed');

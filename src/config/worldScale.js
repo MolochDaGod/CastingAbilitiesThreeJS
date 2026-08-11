@@ -52,27 +52,38 @@ export const WORLD = Object.freeze({
   waterSize: ORIG.floorPoolOuter * MAP_SCALE * 7.5,
   /**
    * Sea surface Y (metres). SI: water line = 0.
-   * Land hills rise above 0; seafloor sits below.
+   * Land hills rise above 0; bathymetry drops below into the sea.
    */
   waterY: 0,
 
   /**
-   * Ocean floor Y (metres) — horizon islands weld here; undersea collision.
-   * Water surface stays at waterY (0); seafloor is a separate sand plane.
+   * Island shelf / weld Y (metres) — shore bathymetry ends here;
+   * horizon islands plant bottoms at this shelf. Water surface stays at 0.
    */
   seafloorY: -5,
 
   /**
+   * Deep ocean floor Y (metres) — open sea beyond the island shelf.
+   * Terrain heightfield slopes from seafloorY (−5) down to this (−50).
+   */
+  oceanFloorY: -50,
+
+  /**
    * Stage island pad (metres):
-   *  - Land = IslandHeightfield (mesh + Rapier + sample) — not forced planar y=0
-   *  - islandRadius = dry pad before water hole in StageWater
-   *  - shoreBand = land→water blend + visual shore tint
+   *  - Land = IslandHeightfield (mesh + Rapier + sample) — continuous into water
+   *  - islandRadius = shelf weld ring (terrain ≈ seafloorY)
+   *  - shoreBand = land→underwater slope (slow then sharper to −5 m)
+   *  - oceanDepthBand = radial distance past pad to reach oceanFloorY
    *  - Aim/path use terrainGround.projectToTerrain (same sample)
-   * @see docs/TERRAIN_PHYSICS_SSOT.md · docs/ISLAND_STAGE_SSOT.md
+   * @see docs/TERRAIN_PHYSICS_SSOT.md · docs/ISLAND_WATER_SEAFLOOR_SSOT.md
    */
   islandRadius: ORIG.floorPoolOuter * MAP_SCALE * 0.85,
-  /** Width of visual shore ring inside islandRadius (metres) */
-  shoreBand: 4.5 * MAP_SCALE,
+  /** Width of shore drop ring inside islandRadius (metres) */
+  shoreBand: 6.5 * MAP_SCALE,
+  /**
+   * Distance past islandRadius (m) over which floor deepens −5 → −50.
+   */
+  oceanDepthBand: ORIG.floorPoolOuter * MAP_SCALE * 1.35,
   /** Beach tint mix strength 0..1 at shore */
   shoreTint: 0.55,
   /** Sand beach color (hex string for settings / materials) */

@@ -839,7 +839,8 @@ export class InventoryPanel {
           <h4>Mesh · ${item.name || item.id}</h4>
           <p class="inv-hint">Color / scale / rotate / offset — saved per item id for casting lab develop.</p>
           <label class="inv-row"><span>Color</span><input type="color" data-app-color value="${app.color || '#c8a070'}" /></label>
-          <label class="inv-row"><span>Scale</span><input type="range" data-app-scale min="0.4" max="2.2" step="0.02" value="${app.scale ?? 1}" /></label>
+          <label class="inv-row"><span>Scale <b data-app-scale-val>×${Number(app.scale ?? 1).toFixed(2)}</b></span><input type="range" data-app-scale min="0.25" max="3" step="0.02" value="${app.scale ?? 1}" /></label>
+          <p class="inv-hint" data-app-len>SI length: measure after apply (hand mesh)</p>
           <label class="inv-row"><span>Yaw °</span><input type="range" data-app-yaw min="-180" max="180" step="1" value="${app.eulerDeg?.[1] ?? 0}" /></label>
           <label class="inv-row"><span>Pitch °</span><input type="range" data-app-pitch min="-90" max="90" step="1" value="${app.eulerDeg?.[0] ?? 0}" /></label>
           <label class="inv-row"><span>Roll °</span><input type="range" data-app-roll min="-90" max="90" step="1" value="${app.eulerDeg?.[2] ?? 0}" /></label>
@@ -885,8 +886,14 @@ export class InventoryPanel {
         panel.querySelectorAll('input').forEach((inp) => {
           inp.addEventListener('input', () => {
             // Live preview
-            setAppearance(item.id, read());
+            const next = setAppearance(item.id, read());
             applyWeaponAppearance(this.character, item.id);
+            const sv = panel.querySelector('[data-app-scale-val]');
+            if (sv) sv.textContent = `×${Number(next.scale ?? 1).toFixed(2)}`;
+            import('../equipment/weaponPrefabLab.js').then(({ measureWeaponScale, formatScaleReadout }) => {
+              const el = panel.querySelector('[data-app-len]');
+              if (el) el.textContent = formatScaleReadout(measureWeaponScale(this.character));
+            });
           });
         });
         panel.querySelector('[data-app-reset]')?.addEventListener('click', () => {

@@ -5,8 +5,8 @@ import { LAYER } from '../core/Layers.js';
 
 /**
  * Horizon island shells around the lab pad.
- * Weld mesh bottoms to WORLD.seafloorY (−5 m); water surface stays at waterY (0).
- * Fix white/snow materials: if map missing, use sand/rock earth tones.
+ * Weld mesh bottoms to WORLD.seafloorY shelf (−5 m); deep ocean is −50 m.
+ * Water surface stays at waterY (0). Fix white/snow materials → sand/rock.
  */
 const ISLAND_CDN =
   'https://assets.grudge-studio.com/models/worlds/small_island.glb';

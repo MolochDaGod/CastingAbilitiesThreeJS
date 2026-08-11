@@ -211,7 +211,7 @@ export class App {
       this.scene.add(this.ground.mesh);
     }
     console.info(
-      `[App] world waterY=${WORLD.waterY} seafloorY=${WORLD.seafloorY} (single water · no snow ground)`
+      `[App] world waterY=${WORLD.waterY} shelfY=${WORLD.seafloorY} oceanFloorY=${WORLD.oceanFloorY ?? -50} (shore bathymetry · single water)`
     );
     this.dust.setPixelRatio(this.renderer.gl.getPixelRatio());
     /** One map: Training Room · DevIsland (play + /devnode) */
@@ -1887,7 +1887,8 @@ export class App {
       }
       this.physics.addWaterLayer({
         waterY: WORLD.waterY,
-        halfXZ: WORLD.physicsGroundHalf * 1.4
+        deepY: WORLD.oceanFloorY ?? -50,
+        halfXZ: WORLD.physicsGroundHalf * 1.6
       });
       this.drc.setPhysics(this.physics);
       this.walk.setPhysics?.(this.physics);

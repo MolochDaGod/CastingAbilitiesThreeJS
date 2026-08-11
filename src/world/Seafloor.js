@@ -1,6 +1,9 @@
 /**
- * Ocean seafloor at WORLD.seafloorY (−5 m by default).
- * Sand plane under StageWater (waterY = 0). One floor — no snow / white default mats.
+ * Deep ocean seafloor at WORLD.oceanFloorY (−50 m by default).
+ * Island shelf weld is WORLD.seafloorY (−5 m) — continuous slope is the
+ * IslandHeightfield bathymetry; this plane is the deep sand under open sea.
+ *
+ * Water surface stays at waterY = 0 (StageWater only).
  */
 import {
   Mesh,
@@ -18,48 +21,52 @@ function makeSandTexture() {
   const c = document.createElement('canvas');
   c.width = c.height = 256;
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#b8955c';
+  ctx.fillStyle = '#8a6e48';
   ctx.fillRect(0, 0, 256, 256);
   for (let i = 0; i < 4000; i++) {
     const x = Math.random() * 256;
     const y = Math.random() * 256;
-    const v = 140 + Math.random() * 80;
-    ctx.fillStyle = `rgb(${v},${v * 0.82},${v * 0.55})`;
+    const v = 100 + Math.random() * 70;
+    ctx.fillStyle = `rgb(${v},${v * 0.78},${v * 0.5})`;
     ctx.fillRect(x, y, 1 + Math.random() * 2, 1 + Math.random() * 2);
   }
   const tex = new CanvasTexture(c);
   tex.wrapS = tex.wrapT = RepeatWrapping;
-  tex.repeat.set(48, 48);
+  tex.repeat.set(64, 64);
   tex.needsUpdate = true;
   return tex;
 }
 
 export class Seafloor {
   constructor() {
-    const size = WORLD.waterSize * 1.15;
-    const y = WORLD.seafloorY ?? -5;
+    const size = WORLD.waterSize * 1.25;
+    // Deep ocean floor — island heightfield handles −5 m shelf + slope
+    const y = WORLD.oceanFloorY ?? WORLD.seafloorY ?? -50;
     const sand = new Color(WORLD.seafloorColor || WORLD.sandColor || '#8a7350');
 
     this.material = new MeshStandardMaterial({
       color: sand,
       map: makeSandTexture(),
-      roughness: 0.96,
+      roughness: 0.97,
       metalness: 0.0,
       dithering: true
     });
 
-    this.mesh = new Mesh(new PlaneGeometry(size, size, 1, 1), this.material);
+    // Slight tessellation so fog/lighting doesn't read as infinite flat plastic
+    const segs = 8;
+    this.mesh = new Mesh(new PlaneGeometry(size, size, segs, segs), this.material);
     this.mesh.rotation.x = -Math.PI / 2;
     this.mesh.position.y = y;
     this.mesh.name = 'Seafloor';
     this.mesh.receiveShadow = true;
     this.mesh.castShadow = false;
     this.mesh.layers.set(LAYER.WORLD);
-    this.mesh.renderOrder = -2;
+    this.mesh.renderOrder = -3;
     this.mesh.userData.seafloor = true;
+    this.mesh.userData.oceanFloorY = y;
+    this.mesh.userData.shelfY = WORLD.seafloorY ?? -5;
     this.group = this.mesh;
 
-    // Prefer CDN sand albedo when available
     this._tryLoadMap([
       'https://assets.grudge-studio.com/textures/terrain/sand_albedo.jpg',
       'https://assets.grudge-studio.com/textures/ground/sand.jpg'
@@ -77,11 +84,11 @@ export class Seafloor {
         url,
         (tex) => {
           tex.wrapS = tex.wrapT = RepeatWrapping;
-          tex.repeat.set(32, 32);
+          tex.repeat.set(48, 48);
           tex.colorSpace = 'srgb';
           this.material.map = tex;
           this.material.needsUpdate = true;
-          console.info('[Seafloor] sand map', url);
+          console.info('[Seafloor] sand map', url, 'y=', this.mesh.position.y);
         },
         undefined,
         () => next()

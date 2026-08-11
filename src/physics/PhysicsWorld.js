@@ -267,26 +267,73 @@ export class PhysicsWorld {
   }
 
   /**
-   * Water terrain layer — sample only (visual StageWater + freeride).
-   * Optional cuboid sensor under water plane for future buoyancy queries.
-   * @param {{ waterY?: number, halfXZ?: number }} [opts]
+   * Water terrain layer — surface sensor + depth volume for buoyancy queries.
+   * Solid walk is the heightfield (land + shore bathymetry under water).
+   * Water "hits" terrain where landHeightAt < waterY (shore / shelf).
+   * @param {{ waterY?: number, halfXZ?: number, deepY?: number }} [opts]
    */
   addWaterLayer(opts = {}) {
     if (!this.ready || !this.world) return;
-    const waterY = opts.waterY ?? WORLD.waterY ?? -0.04;
-    const half = opts.halfXZ ?? WORLD.physicsGroundHalf * 1.5;
-    // Thin sensor slab at water surface — collision events later; not solid walk
+    const waterY = opts.waterY ?? WORLD.waterY ?? 0;
+    const deepY = opts.deepY ?? WORLD.oceanFloorY ?? -50;
+    const half = opts.halfXZ ?? WORLD.physicsGroundHalf * 1.8;
     if (this.bodies.has('water')) return;
+
+    // Thin sensor at surface (freeride / splash queries)
     const body = this.world.createRigidBody(
-      RAPIER.RigidBodyDesc.fixed().setTranslation(0, waterY - 0.5, 0)
+      RAPIER.RigidBodyDesc.fixed().setTranslation(0, waterY - 0.15, 0)
     );
     const col = this.world.createCollider(
-      RAPIER.ColliderDesc.cuboid(half, 0.5, half)
-        .setSensor(true)
-        .setFriction(0),
+      RAPIER.ColliderDesc.cuboid(half, 0.2, half).setSensor(true).setFriction(0),
       body
     );
     this.bodies.set('water', { body, collider: col, kind: 'water_sensor', waterY });
+
+    // Deep water volume sensor (surface → deep floor) for submersion tests
+    const depth = Math.max(2, waterY - deepY);
+    const midY = (waterY + deepY) * 0.5;
+    const volBody = this.world.createRigidBody(
+      RAPIER.RigidBodyDesc.fixed().setTranslation(0, midY, 0)
+    );
+    const volCol = this.world.createCollider(
+      RAPIER.ColliderDesc.cuboid(half * 1.05, depth * 0.5, half * 1.05)
+        .setSensor(true)
+        .setFriction(0),
+      volBody
+    );
+    this.bodies.set('water_volume', {
+      body: volBody,
+      collider: volCol,
+      kind: 'water_volume',
+      waterY,
+      deepY
+    });
+    console.info(
+      `[PhysicsWorld] water surface y=${waterY} volume deepY=${deepY} (heightfield owns solid shore)`
+    );
+  }
+
+  /**
+   * True when land/seafloor height is under water surface (wet / swimming zone).
+   * @param {number} x
+   * @param {number} z
+   * @param {number} [margin]
+   */
+  isSubmergedAt(x, z, margin = 0.05) {
+    const land = this.sampleLandY(x, z);
+    const water = this.sampleWaterY(x, z);
+    return land < water - margin;
+  }
+
+  /**
+   * Water column depth above terrain (0 on dry land).
+   * @param {number} x
+   * @param {number} z
+   */
+  waterDepthAt(x, z) {
+    const land = this.sampleLandY(x, z);
+    const water = this.sampleWaterY(x, z);
+    return Math.max(0, water - land);
   }
 
   /**
