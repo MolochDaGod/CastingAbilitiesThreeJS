@@ -13,6 +13,7 @@ import { IslandHeightfield } from '../world/IslandHeightfield.js';
 import { terrainHandle } from '../world/terrainGround.js';
 import { mountTerrainLayers, TERRAIN_LAYER } from '../world/terrainLayers.js';
 import { OpenSeaShells } from '../world/OpenSeaShells.js';
+import { HomeIslandScenery } from '../world/homeIslandScenery.js';
 import { DustMotes } from '../world/DustMotes.js';
 import { ContactShadows } from '../world/ContactShadows.js';
 import { WORLD } from '../config/worldScale.js';
@@ -100,6 +101,7 @@ import {
   getActiveSkills
 } from '../combat/drcSkills.js';
 import { T0_ALL_WEAPON_IDS } from '../api/t0WeaponCatalog.js';
+import { loadLabAdmin, labAdminStatusLine } from '../config/labAdmin.js';
 import { PhysicsWorld } from '../physics/PhysicsWorld.js';
 import { VfxDirector } from '../vfx/VfxDirector.js';
 import { loadGeneratedCatalog, spawnGeneratedProp } from '../assets/generatedCatalog.js';
@@ -108,6 +110,7 @@ import { fleetApi } from '../api/fleetApi.js';
 
 import { settings, ELEMENTS, MODES, MODE_META } from '../config/settings.js';
 import { SessionState, INTERACTION_MODE, DRC_SESSION } from './SessionState.js';
+import { runGameplayGates, logGameplayGates } from './gameplayGates.js';
 import {
   resolvePlayerIdentity,
   displayNameForKit
@@ -160,12 +163,16 @@ export class App {
     this.scene = this.environment.scene;
 
     /* ---- world (SI: ~2 m hero → map scale 1.5× original stage) ---- */
-    // Apply world fog / camera extents once at boot
+    // Fog follows island scale. Camera stays Fortnite shoulder TPS (settings.camera)
+    // — do NOT overwrite distance with WORLD.cameraDistance (~14 m) or focus dies.
     settings.environment.fogNear = WORLD.fogNear;
     settings.environment.fogFar = WORLD.fogFar;
-    settings.camera.distance = WORLD.cameraDistance;
-    settings.camera.maxDistance = WORLD.cameraMaxDistance;
-    settings.camera.minDistance = WORLD.cameraMinDistance;
+    // Soft max only: allow zoom out a bit on large pad, keep min tight for builder
+    settings.camera.maxDistance = Math.max(
+      settings.camera.maxDistance ?? 12,
+      Math.min(18, WORLD.cameraMaxDistance * 0.45)
+    );
+    settings.camera.minDistance = Math.min(settings.camera.minDistance ?? 2.5, WORLD.cameraMinDistance);
 
     this.ground = new Ground(this.environment);
     this.water = new StageWater();
@@ -603,9 +610,12 @@ export class App {
       this.walk?.cancel?.();
     }
 
-    // Camera view from gates
-    if (g.tpsCamera) this.rig.setViewMode('tps');
-    else if (g.orbitCamera) this.rig.setViewMode('orbit');
+    // Camera: combat/freeride = Fortnite shoulder TPS; equip/builder = orbit
+    if (g.tpsCamera) {
+      this.rig.applyGameplayMode?.('combat') || this.rig.setViewMode('tps');
+    } else if (g.orbitCamera) {
+      this.rig.applyGameplayMode?.('builder') || this.rig.setViewMode('orbit');
+    }
 
     this.input.setCombatKeys?.(g.combatKeys);
     this.pathDrawer.setCombatMinLength?.(
@@ -1919,8 +1929,11 @@ export class App {
         this.growingForest = layers.forest;
         this.stylizedGrass = layers.grass;
         if (this.growingForest) {
+          const fs = this.growingForest.getStats?.() || {
+            trees: this.growingForest.trees.length
+          };
           console.info(
-            `[App] L2 forest ×${this.growingForest.trees.length} · ${TERRAIN_LAYER.L2_VEGETATION}`
+            `[App] L2 harvest forest ×${fs.trees} mature=${fs.mature ?? '?'} branches=${fs.branches ?? '?'} leaves=${fs.leaves ?? '?'} · forestoutline · ${TERRAIN_LAYER.L2_VEGETATION}`
           );
         }
         if (this.stylizedGrass) {
@@ -1986,6 +1999,29 @@ export class App {
       this.openSea = null;
     }
 
+    // Home-island scenery: farm modular · lake · river village (L3 dress)
+    // ?scenery=0 disables; default ON for Training Room / NPC home authoring
+    this.loading.setProgress(0.77, 'Home island scenery…');
+    try {
+      const sceneryOff = /[?&]scenery=0\b/.test(location.search);
+      this.homeScenery = new HomeIslandScenery({
+        scene: this.scene,
+        assets,
+        heightSample: this.terrain?.sample || null,
+        enabled: !sceneryOff
+      });
+      if (!sceneryOff) {
+        await this.homeScenery.init({ farm: true, lake: true, village: true });
+        // Softer ocean near pad when lake/village dress is present
+        if (this.water?.uniforms?.uStorm) {
+          this.water._stormTarget = Math.min(this.water._stormTarget ?? 0.35, 0.22);
+        }
+      }
+    } catch (err) {
+      console.warn('[App] HomeIslandScenery', err);
+      this.homeScenery = null;
+    }
+
     this.generatedCatalog = null;
     if (/[?&]props=1\b/.test(location.search)) {
       this.loading.setProgress(0.78, 'Generated props catalog…');
@@ -2006,12 +2042,17 @@ export class App {
     this.loading.setProgress(0.85, 'Compiling shaders…');
     await this.renderer.gl.compileAsync(this.scene, this.camera);
 
-    // Game state: combat + physics capsule at feet + TPS camera on hero
+    // Game state: combat + physics capsule at feet + TPS shoulder camera on hero
+    // Feet on heightfield — never hardcode y=0 (floating / underground bug)
     this.drc.setSession('combat');
-    this.physics?.setPlayerFeet?.(0, 0, 0);
-    this.character.placeAt?.(0, 0, 0);
-    this.rig.snapToCharacter?.(0, 0, 0, this.character.facing);
-    this.rig.setAnchor(0, 0, 0);
+    {
+      const ySpawn = this.islandTerrain?.sample?.(0, 0) ?? this.physics?.sampleLandY?.(0, 0) ?? 0;
+      this.physics?.setPlayerFeet?.(0, ySpawn, 0);
+      this.character.placeAt?.(0, ySpawn, 0);
+      this.rig.snapToCharacter?.(0, ySpawn, 0, this.character.facing);
+      this.rig.setAnchor(0, ySpawn, 0);
+      this.rig.setViewMode?.('tps');
+    }
     // Backflip setup: hold camera yaw (do not follow reverse body)
     if (this.character?.isBackflip || this.drc?._flipHoldYaw != null) {
       const hold =
@@ -2042,8 +2083,22 @@ export class App {
       3800
     );
 
-    // T0 starter equip: ?sword=1 | ?wand=1 | ?t0=t0-axe1h (any catalog id)
+    // Gameplay / UX gates (feet · anim · shoulder TPS · skills · loco)
+    try {
+      const report = logGameplayGates(runGameplayGates(this));
+      this._gameplayGates = report;
+      if (typeof window !== 'undefined') window.__gameplayGates = report;
+      if (!report.ok) {
+        this.hud.showToast?.(`Gates · ${report.summary}`, 4200);
+      }
+    } catch (e) {
+      console.warn('[App] gameplay gates', e);
+    }
+
+    // Weapon equip: URL override or lab admin default — skill tree always `equipped`
     {
+      const admin = loadLabAdmin();
+      console.info(`[App] ${labAdminStatusLine()}`);
       const m = location.search.match(/[?&]t0=([a-z0-9-]+)/i);
       const legacy =
         /[?&]sword=1\b/.test(location.search)
@@ -2053,12 +2108,12 @@ export class App {
             : /[?&]sapling=1\b/.test(location.search)
               ? 't0-nature-staff'
               : null;
-      const t0Id = m?.[1] || legacy;
+      const t0Id = m?.[1] || legacy || (admin.admin ? admin.defaultWeaponId : null);
       if (t0Id) {
         try {
           const id = T0_ALL_WEAPON_IDS.includes(t0Id)
             ? t0Id
-            : t0Id.startsWith('t0-')
+            : t0Id.startsWith('t0-') || t0Id.length > 2
               ? t0Id
               : null;
           if (id) {
@@ -2068,11 +2123,19 @@ export class App {
             });
             setActiveSkillTree('equipped');
             this.drc.skills = getActiveSkills();
+            this.hud.refreshSkillLabels?.();
             const labels = (result.hotbar || []).map((s) => s.label).join(' · ');
-            this.hud.showToast(`${result.weapon?.name || id} T0 · ${labels}`, 4000);
+            const icons = (result.hotbar || []).filter((s) => s.iconUrl).length;
+            this.hud.showToast(
+              `${result.weapon?.name || id} T${result.weapon?.tier ?? 0} · ${labels} · ${icons}/${result.hotbar?.length || 0} icons`,
+              4000
+            );
+            console.info(
+              `[App] equipped ${id} · tree=equipped · hotbar=${labels} · icons=${icons}`
+            );
           }
         } catch (err) {
-          console.warn('[App] t0 equip', t0Id, err);
+          console.warn('[App] weapon equip', t0Id, err);
         }
       }
     }
@@ -2191,7 +2254,11 @@ export class App {
         if (this.aimMarker.visible) {
           this.aimMarker.position.x = this.mouseAim.point.x;
           this.aimMarker.position.z = this.mouseAim.point.z;
-          this.aimMarker.position.y = 0.05;
+          const gy =
+            this.terrain?.sample?.(this.mouseAim.point.x, this.mouseAim.point.z) ??
+            this.mouseAim.point.y ??
+            0;
+          this.aimMarker.position.y = gy + 0.05;
           const d = this.mouseAim.distanceTo(feetPos);
           const s = MathUtils.clamp(0.7 + d * 0.04, 0.7, 1.6);
           this.aimMarker.scale.setScalar(s);

@@ -51,6 +51,17 @@
 Default cast = `cast_ramp` · land = `impact_magic` a/b/c.  
 `cast_chant` (blood shaman) only for explicit blood/void skill ids.
 
+### Gameplay + UX gates (must pass)
+
+After boot: feet on heightfield · one mixer + anim state · Fortnite **shoulder TPS** (5.5–6 m, Orbit off in combat) · weapon skills · loco/physics · HUD.
+
+```js
+window.__gameplayGates  // { ok, summary, gates[] }
+```
+
+Doc: `docs/GAMEPLAY_UX_GATES_SSOT.md` · code `src/core/gameplayGates.js`  
+Camera: combat = TPS shoulder; equip/builder = orbit; focus = tighter 5.5 m.
+
 ### VFX Studio (singular skill authoring shell)
 
 **Toggle:** **V** / HUD **VFX** · `src/ui/vfxStudio/VfxStudio.js`  

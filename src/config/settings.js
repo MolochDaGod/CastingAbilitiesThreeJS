@@ -650,8 +650,8 @@ export const settings = {
      * false = hold RMB to stay in focus (release = off)
      */
     focusToggle: true,
-    /** Show on-screen hotkey chips under tight bar */
-    showHotkeyChips: true,
+    /** Show on-screen hotkey chips under tight bar (off — clutter; help uses ?) */
+    showHotkeyChips: false,
     /** Invert look Y in focus/TPS */
     invertLookY: false,
     /** Mouse look sensitivity scale (multiplies camera.orbitSensitivity) */
@@ -677,14 +677,15 @@ export const settings = {
     meadowColor: '#3f6b3a',
     dirtColor: '#6f5435',
     shoreColor: '#8a7355',
-    /** L2 Growing forest (forestoutline / snakey trees) */
-    forestCount: 48,
+    /** L2 harvest-node forest (Desktop forestoutline.html procedural instanced) */
+    forestCount: 64,
     forestEnabled: true,
-    forestClearRadius: 11,
+    forestClearRadius: 9,
     /** L2 Stylized grass (three-stylized meadow on L0) */
     grassEnabled: true,
-    grassDensity: 28,
-    grassClearRadius: 6,
+    /** denser meadow for Dev Island playtest (was 28) */
+    grassDensity: 52,
+    grassClearRadius: 5,
     grassBladeMax: 0.55,
     grassWind: 0.22,
     grassColorBottom: '#3d6b1a',
@@ -702,35 +703,34 @@ export const settings = {
      * @see docs/COMBAT_CAMERA_FOCUS_SSOT.md
      * @see MolochDaGod/grudge-third-person-controller
      */
-    /** Free / equip distance (m) — closer than old 6.2, still not ADS */
+    /**
+     * Fortnite shoulder TPS (grudge-third-person-controller CAMERA_MODES):
+     * free ~6 m · focus 5.5 m · shoulder 0.72/0.8 · FOV 70/78 sprint.
+     * Builder uses orbit only in equip; combat always TPS.
+     */
     distance: 6.0,
-    /** Focus combat distance (Fortnite default 5.5) */
     focusDistance: 5.5,
     minDistance: 2.5,
     maxDistance: 12,
-    zoomSpeed: 0.6,
-    zoomDamping: 0.002,
+    zoomSpeed: 0.55,
+    zoomDamping: 0.003,
     minPolar: 0.22,
     maxPolar: 1.4,
-    /** Stable FOV (GRUDOX animator base; sprint uses sprintFov kick) */
     fov: 70,
-    /** Sprint FOV target (animator / DGS CameraController kick) */
     sprintFov: 78,
-    /** @deprecated unused — kept so old editor presets don't throw */
     actionFov: 70,
-    /** FOV damp (sprint kick + editor) */
     fovDamping: 0.14,
-    /** Look-at height (m) — Fortnite lower shoulder (~1.8 human chest/head band) */
+    /** Chest look height (m) — ~human 1.8 m band */
     targetHeight: 1.55,
     damping: 0.06,
-    autoFrame: 0.35,
-    tpsDamping: 0.14,
+    autoFrame: 0.28,
+    tpsDamping: 0.12,
     tpsDistanceScale: 1.0,
-    /** Free shoulder offset (m) */
+    /** Free shoulder (m) */
     shoulderOffset: 0.72,
-    /** Focus shoulder — Fortnite tighter 0.8 */
+    /** Focus over-the-shoulder (Fortnite) */
     focusShoulderOffset: 0.8,
-    tpsDefaultPitch: 0.42,
+    tpsDefaultPitch: 0.4,
     minPitch: 0.12,
     maxPitch: 1.35,
     /**
@@ -738,8 +738,9 @@ export const settings = {
      * Higher when focused — soft lock is ON in focus.
      */
     /** Mild free soft-look; stronger in focus for GRUDOX framing (not hard snap) */
-    softLockLook: 0.28,
-    softLockLookFocus: 0.42,
+    /** Mild soft-look only — never auto yaw/pitch (shoulder rider owns orbit) */
+    softLockLook: 0.18,
+    softLockLookFocus: 0.28,
     /** Purged: auto camera yaw toward target (was action-angle fight) */
     softLockYawAssist: 0,
     softLockYawConeDeg: 48,

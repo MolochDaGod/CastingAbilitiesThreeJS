@@ -129,13 +129,17 @@ export class CameraRig {
     const next = mode === 'tps' ? 'tps' : 'orbit';
     if (this.viewMode === next) return;
     this.viewMode = next;
+    // Fleet hard rule: OrbitControls never writes camera during combat TPS
     this.controls.enabled = next === 'orbit';
     if (next === 'tps') {
       this._tpsYawOffset = 0;
-      this._tpsPitch = settings.camera.tpsDefaultPitch ?? 0.38;
-      // Combat FOV
+      this._tpsPitch = settings.camera.tpsDefaultPitch ?? 0.42;
+      // Fortnite free distance default; focus will damp to focusDistance
+      const freeD = settings.camera.distance ?? 6;
+      this.distance = Math.min(this.distance || freeD, freeD * 1.15);
       if (settings.camera.fov) {
         this.camera.fov = settings.camera.fov;
+        this._fov = settings.camera.fov;
         this.camera.updateProjectionMatrix();
       }
     }
@@ -441,13 +445,36 @@ export class CameraRig {
     this.controls.target.copy(_look);
   }
 
+  /**
+   * Snap TPS shoulder rig to character (spawn / combat enter).
+   * Uses free distance unless focus already ON → focusDistance (Fortnite 5.5).
+   */
   snapToCharacter(x, y, z, yaw = 0) {
     this.setAnchor(x, y ?? 0, z);
     this.setCharacterYaw(yaw);
     this.setViewMode('tps');
-    this.distance = settings.camera.distance;
-    this._tpsPitch = settings.camera.tpsDefaultPitch ?? 0.38;
-    this._updateTps(0, settings.camera, true);
+    const cam = settings.camera;
+    const focusOn = !!this.combatFocus?.focusEnabled;
+    this.distance = focusOn
+      ? (cam.focusDistance ?? 5.5)
+      : (cam.distance ?? 6.0);
+    this._tpsPitch = cam.tpsDefaultPitch ?? 0.42;
+    this._tpsYawOffset = 0;
+    this._updateTps(0, cam, true);
+  }
+
+  /**
+   * Builder / equip: orbit allowed. Combat / freeride: always TPS shoulder.
+   * @param {'combat'|'equip'|'builder'|'freeride'} mode
+   */
+  applyGameplayMode(mode) {
+    if (mode === 'combat' || mode === 'freeride') {
+      this.setViewMode('tps');
+    } else if (mode === 'equip' || mode === 'builder') {
+      // Builder review — orbit; focus toggle still forces TPS via CombatFocus
+      if (!this.combatFocus?.focusEnabled) this.setViewMode('orbit');
+      else this.setViewMode('tps');
+    }
   }
 
   resize(width, height) {
