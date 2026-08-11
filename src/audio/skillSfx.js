@@ -6,8 +6,8 @@
  * Roles:
  *  cast_ramp   — channel / cast start (ramp-up)
  *  cast_chant  — longer cast / blood·arcane·holy flavor
- *  parry       — C parry / block metal
- *  burn        — fire impact · residual fire · bomb
+ *  parry       — C parry **attempt** (not only success)
+ *  burn        — soft **loop** while player has burn status (not fire impact)
  *  heal        — heal / regenerate (two variants, random)
  */
 
@@ -31,6 +31,9 @@ let unlocked = false;
 let muted = false;
 let masterVol = 0.72;
 let useCdnFallback = true;
+/** Soft burn loop while player has burn status */
+let burnLoop = null;
+let burnLoopActive = false;
 
 function resolveUrl(role, variantIndex = 0) {
   const entry = SKILL_SFX_URLS[role];
@@ -107,6 +110,7 @@ export async function unlockSkillSfx() {
 
 export function setSkillSfxMuted(m) {
   muted = !!m;
+  if (muted) setPlayerBurningSfx(false);
 }
 
 export function setSkillSfxVolume(v) {
@@ -225,26 +229,24 @@ export function playForElementCast(element) {
 
 /**
  * Impact / residual by element or skill.
+ * Note: fire impact does **not** use burn.wav — that file is the soft burn loop on the player.
  * @param {string} [element]
  * @param {{ skill?: object, kind?: string }} [opts]
  */
 export function playForImpact(element, opts = {}) {
   const el = String(element || opts.skill?.element || '').toLowerCase();
   const kind = String(opts.kind || '').toLowerCase();
-  if (el === 'fire' || kind === 'fire' || kind === 'burn' || kind === 'bomb') {
-    playSkillSfx('burn', { volume: 0.85 });
-    return;
-  }
   if (el === 'holy' || kind === 'heal') {
     playSkillSfx('heal', { volume: 0.7 });
     return;
   }
-  // light impact click via cast_ramp short — skip if nothing else fits
-  if (kind === 'melee' || kind === 'residual') {
-    playSkillSfx('cast_ramp', { volume: 0.35, rate: 1.35 });
+  // Fire / bomb / residual: cast-ramp crackle only (burn loop is status-driven)
+  if (el === 'fire' || kind === 'fire' || kind === 'bomb' || kind === 'residual' || kind === 'melee') {
+    playSkillSfx('cast_ramp', { volume: kind === 'fire' || kind === 'bomb' ? 0.45 : 0.32, rate: 1.25 });
   }
 }
 
+/** Parry **attempt** (keydown / quick action) — always play when player tries. */
 export function playParrySfx() {
   return playSkillSfx('parry', { volume: 0.9 });
 }
@@ -253,8 +255,65 @@ export function playHealSfx() {
   return playSkillSfx('heal', { volume: 0.85 });
 }
 
+/**
+ * Soft burning noise while the player is on fire (status).
+ * Loops quietly; stops when burn status ends.
+ * @param {boolean} active
+ * @param {{ volume?: number }} [opts]
+ */
+export function setPlayerBurningSfx(active, opts = {}) {
+  const want = !!active && !muted;
+  if (want === burnLoopActive && burnLoop) {
+    if (want && opts.volume != null) {
+      burnLoop.volume = Math.min(1, Math.max(0, opts.volume * masterVol));
+    }
+    return burnLoop;
+  }
+  burnLoopActive = want;
+
+  if (!want) {
+    if (burnLoop) {
+      try {
+        burnLoop.pause();
+        burnLoop.currentTime = 0;
+        burnLoop.loop = false;
+      } catch {
+        /* ignore */
+      }
+      burnLoop = null;
+    }
+    return null;
+  }
+
+  try {
+    if (!unlocked) void unlockSkillSfx();
+    const url = resolveUrl('burn');
+    if (!url) return null;
+    const audio = acquire(url);
+    audio.loop = true;
+    // Soft under-player crackle — not impact loudness
+    audio.volume = Math.min(1, Math.max(0, (opts.volume != null ? opts.volume : 0.22) * masterVol));
+    audio.playbackRate = 0.92;
+    try {
+      audio.currentTime = 0;
+    } catch {
+      /* ignore */
+    }
+    const p = audio.play();
+    if (p && typeof p.catch === 'function') p.catch(() => {});
+    burnLoop = audio;
+    return audio;
+  } catch (e) {
+    console.warn('[skillSfx] burn loop', e);
+    burnLoop = null;
+    burnLoopActive = false;
+    return null;
+  }
+}
+
+/** @deprecated Prefer setPlayerBurningSfx — burn.wav is status loop, not impact */
 export function playBurnSfx() {
-  return playSkillSfx('burn', { volume: 0.88 });
+  return setPlayerBurningSfx(true, { volume: 0.22 });
 }
 
 /** Wire document gesture unlock once. */
@@ -277,6 +336,7 @@ export const SkillSfx = {
   playParry: playParrySfx,
   playHeal: playHealSfx,
   playBurn: playBurnSfx,
+  setPlayerBurning: setPlayerBurningSfx,
   unlock: unlockSkillSfx,
   setMuted: setSkillSfxMuted,
   setVolume: setSkillSfxVolume,

@@ -87,6 +87,7 @@ export {
   playParrySfx,
   playHealSfx,
   playBurnSfx,
+  setPlayerBurningSfx,
   unlockSkillSfx,
   installSkillSfxGestureUnlock,
   SKILL_SFX_URLS

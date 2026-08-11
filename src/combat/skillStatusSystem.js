@@ -169,9 +169,13 @@ export class SkillStatusSystem {
 
     // Damage toast / number (hosts wire HP later)
     const dmg = Number(skill.damage ?? hit.damage ?? 0);
-    const tid = target?.id || target?.mesh?.uuid || (opts.applyToPlayer ? 'player' : 'aim');
+    // Self / player hits always register under 'player' so burn SFX / move mul stay consistent
+    const tid = opts.applyToPlayer
+      ? 'player'
+      : target?.id || target?.mesh?.uuid || 'aim';
 
     if (target?.mesh) this._targets.set(tid, target);
+    if (opts.applyToPlayer) this._targets.set('player', target || { id: 'player', kind: 'player' });
 
     const applied = [];
     for (const st of statuses) {

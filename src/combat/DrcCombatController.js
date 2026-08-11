@@ -48,7 +48,7 @@ import {
   playForImpact,
   playParrySfx,
   playHealSfx,
-  playBurnSfx
+  setPlayerBurningSfx
 } from '../audio/skillSfx.js';
 import {
   createFlintlockChamber,
@@ -789,6 +789,10 @@ export class DrcCombatController {
     this.projectiles?.update?.(dt);
     this.tipTrail?.update?.(dt, this.elapsed);
     this.statuses?.update?.(this.elapsed);
+    // Soft burn crackle only while player has burn status (not on fire impacts)
+    try {
+      setPlayerBurningSfx(!!this.statuses?.hasStatus?.('player', 'burn'), { volume: 0.22 });
+    } catch (_) {}
     this.flintlock?.tick?.(this.elapsed);
     this._tickWeaponCharge(dt, keys);
     // Dual resource regen (settings.drc)
@@ -2467,15 +2471,27 @@ export class DrcCombatController {
         return this._utilityAction('bomb', 5.0, 10, () => {
           _fwd.set(Math.sin(this.character.facing), 0, Math.cos(this.character.facing));
           const origin = this.character.position.clone().addScaledVector(_fwd, 2.5);
+          // Lab: brief self-burn so soft burn loop is audible (status-driven, not impact SFX)
           try {
-            playBurnSfx();
+            this.statuses?.applyHit?.({
+              target: { id: 'player', kind: 'player' },
+              skill: {
+                id: 'bomb',
+                element: 'fire',
+                damage: 8,
+                statuses: [{ id: 'burn', durationSec: 4.0, magnitude: 3 }]
+              },
+              hit: { element: 'fire' },
+              character: this.character,
+              applyToPlayer: true
+            });
           } catch (_) {}
           this.vfx?.deploy?.('inferno', {
             origin,
             forward: _fwd.clone(),
             intensity: 1.1
           });
-          this.onToast('Bomb (H)');
+          this.onToast('Bomb (H) · burning');
         });
       case 'mode':
         this.toggleSession();
@@ -2780,14 +2796,14 @@ export class DrcCombatController {
     });
   }
 
-  /** Parry with block/parry clip. */
+  /** Parry with block/parry clip. SFX fires on **attempt** (key press), not only success. */
   parry() {
+    try {
+      playParrySfx();
+    } catch (_) {}
     const stam = settings.drc?.parryStamina ?? 8;
     return this._utilityAction('parry', 0.65, stam, () => {
       this.character.playParry?.() || this.character.requestOneShot?.('block');
-      try {
-        playParrySfx();
-      } catch (_) {}
       _fwd.set(Math.sin(this.character.facing), 0, Math.cos(this.character.facing));
       this.vfx?.deploy?.('arcane_swirl', {
         origin: this.character.position.clone(),
