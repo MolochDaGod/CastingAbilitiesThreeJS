@@ -111,6 +111,7 @@ import { fleetApi } from '../api/fleetApi.js';
 import { settings, ELEMENTS, MODES, MODE_META } from '../config/settings.js';
 import { SessionState, INTERACTION_MODE, DRC_SESSION } from './SessionState.js';
 import { runGameplayGates, logGameplayGates } from './gameplayGates.js';
+import { FishingController } from '../fishing/FishingController.js';
 import {
   resolvePlayerIdentity,
   displayNameForKit
@@ -725,6 +726,43 @@ export class App {
       }
     });
     this.input.on('action', (action, detail) => this._handleAction(action, detail));
+
+    // Fishing profession — wheel reel/slack · snag
+    this.canvas?.addEventListener?.(
+      'wheel',
+      (e) => {
+        if (this.fishing?.phase === 'fight') {
+          e.preventDefault();
+          this.fishing.onWheel(e.deltaY);
+        }
+      },
+      { passive: false }
+    );
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'KeyS' && this.fishing?.phase === 'bite') {
+        this.fishing.onSnagKey();
+      }
+      // Profession start: hold Shift+F when pole equipped near water (optional)
+      if (e.code === 'KeyF' && e.shiftKey && this.fishing?.isPoleEquipped?.()) {
+        e.preventDefault();
+        this.fishing.beginProfession();
+      }
+    });
+    // LMB/RMB during fishing fight / cast (capture before path when active)
+    this.canvas?.addEventListener?.('pointerdown', (e) => {
+      if (!this.fishing?.active && this.fishing?.phase === 'idle') return;
+      if (e.button === 0 && this.fishing?.onPrimaryDown?.()) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      if (e.button === 2 && this.fishing?.onSecondaryDown?.()) {
+        e.preventDefault();
+      }
+    });
+    this.canvas?.addEventListener?.('pointerup', (e) => {
+      if (e.button === 0) this.fishing?.onPrimaryUp?.();
+      if (e.button === 2) this.fishing?.onSecondaryUp?.();
+    });
     this.input.on('sandboxVfx', (effectId) => {
       if (this.drc.previewSandboxEffect(effectId)) {
         this.hud.showToast(`VFX · ${effectId}`);
@@ -2083,6 +2121,34 @@ export class App {
       3800
     );
 
+    // Fishing profession (main-hand pole · Palworld bar · SCUM snag)
+    try {
+      this.fishing = new FishingController({
+        scene: this.scene,
+        character: this.character,
+        camera: this.camera,
+        mouseAim: this.mouseAim,
+        combatFocus: this.combatFocus,
+        assets: this._assets || assets,
+        terrain: this.terrain,
+        waterY: WORLD.waterY,
+        onToast: (m) => this.hud.showToast(m),
+        getEquippedWeaponId: () => getEquippedWeapon?.()?.id || this.character?.weaponId || null,
+        onCatch: (loot) => {
+          try {
+            this.inventory?.addItem?.(loot) || this.worldDrops?.spawnNearPlayer?.(loot);
+          } catch {
+            /* bag optional */
+          }
+          this.hud.showToast?.(`Bag + ${loot.name}`, 2800);
+        }
+      });
+      console.info('[App] fishing profession ready · Shift+F or equip pole + RMB aim');
+    } catch (e) {
+      console.warn('[App] fishing', e);
+      this.fishing = null;
+    }
+
     // Gameplay / UX gates (feet · anim · shoulder TPS · skills · loco)
     try {
       const report = logGameplayGates(runGameplayGates(this));
@@ -2414,6 +2480,11 @@ export class App {
     this.decals.update(dt);
     this.bursts.update(dt);
     this.lights.update(dt);
+    try {
+      this.fishing?.update?.(dt, this.input?.keys);
+    } catch {
+      /* fishing optional */
+    }
 
     /* ---- camera: feet + soft-lock look (production TPS angles) ---- */
     const feet = this.character.getWorldPosition?.() || this.character.position;

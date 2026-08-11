@@ -31,6 +31,7 @@ import {
   productionToDrcSkill,
   warmProductionOverrides
 } from '../combat/weaponSkillProduction.js';
+import { labMaxTier, isLabAdmin } from '../config/labAdmin.js';
 
 export { warmProductionOverrides };
 
@@ -65,6 +66,7 @@ export const T0_ALL_WEAPON_IDS = Object.freeze([
   't0-wand',
   't0-nature-staff',
   't0-tool',
+  't0-fishing-pole',
   't0-offhand-tome'
 ]);
 
@@ -76,7 +78,9 @@ export const T0_MODEL_CDN = Object.freeze({
   't0-wand': `${CDN}/prod/gltf/weapons/t0-wand.glb`,
   't0-nature-staff': `${CDN}/prod/gltf/weapons/t0-nature-staff.glb`,
   /** Flintlock Pistol — local lab mesh until R2 prod upload */
-  't0-gun': './models/weapons/t0-flintlock.glb'
+  't0-gun': './models/weapons/t0-flintlock.glb',
+  /** Fishing pole — Animated Fish Bundle (profession TOOL) */
+  't0-fishing-pole': './models/fish/poles/fishing_rod.glb'
 });
 
 /** category / id → kit mesh slot */
@@ -465,14 +469,26 @@ export async function loadEquippableWeapons() {
       for (const p of prefabCat._rawPrefabs) prefabRawById.set(p.id, p);
     }
 
-    // t0-weapons is skill SSOT; prefabs only enrich icon/model
+    // t0-weapons is skill SSOT; prefabs enrich icon/model.
+    // Lab admin (L20 · max T8): also load higher-tier prefabs that resolve skills
+    // so production push can smoke every icon / tree / equip path.
+    const maxTier = isLabAdmin() ? labMaxTier() : 0;
     const ids = new Set([
       ...t0List.map((w) => w.id),
-      ...prefabList.filter((p) => p.tier === 0 || String(p.id).startsWith('t0-')).map((p) => p.id)
+      ...prefabList
+        .filter(
+          (p) =>
+            p.tier === 0 ||
+            String(p.id).startsWith('t0-') ||
+            (maxTier > 0 && Number(p.tier) <= maxTier && p.weaponType)
+        )
+        .map((p) => p.id)
     ]);
 
     /** @type {EquippableWeapon[]} */
     const weapons = [];
+    let stubCount = 0;
+    let missingIcon = 0;
     for (const id of ids) {
       const present = prefabList.find((p) => p.id === id) || null;
       const raw = prefabRawById.get(id) || present?.raw || null;
@@ -480,6 +496,15 @@ export async function loadEquippableWeapons() {
       // Prefer t0 body (skills) + prefab mesh when available
       const eq = buildEquippable(raw || present?.raw || present, t0, skillsCat);
       if (eq) {
+        // Every skill must produce an icon for Main Panel tree + HUD
+        ensureWeaponSkillIcons(eq);
+        if (
+          eq.slot1?.source === 'stub-fallback' ||
+          eq.slot2?.source === 'stub-fallback'
+        ) {
+          stubCount += 1;
+        }
+        if (!eq.iconUrl) missingIcon += 1;
         eq.catalogSource = {
           t0: T0_WEAPONS_URL,
           skillsHtml: WEAPON_SKILLS_HTML,
@@ -487,6 +512,15 @@ export async function loadEquippableWeapons() {
         };
         weapons.push(eq);
       }
+    }
+    if (stubCount || missingIcon) {
+      console.warn(
+        `[t0WeaponCatalog] ${weapons.length} weapons · ${stubCount} with stub skills · ${missingIcon} missing weapon icon · maxTier=${maxTier}`
+      );
+    } else {
+      console.info(
+        `[t0WeaponCatalog] ${weapons.length} weapons loaded · all skill icons resolved · maxTier=${maxTier}`
+      );
     }
 
     // Ensure the two magic starters always surface first when present
@@ -725,6 +759,103 @@ export function skillDefToDrc(sk, barSlot, weapon) {
 }
 
 /**
+ * Guarantee every skill on a weapon has iconUrl (CDN or weapon fallback).
+ * Product: no weapon ships without skill icons for Main Panel + HUD.
+ * @param {EquippableWeapon} weapon
+ */
+export function ensureWeaponSkillIcons(weapon) {
+  if (!weapon) return weapon;
+  const fallback =
+    weapon.iconUrl ||
+    cdnUrl('icons/pack/weapons/Sword_01.png');
+  if (!weapon.iconUrl) weapon.iconUrl = fallback;
+  const patch = (sk) => {
+    if (!sk) return;
+    if (!sk.iconUrl) {
+      sk.iconUrl = iconCdnUrl(sk.icon) || fallback;
+    }
+    if (!sk.icon && sk.iconUrl) {
+      // keep path-ish for export when only URL present
+      sk.icon = sk.icon || null;
+    }
+  };
+  patch(weapon.slot1);
+  patch(weapon.slot2);
+  for (const s of weapon.slot3Options || []) patch(s);
+  return weapon;
+}
+
+/**
+ * Full skill list for Main Panel weapon skill tree (icons + tooltips).
+ * Slot1 · Slot2 · all Slot3 options — catalog only.
+ * @param {EquippableWeapon} weapon
+ * @param {string} [activeSlot3Id]
+ */
+export function weaponSkillTreeRows(weapon, activeSlot3Id) {
+  if (!weapon) return [];
+  ensureWeaponSkillIcons(weapon);
+  const active =
+    activeSlot3Id || weapon.defaultSlot3Id || weapon.slot3Options?.[0]?.id;
+  /** @type {object[]} */
+  const rows = [];
+  if (weapon.slot1) {
+    rows.push({
+      ...weapon.slot1,
+      barSlot: 0,
+      keyLabel: '1',
+      active: true,
+      treeRole: 'primary'
+    });
+  }
+  if (weapon.slot2) {
+    rows.push({
+      ...weapon.slot2,
+      barSlot: 1,
+      keyLabel: '2',
+      active: true,
+      treeRole: 'secondary'
+    });
+  }
+  for (const s of weapon.slot3Options || []) {
+    rows.push({
+      ...s,
+      barSlot: 2,
+      keyLabel: '3',
+      active: s.id === active,
+      treeRole: 'ability',
+      choice: true
+    });
+  }
+  return rows;
+}
+
+/**
+ * Tooltip body for a weapon skill (Main Panel + HUD title).
+ * @param {object} sk
+ * @param {EquippableWeapon} [weapon]
+ */
+export function weaponSkillTooltip(sk, weapon) {
+  if (!sk) return '';
+  const parts = [
+    sk.name || sk.label || sk.id,
+    sk.description || '',
+    [
+      sk.damageType || '',
+      sk.damage != null ? `${sk.damage} dmg` : '',
+      sk.cooldown != null ? `CD ${sk.cooldown}s` : '',
+      sk.castTime != null && sk.castTime > 0 ? `cast ${sk.castTime}s` : 'Instant',
+      sk.range != null ? `rng ${sk.range}` : ''
+    ]
+      .filter(Boolean)
+      .join(' · '),
+    weapon ? `${weapon.name} · T${weapon.tier} · ${weapon.weaponType}` : '',
+    sk.slotType || sk.treeRole || '',
+    sk.source === 'stub-fallback' ? '⚠ stub — catalog missing skill body' : ''
+  ].filter(Boolean);
+  return parts.join('\n');
+}
+
+/**
  * Hotbar for equipped weapon — **catalog skills only** (no invented rows).
  * T0: slots 1–2 fixed, slot 3 = chosen option from slot3Options.
  * Anim roles map presentation only; DMG/CD/cast/effects stay from JSON.
@@ -733,6 +864,7 @@ export function skillDefToDrc(sk, barSlot, weapon) {
  */
 export function hotbarForWeapon(weapon, slot3Id) {
   if (!weapon) return [];
+  ensureWeaponSkillIcons(weapon);
   const s3 =
     weapon.slot3Options.find((s) => s.id === slot3Id) ||
     weapon.slot3Options.find((s) => s.id === weapon.defaultSlot3Id) ||
@@ -742,6 +874,29 @@ export function hotbarForWeapon(weapon, slot3Id) {
     skillDefToDrc(weapon.slot2, 1, weapon),
     skillDefToDrc(s3, 2, weapon)
   ].filter(Boolean);
+
+  // Always surface icon + tooltip fields on hotbar skills
+  for (const sk of bar) {
+    if (!sk.iconUrl) sk.iconUrl = weapon.iconUrl;
+    if (!sk.description && sk.id === weapon.slot1?.id) sk.description = weapon.slot1?.description;
+    if (!sk.description && sk.id === weapon.slot2?.id) sk.description = weapon.slot2?.description;
+    if (!sk.description && s3?.id === sk.id) sk.description = s3?.description;
+    sk.tooltip = weaponSkillTooltip(
+      {
+        name: sk.label,
+        description: sk.description,
+        damage: sk.damage,
+        damageType: sk.damageType,
+        cooldown: sk.cooldown,
+        castTime: sk.castDuration,
+        range: sk.rangeM,
+        slotType: sk.slot === 0 ? 'primary' : sk.slot === 1 ? 'secondary' : 'ability',
+        id: sk.id,
+        source: sk.source
+      },
+      weapon
+    );
+  }
 
   // Presentation only: anim role + effect-string hints (catalog numbers untouched)
   applyT0Presentation(bar, weapon);

@@ -51,6 +51,12 @@
 Default cast = `cast_ramp` · land = `impact_magic` a/b/c.  
 `cast_chant` (blood shaman) only for explicit blood/void skill ids.
 
+### Fishing profession (3D harvest)
+
+**Start:** equip `t0-fishing-pole` (`?t0=t0-fishing-pole`) or **Shift+F** · **RMB** aim · **LMB** cast lure · **S/RMB** snag · **wheel** reel/slack · **LMB/RMB** move Palworld bar zone.
+
+Doc: `docs/FISHING_PROFESSION_SSOT.md` · assets `public/models/fish/` · UI `public/ui/fishing/`
+
 ### Gameplay + UX gates (must pass)
 
 After boot: feet on heightfield · one mixer + anim state · Fortnite **shoulder TPS** (5.5–6 m, Orbit off in combat) · weapon skills · loco/physics · HUD.

@@ -1,0 +1,23 @@
+{
+  "source": "casting-lab-fishing",
+  "version": "1.0.0",
+  "profession": "fishing",
+  "controls": {
+    "aim": "RMB toggle",
+    "cast": "LMB",
+    "snag": "S or RMB in bite window",
+    "reel": "mouse wheel down",
+    "slack": "mouse wheel up",
+    "zoneRight": "LMB hold",
+    "zoneLeft": "RMB hold",
+    "start": "Shift+F with pole equipped"
+  },
+  "poles": [
+    { "id": "t0-fishing-pole", "tier": 0, "mesh": "./models/fish/poles/fishing_rod.glb" },
+    { "id": "fishing-pole-t1", "tier": 1 },
+    { "id": "fishing-pole-t2", "tier": 2 },
+    { "id": "fishing-pole-t3", "tier": 3 }
+  ],
+  "buildables": ["dock_long", "dock_wide", "dock_stairs", "fishing_boat", "fish_bucket"],
+  "assetsRoot": "./models/fish/"
+}

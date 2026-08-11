@@ -1,0 +1,110 @@
+/* Fishing profession HUD — Palworld / Angler bar language */
+
+.fishing-hud {
+  --fh-bar: url('/ui/fishing/FishingBar.png');
+  --fh-target: url('/ui/fishing/FishingTarget.png');
+  --fh-pointer: url('/ui/fishing/FishingPointer.png');
+  position: fixed;
+  left: 50%;
+  bottom: 18%;
+  transform: translateX(-50%);
+  z-index: 45;
+  width: min(420px, 88vw);
+  pointer-events: none;
+  font-family: 'Inter', system-ui, sans-serif;
+  color: #e8f4ff;
+  display: none;
+}
+
+.fishing-hud.is-active {
+  display: block;
+}
+
+.fishing-hud__phase {
+  text-align: center;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.85;
+  margin-bottom: 0.35rem;
+  text-shadow: 0 1px 4px #000;
+}
+
+.fishing-hud__bar {
+  position: relative;
+  height: 36px;
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(20, 40, 55, 0.9), rgba(8, 14, 20, 0.95)),
+    var(--fh-bar) center / cover no-repeat;
+  border: 1px solid rgba(120, 180, 220, 0.35);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.fishing-hud__zone {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  border-radius: 6px;
+  background:
+    linear-gradient(180deg, rgba(120, 220, 160, 0.55), rgba(40, 140, 90, 0.45)),
+    var(--fh-target) center / contain no-repeat;
+  border: 1px solid rgba(180, 255, 200, 0.5);
+  box-shadow: inset 0 0 12px rgba(100, 255, 160, 0.25);
+  transition: left 0.05s linear, width 0.05s linear;
+}
+
+.fishing-hud__fish {
+  position: absolute;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  background: var(--fh-pointer) center / contain no-repeat;
+  filter: drop-shadow(0 0 4px #7fd6ff);
+  transition: left 0.04s linear;
+}
+
+.fishing-hud__meters {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+}
+
+.fishing-hud__meter {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.fishing-hud__meter > i {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #3d8bff, #7fd6ff);
+}
+
+.fishing-hud__meter--tension > i {
+  background: linear-gradient(90deg, #f0c040, #ff4a2a);
+}
+
+.fishing-hud__hint {
+  margin-top: 0.45rem;
+  text-align: center;
+  font-size: 0.68rem;
+  opacity: 0.7;
+  text-shadow: 0 1px 3px #000;
+}
+
+.fishing-hud__catch {
+  margin-top: 0.5rem;
+  text-align: center;
+  font-size: 0.9rem;
+  font-weight: 650;
+  color: #9ff0c0;
+  text-shadow: 0 0 12px rgba(80, 200, 140, 0.6);
+}
