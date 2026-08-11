@@ -228,12 +228,12 @@ export class IslandHeightfield {
 
     this.material = new MeshStandardMaterial({
       vertexColors: true,
-      roughness: 0.88,
+      roughness: 0.85,
       metalness: 0.0,
       dithering: true,
-      // Slight emissive lift so dark ambient does not crush land to pure black
-      emissive: new Color(0x0a1208),
-      emissiveIntensity: 0.12
+      // Readable on cinematic stage even if fill light is low
+      emissive: new Color(0x1a2e14),
+      emissiveIntensity: 0.28
     });
     this.mesh = new Mesh(geo, this.material);
     this.mesh.name = 'IslandHeightfield';

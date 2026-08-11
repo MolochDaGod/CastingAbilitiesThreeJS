@@ -78,14 +78,15 @@ export class PostProcessing {
     );
     this.composer.addPass(this.bloomPass);
 
-    // Tone mapping + sRGB conversion happen here; everything before is linear HDR.
-    this.outputPass = new OutputPass();
-    this.composer.addPass(this.outputPass);
-
+    // Grade in HDR-ish intermediate space *before* OutputPass.
+    // OutputPass MUST be last (tone map + sRGB → screen). Putting Grade after
+    // OutputPass left the canvas pure black on some WebGL2 paths (live 2026-08).
     this.gradePass = new ShaderPass(GradeShader);
     this.gradePass.uniforms.uFlashColor.value = new Color(1, 1, 1);
-    this.gradePass.renderToScreen = true;
     this.composer.addPass(this.gradePass);
+
+    this.outputPass = new OutputPass();
+    this.composer.addPass(this.outputPass);
 
     this._clearColor = new Color();
   }
@@ -169,11 +170,28 @@ export class PostProcessing {
   }
 
   render() {
-    this._renderDepth();
-    this._renderDistortion();
-    // Tone mapping is applied by OutputPass: three automatically disables the
-    // in-material tone mapping while rendering into the composer's targets.
-    this.composer.render();
+    const postOn = settings.post?.enabled !== false;
+    if (!postOn) {
+      // Lab / emergency: direct forward render (no composer)
+      this.gl.setRenderTarget(null);
+      this.gl.setClearColor(this.scene.background || 0x1a222c, 1);
+      this.gl.clear();
+      this.gl.render(this.scene, this.camera);
+      return;
+    }
+
+    try {
+      this._renderDepth();
+      this._renderDistortion();
+      // Tone mapping + display encoding: OutputPass is last in the chain.
+      this.composer.render();
+    } catch (err) {
+      console.warn('[PostProcessing] composer failed — direct render', err);
+      this.gl.setRenderTarget(null);
+      this.gl.setClearColor(this.scene.background || 0x1a222c, 1);
+      this.gl.clear();
+      this.gl.render(this.scene, this.camera);
+    }
     this.gl.setRenderTarget(null);
   }
 

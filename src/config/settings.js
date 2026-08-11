@@ -802,20 +802,20 @@ export const settings = {
   /* ------------------------------------------------------------------ */
   post: {
     enabled: true,
-    exposure: 1.05,
+    exposure: 1.15,
     // Against the dark stage the bloom threshold can sit much lower without the
     // floor blooming: only the VFX ever get near it.
-    bloomStrength: 0.7,
-    bloomRadius: 0.72,
-    bloomThreshold: 0.72,
-    vignette: 0.52,
-    chromaticAberration: 0.4,
-    contrast: 1.12,
-    saturation: 1.08,
+    bloomStrength: 0.55,
+    bloomRadius: 0.65,
+    bloomThreshold: 0.78,
+    vignette: 0.28,
+    chromaticAberration: 0.22,
+    contrast: 1.06,
+    saturation: 1.1,
     temperature: 0.02, // + warm / - cool
-    lift: -0.008,
-    gain: 1.0,
-    grain: 0.045,
+    lift: 0.02,
+    gain: 1.05,
+    grain: 0.03,
     flashStrength: 0.4 // softer screen flashes (was 1.0)
   },
 
