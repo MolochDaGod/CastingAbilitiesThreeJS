@@ -238,6 +238,136 @@ export class FleetApi {
       return { ok: false, message: err?.message || 'fail', body: null };
     }
   }
+
+  /**
+   * GET inventory / materials bag — tries fleet paths used by Open / craft.
+   * @returns {Promise<{ ok: boolean, items: object[], message: string, path?: string }>}
+   */
+  async listInventory() {
+    const paths = [
+      '/api/inventory',
+      '/api/inventory/bag',
+      '/api/account/inventory',
+      '/api/account/bag',
+      '/api/account/materials'
+    ];
+    for (const p of paths) {
+      try {
+        const { res, body } = await this.fetch(p);
+        if (res.status === 401 || res.status === 403) {
+          return {
+            ok: false,
+            items: [],
+            message: 'Not signed in — Grudge ID token required for account bag'
+          };
+        }
+        if (!res.ok) continue;
+        const items =
+          body?.items ||
+          body?.materials ||
+          body?.bag ||
+          body?.slots ||
+          (Array.isArray(body) ? body : body?.data) ||
+          [];
+        const list = Array.isArray(items) ? items : [];
+        return {
+          ok: true,
+          items: list,
+          message: list.length ? `${list.length} inventory row(s) via ${p}` : `Empty bag (${p})`,
+          path: p,
+          body
+        };
+      } catch {
+        /* next path */
+      }
+    }
+    return {
+      ok: false,
+      items: [],
+      message: 'No inventory endpoint reachable (sign-in on fleet host or CORS)'
+    };
+  }
+
+  /**
+   * Best-effort deposit one stack to account bag (Railway).
+   * Fail closed with honest message — never fake success.
+   * @param {object} item
+   * @param {{ characterId?: string }} [opts]
+   */
+  async depositItem(item, opts = {}) {
+    if (!item?.id) {
+      return { ok: false, message: 'No item id' };
+    }
+    const payload = {
+      id: item.id,
+      itemId: item.id,
+      name: item.name,
+      qty: item.qty || 1,
+      tier: item.tier ?? 0,
+      category: item.category || item.kind || 'materials',
+      iconUrl: item.iconUrl || item.icon,
+      characterId: opts.characterId || null,
+      source: 'casting-main-panel'
+    };
+    const tries = [
+      { path: '/api/inventory/deposit', method: 'POST' },
+      { path: '/api/account/materials', method: 'POST' },
+      { path: '/api/account/bag', method: 'POST' },
+      { path: '/api/inventory', method: 'POST' }
+    ];
+    for (const t of tries) {
+      try {
+        const { res, body } = await this.fetch(t.path, {
+          method: t.method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (res.status === 401 || res.status === 403) {
+          return {
+            ok: false,
+            message: 'Not signed in — cannot deposit to Railway bag',
+            authRequired: true
+          };
+        }
+        if (res.ok) {
+          return {
+            ok: true,
+            message: `Deposited ${payload.name || payload.id} ×${payload.qty}`,
+            body,
+            path: t.path
+          };
+        }
+      } catch {
+        /* next */
+      }
+    }
+    return {
+      ok: false,
+      message:
+        'Deposit API not available — use Craft SSOT (grudgewarlords.com/craft/) for account bag',
+      openCraft: true
+    };
+  }
+
+  /**
+   * Parallel health + characters + inventory snapshot for Main Panel API tab.
+   */
+  async fleetStatusBundle() {
+    const [health, chars, inv, account] = await Promise.all([
+      this.health(),
+      this.listCharacters(),
+      this.listInventory(),
+      this.accountBag()
+    ]);
+    return {
+      health,
+      characters: chars,
+      inventory: inv,
+      account,
+      hasToken: !!this.getToken(),
+      baseUrl: this.baseUrl || '(same-origin)'
+    };
+  }
 }
 
 export const fleetApi = new FleetApi();

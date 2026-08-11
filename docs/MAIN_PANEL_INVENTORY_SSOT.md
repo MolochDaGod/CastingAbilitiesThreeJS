@@ -55,7 +55,11 @@ Full map: `docs/WARLORDS_DEV_UI_SSOT.md`
 
 - Equip map + bag: `localStorage` (`casting.mainPanel.*`) for lab
 - Live mesh: mesh_ids + `equipWeaponById` for weapons
-- Production bag write: `GrudgeFleet.depositHarvestLoot` / Railway via craft SSOT
+- Icons: `iconResolve.js` → CDN `496_rpg_icons` + `public/icons/dev-island/minerals`
+- Catalog: `loadGameItemCatalog()` (info + objectstore) warms bag icons
+- Harvest loot → DropBag **and** Main Panel bag (with resolved icons)
+- Account deposit: `fleetApi.depositItem` → Railway paths; fail → Craft SSOT
+- API tab: fleet status bundle · inventory · catalog import T0
 
 ## Deploy
 

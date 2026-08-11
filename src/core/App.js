@@ -372,9 +372,26 @@ export class App {
       getDrc: () => this.drc,
       onDropWorld: (item, cx, cy) => this._throwBagItem?.(item, cx, cy),
       onDepositItem: async (item) => {
-        // Production path: open craft / account bag (Railway) — no invent local deposit
+        // Prefer Railway deposit via fleetApi (InventoryPanel also tries first)
+        try {
+          const { fleetApi } = await import('../api/fleetApi.js');
+          const r = await fleetApi.depositItem(item);
+          if (r.ok) {
+            this.hud.showToast?.(r.message);
+            return;
+          }
+          if (r.authRequired) {
+            this.hud.showToast?.(r.message);
+            window.open('https://id.grudge-studio.com', '_blank', 'noopener');
+            return;
+          }
+        } catch {
+          /* fall through */
+        }
         window.open('https://grudgewarlords.com/craft/', '_blank', 'noopener');
-        this.hud.showToast?.(`Deposit ${item?.name || item?.id || 'item'} → Craft bag SSOT`);
+        this.hud.showToast?.(
+          `Deposit ${item?.name || item?.id || 'item'} → Craft bag SSOT`
+        );
       }
     });
     // Admin F1 + deep links open Main Panel tabs
@@ -1663,6 +1680,20 @@ export class App {
   /** Load assets, warm the shader cache, then start the loop. */
   async load() {
     const assets = new AssetLoader();
+    // KTX2 needs GPU detectSupport — bind before any compressed-texture GLB
+    try {
+      const gl = this.renderer?.gl || this.renderer?.renderer;
+      if (gl) {
+        const ok = assets.bindRenderer(gl);
+        console.info(
+          '[App] glTF pipeline',
+          assets.pipelineStatus?.() || {},
+          ok ? 'KTX2 on' : 'KTX2 off (WebP/PNG only)'
+        );
+      }
+    } catch (e) {
+      console.warn('[App] KTX2 bind skipped', e);
+    }
 
     this.loading.setProgress(0.05, 'Init Rapier physics…');
     try {

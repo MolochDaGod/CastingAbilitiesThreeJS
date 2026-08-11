@@ -12,6 +12,7 @@ import './itemContextMenu.css';
 import { bindItemContextMenu } from './itemContextMenu.js';
 import { bagAdd } from './mainPanelSlots.js';
 import { MAIN_PANEL_PROD } from './uiAssetCatalog.js';
+import { withResolvedIcon, bagItemFromLoot } from './iconResolve.js';
 
 const STORAGE = 'casting.lab.dropBag.v1';
 
@@ -66,9 +67,19 @@ export class DropBag {
    */
   add(item) {
     if (!item) return;
-    const existing = this.items.find((x) => x.id === item.id && x.tier === item.tier);
-    if (existing) existing.qty = (existing.qty || 1) + (item.qty || 1);
-    else this.items.push({ ...item, qty: item.qty || 1 });
+    const resolved = withResolvedIcon(bagItemFromLoot(item));
+    const existing = this.items.find(
+      (x) => x.id === resolved.id && x.tier === resolved.tier
+    );
+    if (existing) {
+      existing.qty = (existing.qty || 1) + (resolved.qty || 1);
+      if (!existing.iconUrl && resolved.iconUrl) {
+        existing.iconUrl = resolved.iconUrl;
+        existing.icon = resolved.icon;
+      }
+    } else {
+      this.items.push({ ...resolved, qty: resolved.qty || 1 });
+    }
     this._save();
     this._render();
   }

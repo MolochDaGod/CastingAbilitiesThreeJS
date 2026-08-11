@@ -48,6 +48,8 @@ import {
   paletteIdToHarvestDef
 } from './trainingRoomMap.js';
 import { resolveTrainingRoomMeshUrl } from './trainingRoomDeploy.js';
+import { bagAdd } from '../ui/mainPanelSlots.js';
+import { bagItemFromLoot } from '../ui/iconResolve.js';
 
 const _v = new Vector3();
 const _box = new Box3();
@@ -485,12 +487,30 @@ export class DevIslandHarvest {
     // Depleted
     this._breakNode(node);
     const loot = rollNodeLoot(node.def);
-    for (const bag of loot) {
+    for (const raw of loot) {
+      // Icons: lab minerals + CDN 496 fallbacks
+      const bag = bagItemFromLoot(raw);
       this.dropBag?.add?.(bag);
+      // Also Main Panel bag (I inventory) for equip / deposit / RMB menu
+      try {
+        bagAdd({
+          id: bag.id,
+          name: bag.name,
+          kind: bag.kind || 'mat',
+          category: bag.category,
+          tier: bag.tier,
+          qty: bag.qty || 1,
+          icon: bag.icon,
+          iconUrl: bag.iconUrl
+        });
+      } catch {
+        /* bag full — drop bag still has it */
+      }
       // Splash one unit as world drop near node for pickup demo
       if (this.worldDrops && bag.iconUrl) {
         const ox = (Math.random() - 0.5) * 0.8;
         const oz = (Math.random() - 0.5) * 0.8;
+        const landY = this.heightSample(node.x, node.z) || 0;
         this.worldDrops
           .spawn(
             {
@@ -503,7 +523,7 @@ export class DevIslandHarvest {
               glowColor: 0xc9a227,
               borderColor: 0xe8d48b
             },
-            { x: node.x + ox, y: 0, z: node.z + oz },
+            { x: node.x + ox, y: landY, z: node.z + oz },
             { skipModel: true }
           )
           .catch(() => {});

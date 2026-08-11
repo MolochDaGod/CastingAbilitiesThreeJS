@@ -215,24 +215,29 @@ export function getPaperdollSlots() {
 }
 
 /**
- * Add item to first free bag slot.
- * @param {{ id: string, name: string, icon?: string, kind?: string, qty?: number, slotHint?: string }} item
+ * Add item to first free bag slot (icons resolved via iconResolve).
+ * @param {{ id: string, name: string, icon?: string, iconUrl?: string, kind?: string, qty?: number, slotHint?: string }} item
  */
 export function bagAdd(item) {
   const bag = loadBag();
   const qty = item.qty || 1;
+  const normalized = enrichBagSlotIcon({ ...item, qty });
   // Stack same id
   for (let i = 0; i < bag.slots.length; i++) {
     const s = bag.slots[i];
     if (s && s.id === item.id) {
       s.qty = (s.qty || 1) + qty;
+      if (!s.icon && normalized.icon) {
+        s.icon = normalized.icon;
+        s.iconUrl = normalized.iconUrl;
+      }
       saveBag(bag);
       return { ok: true, index: i, stacked: true };
     }
   }
   const free = bag.slots.findIndex((s) => !s);
   if (free < 0) return { ok: false, full: true };
-  bag.slots[free] = { ...item, qty };
+  bag.slots[free] = normalized;
   saveBag(bag);
   return { ok: true, index: free };
 }
@@ -247,19 +252,107 @@ export function bagRemoveAt(index, qty = 1) {
   return s;
 }
 
-/** Seed demo bag if empty (production lab). */
+/** Seed demo bag if empty (production lab) — icons from CDN + lab minerals. */
 export function ensureDemoBag() {
   const bag = loadBag();
-  if (bag.slots.some(Boolean)) return bag;
+  if (bag.slots.some(Boolean)) {
+    // Repair missing icons on existing bag
+    let dirty = false;
+    for (let i = 0; i < bag.slots.length; i++) {
+      const s = bag.slots[i];
+      if (s && !s.icon && !s.iconUrl) {
+        bag.slots[i] = enrichBagSlotIcon(s);
+        dirty = true;
+      }
+    }
+    if (dirty) saveBag(bag);
+    return bag;
+  }
   const demos = [
-    { id: 't0-sword', name: 'Training Sword', kind: 'weapon', icon: 'https://assets.grudge-studio.com/icons/496_rpg_icons/W_Sword001.png', slotHint: 'mainHand', qty: 1 },
-    { id: 't0-wand', name: 'Apprentice Wand', kind: 'weapon', icon: 'https://assets.grudge-studio.com/icons/496_rpg_icons/W_Wand001.png', slotHint: 'mainHand', qty: 1 },
-    { id: 't0_wood', name: 'Wood', kind: 'mat', icon: 'https://assets.grudge-studio.com/icons/496_rpg_icons/I_Wood01.png', qty: 12 },
-    { id: 't0_stone', name: 'Stone', kind: 'mat', icon: 'https://assets.grudge-studio.com/icons/496_rpg_icons/I_Rock01.png', qty: 8 },
-    { id: 'kit_body_a', name: 'Body kit A', kind: 'armour', icon: 'https://assets.grudge-studio.com/icons/496_rpg_icons/A_Armour01.png', slotHint: 'body', qty: 1 },
+    {
+      id: 't0-sword',
+      name: 'Training Sword',
+      kind: 'weapon',
+      slotHint: 'mainHand',
+      qty: 1
+    },
+    {
+      id: 't0-wand',
+      name: 'Apprentice Wand',
+      kind: 'weapon',
+      slotHint: 'mainHand',
+      qty: 1
+    },
+    {
+      id: 't0-tool',
+      name: 'Field Pick',
+      kind: 'tool',
+      slotHint: 'mainHand',
+      qty: 1
+    },
+    { id: 'mat-wood', name: 'Wood', kind: 'mat', qty: 12 },
+    { id: 'mat-stone', name: 'Stone', kind: 'mat', qty: 8 },
+    { id: 'mat-ore-chunk', name: 'Ore chunk', kind: 'mat', qty: 3 },
+    {
+      id: 'kit_body_a',
+      name: 'Body kit A',
+      kind: 'armour',
+      slotHint: 'body',
+      qty: 1
+    }
   ];
-  for (const d of demos) bagAdd(d);
+  for (const d of demos) bagAdd(enrichBagSlotIcon(d));
   return loadBag();
+}
+
+/**
+ * Ensure icon fields on a bag slot (used by ensureDemoBag + refresh).
+ * @param {object} item
+ */
+export function enrichBagSlotIcon(item) {
+  if (!item) return item;
+  // Inline map (keep mainPanelSlots free of hard import cycles with iconResolve)
+  const CDN = 'https://assets.grudge-studio.com/icons/496_rpg_icons';
+  const LAB_STONE = './icons/dev-island/minerals/FD_Minerals_Stones.png';
+  const byId = {
+    't0-sword': `${CDN}/W_Sword001.png`,
+    't0-wand': `${CDN}/W_Wand001.png`,
+    't0-tool': `${CDN}/W_PickAxe001.png`,
+    'mat-wood': `${CDN}/I_Wood01.png`,
+    t0_wood: `${CDN}/I_Wood01.png`,
+    'mat-stone': LAB_STONE,
+    t0_stone: LAB_STONE,
+    'mat-ore-chunk': `${CDN}/I_Coal.png`,
+    kit_body_a: `${CDN}/A_Armour01.png`
+  };
+  const icon =
+    item.iconUrl ||
+    item.icon ||
+    byId[item.id] ||
+    (String(item.kind || '').includes('weapon')
+      ? `${CDN}/W_Sword001.png`
+      : String(item.kind || '').includes('tool')
+        ? `${CDN}/W_PickAxe001.png`
+        : String(item.kind || '').includes('armour')
+          ? `${CDN}/A_Armour01.png`
+          : `${CDN}/I_Bag.png`);
+  return { ...item, icon, iconUrl: icon };
+}
+
+/**
+ * Re-resolve icons for every bag slot (after catalog load).
+ */
+export function reenrichAllBagIcons() {
+  const bag = loadBag();
+  let n = 0;
+  for (let i = 0; i < bag.slots.length; i++) {
+    if (!bag.slots[i]) continue;
+    const before = bag.slots[i].icon || bag.slots[i].iconUrl;
+    bag.slots[i] = enrichBagSlotIcon(bag.slots[i]);
+    if ((bag.slots[i].icon || bag.slots[i].iconUrl) !== before) n++;
+  }
+  saveBag(bag);
+  return n;
 }
 
 export function itemFitsSlot(item, slotDef) {
