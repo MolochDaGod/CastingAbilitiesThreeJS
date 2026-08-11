@@ -461,6 +461,17 @@ export const settings = {
      * @see docs/WINDSURF_RIDE_SSOT.md
      */
     backSlot: 'windsurf',
+    /**
+     * Ambient ocean wind indications — soft silk gusts + motes from wind-attack family.
+     * Nearly invisible (opacity ~0.07); disable for pure combat pad shots.
+     */
+    oceanWindIndicators: true,
+    /** Prevailing wind heading (rad) for ocean gusts / sail cloth bias */
+    oceanWindYaw: 0.75,
+    /** Ambient gust advection speed (m/s) — soft, not storm */
+    oceanWindSpeed: 4.0,
+    /** Soft mote emission rate over water (particles/s) */
+    oceanWindMoteRate: 8,
 
     /* --- deck / IK --- */
     hover: 0.06,

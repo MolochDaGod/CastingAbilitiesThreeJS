@@ -8,6 +8,7 @@ import { frame } from './FrameUniforms.js';
 import { Environment } from '../world/Environment.js';
 import { Ground } from '../world/Ground.js';
 import { StageWater } from '../world/StageWater.js';
+import { OceanWindIndicators } from '../effects/OceanWindIndicators.js';
 import { OpenSeaShells } from '../world/OpenSeaShells.js';
 import { DustMotes } from '../world/DustMotes.js';
 import { ContactShadows } from '../world/ContactShadows.js';
@@ -152,6 +153,11 @@ export class App {
 
     /* ---- shared VFX services ---- */
     this.particles = new ParticleEngine(this.scene);
+    /** Soft ocean wind (wind-attack silk, nearly invisible) — after particles */
+    this.oceanWind = new OceanWindIndicators({
+      scene: this.scene,
+      particles: this.particles
+    });
     this.lights = new LightPool(this.scene);
     this.decals = new DecalSystem(this.scene);
     this.bursts = new BurstSystem(this.scene);
@@ -1825,6 +1831,22 @@ export class App {
 
     this.environment.setFocus(this.character.position.x, this.character.position.z);
     this.environment.update();
+
+    // Soft ocean wind indications (wind-attack silk + motes, nearly invisible)
+    {
+      const feet =
+        this.character.getWorldPosition?.(new Vector3()) || this.character.position;
+      const windYaw =
+        (settings.walk?.oceanWindYaw ?? 0.75) +
+        (this.walk?.active ? (this.character?.facing ?? 0) * 0.05 : 0);
+      this.oceanWind?.update?.(dt, feet, {
+        waterY: WORLD.waterY,
+        islandRadius: WORLD.islandRadius,
+        windYaw,
+        windSpeed: settings.walk?.oceanWindSpeed ?? 4,
+        enabled: settings.walk?.oceanWindIndicators !== false
+      });
+    }
 
     // Mouse aim + soft lock — focus works in combat or when focus already on
     const aimOn =

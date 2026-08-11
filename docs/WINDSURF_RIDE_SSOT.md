@@ -108,6 +108,19 @@ Sockets (manifest SI, **travel frame +Z forward**):
 Same attach family as `WeaponMeshAttach` (hands) — **quiver-family** back bone, SI length cap, catalog slot **Back**.  
 Settings: `settings.walk.backSlot = 'windsurf'`.
 
+### Ocean wind indications (soft ambient)
+
+Reuses **wind attack** primitives (`WindRibbonMaterial` silk + residual motes), not a new VFX stack.
+
+| Setting | Default | Role |
+|---------|---------|------|
+| `walk.oceanWindIndicators` | true | Enable ambient gusts over sea |
+| `walk.oceanWindYaw` | 0.75 rad | Prevailing direction |
+| `walk.oceanWindSpeed` | 4 m/s | Soft advection |
+| `walk.oceanWindMoteRate` | 8 /s | Nearly invisible dust |
+
+Opacity ~**0.07**, low glow — readable as air over water, not a cast. Code: `effects/OceanWindIndicators.js`.
+
 ### Materials / textures (practice rules)
 
 | Rule | Value |
