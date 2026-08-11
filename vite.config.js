@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import { resolve } from 'node:path';
 
 /**
  * rapier3d-compat embeds wasm as base64 and calls init(Uint8Array).
@@ -39,7 +40,13 @@ export default defineConfig({
   build: {
     target: 'es2022',
     sourcemap: true,
-    chunkSizeWarningLimit: 2500
+    chunkSizeWarningLimit: 2500,
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        devnode: resolve(__dirname, 'devnode.html')
+      }
+    }
   },
   optimizeDeps: {
     exclude: ['@dimforge/rapier3d-compat']

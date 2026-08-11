@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Grudge · DevNode — biomes & harvest nodes</title>
+    <meta
+      name="description"
+      content="Author world nodes: biomes, terrain, cliffs, trees, rocks, flowers, ore, animals, PvE — Casting lab SSOT."
+    />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="stylesheet" href="./src/devnode/devnode.css" />
+  </head>
+  <body>
+    <div id="devnode-app">
+      <aside class="dn-panel" id="dn-side">
+        <header class="dn-head">
+          <h1>DevNode</h1>
+          <p class="dn-sub">Biomes · terrain · harvest · PvE drafts</p>
+          <a class="dn-link" href="./index.html">← Play lab</a>
+        </header>
+
+        <label class="dn-label">Biome</label>
+        <select id="dn-biome" class="dn-select"></select>
+
+        <label class="dn-label">Family</label>
+        <div id="dn-families" class="dn-chips"></div>
+
+        <label class="dn-label">Palette</label>
+        <div id="dn-palette" class="dn-palette"></div>
+
+        <div class="dn-actions">
+          <button type="button" id="dn-export" class="dn-btn">Export JSON</button>
+          <button type="button" id="dn-import" class="dn-btn dn-btn--ghost">Import JSON</button>
+          <button type="button" id="dn-clear" class="dn-btn dn-btn--ghost">Clear nodes</button>
+          <input type="file" id="dn-file" accept="application/json,.json" hidden />
+        </div>
+
+        <p class="dn-hint" id="dn-hint">
+          LMB place · RMB remove · MMB orbit · Scroll zoom · Shift+LMB skips place
+        </p>
+        <pre class="dn-stats" id="dn-stats">nodes: 0</pre>
+      </aside>
+      <canvas id="dn-canvas"></canvas>
+    </div>
+    <script type="module" src="./src/devnode/main.js"></script>
+  </body>
+</html>
