@@ -112,12 +112,45 @@ App wires `walk.ctx.getNauticalSpeedMul → fishing.getNauticalSpeedMul()`.
 
 ---
 
+## SI fish scale (no mess)
+
+| Pack | Path | Contents |
+|------|------|----------|
+| Reef v1 | `public/models/fish/species/*.glb` | clownfish … angler |
+| **Game v2** | `public/models/fish/species/large/` | dolphin, fish_*, manta, shark_game, whale |
+| Poles / lures / docks | `poles/` · `lures/` · `docks/` | tools only |
+
+Runtime fit: `src/fishing/fishScale.js` → **lengthM** on longest axis, elongated (longer than tall/wide).
+
+| sizeClass | lengthM band | Example |
+|-----------|--------------|---------|
+| tiny | 0.06–0.14 | tetra, goldfish |
+| small | 0.15–0.35 | clownfish, piranha |
+| medium | 0.4–0.9 | koi, fish_mid |
+| large | 1.0–2.2 | tuna, swordfish |
+| huge | 2.3–4.5 | dolphin, game shark |
+| titan | 5–12 | whale (~8.5 m) |
+
+**Gates (need both):** rod `maxSizeRank` **and** tree maxSizeRank · lure sizeClass match · lure tier vs rod `lureSlotTier`.
+
+## Lures (gameplay value)
+
+| Id | Tier | Sizes | Notes |
+|----|------|-------|-------|
+| worm | 0 | tiny/small | shore |
+| lure_basic | 0 | tiny–medium | general |
+| lure_spinner | 1 | small/medium | flash |
+| lure_deep | 2 | medium/large | deep |
+| lure_heavy | 3 | large/huge | big game |
+| lure_game | 4 | large/huge | dolphin/manta |
+| lure_titan | 5 | huge/titan | whale |
+
 ## Prefabs / buildables
 
 | Id | Kind |
 |----|------|
-| T0–T5 poles | Main-hand TOOL |
-| Lures `worm` … `lure_heavy` | Bite / rarity bias |
+| T0–T5 poles | Main-hand TOOL · maxSizeRank · maxFishLengthM · lureSlotTier |
+| Lures `worm` … `lure_titan` | sizeClass · bite · value |
 | Docks · boat · bucket | Buildable / container |
 
 ---

@@ -9,7 +9,7 @@
  * @see docs/FISHING_PROFESSION_SSOT.md
  */
 
-import { Vector3, Group, Mesh, MeshStandardMaterial, SphereGeometry, Box3 } from 'three';
+import { Vector3, Group, Mesh, MeshStandardMaterial, SphereGeometry } from 'three';
 import {
   poleById,
   lureById,
@@ -17,7 +17,9 @@ import {
   computeReelZoneWidth,
   computeLineMax,
   computeCastRange,
-  FISHING_POLES
+  catchXp,
+  FISHING_POLES,
+  FISHING_LURES
 } from './fishingCatalog.js';
 import { createFightState, stepFight, beginBite } from './fishingFight.js';
 import {
@@ -29,6 +31,12 @@ import {
   unlockTreeNode
 } from './professionState.js';
 import { rodById } from './fishingRodTypes.js';
+import {
+  applyFishWorldScale,
+  applyPoleWorldScale,
+  applyLureWorldScale,
+  resolveLengthM
+} from './fishScale.js';
 import { FishingUi } from '../ui/fishingUi.js';
 import { WORLD } from '../config/worldScale.js';
 
@@ -163,10 +171,7 @@ export class FishingController {
       const root = (gltf.scene || gltf.scenes?.[0])?.clone?.(true);
       if (!root) return;
       root.name = 'FishingPoleAttach';
-      const box = new Box3().setFromObject(root);
-      const size = box.getSize(new Vector3());
-      const max = Math.max(size.x, size.y, size.z, 1e-3);
-      root.scale.setScalar(1.4 / max);
+      applyPoleWorldScale(root, pole.poleLengthM ?? rodById(this.poleId)?.poleLengthM ?? 1.6);
       const hand =
         this.character?.equipment?.findBones?.()?.rHand ||
         this.character?.bones?.rHand;
@@ -182,6 +187,23 @@ export class FishingController {
     } catch (e) {
       console.warn('[Fishing] pole mesh', e);
     }
+  }
+
+  /** Equip lure if rod lureSlotTier allows */
+  setLureId(id) {
+    const lure = lureById(id);
+    if (!lure) return false;
+    const pole = poleById(this.poleId);
+    const maxTier = pole.lureSlotTier ?? pole.tier ?? 0;
+    if ((lure.tier || 0) > maxTier) {
+      this.onToast(`${lure.label} needs rod lure tier ${lure.tier}+ (this rod: ${maxTier})`);
+      return false;
+    }
+    this.lureId = id;
+    this.prof.lureId = id;
+    saveProfessionState(this.prof);
+    this.onToast(`Lure · ${lure.label} · sizes ${lure.sizeClass?.join('/') || '?'}`);
+    return true;
   }
 
   endProfession() {
@@ -347,7 +369,30 @@ export class FishingController {
 
   _spawnLure(pos) {
     this._clearLureOnly();
-    const geo = new SphereGeometry(0.07, 10, 10);
+    const lure = lureById(this.lureId);
+    // Prefer GLB lure; fallback orange sphere
+    void this._spawnLureMesh(pos, lure);
+  }
+
+  async _spawnLureMesh(pos, lure) {
+    this._clearLureOnly();
+    if (this.assets?.loadGLTF && lure?.meshUrl) {
+      try {
+        const gltf = await this.assets.loadGLTF(lure.meshUrl);
+        const root = (gltf.scene || gltf.scenes?.[0])?.clone?.(true);
+        if (root) {
+          applyLureWorldScale(root, lure.meshLengthM ?? 0.12);
+          root.position.copy(pos);
+          root.name = 'FishingLure';
+          this._lureMesh = root;
+          this.group.add(root);
+          return;
+        }
+      } catch (e) {
+        console.warn('[Fishing] lure mesh', e);
+      }
+    }
+    const geo = new SphereGeometry(0.06, 10, 10);
     const mat = new MeshStandardMaterial({
       color: 0xff6a22,
       emissive: 0x441100,
@@ -367,14 +412,14 @@ export class FishingController {
       const gltf = await this.assets.loadGLTF(species.meshUrl);
       const root = (gltf.scene || gltf.scenes?.[0])?.clone?.(true);
       if (!root) return;
-      root.updateMatrixWorld(true);
-      const box = new Box3().setFromObject(root);
-      const size = box.getSize(new Vector3());
-      const max = Math.max(size.x, size.y, size.z, 1e-3);
-      const target = 0.35 + (species.difficulty || 0.2) * 0.7;
-      root.scale.setScalar(target / max);
+      // SI water size: lengthM, elongated silhouette
+      applyFishWorldScale(root, species);
+      const len = resolveLengthM(species);
       root.position.copy(this.castPos);
-      root.position.y = this.waterY + 0.08;
+      // Sit slightly under surface; titans deeper
+      const depth = Math.min(0.45, 0.06 + len * 0.04);
+      root.position.y = this.waterY - depth * 0.35 + 0.05;
+      root.name = `Fish_${species.id}`;
       this._fishMesh = root;
       this.group.add(root);
     } catch (e) {
@@ -385,6 +430,7 @@ export class FishingController {
   _clearLureOnly() {
     if (this._lureMesh) {
       this.group.remove(this._lureMesh);
+      // Sphere fallback only
       this._lureMesh.geometry?.dispose?.();
       this._lureMesh.material?.dispose?.();
       this._lureMesh = null;
@@ -413,7 +459,9 @@ export class FishingController {
         xp: this.prof.xp,
         skillPoints: this.prof.skillPoints,
         pole: rodById(this.poleId)?.label || this.poleId,
+        lure: lureById(this.lureId)?.label || this.lureId,
         nautical: mods.nauticalSpeedMul,
+        maxSize: mods.maxSizeRank,
         meals: this.prof.meals
       },
       ...extra
@@ -450,30 +498,34 @@ export class FishingController {
         const mods = this.getMods();
         const fish = rollFishSpecies({
           lureId: this.lureId,
+          poleId: this.poleId,
           fishingSkill: this.prof.level,
           rareBias: mods.rareBias,
-          legendaryBias: mods.legendaryBias
+          legendaryBias: mods.legendaryBias,
+          treeMaxSizeRank: mods.tree?.maxSizeRank || mods.maxSizeRank || 1
         });
         this.pendingFish = fish;
         const pole = poleById(this.poleId);
         const rodMods = mods.rodMods || {};
         let biteWin = rodMods.biteWindowS || 0.75;
         biteWin += Math.max(0, 0.2 - fish.difficulty * 0.15);
-        // Tree zoneMul is already folded into resolveProfessionMods.zoneMul via rod power;
-        // split for fight: tree-only zone on top of rod+abilities
         const treeZone = mods.tree?.zoneMul || 1;
+        // Bigger fish pull harder / slightly narrower zone already in catalog
         this.fight = createFightState({
           zoneWidth: computeReelZoneWidth(pole, fish, pole.abilities, treeZone),
           fishSpeed: fish.speed,
           fishStrength: fish.strength,
           lineMax: computeLineMax(pole, pole.abilities, mods.tree?.lineMul || 1),
-          control: (pole.control || 1) * (rodMods.control ? 1 : 1),
+          control: pole.control || 1,
           reelSpeed: rodMods.reelSpeed || 1
         });
         beginBite(this.fight, biteWin);
         this.phase = 'bite';
         this._renderHud('bite', { hint: 'BITE! S or RMB to snag' });
-        this.onToast(`Bite! ${fish.label}`);
+        const len = resolveLengthM(fish);
+        this.onToast(
+          `Bite! ${fish.label} · ${fish.sizeClass} · ${len.toFixed(2)} m · val ${fish.value}`
+        );
         void this._spawnFishVisual(fish);
       } else {
         this._renderHud('waiting');
@@ -528,28 +580,30 @@ export class FishingController {
     this.phase = 'won';
     const w =
       fish.weightKg[0] + Math.random() * (fish.weightKg[1] - fish.weightKg[0]);
-    const qty = Math.max(1, Math.floor(mods.catchQty || 1));
+    // Titan/huge never multi-catch
+    let qty = Math.max(1, Math.floor(mods.catchQty || 1));
+    if (fish.sizeClass === 'huge' || fish.sizeClass === 'titan') qty = 1;
+    const len = resolveLengthM(fish);
     const loot = {
       id: `raw_${fish.id}`,
       name: fish.label,
       speciesId: fish.id,
       weightKg: +w.toFixed(2),
+      lengthM: len,
+      sizeClass: fish.sizeClass,
       rarity: fish.rarity,
-      value: fish.value,
+      value: fish.value * qty,
       meshUrl: fish.meshUrl,
       profession: 'fishing',
       qty
     };
     this._renderHud('won', {
-      catchLabel: `${fish.label} ×${qty} · ${loot.weightKg} kg · ${fish.rarity}`
+      catchLabel: `${fish.label} ×${qty} · ${len.toFixed(2)} m · ${loot.weightKg} kg · ${fish.rarity} · ₡${loot.value}`
     });
-    this.onToast(`Caught ${fish.label} ×${qty} (${loot.weightKg} kg)!`);
+    this.onToast(`Caught ${fish.label} (${len.toFixed(2)} m · ${loot.weightKg} kg)!`);
     this.onCatch(loot);
 
-    // XP scales with rarity / difficulty
-    const xpBase = 12 + fish.difficulty * 40 + (fish.value || 0) * 0.15;
-    grantFishingXp(this.prof, xpBase * qty);
-    // Soft level sync for UI
+    grantFishingXp(this.prof, catchXp(fish, qty));
     this.onToast(`Fishing Lv${this.prof.level} · SP ${this.prof.skillPoints}`);
 
     setTimeout(() => {

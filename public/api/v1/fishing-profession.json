@@ -140,13 +140,49 @@
     "sources": ["skillTree nautical_1..3", "rod sea_legs / rod.nauticalSpeedMul", "blue meal buffs"],
     "combine": "multiplicative"
   },
+  "sizeClasses": {
+    "tiny": { "rank": 0, "lengthM": [0.06, 0.14] },
+    "small": { "rank": 1, "lengthM": [0.15, 0.35] },
+    "medium": { "rank": 2, "lengthM": [0.4, 0.9] },
+    "large": { "rank": 3, "lengthM": [1.0, 2.2] },
+    "huge": { "rank": 4, "lengthM": [2.3, 4.5] },
+    "titan": { "rank": 5, "lengthM": [5.0, 12] }
+  },
+  "scale": {
+    "module": "src/fishing/fishScale.js",
+    "rule": "SI lengthM on longest axis; elongated longer-than-tall/wide"
+  },
+  "gamePack": {
+    "sourceZip": "Animated Fish Bundle-glb (1).zip",
+    "path": "./models/fish/species/large/",
+    "species": [
+      { "id": "fish_reef", "lengthM": 0.55, "sizeClass": "medium", "value": 14 },
+      { "id": "fish_mid", "lengthM": 0.75, "sizeClass": "medium", "value": 22 },
+      { "id": "fish_stream", "lengthM": 0.9, "sizeClass": "medium", "value": 30 },
+      { "id": "dolphin", "lengthM": 2.4, "sizeClass": "huge", "value": 140 },
+      { "id": "manta_ray", "lengthM": 2.8, "sizeClass": "huge", "value": 155 },
+      { "id": "shark_game", "lengthM": 3.2, "sizeClass": "huge", "value": 220 },
+      { "id": "whale", "lengthM": 8.5, "sizeClass": "titan", "value": 500 }
+    ]
+  },
+  "lures": [
+    { "id": "worm", "tier": 0, "sizeClass": ["tiny", "small"], "value": 1 },
+    { "id": "lure_basic", "tier": 0, "sizeClass": ["tiny", "small", "medium"], "value": 3 },
+    { "id": "lure_spinner", "tier": 1, "sizeClass": ["small", "medium"], "value": 8 },
+    { "id": "lure_deep", "tier": 2, "sizeClass": ["medium", "large"], "value": 18 },
+    { "id": "lure_heavy", "tier": 3, "sizeClass": ["large", "huge"], "value": 40 },
+    { "id": "lure_game", "tier": 4, "sizeClass": ["large", "huge"], "value": 55 },
+    { "id": "lure_titan", "tier": 5, "sizeClass": ["huge", "titan"], "value": 120 }
+  ],
   "assets": {
     "species": "./models/fish/species/",
+    "speciesLarge": "./models/fish/species/large/",
     "poles": "./models/fish/poles/",
     "lures": "./models/fish/lures/",
     "docks": "./models/fish/docks/",
     "uiBar": "./ui/fishing/"
   },
+
   "code": {
     "rodTypes": "src/fishing/fishingRodTypes.js",
     "skillTree": "src/fishing/fishingSkillTree.js",

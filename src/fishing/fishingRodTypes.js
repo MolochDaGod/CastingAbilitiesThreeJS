@@ -27,6 +27,10 @@ const POLE = './models/fish/poles';
  * @property {string[]} abilities
  * @property {string} rarity
  * @property {string} blurb
+ * @property {number} poleLengthM  SI rod mesh length
+ * @property {number} maxSizeRank  0 tiny … 5 titan (size gate)
+ * @property {number} maxFishLengthM  hard line limit (m)
+ * @property {number} lureSlotTier  max lure tier this rod can seat
  */
 
 /** @type {readonly RodTypeDef[]} */
@@ -44,9 +48,13 @@ export const ROD_TYPES = Object.freeze([
     reelSpeed: 1.0,
     biteWindowS: 0.7,
     nauticalSpeedMul: 1.0,
+    poleLengthM: 1.45,
+    maxSizeRank: 1,
+    maxFishLengthM: 0.45,
+    lureSlotTier: 0,
     abilities: ['steady_hand'],
     rarity: 'common',
-    blurb: 'T0 starter · shore only · Animated Fish Bundle base rod'
+    blurb: 'T0 starter · shore · tiny/small only'
   },
   {
     id: 'fishing-pole-t1',
@@ -61,9 +69,13 @@ export const ROD_TYPES = Object.freeze([
     reelSpeed: 1.05,
     biteWindowS: 0.78,
     nauticalSpeedMul: 1.02,
+    poleLengthM: 1.6,
+    maxSizeRank: 2,
+    maxFishLengthM: 1.0,
+    lureSlotTier: 1,
     abilities: ['steady_hand', 'quick_snag'],
     rarity: 'common',
-    blurb: 'Cute Fish L1 · common fish · light nautical'
+    blurb: 'Shore · up to medium · spinner lures'
   },
   {
     id: 'fishing-pole-t2',
@@ -78,9 +90,13 @@ export const ROD_TYPES = Object.freeze([
     reelSpeed: 1.12,
     biteWindowS: 0.85,
     nauticalSpeedMul: 1.05,
+    poleLengthM: 1.75,
+    maxSizeRank: 3,
+    maxFishLengthM: 2.0,
+    lureSlotTier: 2,
     abilities: ['steady_hand', 'quick_snag', 'deep_cast'],
     rarity: 'uncommon',
-    blurb: 'River current · tuna tier unlocks'
+    blurb: 'River/sea · large game (tuna class)'
   },
   {
     id: 'fishing-pole-t3',
@@ -95,9 +111,13 @@ export const ROD_TYPES = Object.freeze([
     reelSpeed: 1.2,
     biteWindowS: 0.9,
     nauticalSpeedMul: 1.08,
+    poleLengthM: 1.95,
+    maxSizeRank: 4,
+    maxFishLengthM: 3.5,
+    lureSlotTier: 3,
     abilities: ['steady_hand', 'quick_snag', 'deep_cast', 'iron_line'],
     rarity: 'rare',
-    blurb: 'Open sea · golden fish tier'
+    blurb: 'Open sea · dolphin / game shark class'
   },
   {
     id: 'fishing-pole-t4',
@@ -112,9 +132,13 @@ export const ROD_TYPES = Object.freeze([
     reelSpeed: 1.28,
     biteWindowS: 0.95,
     nauticalSpeedMul: 1.12,
+    poleLengthM: 2.15,
+    maxSizeRank: 4,
+    maxFishLengthM: 5.0,
+    lureSlotTier: 4,
     abilities: ['steady_hand', 'quick_snag', 'deep_cast', 'iron_line', 'sea_legs'],
     rarity: 'epic',
-    blurb: 'Moonfish / kraken bait ready · strong nautical'
+    blurb: 'Deep · huge game · heavy + game rig'
   },
   {
     id: 'fishing-pole-t5',
@@ -129,9 +153,13 @@ export const ROD_TYPES = Object.freeze([
     reelSpeed: 1.35,
     biteWindowS: 1.0,
     nauticalSpeedMul: 1.15,
+    poleLengthM: 2.35,
+    maxSizeRank: 5,
+    maxFishLengthM: 12,
+    lureSlotTier: 5,
     abilities: ['steady_hand', 'quick_snag', 'deep_cast', 'iron_line', 'sea_legs', 'void_line'],
     rarity: 'legendary',
-    blurb: 'Void fish / abyssal · max lab tier until T6–8 assets'
+    blurb: 'Abyss · titan (whale) · titan hook'
   }
 ]);
 
@@ -217,6 +245,10 @@ export function resolveRodMods(rod, extraAbilities = []) {
     reelSpeed: reelMul,
     biteWindowS: rod.biteWindowS + biteBonus,
     nauticalSpeedMul: nautical,
-    rareBias
+    rareBias,
+    poleLengthM: rod.poleLengthM ?? 1.6,
+    maxSizeRank: rod.maxSizeRank ?? 1,
+    maxFishLengthM: rod.maxFishLengthM ?? 0.5,
+    lureSlotTier: rod.lureSlotTier ?? rod.tier ?? 0
   };
 }

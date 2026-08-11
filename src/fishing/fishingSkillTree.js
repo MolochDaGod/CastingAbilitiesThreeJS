@@ -124,6 +124,28 @@ export const FISHING_SKILL_TREE = Object.freeze([
     bonuses: { rareBias: 1.2 }
   },
   {
+    id: 'fish_size_med',
+    label: 'Medium Game',
+    blurb: 'Skill-gate +1 size class (medium fish)',
+    x: 78,
+    y: 48,
+    cost: 1,
+    requiresLevel: 15,
+    requires: ['fish_zone_1'],
+    bonuses: { maxSizeRank: 2 }
+  },
+  {
+    id: 'fish_lure_1',
+    label: 'Bait Sense',
+    blurb: '+10% bite when lure size matches fish',
+    x: 90,
+    y: 48,
+    cost: 1,
+    requiresLevel: 18,
+    requires: ['fish_size_med'],
+    bonuses: { lureMatchMul: 1.1 }
+  },
+  {
     id: 'fish_meal_link',
     label: "Fisher's Kitchen",
     blurb: 'Unlock fish meal crafts (Blue food slot)',
@@ -144,6 +166,39 @@ export const FISHING_SKILL_TREE = Object.freeze([
     requiresLevel: 30,
     requires: ['nautical_2'],
     bonuses: { nauticalSpeedMul: 1.1 }
+  },
+  {
+    id: 'fish_size_large',
+    label: 'Big Game',
+    blurb: 'Unlock large class (tuna / sword) with rod',
+    x: 78,
+    y: 34,
+    cost: 2,
+    requiresLevel: 28,
+    requires: ['fish_size_med', 'fish_line_1'],
+    bonuses: { maxSizeRank: 3 }
+  },
+  {
+    id: 'fish_size_huge',
+    label: 'Sport Fisher',
+    blurb: 'Huge class · dolphin / manta / shark',
+    x: 90,
+    y: 28,
+    cost: 2,
+    requiresLevel: 35,
+    requires: ['fish_size_large', 'fish_lure_1'],
+    bonuses: { maxSizeRank: 4 }
+  },
+  {
+    id: 'fish_size_titan',
+    label: 'Leviathan Hook',
+    blurb: 'Titan class · whale (T5 rod + titan lure)',
+    x: 78,
+    y: 18,
+    cost: 3,
+    requiresLevel: 48,
+    requires: ['fish_size_huge'],
+    bonuses: { maxSizeRank: 5 }
   },
   {
     id: 'fish_master',
@@ -173,13 +228,16 @@ export function sumTreeBonuses(unlocked = []) {
     rareBias: 1,
     legendaryBias: 1,
     nauticalSpeedMul: 1,
+    lureMatchMul: 1,
     mealCraft: 0,
-    fishingUnlocked: 0
+    fishingUnlocked: 0,
+    maxSizeRank: 1
   };
   for (const n of FISHING_SKILL_TREE) {
     if (!set.has(n.id)) continue;
     for (const [k, v] of Object.entries(n.bonuses || {})) {
-      if (k.endsWith('Mul') || k.endsWith('Bias')) out[k] = (out[k] || 1) * v;
+      if (k === 'maxSizeRank') out.maxSizeRank = Math.max(out.maxSizeRank || 0, v);
+      else if (k.endsWith('Mul') || k.endsWith('Bias')) out[k] = (out[k] || 1) * v;
       else out[k] = (out[k] || 0) + v;
     }
   }

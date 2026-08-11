@@ -81,7 +81,9 @@ export class FishingUi {
     if (state.prof) {
       this.el.prof.hidden = false;
       const n = state.prof.nautical != null ? ` · ⛵×${Number(state.prof.nautical).toFixed(2)}` : '';
-      this.el.prof.textContent = `Lv ${state.prof.level || 1} · ${state.prof.pole || 'rod'} · SP ${state.prof.skillPoints ?? 0}${n}`;
+      const lure = state.prof.lure ? ` · ${state.prof.lure}` : '';
+      const sz = state.prof.maxSize != null ? ` · size≤${state.prof.maxSize}` : '';
+      this.el.prof.textContent = `Lv ${state.prof.level || 1} · ${state.prof.pole || 'rod'}${lure}${sz} · SP ${state.prof.skillPoints ?? 0}${n}`;
       this._paintMeals(state.prof.meals);
     }
 

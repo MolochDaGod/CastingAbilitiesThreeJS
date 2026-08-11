@@ -70,6 +70,7 @@ import {
   ROD_TYPES,
   saveProfessionState as saveFishingProf
 } from '../fishing/professionState.js';
+import { FISHING_LURES } from '../fishing/fishingCatalog.js';
 import {
   PAPERDOLL_LEFT,
   PAPERDOLL_RIGHT,
@@ -1164,7 +1165,7 @@ export class InventoryPanel {
 
         <div class="inv-card__row" style="margin:8px 0">
           <span>Level ${st.level} · XP ${Math.floor(st.xp)} · SP <b>${st.skillPoints}</b></span>
-          <b>Nautical ×${mods.nauticalSpeedMul.toFixed(2)} · qty ${mods.catchQty}</b>
+          <b>Nautical ×${mods.nauticalSpeedMul.toFixed(2)} · size≤${mods.maxSizeRank} · qty ${mods.catchQty}</b>
         </div>
 
         <div class="mp-prof__rods" style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0">
@@ -1174,10 +1175,26 @@ export class InventoryPanel {
               title="${r.blurb}">
               T${r.tier} ${r.label.split(' ').slice(0, 2).join(' ')}
               <span class="inv-hint" style="display:block;margin:0;font-size:10px">
-                pwr ${r.power} · ⛵×${r.nauticalSpeedMul}
+                pwr ${r.power} · size≤${r.maxSizeRank} · max ${r.maxFishLengthM}m · lureT${r.lureSlotTier}
               </span>
             </button>`
           ).join('')}
+        </div>
+
+        <div class="inv-card__row"><span>Lures</span><b>size match · rod lure tier</b></div>
+        <div class="mp-prof__lures" style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px">
+          ${FISHING_LURES.map((l) => {
+            const rod = ROD_TYPES.find((r) => r.id === st.poleId) || ROD_TYPES[0];
+            const ok = (l.tier || 0) <= (rod.lureSlotTier ?? 0);
+            return `
+            <button type="button" class="inv-btn ${st.lureId === l.id ? 'is-on' : ''}" data-lure="${l.id}"
+              ${ok ? '' : 'disabled'} title="${l.blurb}">
+              ${l.label}
+              <span class="inv-hint" style="display:block;margin:0;font-size:10px">
+                T${l.tier} · ${l.sizeClass?.join('/')} · ₡${l.value}
+              </span>
+            </button>`;
+          }).join('')}
         </div>
 
         <div class="mp-prof__meals" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:10px 0">
@@ -1245,6 +1262,18 @@ export class InventoryPanel {
           /* optional */
         }
         this.onToast(`Rod · ${st.poleId}`);
+        this._fillProfessions();
+      });
+    });
+    host.querySelectorAll('[data-lure]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const live = window.__castingApp?.fishing;
+        if (live?.setLureId) {
+          live.setLureId(b.dataset.lure);
+        } else {
+          st.lureId = b.dataset.lure;
+          saveFishingProf(st);
+        }
         this._fillProfessions();
       });
     });

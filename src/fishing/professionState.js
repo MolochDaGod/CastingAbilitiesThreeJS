@@ -127,6 +127,13 @@ export function resolveProfessionMods(state, elapsed = 0) {
     lineMul: mul(tree.lineMul, 1),
     rareBias: mul(tree.rareBias, rodMods.rareBias),
     legendaryBias: tree.legendaryBias || 1,
+    lureMatchMul: tree.lureMatchMul || 1,
+    // Effective size = min(rod physical, tree knowledge)
+    maxSizeRank: Math.min(tree.maxSizeRank || 1, rodMods.maxSizeRank ?? 1),
+    rodMaxSizeRank: rodMods.maxSizeRank ?? 1,
+    treeMaxSizeRank: tree.maxSizeRank || 1,
+    maxFishLengthM: rodMods.maxFishLengthM || 0.5,
+    lureSlotTier: rodMods.lureSlotTier ?? 0,
     nauticalSpeedMul:
       mul(tree.nauticalSpeedMul, 1) *
       mul(meals.nauticalSpeedMul, 1) *
