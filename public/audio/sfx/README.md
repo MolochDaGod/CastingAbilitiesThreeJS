@@ -6,7 +6,8 @@ User-provided combat / cast one-shots wired by `src/audio/skillSfx.js`.
 |------|------|----------|
 | `cast-ramp.wav` | `cast_ramp` | Cast start, channel ramp, light residual |
 | `cast-chant.wav` | `cast_chant` | Long cast · arcane/blood flavor |
-| `parry.wav` | `parry` | **Parry attempt** (C) — plays on press, not only success |
+| `parry.wav` | `parry` | Melee **parry attempt** (C) — metal |
+| `parry-magic.wav` | `parry_magic` | **Magical** parry attempt — staff/wand/ward (wizard lightning) |
 | `burn.wav` | `burn` | **Soft loop** while player has burn status (not fire impact) |
 | `heal-a.wav` / `heal-b.wav` | `heal` | Heal tonic · holy (random variant) |
 

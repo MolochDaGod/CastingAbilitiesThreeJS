@@ -2073,7 +2073,15 @@ export class DrcCombatController {
           this.character.requestOneShot?.('block') ||
           this.character.requestOneShot?.('parry');
         try {
-          playParrySfx();
+          // Wards / magic kits → lightning wizard parry; else metal
+          const magic =
+            skill.isWard ||
+            skill.style === 'spell' ||
+            this._isMagicParryContext() ||
+            /ward|barrier|shield|arcane|magic|holy/.test(
+              String(skill.id || '') + String(skill.label || '')
+            );
+          playParrySfx({ magic });
         } catch (_) {}
       } else if (animRole === 'dodgeB' || /evade/i.test(skill.id + skill.label)) {
         this.character.playDodge?.('back') || this.character.requestOneShot?.('dodgeB');
@@ -2441,7 +2449,7 @@ export class DrcCombatController {
         return this._utilityAction('block', 0.4, settings.drc?.parryStamina ?? 4, () => {
           this.character.playParry?.() || this.character.requestOneShot?.('block');
           try {
-            playParrySfx();
+            playParrySfx({ magic: this._isMagicParryContext() });
           } catch (_) {}
           this.onToast('Block (E)');
         });
@@ -2796,10 +2804,30 @@ export class DrcCombatController {
     });
   }
 
+  /**
+   * Staff / wand / magic pack → magical parry SFX; otherwise metal parry.wav.
+   * @returns {boolean}
+   */
+  _isMagicParryContext() {
+    const pack = String(this.character?.animPackId || '').toLowerCase();
+    if (pack.includes('magic') || pack.includes('staff') || pack.includes('wand')) return true;
+    try {
+      const w = typeof getEquippedWeapon === 'function' ? getEquippedWeapon() : null;
+      const blob = `${w?.id || ''} ${w?.name || ''} ${w?.category || ''} ${w?.type || ''}`.toLowerCase();
+      if (/staff|wand|tome|rod|scepter|magic|arcane|spell/.test(blob)) return true;
+    } catch (_) {}
+    const el = String(this.abilities?.selected || settings?.element || '').toLowerCase();
+    if (['fire', 'ice', 'storm', 'holy', 'arcane', 'nature', 'water', 'earth', 'wind'].includes(el)) {
+      // Path-cast elements imply magical frame for ward/parry when on magic kit only
+      if (pack.includes('magic')) return true;
+    }
+    return false;
+  }
+
   /** Parry with block/parry clip. SFX fires on **attempt** (key press), not only success. */
   parry() {
     try {
-      playParrySfx();
+      playParrySfx({ magic: this._isMagicParryContext() });
     } catch (_) {}
     const stam = settings.drc?.parryStamina ?? 8;
     return this._utilityAction('parry', 0.65, stam, () => {
@@ -2810,7 +2838,7 @@ export class DrcCombatController {
         forward: _fwd.clone(),
         intensity: 0.75
       });
-      this.onToast('Parry (C)');
+      this.onToast(this._isMagicParryContext() ? 'Magic parry (C)' : 'Parry (C)');
     });
   }
 

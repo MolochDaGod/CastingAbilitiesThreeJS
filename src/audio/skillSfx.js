@@ -6,7 +6,8 @@
  * Roles:
  *  cast_ramp   — channel / cast start (ramp-up)
  *  cast_chant  — longer cast / blood·arcane·holy flavor
- *  parry       — C parry **attempt** (not only success)
+ *  parry       — C parry **attempt** melee/metal (not only success)
+ *  parry_magic — magical ward / staff / lightning parry attempt
  *  burn        — soft **loop** while player has burn status (not fire impact)
  *  heal        — heal / regenerate (two variants, random)
  */
@@ -18,6 +19,7 @@ export const SKILL_SFX_URLS = {
   cast_ramp: `${BASE}/cast-ramp.wav`,
   cast_chant: `${BASE}/cast-chant.wav`,
   parry: `${BASE}/parry.wav`,
+  parry_magic: `${BASE}/parry-magic.wav`,
   burn: `${BASE}/burn.wav`,
   heal: [`${BASE}/heal-a.wav`, `${BASE}/heal-b.wav`],
 };
@@ -246,8 +248,15 @@ export function playForImpact(element, opts = {}) {
   }
 }
 
-/** Parry **attempt** (keydown / quick action) — always play when player tries. */
-export function playParrySfx() {
+/**
+ * Parry **attempt** (keydown / quick action) — always play when player tries.
+ * @param {{ magic?: boolean }|boolean} [opts] magic=true → lightning/wizard parry-magic.wav
+ */
+export function playParrySfx(opts = {}) {
+  const magic = opts === true || opts?.magic === true;
+  if (magic) {
+    return playSkillSfx('parry_magic', { volume: 0.88, rate: 1.0 });
+  }
   return playSkillSfx('parry', { volume: 0.9 });
 }
 
