@@ -249,7 +249,8 @@ export class App {
       shake: this.shake,
       water: this.water,
       session: this.session,
-      assets: null // filled in load()
+      assets: null, // filled in load()
+      onToast: (m) => this.hud?.showToast?.(m)
     });
 
     /* ---- input ---- */
@@ -1665,8 +1666,17 @@ export class App {
     if (!this.walk.scooter?.ready && this._assets) {
       this.walk.load(this._assets).catch(() => {});
     }
-    this.walk.beginFreeride({ yaw: this.character.facing });
-    this.hud.showToast('Windsurf vehicle · feet/hands IK · E = get off');
+    // Water-only: WalkController rejects dry land
+    const ok = this.walk.beginFreeride({ yaw: this.character.facing });
+    if (ok) {
+      this.hud.showToast(
+        'Windsurf · water vehicle · board/sail/front/engine · E = get off'
+      );
+    } else {
+      this.hud.showToast(
+        'Windsurf is water-only — move to ocean (not dry island)'
+      );
+    }
   }
 
   /**

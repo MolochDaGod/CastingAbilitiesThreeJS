@@ -22,6 +22,7 @@ import {
   setSailClothMode,
   updateSailCloth
 } from '../materials/SailCloth.js';
+import { WINDSURF_PARTS } from '../config/backSlotMobilitySsot.js';
 
 const UP = new Vector3(0, 1, 0);
 const _pos = new Vector3();
@@ -186,6 +187,7 @@ export class HoverboardRide {
       const g = new Group();
       g.name = `socket_${name}`;
       g.position.set(xyz[0], xyz[1], xyz[2]);
+      g.userData.socketName = name;
       this.socketGroup.add(g);
       this.sockets[name] = g;
     }
@@ -194,16 +196,87 @@ export class HoverboardRide {
       const deck = new Group();
       deck.name = 'socket_deckCenter';
       deck.position.set(0, pack.deckY ?? 0.06, 0);
+      deck.userData.socketName = 'deckCenter';
       this.socketGroup.add(deck);
       this.sockets.deckCenter = deck;
     }
+
+    // Tag logical parts (front / sail / board / engine) — mesh is often one Sketchfab Tube
+    this._tagWindsurfParts(pack);
+
     // Character parents to unscaled seatRoot — local stand only (see WalkController)
     this.seat = this.seatRoot;
     this.pack = pack;
     this._ready = true;
 
-    if (settings.walk?.debugSockets) this._buildDebugSpheres();
+    if (settings.walk?.debugSockets || settings.walk?.debugParts) this._buildDebugSpheres();
     return this;
+  }
+
+  /**
+   * Identify board / front / sail / engine via manifest sockets (SI).
+   * Author GLB may be a single Para_Coat mesh — parts are **logical**, not node names.
+   * @param {object} pack
+   */
+  _tagWindsurfParts(pack) {
+    /** @type {Record<string, { id: string, label: string, sockets: string[], color: number }>} */
+    this.parts = {};
+    const partDefs = pack.parts || WINDSURF_PARTS;
+    for (const [id, def] of Object.entries(partDefs)) {
+      const sockNames = def.sockets || [];
+      const groups = sockNames.map((n) => this.sockets[n]).filter(Boolean);
+      this.parts[id] = {
+        id,
+        label: def.label || id,
+        sockets: sockNames,
+        color: def.color ?? 0xffffff,
+        notes: def.notes || '',
+        /** Primary socket Object3D for this part */
+        primary: groups[0] || null
+      };
+      for (const g of groups) {
+        g.userData.partId = id;
+        g.userData.partLabel = def.label || id;
+      }
+    }
+    // Tag mesh root for agents / inspector
+    if (this.mesh) {
+      this.mesh.userData.windsurfParts = Object.keys(this.parts);
+      this.mesh.userData.partMap = Object.fromEntries(
+        Object.entries(this.parts).map(([k, v]) => [k, v.label])
+      );
+    }
+    console.info(
+      '[HoverboardRide] parts',
+      Object.entries(this.parts)
+        .map(([k, v]) => `${k}=${v.sockets.join('+')}`)
+        .join(' · ')
+    );
+  }
+
+  /**
+   * World position of a named part (socket primary).
+   * @param {'board'|'front'|'sail'|'engine'|string} partId
+   * @param {import('three').Vector3} [out]
+   */
+  getPartWorldPosition(partId, out = new Vector3()) {
+    const p = this.parts?.[partId]?.primary || this.sockets?.[partId];
+    if (p) {
+      p.getWorldPosition(out);
+      return out;
+    }
+    this.boardRoot.getWorldPosition(out);
+    return out;
+  }
+
+  /** Part map for HUD / lab toast */
+  describeParts() {
+    return Object.values(this.parts || {}).map((p) => ({
+      id: p.id,
+      label: p.label,
+      sockets: p.sockets,
+      notes: p.notes
+    }));
   }
 
   _normalizeMesh(scene, pack) {
@@ -230,10 +303,23 @@ export class HoverboardRide {
   }
 
   _buildDebugSpheres() {
-    const geo = new SphereGeometry(0.04, 10, 8);
-    const mat = new MeshBasicMaterial({ color: 0x3aa0ff, depthWrite: false });
+    // Color by part (board blue · front green · sail amber · engine red)
+    const partColor = (sock) => {
+      const pid = sock?.userData?.partId;
+      if (pid && this.parts?.[pid]?.color != null) return this.parts[pid].color;
+      return 0x3aa0ff;
+    };
     for (const g of Object.values(this.sockets)) {
+      const geo = new SphereGeometry(0.045, 10, 8);
+      const mat = new MeshBasicMaterial({
+        color: partColor(g),
+        depthWrite: false,
+        transparent: true,
+        opacity: 0.9
+      });
       const m = new Mesh(geo, mat);
+      m.name = `debug_${g.userData?.socketName || g.name}`;
+      m.userData.partLabel = g.userData?.partLabel || '';
       m.layers.set(LAYER.VFX);
       g.add(m);
       this.debugHelpers.push(m);

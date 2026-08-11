@@ -157,6 +157,16 @@ export {
   shouldEnterFall
 } from '../config/fallAnimSsot.js';
 
+export {
+  BACK_MOBILITY_CATALOG,
+  WINDSURF_PARTS,
+  FLIGHT_DEFAULTS,
+  WING_ASSET_DROP,
+  getBackMobility,
+  canDeployBackItem,
+  reduceTravelerFlight
+} from '../config/backSlotMobilitySsot.js';
+
 // ── Terrain ──────────────────────────────────────────────────────────
 export {
   TERRAIN_LAYER,

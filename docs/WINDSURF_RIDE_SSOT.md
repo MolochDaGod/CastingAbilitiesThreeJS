@@ -10,14 +10,29 @@
 
 ## Product intent
 
-**Windsurf is a vehicle when deployed** (not a free-floating prop).
+**Windsurf is a vehicle when deployed** (not a free-floating prop).  
+**Domain: water only** — not a land mobility tool. Dry island → deploy rejected.
 
 | State | Rule |
 |-------|------|
-| **Deploy** | Space (walk mode) → frontflip · board materializes from back · lands as vehicle |
+| **Deploy** | Space (walk mode) **on wet shore/ocean** → frontflip · board from back · vehicle |
+| **Blocked** | Dry land (`isDryLand`) → toast “water-only” |
 | **Mounted** | Character **parented under** `deckCenter` · **RideIK** feet→deck, hands→boom · stay until get-off |
 | **Get off** | **E** (or mode leave / cancel) → unparent · **board removed** from scene · land character controller |
 | **Land** | `_rideActive` / `_rideParented` false · gait free · Rapier feet at land pose |
+
+### Parts (deployed) — logical sockets
+
+Mesh is one Sketchfab Tube / Para_Coat — identify by sockets:
+
+| Part | Socket(s) | Debug color |
+|------|-----------|-------------|
+| **Board** | deckCenter, footL/R, mastBase | blue |
+| **Front** | bowTip | green |
+| **Sail** | sailPeak, sailRail, sailBoomL/R | amber |
+| **Engine** | engineMount (stern −Z) | red |
+
+`settings.walk.debugParts = true` · `scooter.describeParts()`
 
 Treat the board as a **tiny boat**:
 

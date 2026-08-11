@@ -476,6 +476,9 @@ export const settings = {
      * 0 = package nose along travel; 180 = stern-first (felt “pointed wrong”).
      */
     boardArtYawDeg: 0,
+    /** Debug: colored spheres on board/sail/front/engine sockets */
+    debugSockets: false,
+    debugParts: false,
     /**
      * Equip contract: windsurf is a **back-slot vehicle** (same family as glider).
      * Deploy → parent seat + RideIK · E get off → board removed · land loco.

@@ -19,6 +19,9 @@
     "size": [2.8, 0.684, 1.815],
     "deckY": 0.06,
     "artYawDeg": 0,
+    "domain": "water",
+    "deployOnLand": false,
+    "meshNote": "Author GLB is Sketchfab OBJ_Para_Coat / Tube003 (single mesh). Parts are LOGICAL sockets in SI travel frame, not named submeshes.",
     "sockets": {
       "footL": [-0.2, 0.08, -0.28],
       "footR": [0.16, 0.08, 0.12],
@@ -30,6 +33,28 @@
       "sailPeak": [0.0, 1.55, 0.2],
       "bowTip": [0.0, 0.08, 1.15],
       "engineMount": [0.0, 0.12, -0.95]
+    },
+    "parts": {
+      "board": {
+        "label": "Board / deck",
+        "sockets": ["deckCenter", "footL", "footR", "mastBase"],
+        "color": 4788441
+      },
+      "front": {
+        "label": "Front / bow",
+        "sockets": ["bowTip"],
+        "color": 4063130
+      },
+      "sail": {
+        "label": "Sail / boom",
+        "sockets": ["sailPeak", "sailRail", "sailBoomL", "sailBoomR", "mastBase"],
+        "color": 16761162
+      },
+      "engine": {
+        "label": "Engine / stern",
+        "sockets": ["engineMount"],
+        "color": 16734938
+      }
     },
     "ik": {
       "feet": ["footL", "footR"],

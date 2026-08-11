@@ -4,6 +4,8 @@ import { HoverboardRide } from '../effects/HoverboardRide.js';
 import { DecalType } from '../effects/GroundDecals.js';
 import { getColor } from '../utils/color.js';
 import { clamp, damp, Easing, saturate } from '../utils/math.js';
+import { isDryLand, terrainOpts } from '../world/IslandHeightfield.js';
+import { canDeployBackItem, getBackMobility } from '../config/backSlotMobilitySsot.js';
 
 const TAU = Math.PI * 2;
 
@@ -136,10 +138,20 @@ export class WalkController {
 
   /**
    * Quick ocean deploy: frontflip + sail from back, freeride WASD.
-   * Back-slot windsurf utility — no path required.
-   * @param {{ yaw?: number }} [opts]
+   * **Water-only** — windsurf is not a land mobility tool.
+   * @param {{ yaw?: number, force?: boolean }} [opts]
+   * @returns {boolean}
    */
   beginFreeride(opts = {}) {
+    // Domain gate: windsurf deploy requires wet surface (not dry island pad)
+    if (!opts.force && !this._canDeployWindsurf()) {
+      this.ctx?.onToast?.(
+        'Windsurf is water-only — stand in ocean / wet shore (not dry land)'
+      );
+      console.info('[Walk] freeride blocked — dry land');
+      return false;
+    }
+
     this._dismountRider(true);
     this.scooter.cancel();
     this.character.setRideActive?.(false);
@@ -173,7 +185,41 @@ export class WalkController {
       this._from.z + Math.cos(yaw) * dist
     );
     this._startLeap({ freeride: true, frontflip: true });
+    // Part identity toast (board / sail / front / engine sockets)
+    const parts = this.scooter?.describeParts?.();
+    if (parts?.length) {
+      this.ctx?.onToast?.(
+        `Windsurf · ${parts.map((p) => p.label).join(' · ')}`
+      );
+    }
     return true;
+  }
+
+  /**
+   * Windsurf may only deploy when feet or near-shore sample is **not dry land**.
+   * Uses IslandHeightfield.isDryLand (same as grass scatter).
+   */
+  _canDeployWindsurf() {
+    const def = getBackMobility('windsurf');
+    const pos = this.character?.position || this.character?.root?.position;
+    if (!pos) return false;
+    const opts = terrainOpts();
+    // Allow if current feet wet OR a sample a few metres forward is wet
+    const yaw = this.character.facing || 0;
+    const samples = [
+      [pos.x, pos.z],
+      [pos.x + Math.sin(yaw) * 2.5, pos.z + Math.cos(yaw) * 2.5],
+      [pos.x + Math.sin(yaw) * 4.5, pos.z + Math.cos(yaw) * 4.5]
+    ];
+    let wet = false;
+    for (const [x, z] of samples) {
+      if (!isDryLand(x, z, opts, 0.02)) {
+        wet = true;
+        break;
+      }
+    }
+    const gate = canDeployBackItem(def, { onWater: wet, onLand: !wet });
+    return !!gate.ok;
   }
 
   begin(curve) {

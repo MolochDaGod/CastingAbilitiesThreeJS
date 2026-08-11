@@ -28,6 +28,11 @@ import {
   updateSailCloth
 } from '../materials/SailCloth.js';
 import { sharedGltfLoader } from '../loaders/gltfPipeline.js';
+import {
+  BACK_MOBILITY_CATALOG,
+  canDeployBackItem,
+  getBackMobility
+} from '../config/backSlotMobilitySsot.js';
 
 const _box = new Box3();
 const _size = new Vector3();
@@ -35,37 +40,37 @@ const _size = new Vector3();
 /**
  * Known back-slot item ids → default local models / SI stow.
  * Stow size is **quiver-class** (back item), not full vehicle SI.
+ * Mobility domains: water (windsurf) · land (cape/shell) · air (wings).
+ * @see config/backSlotMobilitySsot.js
  */
-export const BACK_SLOT_DEFS = Object.freeze({
-  windsurf: {
-    id: 'windsurf',
-    slot: 'back',
-    equipmentSlot: 'Back',
-    category: 'utility',
-    deployable: true,
-    vehicle: 'windsurf',
-    /**
-     * Back-stow visual — Desktop `back_fly_windsurf.glb` (Para/sail pack).
-     * Full ride vehicle stays `windsurf_package.glb` in HoverboardRide.
-     */
-    modelUrl: './models/ride/back_fly_windsurf.glb',
-    /** Quiver-scale length (SI m) — human ~1.8 m; back item ~0.55–0.65 m */
-    stowLengthM: 0.58,
-    /** Local offset on quiver/spine bone: snug behind upper back */
-    stowOffset: [0.02, 0.06, -0.14],
-    /** Pitch so board/sail lies along back (not sticking out sideways) */
-    stowEulerDeg: [8, 180, 0],
-    label: 'Windsurf (back stow)',
-    cloth: true
-  },
-  none: {
-    id: 'none',
-    slot: 'back',
-    equipmentSlot: 'Back',
-    deployable: false,
-    modelUrl: null
-  }
-});
+export const BACK_SLOT_DEFS = Object.freeze(
+  Object.fromEntries(
+    Object.entries(BACK_MOBILITY_CATALOG).map(([id, m]) => [
+      id,
+      {
+        id: m.id,
+        slot: 'back',
+        equipmentSlot: 'Back',
+        category: m.domain === 'water' ? 'utility_water' : m.domain === 'air' ? 'utility_air' : 'utility',
+        deployable: !!m.deployable,
+        vehicle: m.deployKind === 'vehicle_water' ? 'windsurf' : null,
+        domain: m.domain,
+        deployKind: m.deployKind,
+        modelUrl: m.modelUrl,
+        deployModelUrl: m.deployModelUrl || null,
+        stowLengthM: m.stowLengthM ?? 0.6,
+        stowOffset: m.stowOffset || [0, 0.08, -0.16],
+        stowEulerDeg: m.stowEulerDeg || [8, 180, 0],
+        label: m.label,
+        cloth: !!m.cloth,
+        flight: m.flight || null,
+        notes: m.notes || ''
+      }
+    ])
+  )
+);
+
+export { canDeployBackItem, getBackMobility };
 
 /**
  * Resolve back attach bone — **same family as quiver**.
