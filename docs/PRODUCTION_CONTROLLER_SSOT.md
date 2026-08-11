@@ -19,10 +19,12 @@ This document is the **agent learning map** for character, weapons, skills, anim
 | **Combat** | `DrcCombatController` | land loco, skills, path cast, resources |
 | **Resources** | `castResources.js` | **mana + stamina**, hold intensity |
 | **Spells** | `castingSpellKit.js` + `staffSignatureSkills.js` | 10 + Inferno/Blizzard/Warp/Quake/Tempest |
+| **Elemental × linear** | `elementalLinearCast.js` · `LinearSkillBridge` | plan → castToward + path Ability + mesh |
 | **T0 weapons** | `t0ApprenticeWand.js` · `t0WeaponCatalog.js` | base attacks + mana |
 | **Weapon equip** | `equippedWeaponRuntime` · WeaponMeshAttach | prefabs |
 | **Path place** | `pathCastClassify` · `staffCast` | aoe/spikes/wall/stream |
-| **VFX** | Ability* · VfxDirector · effectPrefab | isolate primitives |
+| **Linear skillshots** | `skillshot/*` | ice/thunder/meteor/beam/snare/glacier |
+| **VFX** | Ability* · VfxDirector · effectPrefab · elementAttackVfx | isolate primitives |
 | **Physics** | Rapier CCT | board parents rider |
 | **Windsurf** | WalkController · HoverboardRide · RideIK | vehicle parent |
 
@@ -81,13 +83,14 @@ High path intensity (≥2.4) auto-tags signature impact VFX.
 
 ```
 1. Load casting-warlords-lab + grudge6-combat-runtime + anim library SSOT
-2. Pick primitive: trail | travel | cast | impact | residual
-3. Study element Ability + settings.* + materials
-4. Add spell to castingSpellKit OR staffSignatureSkills
-5. Set manaCost + staminaCost + animRole + vfx ids
-6. Wire toDrcSkill → hotbar page / equip tree
-7. Smoke: Q combat · hold LMB path · digit skills · toast costs
-8. Export prefab bind for WEAPON_SKILLS / ObjectStore
+2. Load ELEMENTAL_LINEAR_CAST_SSOT + LINEAR_SKILLSHOT_SSOT
+3. Pick primitive: trail | travel | cast | impact | residual | linear_line | linear_zone
+4. Study element Ability + linearSettings + materials
+5. Catalog skill only (WEAPON_SKILLS / t0) — planElementalLinearCast infers layers
+6. Mesh kinds → elementAttackVfx; line/zone → PRODUCT_TO_LINEAR
+7. Wire equip tree / hotbar — not a third AbilityManager
+8. Smoke: Q combat · focus LMB · digit skills · Alt+Shift linear arm · toast lin:*
+9. Export prefab bind for WEAPON_SKILLS / ObjectStore
 ```
 
 ### Animation creation (fleet)

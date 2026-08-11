@@ -1,0 +1,62 @@
+{
+  "source": "assorted_rock_pack.glb",
+  "diameterM": 0.55,
+  "rocks": [
+    {
+      "id": "rock-0",
+      "path": "models/vfx/rocks/rock-0.glb",
+      "diameterM": 0.55,
+      "rawMax": 382.30989837646484,
+      "scale": 0.001438623489309735
+    },
+    {
+      "id": "rock-1",
+      "path": "models/vfx/rocks/rock-1.glb",
+      "diameterM": 0.55,
+      "rawMax": 104.09304809570312,
+      "scale": 0.005283734217239274
+    },
+    {
+      "id": "rock-2",
+      "path": "models/vfx/rocks/rock-2.glb",
+      "diameterM": 0.55,
+      "rawMax": 185.39414978027344,
+      "scale": 0.0029666524032816157
+    },
+    {
+      "id": "rock-3",
+      "path": "models/vfx/rocks/rock-3.glb",
+      "diameterM": 0.55,
+      "rawMax": 370.81678771972656,
+      "scale": 0.001483212244467489
+    },
+    {
+      "id": "rock-4",
+      "path": "models/vfx/rocks/rock-4.glb",
+      "diameterM": 0.55,
+      "rawMax": 226.39739990234375,
+      "scale": 0.0024293565219266735
+    },
+    {
+      "id": "rock-5",
+      "path": "models/vfx/rocks/rock-5.glb",
+      "diameterM": 0.55,
+      "rawMax": 294.4364013671875,
+      "scale": 0.0018679755541302883
+    },
+    {
+      "id": "rock-6",
+      "path": "models/vfx/rocks/rock-6.glb",
+      "diameterM": 0.55,
+      "rawMax": 337.2662048339844,
+      "scale": 0.0016307592996776287
+    },
+    {
+      "id": "rock-7",
+      "path": "models/vfx/rocks/rock-7.glb",
+      "diameterM": 0.55,
+      "rawMax": 405.38067626953125,
+      "scale": 0.0013567494263942508
+    }
+  ]
+}

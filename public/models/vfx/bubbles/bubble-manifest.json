@@ -1,0 +1,6 @@
+{
+  "source": "bubbles_2.glb",
+  "note": "Morph multipack (~37MB, 178 frames). Do NOT load whole file as a projectile. Runtime water/freeze uses procedural SI spheres (createWaterBubbleMaterial). Sample morph extract deferred.",
+  "runtime": "src/vfx/elementAttackVfx.js WATER_BUBBLE + SkillProjectileSystem.spawnBubbleField",
+  "diameterM": 0.22
+}

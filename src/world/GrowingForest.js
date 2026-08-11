@@ -97,10 +97,12 @@ export class GrowingForest {
       color: new Color(0.28, 0.18, 0.1),
       roughness: 1
     });
+    // forestoutline-style leaf hue range (green canopy + slight variance via tint)
     this.leafMat = new MeshStandardMaterial({
-      color: new Color(0.12, 0.38, 0.14),
+      color: new Color().setHSL(0.30, 0.55, 0.38),
       roughness: 0.9
     });
+    this.leafMat.userData.forestOutline = true;
     // Wind sway on leaves (vertex) — mild
     this._uTime = { value: 0 };
     this.leafMat.onBeforeCompile = (shader) => {

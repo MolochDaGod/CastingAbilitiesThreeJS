@@ -68,6 +68,7 @@ learn source → isolate primitive → edit knobs → bind skill → smoke → e
 | **Staff path cast** | LMB hold-draw → AOE place · spikes · wall · stream (`settings.staffCast`) |
 | **Showcase (O / Show)** | Race · mesh · weapon type · anims · bind master skills to 1–4 / F |
 | **Weapon skills SSOT** | `info…/api/v1/master-weaponSkills.json` v3.1 · 268 skills · WEAPON_SKILLS.html |
+| **Production skill pattern** | `docs/WEAPON_SKILL_PRODUCTION_SSOT.md` · `weaponSkillProduction.js` · statuses · scaffold |
 | **6 races** | Toon RTS GLB via Race tab (`setRace`) |
 | **Fleet API client** | `src/api/fleetApi.js` → Railway health + characters |
 | World SI | `worldScale.js` MAP_SCALE 1.5 + StageWater |

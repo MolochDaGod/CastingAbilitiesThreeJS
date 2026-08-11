@@ -25,6 +25,14 @@ import {
 } from './weaponSkillsCatalog.js';
 import { WEAPON_SLOT_TO_PACK } from '../config/weaponAnimPack.js';
 import { bindFromCatalogSkill } from '../combat/staffWeaponSkillsBind.js';
+import {
+  compileProductionWeaponSkill,
+  getCachedProductionOverride,
+  productionToDrcSkill,
+  warmProductionOverrides
+} from '../combat/weaponSkillProduction.js';
+
+export { warmProductionOverrides };
 
 export const T0_WEAPONS_URL = 'https://info.grudge-studio.com/api/v1/t0-weapons.json';
 export const T0_WEAPONS_MIRROR =
@@ -548,6 +556,36 @@ export async function hotbarForCatalogWeaponId(weaponId, slot3Id) {
  */
 export function skillDefToDrc(sk, barSlot, weapon) {
   if (!sk) return null;
+
+  // Production compiler — anim + VFX + physics + statuses + delivery (catalog-first)
+  // Overrides: warmProductionOverrides([ids]) on equip, then cache is available here.
+  try {
+    const cachedOv = getCachedProductionOverride(sk.id);
+    const prod = compileProductionWeaponSkill(sk, {
+      weaponTypeId: weapon?.weaponType || weapon?.weaponTypeId,
+      animPack: weapon?.animPack,
+      labStyle: weapon?.labStyle,
+      barSlot,
+      overrides: cachedOv || sk.production || undefined
+    });
+    if (prod) {
+      const drc = productionToDrcSkill(prod);
+      if (!drc.iconUrl && weapon?.iconUrl) drc.iconUrl = weapon.iconUrl;
+      drc.weaponId = weapon?.id;
+      drc.attachToHand = true;
+      drc.fixed = !!sk.fixed;
+      drc.choice = !!sk.choice;
+      drc.tier = sk.tier ?? 0;
+      drc.catalogUuid = sk.uuid || null;
+      drc.source = sk.source || 'catalog';
+      drc.hint = `${sk.name} · ${weapon?.name || weapon?.id || ''} · production`;
+      return drc;
+    }
+  } catch (e) {
+    console.warn('[skillDefToDrc] production compile failed, legacy path', sk.id, e);
+  }
+
+  // ── Legacy fallback (should rarely run) ─────────────────────────────
   const labStyle = weapon?.labStyle || 'melee';
   const dmg = String(sk.damageType || '').toLowerCase();
   const nameId = `${sk.id} ${sk.name}`;

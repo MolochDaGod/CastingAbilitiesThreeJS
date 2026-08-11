@@ -20,9 +20,11 @@ import {
 export const ASSETS_CDN = CDN;
 export const OPEN_HOST = 'https://open.grudge-studio.com';
 
-/** Official Draco wasm path (same major as three r185 fleet). */
-export const DRACO_DECODER_PATH =
-  'https://www.gstatic.com/draco/versioned/decoders/1.5.7/';
+// Decoder pins live in gltfPipeline only — re-export so importers stay stable
+export {
+  DRACO_DECODER_PATH,
+  KTX2_TRANSCODER_PATH
+} from '../loaders/gltfPipeline.js';
 
 export const GEAR_PRESETS_URL = SSOT_GEAR_PRESETS;
 export { DEFAULT_RACE, atlasUrlForRace, kitUrlCandidates, kitUrlForRace, HUMAN_HEIGHT_M };

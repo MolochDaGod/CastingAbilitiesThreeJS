@@ -611,8 +611,9 @@ export const settings = {
   },
 
   /**
-   * Island heightfield + terrain layers (land / water).
-   * Patterns: snakey-locomotion heightAt · three-stylized Terrain · Rapier heightfield.
+   * Three-layer terrain (L0 height · L1 ground · L2 vegetation).
+   * Patterns: snakey-locomotion · three-stylized grounds/grass · forestoutline · Rapier heightfield.
+   * @see docs/THREE_LAYER_TERRAIN_SSOT.md
    */
   terrain: {
     enabled: true,
@@ -624,9 +625,18 @@ export const settings = {
     grid: 65,
     shoreBand: null, // null → WORLD.shoreBand
     flatCore: 8,
-    /** Growing forest count (harvestable trees) */
+    /** L2 Growing forest (forestoutline / snakey trees) */
     forestCount: 48,
-    forestEnabled: true
+    forestEnabled: true,
+    forestClearRadius: 11,
+    /** L2 Stylized grass (three-stylized meadow on L0) */
+    grassEnabled: true,
+    grassDensity: 28,
+    grassClearRadius: 6,
+    grassBladeMax: 0.55,
+    grassWind: 0.22,
+    grassColorBottom: '#3d6b1a',
+    grassColorTop: '#a8d44a'
   },
 
   /* ------------------------------------------------------------------ */

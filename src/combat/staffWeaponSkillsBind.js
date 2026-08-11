@@ -11,6 +11,11 @@
 
 import { CASTING_ELEMENT_PHASE_VFX, normalizeElement } from './elementWeaponSkills.js';
 import { abilityKeyForElement } from '../config/settings.js';
+import {
+  staffProjectileMeshUrl,
+  STAFF_CHARGE,
+  STAFF_NORMAL_ATTACK
+} from '../vfx/staffOrbVfx.js';
 
 const CAST_CLIP = 'magic/standing 1h cast spell 01';
 
@@ -226,10 +231,25 @@ export function bindFromCatalogSkill(skill) {
   } else if (pathMode === 'wall' && school === 'nature') {
     cast = travel = impact = 'earth_surge';
   }
+  // Ice nova / freeze blast → around_caster freeze presentation
+  if (
+    school === 'frost' &&
+    (pathMode === 'aoe' || /ice.?nova|absolute.?zero|freeze|blizzard/i.test(`${skill?.id || ''} ${skill?.name || ''}`))
+  ) {
+    cast = 'frost_wave';
+    travel = 'moon_beam';
+    impact = 'frost_wave';
+  }
 
   const castDuration =
     skill.castTime != null && skill.castTime > 0 ? Number(skill.castTime) : 0.85;
   const rangeM = skill.range != null && skill.range > 0 ? Number(skill.range) : 14;
+
+  // Slot-1 / primary stream bolts share staff normal attack contract (orb + charge)
+  const isPrimary =
+    String(skill?.slotType || skill?.slotLabel || '').toLowerCase() === 'primary' ||
+    /practice|bolt|spark|ping|root/.test(`${skill?.id || ''} ${skill?.name || ''}`.toLowerCase());
+  const useOrb = pathMode === 'stream' || isPrimary;
 
   return {
     catalogSkillId: skill.id,
@@ -242,15 +262,26 @@ export function bindFromCatalogSkill(skill) {
     travelEffectId: travel,
     impactEffectId: impact,
     abilityClass: ABILITY_CLASS[key] || 'WindAbility',
-    rangeM,
-    castDuration,
-    cooldown: skill.cooldown != null ? Number(skill.cooldown) : 1,
+    rangeM: isPrimary ? STAFF_NORMAL_ATTACK.rangeM : rangeM,
+    castDuration: isPrimary
+      ? Math.min(castDuration, STAFF_NORMAL_ATTACK.castDuration + 0.15)
+      : castDuration,
+    cooldown:
+      skill.cooldown != null
+        ? Number(skill.cooldown)
+        : isPrimary
+          ? STAFF_NORMAL_ATTACK.cooldown
+          : 1,
     damage: skill.damage,
     manaCost: skill.resourceCost?.mana ?? skill.manaCost ?? 5,
     animRole: 'cast',
     animPack: 'magic',
     castClip: CAST_CLIP,
     staffWeaponId: phase.staffWeaponId,
+    // Per-element orb (gd_orbs) + charge shell — individually managed by staff attack
+    useOrbProjectile: useOrb,
+    projectileMeshUrl: useOrb ? staffProjectileMeshUrl(el) : null,
+    chargeMeshUrl: STAFF_CHARGE.path,
     // Catalog text for UI/toasts — never invent effects
     description: skill.description || '',
     effects: skill.effects || [],
@@ -299,6 +330,9 @@ export function enrichStaffSkill(skill) {
   skill.abilityClass = b.abilityClass;
   skill.animation = skill.animation || b.castClip;
   skill.animRole = 'cast';
+  skill.useOrbProjectile = b.useOrbProjectile;
+  skill.projectileMeshUrl = b.projectileMeshUrl;
+  skill.chargeMeshUrl = b.chargeMeshUrl;
   if (skill.range == null) skill.range = b.rangeM;
   if (skill.castTime == null) skill.castTime = b.castDuration;
 

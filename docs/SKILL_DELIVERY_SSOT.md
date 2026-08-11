@@ -13,7 +13,8 @@
 |-------|--------|---------|
 | Skill id / dmg / CD / cast / effects | `t0-weapons` · `master-weaponSkills` | **No** |
 | Delivery pattern | Inferred from catalog text + style + pathMode | Heuristic only |
-| Projectile mesh | Element → split summons (not whole multipack) | Extract only |
+| Projectile mesh | Element → orbs / rocks / arrows / summons (not whole multipack) | Extract only |
+| Freeze / earth / arrows | `elementAttackVfx.js` · see `ELEMENT_ATTACK_MESHES_SSOT.md` | Heuristic only |
 | Contact force / knockback | SI profile by pattern | Tunable knobs |
 | Hit reaction | `knocked-up` bake + MM impulse | Clip from author FBX |
 

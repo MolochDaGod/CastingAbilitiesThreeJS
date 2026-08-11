@@ -40,7 +40,11 @@ export const CASTING_ELEMENT_PHASE_VFX = {
     staffWeaponId: ELEMENT_META.fire?.staffWeaponId || 'staffFire',
     staffLabel: ELEMENT_META.fire?.staffLabel || 'Fire Staff',
     castClip: 'magic/standing 1h cast spell 01',
-    abilityKey: 'fire'
+    abilityKey: 'fire',
+    /** Individual gd_orbs projectile for staff normal (slot 1) */
+    projectileOrb: 'orb-fire',
+    projectileMesh: './models/vfx/orbs/orb-fire.glb',
+    chargeMesh: './models/vfx/charge/staff-charge.glb'
   },
   storm: {
     element: 'storm',
@@ -51,7 +55,10 @@ export const CASTING_ELEMENT_PHASE_VFX = {
     staffWeaponId: ELEMENT_META.storm?.staffWeaponId || 'staffStorm',
     staffLabel: ELEMENT_META.storm?.staffLabel || 'Storm Staff',
     castClip: 'magic/standing 1h cast spell 01',
-    abilityKey: 'wind'
+    abilityKey: 'wind',
+    projectileOrb: 'orb-storm',
+    projectileMesh: './models/vfx/orbs/orb-storm.glb',
+    chargeMesh: './models/vfx/charge/staff-charge.glb'
   },
   ice: {
     element: 'ice',
@@ -62,7 +69,10 @@ export const CASTING_ELEMENT_PHASE_VFX = {
     staffWeaponId: ELEMENT_META.ice?.staffWeaponId || 'staffIce',
     staffLabel: ELEMENT_META.ice?.staffLabel || 'Ice Staff',
     castClip: 'magic/standing 1h cast spell 01',
-    abilityKey: 'water'
+    abilityKey: 'water',
+    projectileOrb: 'orb-ice',
+    projectileMesh: './models/vfx/orbs/orb-ice.glb',
+    chargeMesh: './models/vfx/charge/staff-charge.glb'
   },
   nature: {
     element: 'nature',
@@ -73,7 +83,10 @@ export const CASTING_ELEMENT_PHASE_VFX = {
     staffWeaponId: ELEMENT_META.nature?.staffWeaponId || 'staffNature',
     staffLabel: ELEMENT_META.nature?.staffLabel || 'Nature Staff',
     castClip: 'magic/standing 1h cast spell 01',
-    abilityKey: 'earth'
+    abilityKey: 'earth',
+    projectileOrb: 'orb-nature',
+    projectileMesh: './models/vfx/orbs/orb-nature.glb',
+    chargeMesh: './models/vfx/charge/staff-charge.glb'
   },
   holy: {
     element: 'holy',
@@ -84,7 +97,10 @@ export const CASTING_ELEMENT_PHASE_VFX = {
     staffWeaponId: ELEMENT_META.holy?.staffWeaponId || 'staffHoly',
     staffLabel: ELEMENT_META.holy?.staffLabel || 'Holy Staff',
     castClip: 'magic/standing 1h cast spell 01',
-    abilityKey: 'wind'
+    abilityKey: 'wind',
+    projectileOrb: 'orb-holy',
+    projectileMesh: './models/vfx/orbs/orb-holy.glb',
+    chargeMesh: './models/vfx/charge/staff-charge.glb'
   },
   arcane: {
     element: 'arcane',
@@ -95,7 +111,10 @@ export const CASTING_ELEMENT_PHASE_VFX = {
     staffWeaponId: ELEMENT_META.arcane?.staffWeaponId || 'staffArcane',
     staffLabel: ELEMENT_META.arcane?.staffLabel || 'Arcane Staff',
     castClip: 'magic/standing 1h cast spell 01',
-    abilityKey: 'wind'
+    abilityKey: 'wind',
+    projectileOrb: 'orb-arcane',
+    projectileMesh: './models/vfx/orbs/orb-arcane.glb',
+    chargeMesh: './models/vfx/charge/staff-charge.glb'
   }
 };
 

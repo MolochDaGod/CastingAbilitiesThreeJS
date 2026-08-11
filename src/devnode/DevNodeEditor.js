@@ -24,17 +24,16 @@ import {
   WebGLRenderer
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { IslandHeightfield } from '../world/IslandHeightfield.js';
 import { projectToTerrain, terrainHandle } from '../world/terrainGround.js';
 import {
   createEmptyNodeLayout,
   paletteEntry
 } from '../world/nodePalette.js';
+import { sharedGltfLoader } from '../loaders/gltfPipeline.js';
 
 const _ndc = new Vector2();
 const _hit = new Vector3();
-const loader = new GLTFLoader();
 
 export class DevNodeEditor {
   /**
@@ -263,7 +262,7 @@ export class DevNodeEditor {
       try {
         let src = this._meshCache.get(url);
         if (!src) {
-          const gltf = await loader.loadAsync(url);
+          const gltf = await sharedGltfLoader().loadAsync(url);
           src = gltf.scene;
           this._meshCache.set(url, src);
         }

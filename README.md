@@ -1,6 +1,6 @@
 # Grudge Casting Abilities (Three.js)
 
-Elemental casting sandbox for **Grudge Studio**: draw a path, release, and Fire / Water / Earth / Air travel the spline and detonate. Live VFX editor, DRC combat, Toon RTS hero, windsurf ride.
+**Warlords-era lab** for Grudge Studio: Toon RTS hero, DRC combat, catalog weapon skills, elemental path cast + linear skillshots, three-layer terrain, windsurf ride, and production skill/VFX authoring before fleet ship.
 
 **Repo:** [MolochDaGod/CastingAbilitiesThreeJS](https://github.com/MolochDaGod/CastingAbilitiesThreeJS)  
 **Live (control plane):** [casting.grudge.studio](https://casting.grudge.studio) — dev → production lab  
@@ -25,11 +25,59 @@ Elemental casting sandbox for **Grudge Studio**: draw a path, release, and Fire 
 
 | Package | Role |
 |---------|------|
-| `three` ^0.185 | Renderer / GLTF / AnimationMixer |
-| `@dimforge/rapier3d-compat` ^0.19 | Ground + human CCT (SI capsule) |
+| `three` ^0.185 | Renderer / GLTF / AnimationMixer · Draco + Meshopt + KTX2 |
+| `@dimforge/rapier3d-compat` ^0.19 | Ground heightfield + human CCT (SI capsule) |
+| `xstate` | Player activity machine |
 | VFX beauty | [vfxgrudge.puter.site](https://vfxgrudge.puter.site/) → `src/vfx/VfxDirector.js` |
 
-**Do not** reintroduce Mixamo FBX, Meshy heroes, dual mixers, or OrbitControls during combat TPS.
+**Do not** reintroduce Mixamo FBX as play, Meshy heroes, dual mixers, dual Draco loaders, or OrbitControls during combat TPS.
+
+### Loaders (shared pipeline)
+
+| Decoder | Pin |
+|---------|-----|
+| Draco | `gstatic` versioned **1.5.7** |
+| Meshopt | three `meshopt_decoder` |
+| KTX2 / Basis | `three@0.185.1` basis transcoder · bind after WebGLRenderer |
+
+Code: `src/loaders/gltfPipeline.js` · `AssetLoader` · **one** `sharedGltfLoader()` for weapons / projectiles / equip.  
+Audit: `docs/LOADER_DRACO_KTX2_AUDIT.md` · health: `docs/SYSTEMS_HEALTH_AUDIT.md`
+
+---
+
+## Combat · skills · VFX (production pattern)
+
+| Layer | Role |
+|-------|------|
+| Catalog skills | `master-weaponSkills` / `t0-weapons` — **never invent skill ids** |
+| Production package | `weaponSkillProduction.js` — anim · VFX · physics · statuses |
+| Statuses | push · freeze · stun · slow · burn · root · knockup (`skillStatusSystem`) |
+| Staff normal | Hotbar **1** + **focus LMB** → shared stream orb |
+| Linear skillshots | ice / thunder / meteor / beam / snare / glacier (`elementalLinearCast`) |
+| Path cast | Fire/Water/Earth/Wind Ability pools (draw stroke) |
+| Mesh delivery | orbs · rocks · freeze nova · bubbles · dual arrows |
+
+```bash
+# Optional per-skill override scaffold
+node scripts/scaffold-weapon-skill.mjs --id staff_fire_bolt --weapon STAFF
+# Split multipacks → SI production meshes
+node scripts/split-gd-orbs-and-charge.mjs
+node scripts/split-element-attack-meshes.mjs
+```
+
+Docs: `WEAPON_SKILL_PRODUCTION_SSOT.md` · `ELEMENTAL_LINEAR_CAST_SSOT.md` · `STAFF_NORMAL_ORBS_CHARGE_SSOT.md` · `ELEMENT_ATTACK_MESHES_SSOT.md`
+
+### Controls (combat)
+
+| Input | Action |
+|-------|--------|
+| **Q** | Equip ↔ combat |
+| **1–4** | Weapon skills (catalog hotbar) |
+| **RMB** | Focus aim (TPS) |
+| **Focus + LMB** | Staff/wand → **slot 1 normal** (orb stream) |
+| **F** | Weapon primary skill |
+| **Hold LMB + drag** | Path cast stroke (non-focus / freeride) |
+| **Alt+Shift+Q/E/R/F/V/G** | Arm linear skillshot (MOBA aim) |
 
 ---
 
@@ -63,6 +111,19 @@ Deploy path: `deployToonPlayKit` (`src/character/toonKitPlay.js`) — bone SI fi
 Live: `https://casting-abilities-threejs.vercel.app/models/ride/…`  
 Code: `HoverboardRide.js` + `RideIK.js` (feet → deck, hands → boom/`sailRail`)
 
+### VFX meshes (shipped splits — SI)
+
+| Pack | Path | Use |
+|------|------|-----|
+| Element orbs | `public/models/vfx/orbs/orb-*.glb` | Staff normal projectiles (gd_orbs split) |
+| Charge shell | `public/models/vfx/charge/staff-charge.glb` | Cast charge (kamehameha bake) |
+| Earth rocks | `public/models/vfx/rocks/rock-0..7.glb` | Nature/earth pull → linear/aimed |
+| Arrows | `public/models/vfx/arrows/arrow-path.glb` · `arrow-loft.glb` | Linear path vs lofted throw/trap |
+| Summons | `public/models/vfx/summons/` | Fire fist / ice shard (legacy heavy) |
+| Skill overrides | `public/skills/production/<id>.json` | Optional per-skill production tweaks |
+
+**Never** load multipack sources whole as projectiles (`*_src.glb` = author only).
+
 ### Local only
 
 | Resource | Path |
@@ -71,13 +132,31 @@ Code: `HoverboardRide.js` + `RideIK.js` (feet → deck, hands → boom/`sailRail
 
 ---
 
+## Terrain (three layers)
+
+| Layer | Role | Code |
+|-------|------|------|
+| **L0** | Height field (one sample) | `IslandHeightfield` · Rapier heightfield |
+| **L1** | Surface ground colors | heightfield mesh |
+| **L2** | Grass + growing forest | `StylizedGrassLayer` · `GrowingForest` |
+| **L3** | Harvest rocks | `DevIslandHarvest` |
+| Water | Ocean sibling | `StageWater` |
+
+Patterns: snakey-locomotion · three-stylized · forestoutline · Rapier terrain.  
+Docs: `THREE_LAYER_TERRAIN_SSOT.md` · `TERRAIN_PHYSICS_SSOT.md`
+
+Aim / path / feet all use **one** `terrain.sample` via `projectToTerrain`.
+
+---
+
 ## Controls
 
 | Input | Action |
 | --- | --- |
-| **Hold LMB + drag** | Draw path |
+| **Hold LMB + drag** | Draw path (equip / freeride cast) |
 | **Release** | Cast element — or **windsurf path course** in walk mode |
-| **RMB + drag** | Orbit (equip/sandbox) · TPS yaw offset in combat |
+| **RMB** | Focus aim (combat) · orbit in equip |
+| **Focus + LMB** | Staff normal (slot 1) |
 | **M** | Cast ↔ **walk** (windsurf vehicle mode) |
 | **Space** (walk, not riding) | Deploy windsurf **vehicle** (frontflip + board) |
 | **E** (mounted) | **Get off** — unparent, remove board, land controller |
@@ -85,22 +164,23 @@ Code: `HoverboardRide.js` + `RideIK.js` (feet → deck, hands → boom/`sailRail
 | **1–4** | Weapon skills (combat) / elements (equip) |
 | **Q** | Equip ↔ combat session |
 | **I** | Inventory panel |
-| **F** | Blade / attack skill |
+| **F** | Weapon primary skill |
 | **G** | VFX editor |
 | **C** | Clear effects / hard cancel ride |
 | **P** | Pause |
 | **H** | Help |
 | **Alt+V/B/F/G/T/C** | Sandbox VFX previews |
+| **Alt+Shift+Q/E/R/F/V/G** | Linear skillshot arm |
 
 ---
 
 ## Character + ride stack
 
-- **Loader:** GLTFLoader + DRACO + Meshopt  
+- **Loader:** shared glTF pipeline (Draco + Meshopt + KTX2 after renderer bind)  
 - **Clone:** SkeletonUtils / deployToonPlayKit  
-- **Equip:** mesh_ids visibility (`EquipmentManager`)  
-- **Anims:** Bip001 magic + sword_shield packs (Open baked JSON)  
-- **Combat:** `DrcCombatController` + Rapier CCT + TPS camera  
+- **Equip:** mesh_ids visibility (`EquipmentManager`) + catalog hand mesh  
+- **Anims:** Bip001 magic + sword_shield packs (Open baked JSON) · **one mixer**  
+- **Combat:** `DrcCombatController` + Rapier CCT + TPS camera + production skills  
 - **Ride vehicle:** walk mode → deploy → **parent under deckCenter** → **RideIK** until **E** get-off → board removed  
 
 ```
@@ -110,6 +190,7 @@ Code: `HoverboardRide.js` + `RideIK.js` (feet → deck, hands → boom/`sailRail
 [ ] One AnimationMixer; RideIK only while `_rideActive` / mounted
 [ ] windsurf_package.glb 200 on prod + manifest sockets
 [ ] Dismount: vehicle gone + character.restoreFromRide land loco
+[ ] No bare GLTFLoader (use sharedGltfLoader)
 ```
 
 ---
@@ -150,16 +231,41 @@ Linked project: **casting-abilities-threejs** (`grudgenexus`).
 
 ```
 src/
-  abilities/      Element abilities + pool
-  animation/      CharacterController, WalkController, bakeClip
-  character/      toonKitPlay, RideIK, EquipmentManager, grudge6Deploy
-  combat/         DrcCombatController, skill trees
-  config/         settings, assets, grudge6SSOT
+  abilities/      Element path-cast Ability pools
+  animation/      CharacterController, WalkController (one mixer)
+  character/      toonKitPlay, RideIK, EquipmentManager, WeaponMeshAttach
+  combat/         DRC, skill production, statuses, delivery, linear plan
+  loaders/        gltfPipeline (Draco/Meshopt/KTX2), AssetLoader
+  config/         settings, assets, grudge6SSOT, worldScale
   effects/        HoverboardRide, trails, bursts
-  physics/        Rapier world
-  ui/             HUD, inventory, editor
-  vfx/            VfxDirector
+  physics/        Rapier world + heightfield
+  skillshot/      Linear skillshots (ice/thunder/meteor/…)
+  ui/             HUD, inventory, editor, AdminHub
+  vfx/            VfxDirector, staffOrbVfx, elementAttackVfx
+  world/          IslandHeightfield, grass, forest, StageWater, harvest
 public/
   models/ride/    windsurf_package.glb + manifest
+  models/vfx/     orbs, charge, rocks, arrows, summons
+  skills/production/  optional skill override JSON
   hdri/
+docs/             CASTING_LAB · WEAPON_SKILL_PRODUCTION · THREE_LAYER_TERRAIN · LOADER audit …
+scripts/          split orbs/rocks · scaffold-weapon-skill
 ```
+
+### Key docs
+
+| Doc | Topic |
+|-----|--------|
+| `CASTING_LAB_SSOT.md` | Lab macro map |
+| `WEAPON_SKILL_PRODUCTION_SSOT.md` | Scriptable production skills |
+| `ELEMENTAL_LINEAR_CAST_SSOT.md` | Element × linear merge |
+| `THREE_LAYER_TERRAIN_SSOT.md` | L0–L2 terrain |
+| `LOADER_DRACO_KTX2_AUDIT.md` | Decoder pins · no conflicts |
+| `SYSTEMS_HEALTH_AUDIT.md` | Conflict / forget checklist |
+| `FLEET_ENTRY_DEPLOY_LOADERS_RAYCAST_REVIEW.md` | Entry · deploy · raycast review |
+| `ENTRY_CATCH` (gameopen) | Player start URLs · anti-loop |
+
+### Player entry (fleet)
+
+Use Open `PRODUCT_STARTS` / `startUrlForIntent` — not guessed hosts.  
+Library: `open.grudge-studio.com` · create hero: `character.grudge-studio.com/foundry` · cabinets: `grudox.grudge-studio.com/arcade`.

@@ -1,0 +1,7 @@
+{
+  "source": "kamehameha_charging.glb",
+  "diameterM": 0.35,
+  "path": "models/vfx/charge/staff-charge.glb",
+  "alias": "models/vfx/charge/kamehameha-charge.glb",
+  "note": "Small charge shell at staff tip / hand during cast — tint with elemental shaders"
+}

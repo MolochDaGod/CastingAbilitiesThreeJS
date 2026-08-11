@@ -8,7 +8,8 @@
 import {
   loadEquippableWeapons,
   hotbarForWeapon,
-  exportWarlordsWeaponPrefab
+  exportWarlordsWeaponPrefab,
+  warmProductionOverrides
 } from '../api/t0WeaponCatalog.js';
 import { attachWeaponModel, clearWeaponAttach } from '../character/WeaponMeshAttach.js';
 
@@ -163,7 +164,20 @@ export async function equipWeapon(weapon, ctx) {
     });
   }
 
-  // 4) Skill bar — caller sets setActiveSkillTree('equipped') + drc.skills refresh
+  // 4) Warm production skill overrides (public/skills/production/<id>.json) before hotbar compile
+  try {
+    const ids = [
+      weapon.slot1?.id,
+      weapon.slot2?.id,
+      weapon.defaultSlot3Id,
+      ...(weapon.slot3Options || []).map((s) => s?.id)
+    ].filter(Boolean);
+    await warmProductionOverrides(ids);
+  } catch {
+    /* optional overrides */
+  }
+
+  // 5) Skill bar — caller sets setActiveSkillTree('equipped') + drc.skills refresh
 
   toast(
     `Equipped ${weapon.name} · ${weapon.weaponType} · ${weapon.animPack} · skills ${weapon.slot1.name} / ${weapon.slot2.name}`

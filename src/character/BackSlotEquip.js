@@ -21,15 +21,14 @@
  */
 
 import { Box3, Group, MathUtils, Vector3 } from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import {
   applySailClothMaterials,
   setSailClothMode,
   updateSailCloth
 } from '../materials/SailCloth.js';
+import { sharedGltfLoader } from '../loaders/gltfPipeline.js';
 
-const loader = new GLTFLoader();
 const _box = new Box3();
 const _size = new Vector3();
 
@@ -202,7 +201,7 @@ export class BackSlotEquip {
 
     const token = ++this._loadToken;
     try {
-      const gltf = await loader.loadAsync(this.def.modelUrl);
+      const gltf = await sharedGltfLoader().loadAsync(this.def.modelUrl);
       if (token !== this._loadToken) return null;
       const src = gltf.scene || gltf.scenes?.[0];
       if (!src) return null;

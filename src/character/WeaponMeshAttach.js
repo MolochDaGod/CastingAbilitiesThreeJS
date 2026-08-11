@@ -7,11 +7,10 @@
  */
 
 import { Group, Box3, Vector3, MathUtils } from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { sharedGltfLoader } from '../loaders/gltfPipeline.js';
 
 const _box = new Box3();
 const _size = new Vector3();
-const loader = new GLTFLoader();
 
 /**
  * @param {import('three').Object3D|null} handBone
@@ -64,7 +63,8 @@ export async function attachWeaponModel(handBone, modelUrl, opts = {}) {
     (profile === 'wand' || profile === 'staff' ? 0.55 : profile === 'pistol' ? 0.22 : 0.4);
 
   try {
-    const gltf = await loader.loadAsync(modelUrl);
+    // Shared Draco/Meshopt/KTX2 — do not new bare GLTFLoader (compressed CDN weapons)
+    const gltf = await sharedGltfLoader().loadAsync(modelUrl);
     const root = gltf.scene || gltf.scenes?.[0];
     if (!root) return null;
 

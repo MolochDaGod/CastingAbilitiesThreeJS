@@ -160,6 +160,10 @@ export function inferDeliveryPattern(skill) {
   if (/\b(erupt|spike|root|under|ground|bloom|geyser|upheaval)\b/.test(blob)) {
     return 'under_target';
   }
+  // Freeze / ice nova blast from self in all directions
+  if (/\b(freeze|absolute.?zero|ice.?nova|frost.?nova|glacial.?blast)\b/.test(blob)) {
+    return 'around_caster';
+  }
   if (/\b(nova|around self|self aoe|flame nova|ice nova)\b/.test(blob)) {
     return 'around_caster';
   }
@@ -358,6 +362,7 @@ export function deliveryPhysicsProfile(pattern, knobs = {}) {
 /**
  * Element → default summon mesh key (lab SI extracts).
  * Never load whole multipack — only split summons.
+ * Staff stream normals prefer STAFF_ORB_MESH (gd_orbs split) over fists.
  */
 export const SUMMON_MESH_BY_ELEMENT = Object.freeze({
   fire: './models/vfx/summons/summon-fire-fist.glb',
@@ -372,6 +377,52 @@ export const SUMMON_MESH_BY_ELEMENT = Object.freeze({
 });
 
 /**
+ * Staff normal-attack orbs (gd_orbs_pack split) — per color / element.
+ * Never load gd_orbs_pack_src.glb whole.
+ */
+export const STAFF_ORB_MESH_BY_ELEMENT = Object.freeze({
+  fire: './models/vfx/orbs/orb-fire.glb',
+  ice: './models/vfx/orbs/orb-ice.glb',
+  frost: './models/vfx/orbs/orb-ice.glb',
+  water: './models/vfx/orbs/orb-ice.glb',
+  nature: './models/vfx/orbs/orb-nature.glb',
+  storm: './models/vfx/orbs/orb-storm.glb',
+  holy: './models/vfx/orbs/orb-holy.glb',
+  arcane: './models/vfx/orbs/orb-arcane.glb'
+});
+
+export const STAFF_CHARGE_MESH = './models/vfx/charge/staff-charge.glb';
+
+/**
+ * Prefer staff orb mesh for stream / primary bolts; summons for heavy signatures.
+ * @param {object} skill
+ * @returns {string|null}
+ */
+export function resolveSkillProjectileMesh(skill) {
+  if (!skill) return null;
+  if (skill.projectileMeshUrl) return skill.projectileMeshUrl;
+  if (skill.summonMeshUrl) return skill.summonMeshUrl;
+  const el = skill.element || skill.abilityElement || '';
+  const blob = `${skill.id || ''} ${skill.label || ''} ${skill.catalogSkillId || ''}`.toLowerCase();
+  const useOrb =
+    skill.useOrbProjectile === true ||
+    skill.pathMode === 'stream' ||
+    skill.slotType === 'primary' ||
+    skill.slot === 0 ||
+    skill.slot === -1 ||
+    skill.isWeaponPrimary ||
+    /practice|bolt|spark|ping|normal|auto/.test(blob);
+  if (useOrb && STAFF_ORB_MESH_BY_ELEMENT[el]) {
+    return STAFF_ORB_MESH_BY_ELEMENT[el];
+  }
+  return (
+    SUMMON_MESH_BY_ELEMENT[el] ||
+    SUMMON_MESH_BY_ELEMENT[skill.abilityElement] ||
+    null
+  );
+}
+
+/**
  * Attach delivery + physics profile onto a DRC skill (non-destructive).
  * @param {object} skill
  */
@@ -384,15 +435,17 @@ export function enrichSkillDelivery(skill) {
     intensity: 1,
     element: skill.element || skill.abilityElement
   });
+  const meshUrl = resolveSkillProjectileMesh(skill);
   return {
     ...skill,
     delivery: pattern,
     deliveryLabel: DELIVERY_META[pattern]?.label || pattern,
     deliveryPhysics: physics,
-    summonMeshUrl:
-      skill.summonMeshUrl ||
-      SUMMON_MESH_BY_ELEMENT[skill.element] ||
-      SUMMON_MESH_BY_ELEMENT[skill.abilityElement] ||
-      null
+    summonMeshUrl: meshUrl,
+    projectileMeshUrl: meshUrl,
+    chargeMeshUrl: skill.chargeMeshUrl || STAFF_CHARGE_MESH,
+    useOrbProjectile:
+      skill.useOrbProjectile === true ||
+      (meshUrl != null && /\/orbs\/orb-/.test(meshUrl))
   };
 }

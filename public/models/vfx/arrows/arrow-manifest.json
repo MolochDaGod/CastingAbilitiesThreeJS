@@ -1,0 +1,33 @@
+{
+  "systems": {
+    "path": {
+      "id": "arrow-path",
+      "mesh": "models/vfx/arrows/arrow-path.glb",
+      "source": "teleport_arrow.glb",
+      "lengthM": 1.1,
+      "loft": 0,
+      "role": "linear attack path — distance sets end event (explode/aoe/blink/return)",
+      "endEvents": [
+        "impact",
+        "explode",
+        "aoe",
+        "blink",
+        "return"
+      ]
+    },
+    "loft": {
+      "id": "arrow-loft",
+      "mesh": "models/vfx/arrows/arrow-loft.glb",
+      "source": "arrow_curved.glb",
+      "lengthM": 0.95,
+      "loft": 0.42,
+      "role": "throw / place device / trap / summon arrow",
+      "endEvents": [
+        "throw",
+        "place_device",
+        "trap",
+        "summon"
+      ]
+    }
+  }
+}

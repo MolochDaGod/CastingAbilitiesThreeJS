@@ -60,16 +60,18 @@ src/skillshot/
 
 ---
 
-## Merge with weapon skills (next)
+## Merge with weapon skills / elemental (status)
 
-| Step | Action |
-|------|--------|
-| 1 | ~~Port skillshot kit + bridge~~ |
-| 2 | Wire `castToward` from DRC skill release when skill `delivery=line` |
-| 3 | Intensity tiers T0–T3 → `linearSettings.global` + ability scale |
-| 4 | Texture variants for residual slash + skillshot materials |
-| 5 | Editor folder for linear knobs (subset of 938) |
-| 6 | Export effect-prefab packs for Open / Warlords |
+| Step | Action | Status |
+|------|--------|--------|
+| 1 | Port skillshot kit + bridge | **done** |
+| 2 | Wire `castToward` from DRC skill release (elemental stream/primary) | **done** — `elementalLinearCast.js` + `DrcCombatController` |
+| 3 | Intensity from focus → `linearSettings.global` via `applyIntensity` | **done** |
+| 4 | Texture variants for residual slash + skillshot materials | partial (`effectVariants`) |
+| 5 | Editor folder for linear knobs (subset of 938) | next |
+| 6 | Export effect-prefab packs for Open / Warlords | next |
+
+**Full map:** `docs/ELEMENTAL_LINEAR_CAST_SSOT.md`
 
 ---
 

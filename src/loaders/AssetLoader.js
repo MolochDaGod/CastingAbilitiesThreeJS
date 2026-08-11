@@ -1,9 +1,14 @@
-import { LoadingManager, TextureLoader } from 'three';
-import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { LoadingManager, TextureLoader, SRGBColorSpace } from 'three';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
-import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import {
+  bindKtx2,
+  getGltfLoadingManager,
+  getSharedDracoLoader,
+  gltfPipelineStatus,
+  isKtx2Bound,
+  makeGltfLoader
+} from './gltfPipeline.js';
 import { DRACO_DECODER_PATH } from '../config/assets.js';
 
 /**
@@ -15,28 +20,27 @@ export const PLACEHOLDER_TEXTURE_URL =
 const ABSOLUTE_LOCAL_PATH = /(^|\/)[A-Za-z]:[\\/]|^\\\\/;
 
 /**
- * Central asset loading — matches three.js GLTFLoader examples:
- *  - GLTFLoader + DRACOLoader (KHR_draco_mesh_compression)
- *  - MeshoptDecoder (EXT/KHR_meshopt_compression)
+ * Central asset loading — fleet-aligned glTF pipeline:
+ *  - **One** shared DRACOLoader (WASM worker pool)
+ *  - MeshoptDecoder always
+ *  - KTX2/Basis after {@link AssetLoader.bindRenderer}
  *  - shared LoadingManager for boot progress
  *
- * @see https://threejs.org/examples/?q=loader%20gltf
+ * Draco and KTX2 do **not** conflict: different glTF extensions.
+ *
+ * @see gltfPipeline.js · docs/LOADER_DRACO_KTX2_AUDIT.md
  */
 export class AssetLoader {
   constructor() {
-    this.manager = new LoadingManager();
+    // Prefer shared manager so Draco/KTX2 share progress surface
+    this.manager = getGltfLoadingManager();
     this.manager.setURLModifier((url) =>
       ABSOLUTE_LOCAL_PATH.test(url) ? PLACEHOLDER_TEXTURE_URL : url
     );
 
-    this.draco = new DRACOLoader(this.manager);
-    // Official three.js GLTF example pattern — wasm decoder from gstatic.
-    this.draco.setDecoderPath(DRACO_DECODER_PATH);
-    this.draco.preload();
-
-    this.gltf = new GLTFLoader(this.manager);
-    this.gltf.setDRACOLoader(this.draco);
-    this.gltf.setMeshoptDecoder(MeshoptDecoder);
+    // Shared Draco only — do not new DRACOLoader here again
+    this.draco = getSharedDracoLoader(this.manager);
+    this.gltf = makeGltfLoader({ manager: this.manager, shared: false });
 
     this.fbx = new FBXLoader(this.manager);
     this.hdr = new HDRLoader(this.manager);
@@ -46,6 +50,7 @@ export class AssetLoader {
     this._loaded = 0;
     this._total = 0;
     this._settleWaiters = [];
+    this._ktx2 = false;
 
     this.manager.onStart = (_url, loaded, total) => {
       this._loaded = loaded;
@@ -61,6 +66,28 @@ export class AssetLoader {
       this._settleWaiters.splice(0).forEach((resolve) => resolve());
     };
     this.manager.onError = (url) => console.error(`[AssetLoader] failed: ${url}`);
+  }
+
+  /**
+   * Call once after WebGLRenderer exists — enables KTX2 textures on GLBs.
+   * @param {import('three').WebGLRenderer} renderer
+   */
+  bindRenderer(renderer) {
+    this._ktx2 = bindKtx2(renderer);
+    // Re-attach shared KTX2 to this loader instance
+    if (this._ktx2) {
+      this.gltf = makeGltfLoader({ manager: this.manager, shared: false, renderer });
+    }
+    return this._ktx2;
+  }
+
+  /** Pipeline diagnostics (boot / toast). */
+  pipelineStatus() {
+    return {
+      ...gltfPipelineStatus(),
+      ktx2Bound: isKtx2Bound() || this._ktx2,
+      dracoPathConfig: DRACO_DECODER_PATH
+    };
   }
 
   onProgress(callback) {
@@ -87,7 +114,7 @@ export class AssetLoader {
   }
 
   /**
-   * Load glTF / GLB (production kits may use Draco / Meshopt / WebP).
+   * Load glTF / GLB (Draco / Meshopt / KTX2 when present on asset).
    * @returns {Promise<import('three/addons/loaders/GLTFLoader.js').GLTF>}
    */
   loadGLTF(url) {
@@ -103,14 +130,29 @@ export class AssetLoader {
     });
   }
 
-  /** @returns {Promise<THREE.Texture>} */
-  loadTexture(url) {
+  /**
+   * Color texture — sRGB for albedo/atlas (not data/normal maps).
+   * @param {string} url
+   * @param {{ colorSpace?: boolean }} [opts]
+   * @returns {Promise<import('three').Texture>}
+   */
+  loadTexture(url, opts = {}) {
     return new Promise((resolve, reject) => {
-      this.texture.load(url, resolve, undefined, reject);
+      this.texture.load(
+        url,
+        (tex) => {
+          if (opts.colorSpace !== false) {
+            tex.colorSpace = SRGBColorSpace;
+          }
+          resolve(tex);
+        },
+        undefined,
+        reject
+      );
     });
   }
 
-  /** @returns {Promise<THREE.DataTexture>} */
+  /** @returns {Promise<import('three').DataTexture>} */
   loadHDR(url) {
     return new Promise((resolve, reject) => {
       this.hdr.load(encodeURI(url), resolve, undefined, reject);
@@ -118,6 +160,7 @@ export class AssetLoader {
   }
 
   dispose() {
-    this.draco?.dispose();
+    // Do not dispose process-wide Draco — other systems may still use it.
+    // Tests: import { disposeGltfPipeline } from './gltfPipeline.js'
   }
 }

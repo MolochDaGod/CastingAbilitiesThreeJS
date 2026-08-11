@@ -21,10 +21,22 @@ import {
 import { signatureForElement } from './staffSignatureSkills.js';
 import {
   enrichSkillDelivery,
-  resolveDeliveryPose
+  resolveDeliveryPose,
+  STAFF_CHARGE_MESH
 } from './skillDelivery.js';
 import { SkillProjectileSystem } from './SkillProjectileSystem.js';
 import { applyKnockback } from './hitReaction.js';
+import {
+  isStaffNormalAttack,
+  STAFF_NORMAL_ATTACK,
+  staffProjectileMeshUrl
+} from '../vfx/staffOrbVfx.js';
+import { inferElementAttackKind } from '../vfx/elementAttackVfx.js';
+import {
+  planElementalLinearCast,
+  fireLinearFromPlan
+} from './elementalLinearCast.js';
+import { SkillStatusSystem } from './skillStatusSystem.js';
 
 const _origin = new Vector3();
 const _tip = new Vector3();
@@ -80,6 +92,18 @@ export class DrcCombatController {
     this.onSession = opts.onSession || (() => {});
     /** Snow-brawl alternate hand for projectile spawn offset */
     this._throwHand = 'right';
+    /**
+     * Linear skillshot bridge (learned LinearAbilityCasting systems).
+     * @type {import('../skillshot/LinearSkillBridge.js').LinearSkillBridge|null}
+     */
+    this.linearSkills = opts.linearSkills || null;
+    /** Production status effects (freeze/stun/push/slow/…) */
+    this.statuses = new SkillStatusSystem({
+      onToast: (m) => this.onToast(m),
+      getElapsed: () => this.elapsed
+    });
+    /** Last skill used (for hit status package) */
+    this._lastSkill = null;
 
     /** @type {'equip'|'combat'} — mirrored in SessionState.drc */
     this.session = this.sessionState?.drc || 'combat';
@@ -199,6 +223,14 @@ export class DrcCombatController {
     this.aim = aim;
   }
 
+  /**
+   * Attach linear skillshot bridge (elemental LINE/ZONE casts).
+   * @param {import('../skillshot/LinearSkillBridge.js').LinearSkillBridge|null} linear
+   */
+  setLinearSkills(linear) {
+    this.linearSkills = linear || null;
+  }
+
   get inCombat() {
     return this.sessionState ? this.sessionState.inCombat : this.session === 'combat';
   }
@@ -245,28 +277,61 @@ export class DrcCombatController {
    * @param {import('./SkillProjectileSystem.js').ProjectileHit} hit
    */
   _onProjectileHit(hit) {
-    // Soft-lock hostiles: if hit target is not self, still toast
-    const isSelf =
+    if (hit.endEvent === 'blink' && hit.point) {
+      const p = this.character.position;
+      p.x = hit.point.x;
+      p.z = hit.point.z;
+      this.vfx?.deploy?.('arcane_swirl', { origin: hit.point.clone(), intensity: 1 });
+      this.onToast?.(`Blink · ${hit.endEvent}`);
+      return;
+    }
+
+    // Production status package (damage · push · freeze · stun · slow · …)
+    const skill = this._lastSkill || {
+      id: 'projectile',
+      damage: 0,
+      element: hit.element,
+      effects: hit.freeze ? ['Freeze 2.5s'] : [],
+      statuses: hit.freeze
+        ? [{ id: 'freeze', durationSec: hit.freezeSec || 2.5, magnitude: 1 }]
+        : [],
+      force: hit.force,
+      knockbackMm: hit.knockbackMm,
+      knockupVy: hit.knockupVy
+    };
+
+    const isHostile = hit.target?.kind === 'hostile';
+    const applyToPlayer =
       !hit.target ||
       hit.target.kind === 'self' ||
-      hit.target.id === 'player';
-    if (isSelf || hit.target?.kind === 'hostile' || !hit.target) {
-      // Lab: apply knockback to player when testing self-hit or no target list
-      if (!hit.target || hit.target.kind === 'self' || hit.target.applyToPlayer) {
-        applyKnockback(
-          { character: this.character, physics: this.physics, drc: this },
-          {
-            forward: hit.forward,
-            knockbackMm: hit.knockbackMm,
-            knockupVy: hit.knockupVy,
-            playAnim: true
-          }
-        );
-      }
-    }
-    this.onToast?.(
-      `Hit · force ${hit.force?.toFixed?.(1) ?? hit.force} · ${hit.element || ''} · ${Math.round(hit.knockbackMm || 0)} MM`
-    );
+      hit.target.id === 'player' ||
+      hit.target.applyToPlayer;
+
+    this.statuses.applyHit({
+      target: hit.target || { id: 'aim', point: hit.point, kind: 'aim' },
+      skill: {
+        ...skill,
+        damage: skill.damage,
+        // Inject freeze from projectile flag when skill had no statuses
+        effects: skill.effects,
+        statuses:
+          skill.statuses?.length
+            ? skill.statuses
+            : hit.freeze
+              ? [{ id: 'freeze', durationSec: hit.freezeSec || 2.5, magnitude: 1 }]
+              : undefined
+      },
+      hit: {
+        ...hit,
+        damage: skill.damage,
+        // Hostiles: push from skill physics; player only if self-hit test
+        knockbackMm: isHostile || applyToPlayer ? hit.knockbackMm : 0
+      },
+      character: this.character,
+      physics: this.physics,
+      drc: this,
+      applyToPlayer: applyToPlayer && !hit.freeze
+    });
   }
 
   /**
@@ -345,16 +410,90 @@ export class DrcCombatController {
       });
     }
 
+    // Element attack kinds (freeze nova / earth rocks / water bubbles / arrows)
+    const atk = inferElementAttackKind(enriched);
+    if (this.projectiles && atk.kind) {
+      if (atk.kind === 'freeze_nova') {
+        this.projectiles.spawnFreezeNova?.({
+          origin: this.character.position.clone(),
+          radiusM: atk.aoeM,
+          freeze: true,
+          targets,
+          element: 'ice'
+        });
+        enriched._deliveryLabel = 'Freeze Nova';
+        return enriched;
+      }
+      if (atk.kind === 'earth_rocks') {
+        void this.projectiles.spawnEarthRocks?.({
+          casterPos: this.character.position.clone(),
+          target: resolved.target,
+          forward: resolved.forward,
+          rockCount: atk.rockCount ?? 1,
+          aimMode: atk.aimMode || 'linear',
+          targets,
+          speed: phys.speed ?? 13
+        });
+        enriched._deliveryLabel =
+          atk.aimMode === 'aimed' ? 'Earth Rocks · aimed' : 'Earth Rocks · linear';
+        return enriched;
+      }
+      if (atk.kind === 'water_bubbles') {
+        this.projectiles.spawnBubbleStream?.({
+          origin: resolved.origin,
+          target: resolved.target,
+          forward: resolved.forward,
+          speed: phys.speed ?? 11,
+          targets
+        });
+        enriched._deliveryLabel = 'Water Bubbles';
+        return enriched;
+      }
+      if (atk.kind === 'arrow_path' || atk.kind === 'arrow_loft') {
+        const dist = this.character.position.distanceTo(resolved.target);
+        void this.projectiles.spawnArrow?.({
+          origin: resolved.origin,
+          target: resolved.target,
+          system: atk.kind === 'arrow_loft' ? 'loft' : 'path',
+          endEvent: atk.endEvent,
+          distanceM: dist,
+          targets
+        });
+        enriched._deliveryLabel = `Arrow · ${atk.endEvent || atk.kind}`;
+        return enriched;
+      }
+    }
+
     if (pattern === 'toggle_aura' || pattern === 'around_caster' || pattern === 'around_target' || pattern === 'at_location') {
+      const el = enriched.element || enriched.abilityElement;
+      // Ice around_caster → freeze nova when catalog implies freeze
+      if (
+        (pattern === 'around_caster' || pattern === 'around_target') &&
+        (el === 'ice' || el === 'frost') &&
+        this.projectiles?.spawnFreezeNova
+      ) {
+        this.projectiles.spawnFreezeNova({
+          origin:
+            pattern === 'around_target'
+              ? resolved.origin.clone()
+              : this.character.position.clone(),
+          radiusM: phys.aoe ?? 5,
+          targets,
+          element: 'ice'
+        });
+        enriched._deliveryLabel = 'Freeze Nova';
+        return enriched;
+      }
       this.projectiles?.pulse?.({
         origin: resolved.origin,
         aoe: phys.aoe ?? 1.5,
         force: phys.force,
         knockbackMm: phys.knockbackMm,
         knockupVy: phys.knockupVy,
-        element: enriched.element || enriched.abilityElement,
+        element: el,
         targets,
-        intensity: 1.1
+        intensity: 1.1,
+        freeze: el === 'ice' || el === 'frost'
       });
       return enriched;
     }
@@ -367,25 +506,63 @@ export class DrcCombatController {
       return enriched;
     }
 
-    // Traveling mesh projectile (fire fist / ice shard / holy tint)
+    // Traveling mesh projectile — staff normals use per-element orbs (gd_orbs split)
     if (this.projectiles && phys.meshKey !== 'residual') {
+      const el = enriched.element || enriched.abilityElement || 'arcane';
+      // Nature stream: prefer rocks over orbs for earth school staffs
+      if (
+        (el === 'nature' || el === 'earth') &&
+        (enriched.pathMode === 'stream' || isStaffNormalAttack(enriched)) &&
+        this.projectiles.spawnEarthRocks
+      ) {
+        void this.projectiles.spawnEarthRocks({
+          casterPos: this.character.position.clone(),
+          target: resolved.target,
+          forward: resolved.forward,
+          rockCount: 1,
+          aimMode: 'linear',
+          targets,
+          speed: phys.speed ?? 14
+        });
+        return enriched;
+      }
+      // Ice stream soft bolts: bubbles + orb
+      if ((el === 'ice' || el === 'frost' || el === 'water') && this.projectiles.spawnBubbleStream) {
+        this.projectiles.spawnBubbleStream({
+          origin: resolved.origin,
+          target: resolved.target,
+          forward: resolved.forward,
+          count: 4,
+          speed: phys.speed ?? 12,
+          targets
+        });
+      }
+      const meshUrl =
+        enriched.projectileMeshUrl ||
+        enriched.summonMeshUrl ||
+        (isStaffNormalAttack(enriched) ? staffProjectileMeshUrl(el) : null);
+      const orbSize =
+        enriched.useOrbProjectile || isStaffNormalAttack(enriched)
+          ? STAFF_NORMAL_ATTACK.projectileDiameterM
+          : phys.size;
       void this.projectiles.spawn({
         origin: resolved.origin,
         target: resolved.target,
         forward: resolved.forward,
-        element: enriched.element || enriched.abilityElement || 'arcane',
-        meshUrl: enriched.summonMeshUrl,
-        speed: phys.speed,
+        element: el,
+        meshUrl,
+        speed: phys.speed ?? 16,
         gravity: phys.gravity,
-        contactRadius: phys.contactRadius,
+        contactRadius: phys.contactRadius ?? 0.4,
         life: phys.life,
         force: phys.force,
         knockbackMm: phys.knockbackMm,
         knockupVy: phys.knockupVy,
         aoe: phys.aoe,
-        size: phys.size,
+        size: orbSize,
         targets,
-        explodeOnHit: phys.explodeOnHit !== false
+        explodeOnHit: phys.explodeOnHit !== false,
+        useOrbMaterials: true
       });
     }
     return enriched;
@@ -394,6 +571,7 @@ export class DrcCombatController {
   update(dt, keys) {
     this.elapsed += dt;
     this.projectiles?.update?.(dt);
+    this.statuses?.update?.(this.elapsed);
     // Dual resource regen (settings.drc)
     const staR = settings.drc?.staminaRegen ?? 18;
     const manaR = settings.drc?.manaRegen ?? 12;
@@ -894,13 +1072,37 @@ export class DrcCombatController {
       onComplete: opts.onComplete,
       interruptible: opts.interruptible !== false,
       aim: opts.aim || null,
+      showCharge: opts.showCharge !== false,
+      skill: opts.skill || null
     };
     this.character.setCasting?.(true, opts.aim || null);
     this.character.playWeaponCombat?.('cast') ||
       this.character.playCastFlourish?.() ||
       this.character.requestOneShot?.('cast');
+    // Small elemental charge shell (kamehameha bake) at tip during cast
+    if (this._cast.showCharge && this.projectiles?.spawnCharge) {
+      this._chargeOrigin = this._chargeOrigin || new Vector3();
+      this._getChargeOrigin(this._chargeOrigin);
+      void this.projectiles.spawnCharge({
+        origin: this._chargeOrigin,
+        element: this._cast.element,
+        meshUrl: opts.chargeMeshUrl || STAFF_CHARGE_MESH,
+        size: 0.32
+      });
+    }
     this.onCastBar?.(this.getCastBarState());
     return true;
+  }
+
+  /** Staff tip / cast hand for charge shell. */
+  _getChargeOrigin(out) {
+    if (typeof this.character.getWeaponTip === 'function') {
+      this.character.getWeaponTip(out, settings.residual?.tipOffset ?? 0.55);
+      return out;
+    }
+    this.character.getCastOrigin?.(out) || out.copy(this.character.position);
+    out.y += 1.1;
+    return out;
   }
 
   _tickCast(dt, keys) {
@@ -932,8 +1134,18 @@ export class DrcCombatController {
       return;
     }
     this.character.setCasting?.(true, this._cast.aim || null);
+    // Pulse charge shell at tip while channeling
+    if (this._cast.showCharge && this.projectiles?.updateCharge) {
+      this._chargeOrigin = this._chargeOrigin || new Vector3();
+      this._getChargeOrigin(this._chargeOrigin);
+      const prog = MathUtils.clamp(
+        (this.elapsed - this._cast.startedAt) / Math.max(0.01, this._cast.duration),
+        0,
+        1
+      );
+      this.projectiles.updateCharge(this._chargeOrigin, dt, prog);
+    }
     this.onCastBar?.(this.getCastBarState());
-    void dt;
   }
 
   _interruptCast(reason = 'cancel', toast = true) {
@@ -945,6 +1157,7 @@ export class DrcCombatController {
   }
 
   _clearCast() {
+    this.projectiles?.clearCharge?.();
     this._cast = null;
     this.character.setCasting?.(false);
   }
@@ -1033,7 +1246,10 @@ export class DrcCombatController {
         catalogSkillId: staffId,
         label: boundName || staffB.name || skill.label,
         description: staffB.description,
-        effects: staffB.effects
+        effects: staffB.effects,
+        useOrbProjectile: staffB.useOrbProjectile ?? skill.useOrbProjectile,
+        projectileMeshUrl: staffB.projectileMeshUrl || skill.projectileMeshUrl,
+        chargeMeshUrl: staffB.chargeMeshUrl || skill.chargeMeshUrl
       };
     }
 
@@ -1050,6 +1266,8 @@ export class DrcCombatController {
       this.onToast('Already casting');
       return false;
     }
+    // Production hit package for projectiles / melee residual
+    this._lastSkill = skill;
 
     const yaw = this.character.facing;
     // Focus: snow-brawl 3D launch vector; free: horizontal aim forward
@@ -1132,11 +1350,38 @@ export class DrcCombatController {
       return;
     }
 
+    // ── Elemental × linear plan (learned LinearAbilityCasting + staff skills) ──
+    const focusOnPre = this.elapsed < this._focusUntil;
+    const focusMulPre = focusOnPre ? this._focusMul || 1.35 : 1;
+    const castPlan = planElementalLinearCast(skill, {
+      focusCombat: !!this.combatFocus?.focusEnabled || this.inCombat,
+      pathDrawn: false,
+      intensity: focusMulPre
+    });
+    skill._castPlan = castPlan;
+
+    // Linear LINE/ZONE skillshot (castToward — no Alt+Shift arm required)
+    if (castPlan.useLinear && this.linearSkills) {
+      try {
+        const feet = this.character.position.clone();
+        const aimPt3 =
+          pose.aim?.clone?.() ||
+          feet.clone().addScaledVector(pose.forward, skill.rangeM || 12);
+        const okLin = fireLinearFromPlan(this.linearSkills, castPlan, {
+          origin: pose.origin,
+          feet,
+          aim: aimPt3
+        });
+        if (okLin) skill._deliveryLabel = `Linear · ${castPlan.linearId}`;
+      } catch (e) {
+        console.warn('[DrcCombat] linear cast', e);
+      }
+    }
+
     // Delivery pattern (over/under/around/projectile) + mesh force projectiles
     try {
       const deliv = this._deploySkillDelivery(skill, pose);
       if (deliv?.deliveryLabel) {
-        // toast appended after elemental path
         skill._deliveryLabel = deliv.deliveryLabel;
       }
     } catch (e) {
@@ -1148,9 +1393,12 @@ export class DrcCombatController {
       // Product element (fire|storm|ice|nature|holy|arcane) or legacy — AbilityManager maps pool
       const el = skill.element || skill.abilityElement;
       const pathMode = skill.pathMode || 'stream';
-      const curve = this._curveForPathMode(pathMode, skill.rangeM);
-      this.abilities.select(el);
-      this.abilities.cast(curve, el);
+      // Path Ability beauty when plan says so (staffCast learning + presentation)
+      if (castPlan.usePathAbility !== false) {
+        const curve = this._curveForPathMode(pathMode, skill.rangeM);
+        this.abilities.select(el);
+        this.abilities.cast(curve, el);
+      }
 
       const focusOn = this.elapsed < this._focusUntil;
       const focusMul = focusOn ? this._focusMul || 1.35 : 1;
@@ -1159,6 +1407,8 @@ export class DrcCombatController {
         // Consume focus on first damaging spell
         this._focusUntil = 0;
       }
+      // Push intensity into linear global knobs (live sample mid-cast)
+      this.linearSkills?.applyIntensity?.(intensity);
 
       const isMeteor =
         /meteor|inferno/i.test(skill.id + skill.label + (skill.catalogSkillId || '')) ||
@@ -1191,10 +1441,13 @@ export class DrcCombatController {
       const cat = skill.catalogSkillId ? ` → ${skill.catalogSkillId}` : '';
       const focusTag = focusOn ? ' · FOCUSED' : '';
       const styleTag = presStyle ? ` · ${presStyle}` : '';
+      const linTag = castPlan.useLinear ? ` · lin:${castPlan.linearId}` : '';
+      const layerTag =
+        castPlan.layers?.length > 1 ? ` · [${castPlan.layers.slice(0, 3).join('+')}]` : '';
       this.onToast(
         bound
-          ? `${boundName} · ${bound.skillId}`
-          : `${skill.label}${skill.pathMode ? ` · ${skill.pathMode}` : ''}${styleTag}${dmg}${focusTag}${cat}`
+          ? `${boundName} · ${bound.skillId}${linTag}`
+          : `${skill.label}${skill.pathMode ? ` · ${skill.pathMode}` : ''}${styleTag}${dmg}${focusTag}${linTag}${layerTag}${cat}`
       );
       return;
     }
@@ -1283,15 +1536,24 @@ export class DrcCombatController {
       return true;
     }
 
+    const el = skill.element || skill.abilityElement || 'arcane';
+    const staffNormal = isStaffNormalAttack(skill) || skill.style === 'spell';
     this._beginCast({
       label: skill.label,
       duration: castDur,
-      element: skill.element || skill.abilityElement || 'arcane',
+      element: el,
       interruptible: true,
       aim: aimPt,
-      onComplete: releaseSpell
+      onComplete: releaseSpell,
+      showCharge: staffNormal,
+      chargeMeshUrl: skill.chargeMeshUrl || STAFF_CHARGE_MESH,
+      skill
     });
-    this.onToast(`${skill.label} · cast ${castDur.toFixed(1)}s`);
+    this.onToast(
+      staffNormal
+        ? `${skill.label} · normal · charge → orb`
+        : `${skill.label} · cast ${castDur.toFixed(1)}s`
+    );
     return true;
   }
 
