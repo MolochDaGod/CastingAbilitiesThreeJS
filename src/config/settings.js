@@ -1280,15 +1280,15 @@ export const MODES = ['casting', 'walk'];
 export const MODE_META = {
   casting: {
     label: 'Cast',
-    glyph: '✦',
+    glyph: 'C',
     hint: 'Staff weapon path cast',
-    blurb: 'Draw path → staff weapon · 1–6 staffs · M walk'
+    blurb: 'Draw path to staff weapon · 1-6 staffs · M walk'
   },
   walk: {
     label: 'Surf',
-    glyph: '◎',
+    glyph: 'S',
     hint: 'Windsurf freeride',
-    blurb: 'Space deploy · path = course · WASD boat · 1–6 weapon skills on board'
+    blurb: 'Space deploy · path = course · WASD boat · 1-6 weapon skills on board'
   }
 };
 
@@ -1302,8 +1302,9 @@ export const ELEMENT_META = {
     label: 'Fire Staff',
     short: 'Fire',
     accent: '#ff6a1a',
-    glyph: '🜂',
-    hint: '1 — Fire staff weapon',
+    /** Latin short code for text UI; SVG sigils live in glyphs.js */
+    glyph: 'F',
+    hint: '1 - Fire staff weapon',
     staffWeaponId: 'staffFire',
     staffLabel: 'Fire Staff',
     kind: 'weapon'
@@ -1312,8 +1313,8 @@ export const ELEMENT_META = {
     label: 'Storm Staff',
     short: 'Storm',
     accent: '#9fdcff',
-    glyph: '🜁',
-    hint: '2 — Storm staff weapon',
+    glyph: 'S',
+    hint: '2 - Storm staff weapon',
     staffWeaponId: 'staffStorm',
     staffLabel: 'Storm Staff',
     kind: 'weapon'
@@ -1322,8 +1323,8 @@ export const ELEMENT_META = {
     label: 'Ice Staff',
     short: 'Ice',
     accent: '#31b6ff',
-    glyph: '🜄',
-    hint: '3 — Ice staff weapon',
+    glyph: 'I',
+    hint: '3 - Ice staff weapon',
     staffWeaponId: 'staffIce',
     staffLabel: 'Ice Staff',
     kind: 'weapon'
@@ -1332,8 +1333,8 @@ export const ELEMENT_META = {
     label: 'Nature Staff',
     short: 'Nature',
     accent: '#6bbf4a',
-    glyph: '🜃',
-    hint: '4 — Nature staff weapon',
+    glyph: 'N',
+    hint: '4 - Nature staff weapon',
     staffWeaponId: 'staffNature',
     staffLabel: 'Nature Staff',
     kind: 'weapon'
@@ -1342,8 +1343,8 @@ export const ELEMENT_META = {
     label: 'Holy Staff',
     short: 'Holy',
     accent: '#ffe08a',
-    glyph: '✦',
-    hint: '5 — Holy staff weapon',
+    glyph: 'H',
+    hint: '5 - Holy staff weapon',
     staffWeaponId: 'staffHoly',
     staffLabel: 'Holy Staff',
     kind: 'weapon'
@@ -1352,8 +1353,8 @@ export const ELEMENT_META = {
     label: 'Arcane Staff',
     short: 'Arcane',
     accent: '#b070ff',
-    glyph: '✧',
-    hint: '6 — Arcane staff weapon',
+    glyph: 'A',
+    hint: '6 - Arcane staff weapon',
     staffWeaponId: 'staffArcane',
     staffLabel: 'Arcane Staff',
     kind: 'weapon'

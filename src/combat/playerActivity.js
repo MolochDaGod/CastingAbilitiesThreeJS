@@ -37,8 +37,8 @@ export const MODE_COLOR = Object.freeze({
 
 /** Hold-Q wedges (vertical aim). */
 export const MODE_SWITCH_RADIAL = Object.freeze([
-  { id: 'mode_combat', label: 'Combat', glyph: '⚔', hint: '↑', color: '#ff7a7a' },
-  { id: 'mode_harvest', label: 'Harvest', glyph: '🌿', hint: '↓', color: '#7ee7a8' }
+  { id: 'mode_combat', label: 'Combat', glyph: 'C', hint: 'Up', color: '#ff7a7a' },
+  { id: 'mode_harvest', label: 'Harvest', glyph: 'H', hint: 'Down', color: '#7ee7a8' }
 ]);
 
 /**
@@ -47,12 +47,12 @@ export const MODE_SWITCH_RADIAL = Object.freeze([
  * Default / first profession tool = pick (ore / rock).
  */
 export const HARVEST_TOOL_RADIAL = Object.freeze([
-  { id: 'pick', label: 'Pick', glyph: '⛏', hint: 'ore', color: '#a0b0c8', weaponId: 't0-tool' },
-  { id: 'hatchet', label: 'Hatchet', glyph: '🪓', hint: 'wood', color: '#c98a3d', weaponId: 't0-axe1h' },
-  { id: 'knife', label: 'Knife', glyph: '🥩', hint: 'skin', color: '#e8a070', weaponId: 't0-dagger' },
-  { id: 'hand', label: 'Hands', glyph: '✋', hint: 'herb', color: '#90d070', weaponId: null },
-  { id: 'shovel', label: 'Shovel', glyph: '⛏', hint: 'terrain', color: '#c4a070', weaponId: 't0-tool' },
-  { id: 'back_slot', label: 'Back', glyph: '🪽', hint: 'windsurf', color: '#b0c8ff', weaponId: null }
+  { id: 'pick', label: 'Pick', glyph: 'Pk', hint: 'ore', color: '#a0b0c8', weaponId: 't0-tool' },
+  { id: 'hatchet', label: 'Hatchet', glyph: 'Ax', hint: 'wood', color: '#c98a3d', weaponId: 't0-axe1h' },
+  { id: 'knife', label: 'Knife', glyph: 'Kn', hint: 'skin', color: '#e8a070', weaponId: 't0-dagger' },
+  { id: 'hand', label: 'Hands', glyph: 'Hn', hint: 'herb', color: '#90d070', weaponId: null },
+  { id: 'shovel', label: 'Shovel', glyph: 'Sh', hint: 'terrain', color: '#c4a070', weaponId: 't0-tool' },
+  { id: 'back_slot', label: 'Back', glyph: 'Bk', hint: 'windsurf', color: '#b0c8ff', weaponId: null }
 ]);
 
 /** Hold duration (s) before radial opens. Tap under this = toggle / draw last. */
