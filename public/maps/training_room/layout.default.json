@@ -1,0 +1,360 @@
+{
+  "version": 1,
+  "source": "casting-training-room-default",
+  "biomeId": "temperate_meadow",
+  "terrain": {
+    "seed": 17,
+    "amp": 0.85,
+    "flatCore": 8,
+    "segments": 96,
+    "grid": 65
+  },
+  "nodes": [
+    {
+      "id": "tr_h_0",
+      "paletteId": "node.rock_pebbles",
+      "x": 4.697411069414715,
+      "z": 1.9860335457741178,
+      "yaw": 0.7,
+      "scale": 0.85
+    },
+    {
+      "id": "tr_h_1",
+      "paletteId": "node.herb_patch",
+      "x": 1.6632220930479318,
+      "z": 4.278059404589569,
+      "yaw": 1.5,
+      "scale": 1
+    },
+    {
+      "id": "tr_h_2",
+      "paletteId": "node.rock_pebbles",
+      "x": -2.832186646805201,
+      "z": 4.842604546900182,
+      "yaw": 2.4,
+      "scale": 0.85
+    },
+    {
+      "id": "tr_h_3",
+      "paletteId": "node.herb_patch",
+      "x": -4.930670782155252,
+      "z": -1.3032596203368394,
+      "yaw": 3.6999999999999997,
+      "scale": 1
+    },
+    {
+      "id": "tr_h_4",
+      "paletteId": "node.rock_boulder",
+      "x": 1.7360125750349447,
+      "z": -5.868616560938407,
+      "yaw": 5.3,
+      "scale": 1
+    },
+    {
+      "id": "tr_h_5",
+      "paletteId": "node.rock_pebbles",
+      "x": 4.29034205958069,
+      "z": -2.2509975592596545,
+      "yaw": 6.1,
+      "scale": 0.85
+    },
+    {
+      "id": "tr_h_6",
+      "paletteId": "node.rock_pebbles",
+      "x": 10.996347003378732,
+      "z": 2.229069891520587,
+      "yaw": 0.5,
+      "scale": 0.85
+    },
+    {
+      "id": "tr_h_7",
+      "paletteId": "node.herb_patch",
+      "x": 4.626680438540889,
+      "z": 9.090315072626643,
+      "yaw": 1.4000000000000001,
+      "scale": 1
+    },
+    {
+      "id": "tr_h_8",
+      "paletteId": "node.rock_pebbles",
+      "x": -5.093637279337023,
+      "z": 11.129800504346344,
+      "yaw": 2.3,
+      "scale": 0.85
+    },
+    {
+      "id": "tr_h_9",
+      "paletteId": "node.herb_patch",
+      "x": -10.60281963859077,
+      "z": 1.5113952863211777,
+      "yaw": 3.3,
+      "scale": 1
+    },
+    {
+      "id": "tr_h_10",
+      "paletteId": "node.rock_pebbles",
+      "x": -5.750759434326405,
+      "z": -10.22358381041139,
+      "yaw": 4.5,
+      "scale": 0.85
+    },
+    {
+      "id": "tr_h_11",
+      "paletteId": "node.herb_patch",
+      "x": 4.778870047263847,
+      "z": -9.011237488345563,
+      "yaw": 5.5,
+      "scale": 1
+    },
+    {
+      "id": "tr_h_12",
+      "paletteId": "node.rock_boulder",
+      "x": 17.007550049435423,
+      "z": 9.291266938149453,
+      "yaw": 0.8,
+      "scale": 1
+    },
+    {
+      "id": "tr_h_13",
+      "paletteId": "node.rock_boulder",
+      "x": -0.5956702549462919,
+      "z": 20.391301502046705,
+      "yaw": 1.9000000000000001,
+      "scale": 1
+    },
+    {
+      "id": "tr_h_14",
+      "paletteId": "node.rock_boulder",
+      "x": -17.059841319861945,
+      "z": 8.064658340012368,
+      "yaw": 3,
+      "scale": 1
+    },
+    {
+      "id": "tr_h_15",
+      "paletteId": "node.rock_boulder",
+      "x": -16.539134856130456,
+      "z": -12.793948499612252,
+      "yaw": 4.1,
+      "scale": 1
+    },
+    {
+      "id": "tr_h_16",
+      "paletteId": "node.rock_boulder",
+      "x": 3.709731027815032,
+      "z": -19.540982465097972,
+      "yaw": 5.2,
+      "scale": 1
+    },
+    {
+      "id": "tr_h_17",
+      "paletteId": "node.rock_boulder",
+      "x": 18.064598145602908,
+      "z": -9.47788446004065,
+      "yaw": 6.1,
+      "scale": 1
+    },
+    {
+      "id": "tr_h_18",
+      "paletteId": "node.rock_ore",
+      "x": 18.38722286144625,
+      "z": 23.17080998678096,
+      "yaw": 1.2,
+      "scale": 0.95
+    },
+    {
+      "id": "tr_h_19",
+      "paletteId": "node.rock_ore",
+      "x": -20.388046251162613,
+      "z": 22.81857949260764,
+      "yaw": 2.5999999999999996,
+      "scale": 0.95
+    },
+    {
+      "id": "tr_h_20",
+      "paletteId": "node.rock_ore",
+      "x": -26.745202989025145,
+      "z": -10.018368982815543,
+      "yaw": 3.8,
+      "scale": 0.95
+    },
+    {
+      "id": "tr_h_21",
+      "paletteId": "node.rock_ore",
+      "x": -0.37277488359837696,
+      "z": -30.087690820103795,
+      "yaw": 5,
+      "scale": 0.95
+    },
+    {
+      "id": "tr_h_22",
+      "paletteId": "node.rock_ore",
+      "x": 26.96179798172912,
+      "z": -10.86859464661496,
+      "yaw": 6.2,
+      "scale": 0.95
+    },
+    {
+      "id": "tr_h_23",
+      "paletteId": "node.rock_boulder",
+      "x": 9.822556987094847,
+      "z": 35.381856568519325,
+      "yaw": 1.6,
+      "scale": 1
+    },
+    {
+      "id": "tr_h_24",
+      "paletteId": "node.rock_boulder",
+      "x": -23.335077264830943,
+      "z": -27.017849082493033,
+      "yaw": 4.3,
+      "scale": 1
+    },
+    {
+      "id": "tr_h_25",
+      "paletteId": "node.rock_ore",
+      "x": -35.55947113683516,
+      "z": 12.64245278688386,
+      "yaw": 3.0999999999999996,
+      "scale": 0.95
+    },
+    {
+      "id": "tr_d_26",
+      "paletteId": "node.cliff_arch",
+      "x": 39.952171975232844,
+      "z": 12.35865504257722,
+      "yaw": 0.4,
+      "scale": 1.4
+    },
+    {
+      "id": "tr_d_27",
+      "paletteId": "node.cliff_column",
+      "x": 23.42210495938386,
+      "z": 36.477767191422316,
+      "yaw": 1.2,
+      "scale": 1.2
+    },
+    {
+      "id": "tr_d_28",
+      "paletteId": "node.cliff_wall",
+      "x": -9.269845463477955,
+      "z": 39.73298333983037,
+      "yaw": 0.1,
+      "scale": 1.5
+    },
+    {
+      "id": "tr_d_29",
+      "paletteId": "node.cliff_wall",
+      "x": -37.58314072276203,
+      "z": 22.609890168089418,
+      "yaw": 2,
+      "scale": 1.3
+    },
+    {
+      "id": "tr_d_30",
+      "paletteId": "node.cliff_wall",
+      "x": -40.92456749188859,
+      "z": -10.817054848795765,
+      "yaw": 0.7,
+      "scale": 1.6
+    },
+    {
+      "id": "tr_d_31",
+      "paletteId": "node.cliff_wall",
+      "x": -21.002773586235563,
+      "z": -37.33830609019812,
+      "yaw": 1.5,
+      "scale": 1.25
+    },
+    {
+      "id": "tr_d_32",
+      "paletteId": "node.cliff_wall",
+      "x": 11.718084881485877,
+      "z": -39.61316178633425,
+      "yaw": 0.2,
+      "scale": 1.1
+    },
+    {
+      "id": "tr_d_33",
+      "paletteId": "node.cliff_wall",
+      "x": 37.03620626331352,
+      "z": -24.43391752505718,
+      "yaw": 2.4,
+      "scale": 1.35
+    },
+    {
+      "id": "tr_d_34",
+      "paletteId": "node.cliff_arch",
+      "x": 27.71499289783024,
+      "z": 28.53642529598302,
+      "yaw": 1,
+      "scale": 1.15
+    },
+    {
+      "id": "tr_d_35",
+      "paletteId": "node.cliff_wall",
+      "x": -29.24781253622365,
+      "z": -27.710098553522304,
+      "yaw": 0.5,
+      "scale": 1.45
+    },
+    {
+      "id": "tr_p_36",
+      "paletteId": "node.pve_dummy",
+      "x": 9.18,
+      "z": 0,
+      "yaw": 3.141592653589793,
+      "scale": 1,
+      "label": "Dummy · North"
+    },
+    {
+      "id": "tr_p_37",
+      "paletteId": "node.pve_dummy",
+      "x": 5.621128808086351e-16,
+      "z": 9.18,
+      "yaw": 4.71238898038469,
+      "scale": 1,
+      "label": "Dummy · East"
+    },
+    {
+      "id": "tr_p_38",
+      "paletteId": "node.pve_dummy",
+      "x": -9.18,
+      "z": 1.1242257616172703e-15,
+      "yaw": 6.283185307179586,
+      "scale": 1,
+      "label": "Dummy · South"
+    },
+    {
+      "id": "tr_p_39",
+      "paletteId": "node.pve_dummy",
+      "x": -1.6863386424259052e-15,
+      "z": -9.18,
+      "yaw": 7.853981633974483,
+      "scale": 1,
+      "label": "Dummy · West"
+    },
+    {
+      "id": "tr_p_40",
+      "paletteId": "node.pve_dummy",
+      "x": 10.0974848353439,
+      "z": 10.097484835343899,
+      "yaw": 3.9269908169872414,
+      "scale": 1,
+      "label": "Dummy · NE"
+    },
+    {
+      "id": "tr_p_41",
+      "paletteId": "node.pve_dummy",
+      "x": -10.097484835343902,
+      "z": -10.097484835343899,
+      "yaw": 7.0685834705770345,
+      "scale": 1,
+      "label": "Dummy · SW"
+    }
+  ],
+  "createdAt": "2026-08-11T02:17:51.285Z",
+  "mapId": "training_room",
+  "mapLabel": "Training Room · DevIsland",
+  "published": true
+}

@@ -47,6 +47,7 @@ import {
   TRAINING_ROOM_MAP_ID,
   paletteIdToHarvestDef
 } from './trainingRoomMap.js';
+import { resolveTrainingRoomMeshUrl } from './trainingRoomDeploy.js';
 
 const _v = new Vector3();
 const _box = new Box3();
@@ -559,6 +560,8 @@ export class DevIslandHarvest {
    * @param {number} scale
    */
   async _loadModel(url, scale = 1) {
+    // Same-origin public/ on casting deploy; optional CDN when preferCdn
+    url = resolveTrainingRoomMeshUrl(url) || url;
     let tpl = this._meshCache.get(url);
     if (!tpl) {
       const gltf = await this.assets.loadGLTF(url);

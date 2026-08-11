@@ -6,7 +6,8 @@
 
 Play (`index.html`) and author (`devnode.html`) are **the same island**. Export from DevNode → localStorage → play harvest layout.
 
-**Code SSOT:** `src/world/trainingRoomMap.js`
+**Code SSOT:** `src/world/trainingRoomMap.js` · `src/world/trainingRoomDeploy.js` · `src/config/fleetEnv.js`  
+**Production deploy:** `docs/TRAINING_ROOM_DEPLOY_SSOT.md`
 
 ---
 

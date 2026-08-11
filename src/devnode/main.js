@@ -19,6 +19,8 @@ import {
   stampTrainingRoomLayout,
   trainingRoomTerrain
 } from '../world/trainingRoomMap.js';
+import { buildTrainingRoomPromotePackage } from '../world/trainingRoomDeploy.js';
+import { fleetDeploySnapshot } from '../config/fleetEnv.js';
 import { DevNodeEditor } from './DevNodeEditor.js';
 
 const el = {
@@ -125,13 +127,26 @@ el.export.addEventListener('click', () => {
     biomeId: el.biome.value
   });
   saveTrainingRoomLayoutToStorage(data);
+  // Layout for play handoff
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `training-room-${data.biomeId || 'layout'}-${Date.now()}.json`;
   a.click();
   URL.revokeObjectURL(a.href);
-  el.hint.textContent = `Saved ${TRAINING_ROOM_LABEL} · play lab reads this layout`;
+  // Promote package (D1 index rows + world mesh nodes + R2 keys) — operators / CI
+  try {
+    const promote = buildTrainingRoomPromotePackage(data);
+    const pb = new Blob([JSON.stringify(promote, null, 2)], { type: 'application/json' });
+    const ap = document.createElement('a');
+    ap.href = URL.createObjectURL(pb);
+    ap.download = `training-room-promote-${Date.now()}.json`;
+    ap.click();
+    URL.revokeObjectURL(ap.href);
+  } catch (err) {
+    console.warn('[DevNode] promote package', err);
+  }
+  el.hint.textContent = `Saved ${TRAINING_ROOM_LABEL} · layout + promote package (R2/D1 keys)`;
   refreshStats();
 });
 
@@ -189,5 +204,5 @@ console.info(
   NODE_PALETTE.length,
   '· mapId',
   TRAINING_ROOM_MAP_ID,
-  createEmptyNodeLayout()
+  fleetDeploySnapshot().authority
 );

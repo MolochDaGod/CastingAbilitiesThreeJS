@@ -65,7 +65,7 @@
       "destination": "https://grudge-api-production-0d46.up.railway.app/matchmake/:path*"
     },
     {
-      "source": "/((?!models/|assets/|icons/|ui/|favicon).*)",
+      "source": "/((?!api/|models/|assets/|icons/|ui/|anims/|hdri/|skills/|maps/|hud/|devnode|favicon).*)",
       "destination": "/index.html"
     }
   ],
@@ -80,6 +80,20 @@
       "source": "/models/ride/(.*)",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=86400, immutable" },
+        { "key": "Access-Control-Allow-Origin", "value": "*" }
+      ]
+    },
+    {
+      "source": "/models/dev-island/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400, immutable" },
+        { "key": "Access-Control-Allow-Origin", "value": "*" }
+      ]
+    },
+    {
+      "source": "/maps/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=300" },
         { "key": "Access-Control-Allow-Origin", "value": "*" }
       ]
     },

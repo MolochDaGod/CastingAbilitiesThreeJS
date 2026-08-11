@@ -1,9 +1,13 @@
-# Island stage SSOT — Casting lab Dev Island
+# Island stage SSOT — Training Room · DevIsland
 
-Lab is **not** a full production sector heightfield. It is a **playable island pad** with SI rules that match fleet production-world habits, now **dressed with production-baked harvest content** for mastering Warlords systems.
+Lab is **not** a full Open sector shell. It is the **Training Room** island pad (`mapId: training_room`) with SI rules that match fleet production-world habits, dressed with harvest content for Warlords mastery.
 
-**Code:** `worldScale.js` · `Ground.js` · `StageWater.js` · `OpenSeaShells.js` · `Environment.js` · `devIslandCatalog.js` · `DevIslandHarvest.js`  
+**Same map as** `/devnode.html` authoring.  
+**Code:** `worldScale.js` · `IslandHeightfield` · `StageWater` · `OpenSeaShells` · `devIslandCatalog` · `DevIslandHarvest` · `trainingRoomMap` · `trainingRoomDeploy`  
+**Deploy:** `docs/TRAINING_ROOM_DEPLOY_SSOT.md` (Vercel + R2/D1 promote)  
 **Fleet skill:** `grudge-production-world` · `grudge-world-scale` · `mine-loader-harvest-chests` (pattern)
+
+**Terrain note:** pad uses **heightfield** (`IslandHeightfield` + Rapier), not planar y=0 only (docs below updated for hills).
 
 ---
 
@@ -12,12 +16,12 @@ Lab is **not** a full production sector heightfield. It is a **playable island p
 | Rule | Value |
 |------|--------|
 | Units | **1 unit = 1 m** · human **1.8 m** |
-| Terrain surface | **Planar y = 0** (path raycast, earth crust, CCT feet) |
-| Island pad | `WORLD.islandRadius` dry stone |
-| Shore | Visual band `shoreBand` inside pad edge — **no vertex hills** |
-| Water | `StageWater` hole under pad; `waterY` slightly below deck |
-| Physics | Rapier ground cuboid; water not a collider yet |
-| **Content** | Harvest nodes + training dummies on pad (Dev Island) |
+| Terrain surface | **IslandHeightfield** L0 sample = mesh = feet = aim (not plane-only) |
+| Island pad | `WORLD.islandRadius` dry land before shore blend |
+| Shore | `shoreBand` + heightfield waterY blend |
+| Water | `StageWater` + freeride; OpenSeaShells CDN backdrop |
+| Physics | Rapier **heightfield** when terrain on; water freeride |
+| **Content** | Training Room harvest + dummies · layout from storage/maps JSON |
 
 ---
 

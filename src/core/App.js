@@ -58,9 +58,10 @@ import { HARVEST_RANGE_M } from '../world/devIslandCatalog.js';
 import {
   TRAINING_ROOM_BUILDERS,
   TRAINING_ROOM_LABEL,
-  TRAINING_ROOM_MAP_ID,
-  loadTrainingRoomLayoutFromStorage
+  TRAINING_ROOM_MAP_ID
 } from '../world/trainingRoomMap.js';
+import { loadTrainingRoomLayoutForPlay } from '../world/trainingRoomDeploy.js';
+import { fleetDeploySnapshot } from '../config/fleetEnv.js';
 import { DropBag } from '../ui/DropBag.js';
 import '../ui/dropBag.css';
 import {
@@ -1788,10 +1789,12 @@ export class App {
       }
     }
 
-    // Training Room · DevIsland: same map as /devnode (layout from storage or default)
+    // Training Room · DevIsland: production load chain (storage → published → builtin)
     this.loading.setProgress(0.74, 'Training Room…');
     try {
-      const authored = loadTrainingRoomLayoutFromStorage();
+      const boot = await loadTrainingRoomLayoutForPlay();
+      this.mapLayoutSource = boot.source;
+      this.mapPublishedUrl = boot.publishedUrl;
       this.worldHarvest = new DevIslandHarvest({
         scene: this.scene,
         assets,
@@ -1804,13 +1807,21 @@ export class App {
         rangeM: HARVEST_RANGE_M,
         heightSample: this.terrain?.sample || null
       });
-      await this.worldHarvest.init({ layout: authored });
-      const src = this.worldHarvest.layoutSource || 'default';
+      // Prefer authored/published layout when present; empty nodes → default catalog
+      const useLayout =
+        boot.layout?.nodes?.length && boot.source !== 'builtin'
+          ? boot.layout
+          : boot.source === 'published' || boot.source === 'localStorage'
+            ? boot.layout
+            : null;
+      await this.worldHarvest.init({ layout: useLayout });
+      const src = this.worldHarvest.layoutSource || boot.source || 'default';
       console.info(
-        `[App] ${TRAINING_ROOM_LABEL} · harvest=${this.worldHarvest.nodeCount} decor=${this.worldHarvest.decorCount} dummies=${this.worldHarvest.dummies?.length || 0} src=${src} F≤${HARVEST_RANGE_M}m padR=${WORLD.islandRadius.toFixed(0)}`
+        `[App] ${TRAINING_ROOM_LABEL} · harvest=${this.worldHarvest.nodeCount} decor=${this.worldHarvest.decorCount} dummies=${this.worldHarvest.dummies?.length || 0} layout=${boot.source} F≤${HARVEST_RANGE_M}m padR=${WORLD.islandRadius.toFixed(0)}`
       );
+      console.info('[App] fleet deploy', fleetDeploySnapshot().authority);
       this.hud.showToast?.(
-        `${TRAINING_ROOM_LABEL} · ${this.worldHarvest.nodeCount} nodes (${src}) · edit /devnode.html`,
+        `${TRAINING_ROOM_LABEL} · ${this.worldHarvest.nodeCount} nodes (${boot.source}) · /devnode.html`,
         3600
       );
     } catch (err) {

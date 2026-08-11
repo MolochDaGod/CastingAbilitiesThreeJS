@@ -95,6 +95,16 @@ export const DEPLOYABLE_KINDS = Object.freeze([
     jobs: ['spawn', 'interact_E', 'drop_loot', 'export']
   },
   {
+    id: 'map_layout',
+    label: 'Map layout (Training Room)',
+    uuidPrefix: 'MAP-',
+    adminTab: 'world',
+    authority:
+      'trainingRoomMap + trainingRoomDeploy · ObjectStore maps/training_room · R2 lab/casting/training-room',
+    layers: ['identity', 'terrain', 'nodes', 'physics', 'publish'],
+    jobs: ['author_devnode', 'export_layout', 'promote_r2_d1', 'play_boot', 'forge_handoff']
+  },
+  {
     id: 'vehicle',
     label: 'Vehicle / ship',
     uuidPrefix: 'PREFAB-',

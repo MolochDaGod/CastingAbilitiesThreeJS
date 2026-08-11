@@ -27,6 +27,7 @@
 | JSON catalogs / gamedata | ObjectStore + info | `objectstore` / `info.grudge-studio.com` |
 | Asset **index** | Cloudflare D1 | not player SSOT |
 | Weapon skill drafts + equip mirror | **CF Durable Object** `WeaponSkillDrafts` | `https://weapon-skills.grudge-studio.com` · control plane `casting.grudge.studio` · see `WEAPON_SKILL_DO_SSOT.md` |
+| Training Room map layout | Same-origin `maps/training_room/` → info/objectstore/R2 promote | `docs/TRAINING_ROOM_DEPLOY_SSOT.md` · R2 prefix `lab/casting/training-room` |
 
 **SPA never holds `DATABASE_URL`.** Player data only through `/api/*`.
 
@@ -116,5 +117,9 @@ Smoke:
 
 ```bash
 curl.exe -sI https://casting-abilities-threejs.vercel.app/api/health
-curl.exe -sI https://casting.grudge-studio.com/   # after DNS
+curl.exe -sI https://casting-abilities-threejs.vercel.app/devnode.html
+curl.exe -sI https://casting-abilities-threejs.vercel.app/maps/training_room/layout.default.json
+curl.exe -sI https://casting.grudge.studio/   # control plane
 ```
+
+Training Room promote (optional fleet handoff): DevNode Export → `*-promote-*.json` → R2 + D1 + info layout upload.
