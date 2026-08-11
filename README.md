@@ -47,27 +47,44 @@ Audit: `docs/LOADER_DRACO_KTX2_AUDIT.md` · health: `docs/SYSTEMS_HEALTH_AUDIT.m
 
 ---
 
-## Combat · skills · VFX (production pattern)
+## Combat · weapons · VFX (production pattern)
+
+**Product language = weapons** (not free “elements”). Catalog items and staff brands own play.
 
 | Layer | Role |
 |-------|------|
-| Catalog skills | `master-weaponSkills` / `t0-weapons` — **never invent skill ids** |
+| Catalog weapons | `t0-weapons` / `master-weapon-prefabs` — equip owns skills + mesh |
+| Catalog skills | `master-weaponSkills` — **never invent skill ids** |
 | Production package | `weaponSkillProduction.js` — anim · VFX · physics · statuses |
 | Statuses | push · freeze · stun · slow · burn · root · knockup (`skillStatusSystem`) |
+| Staff weapons (1–6) | Fire…Arcane brands · path cast pools (`WEAPON_STAFF_IDS`) |
 | Staff normal | Hotbar **1** + **focus LMB** → shared stream orb |
 | Linear skillshots | ice / thunder / meteor / beam / snare / glacier (`elementalLinearCast`) |
-| Path cast | Fire/Water/Earth/Wind Ability pools (draw stroke) |
-| Mesh delivery | orbs · rocks · freeze nova · bubbles · dual arrows |
+| Path cast | Fire/Water/Earth/Wind Ability pools (draw stroke under staff weapons) |
+| Mesh delivery | orbs · rocks · freeze nova · bubbles · dual arrows · bullets |
 
 ```bash
-# Optional per-skill override scaffold
+# Full T0 weapon play-stack checklist (mesh · pack · loco · skills · VFX · deploy)
+node scripts/scaffold-t0-weapon-play.mjs --id t0-sword
+# Per-skill production override
 node scripts/scaffold-weapon-skill.mjs --id staff_fire_bolt --weapon STAFF
 # Split multipacks → SI production meshes
 node scripts/split-gd-orbs-and-charge.mjs
 node scripts/split-element-attack-meshes.mjs
 ```
 
-Docs: `WEAPON_SKILL_PRODUCTION_SSOT.md` · `ELEMENTAL_LINEAR_CAST_SSOT.md` · `STAFF_NORMAL_ORBS_CHARGE_SSOT.md` · `ELEMENT_ATTACK_MESHES_SSOT.md`
+**Agent skill:** `casting-t0-weapon-play` · **Doc:** `docs/T0_WEAPON_PLAY_STACK_SSOT.md`  
+Also: `WEAPON_SKILL_PRODUCTION_SSOT.md` · `T0_WEAPONS_SSOT.md` · `ELEMENTAL_LINEAR_CAST_SSOT.md` · `STAFF_NORMAL_ORBS_CHARGE_SSOT.md`
+
+### Adding a T0 weapon (summary)
+
+1. Catalog row exists (`t0-weapons` + prefab) — do not invent ids  
+2. `weaponType` → anim pack (`weaponAnimPack.js`)  
+3. Equip → mesh · pack · hotbar (`equipWeaponById`)  
+4. Scaffold each skill → fill production override  
+5. Projectiles = SI splits only (`public/models/vfx/…`)  
+6. Dual loadout: Weapon 1/2 paperdoll · combat **Tap Q**  
+7. Smoke `?t0=<id>` · deploy Vercel when code/assets change
 
 ### Controls (combat)
 

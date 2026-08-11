@@ -7,6 +7,7 @@ Master index for agents. Prefer leaf docs; do not invent parallel folders.
 | Lab macro | CASTING_LAB_SSOT |
 | **SDK export** | **CASTING_SDK_EXPORT_SSOT** · `src/sdk/castingLabSdk.js` |
 | Deploy / DNS / env | CASTING_DEPLOY_ENV_SSOT · TRAINING_ROOM_DEPLOY |
+| **T0 weapon play stack** | **T0_WEAPON_PLAY_STACK** · agent skill `casting-t0-weapon-play` |
 | Skills production | WEAPON_SKILL_PRODUCTION · SKILL_DELIVERY · ELEMENTAL_LINEAR_CAST |
 | Staff orbs / charge | STAFF_NORMAL_ORBS_CHARGE · ELEMENT_ATTACK_MESHES |
 | Linear skillshots | LINEAR_SKILLSHOT_SSOT |

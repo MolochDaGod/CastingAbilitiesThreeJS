@@ -1213,14 +1213,19 @@ export const settings = {
 };
 
 /**
- * Product element ids in hotbar order (keys 1–6).
+ * Product **staff weapon** ids in hotbar order (keys 1–6).
+ * Product language = weapons (not free “elements”).
  * Path-cast abilities still pool as fire|water|earth|wind — see ELEMENT_ABILITY.
- * HUD / staff labels live in ELEMENT_META.
+ * HUD / staff labels: ELEMENT_META ≡ WEAPON_STAFF_META.
+ * Full T0 catalog weapons: docs/T0_WEAPON_PLAY_STACK_SSOT.md
  */
 export const ELEMENTS = ['fire', 'storm', 'ice', 'nature', 'holy', 'arcane'];
 
+/** Alias — prefer this name in new code (same array as ELEMENTS). */
+export const WEAPON_STAFF_IDS = ELEMENTS;
+
 /**
- * Product element → AbilityManager pool key (Fire/Water/Earth/Wind ability classes).
+ * Staff weapon id → AbilityManager path pool (Fire/Water/Earth/Wind ability classes).
  * Holy + arcane reuse the wind path mesh until dedicated abilities ship.
  */
 export const ELEMENT_ABILITY = Object.freeze({
@@ -1232,7 +1237,7 @@ export const ELEMENT_ABILITY = Object.freeze({
   arcane: 'wind'
 });
 
-/** @param {string} element product or legacy id */
+/** @param {string} element product staff weapon or legacy id */
 export function abilityKeyForElement(element) {
   if (!element) return 'fire';
   if (ELEMENT_ABILITY[element]) return ELEMENT_ABILITY[element];
@@ -1244,8 +1249,13 @@ export function abilityKeyForElement(element) {
   return ELEMENT_ABILITY[element] || 'wind';
 }
 
+/** @param {string} weaponId staff weapon id (fire…arcane) or legacy element */
+export function abilityKeyForWeapon(weaponId) {
+  return abilityKeyForElement(weaponId);
+}
+
 /**
- * Live settings block for an element (editor + ability config).
+ * Live settings block for a staff weapon (editor + ability config).
  * ice→water, storm→wind, nature→earth; holy/arcane own blocks.
  */
 export function settingsForElement(element) {
@@ -1258,6 +1268,11 @@ export function settingsForElement(element) {
   return settings.fire;
 }
 
+/** @param {string} weaponId staff weapon id */
+export function settingsForWeapon(weaponId) {
+  return settingsForElement(weaponId);
+}
+
 /** Interaction modes, in toggle order (key M). */
 export const MODES = ['casting', 'walk'];
 
@@ -1266,20 +1281,21 @@ export const MODE_META = {
   casting: {
     label: 'Cast',
     glyph: '✦',
-    hint: 'Staff path cast',
-    blurb: 'Draw path → element ability · 1–6 staffs · M walk'
+    hint: 'Staff weapon path cast',
+    blurb: 'Draw path → staff weapon · 1–6 staffs · M walk'
   },
   walk: {
     label: 'Surf',
     glyph: '◎',
     hint: 'Windsurf freeride',
-    blurb: 'Space deploy · path = course · WASD boat · 1–6 skills on board'
+    blurb: 'Space deploy · path = course · WASD boat · 1–6 weapon skills on board'
   }
 };
 
 /**
- * Element → staff presentation (Warlords staff brands).
+ * Staff weapon presentation (Warlords brands) — product = weapons, not free elements.
  * Product ids: fire · storm · ice · nature · holy · arcane.
+ * Same object as WEAPON_STAFF_META.
  */
 export const ELEMENT_META = {
   fire: {
@@ -1287,56 +1303,65 @@ export const ELEMENT_META = {
     short: 'Fire',
     accent: '#ff6a1a',
     glyph: '🜂',
-    hint: '1 — Fire staff path cast',
+    hint: '1 — Fire staff weapon',
     staffWeaponId: 'staffFire',
-    staffLabel: 'Fire Staff'
+    staffLabel: 'Fire Staff',
+    kind: 'weapon'
   },
   storm: {
     label: 'Storm Staff',
     short: 'Storm',
     accent: '#9fdcff',
     glyph: '🜁',
-    hint: '2 — Storm staff path cast',
+    hint: '2 — Storm staff weapon',
     staffWeaponId: 'staffStorm',
-    staffLabel: 'Storm Staff'
+    staffLabel: 'Storm Staff',
+    kind: 'weapon'
   },
   ice: {
     label: 'Ice Staff',
     short: 'Ice',
     accent: '#31b6ff',
     glyph: '🜄',
-    hint: '3 — Ice staff path cast',
+    hint: '3 — Ice staff weapon',
     staffWeaponId: 'staffIce',
-    staffLabel: 'Ice Staff'
+    staffLabel: 'Ice Staff',
+    kind: 'weapon'
   },
   nature: {
     label: 'Nature Staff',
     short: 'Nature',
     accent: '#6bbf4a',
     glyph: '🜃',
-    hint: '4 — Nature staff path cast',
+    hint: '4 — Nature staff weapon',
     staffWeaponId: 'staffNature',
-    staffLabel: 'Nature Staff'
+    staffLabel: 'Nature Staff',
+    kind: 'weapon'
   },
   holy: {
     label: 'Holy Staff',
     short: 'Holy',
     accent: '#ffe08a',
     glyph: '✦',
-    hint: '5 — Holy staff path cast',
+    hint: '5 — Holy staff weapon',
     staffWeaponId: 'staffHoly',
-    staffLabel: 'Holy Staff'
+    staffLabel: 'Holy Staff',
+    kind: 'weapon'
   },
   arcane: {
     label: 'Arcane Staff',
     short: 'Arcane',
     accent: '#b070ff',
     glyph: '✧',
-    hint: '6 — Arcane staff path cast',
+    hint: '6 — Arcane staff weapon',
     staffWeaponId: 'staffArcane',
-    staffLabel: 'Arcane Staff'
+    staffLabel: 'Arcane Staff',
+    kind: 'weapon'
   }
 };
+
+/** Alias — prefer in new HUD / agent code */
+export const WEAPON_STAFF_META = ELEMENT_META;
 
 /** Immutable snapshot used by "Reset to defaults" and the preset system. */
 export const DEFAULT_SETTINGS = structuredClone(settings);
