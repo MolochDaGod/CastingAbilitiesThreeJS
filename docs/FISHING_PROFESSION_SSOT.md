@@ -155,11 +155,31 @@ Runtime fit: `src/fishing/fishScale.js` → **lengthM** on longest axis, elongat
 
 ---
 
+## Super-rare / deep (species/rare/)
+
+| Id | Behavior | SI | Unlock |
+|----|----------|-----|--------|
+| `pulbo_monstruo` | Deep rare | ~2.0 m large | ink/tentacle recipes |
+| `aetherwing_turtle` | Super rare · slow | ~3.4 m huge | **Worge → form recipe** · else **mount recipe** |
+| `ocean_creature` | Passive titan · leviathan prey | ~11 m titan | hide recipes · mesh ~219MB local |
+| `glow_whale` | Passive titan · hard catch · leviathan prey | ~10 m titan | glow essence recipes |
+
+Leviathan strikes during fight: tension spike · progress snatch · rare steal.
+
+## Docks (boat housing)
+
+| Id | Claim | Boats |
+|----|-------|-------|
+| `dock_t1` | **no** — building place anywhere | 1 |
+| `dock_t2` | **own claim flag** required | 2 |
+| `dock_t3` | **own claim flag** required | 4 |
+
+Code: `src/fishing/dockBuild.js` · node palette family `fishing_dock`.
+
 ## Playtest
 
 1. Open Inventory → **Professions** → **Fishing**
-2. Unlock Sea Legs nodes (grant SP by catching or set level in storage)
-3. Eat a **blue** meal
-4. Select a higher rod
-5. **Shift+F** · cast · snag · fight
-6. Deploy windsurf — freeride speed should scale with nautical multiplier
+2. Unlock Sea Legs / size nodes · eat **blue** meal · pick rod + lure
+3. **Shift+F** · cast · snag · fight
+4. Plant claim (lab) → place Dock T2/T3
+5. Windsurf freeride for nautical multiplier

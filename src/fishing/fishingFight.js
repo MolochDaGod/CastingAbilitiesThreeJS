@@ -42,7 +42,9 @@ export function createFightState(params) {
     hooked: false,
     phase: 'waiting',
     _params: params,
-    _turnT: 0.4 + Math.random() * 0.8
+    _turnT: 0.4 + Math.random() * 0.8,
+    _leviathanT: 2.5 + Math.random() * 2,
+    leviathanEvent: null
   };
 }
 
@@ -128,6 +130,33 @@ export function stepFight(st, dt, input = {}) {
   }
 
   st.zoneCenter = Math.min(1 - half, Math.max(half, st.zoneCenter));
+
+  // —— Leviathans attack passive titans (ocean creature / glow whale) ——
+  st.leviathanEvent = null;
+  if (p.preyOfLeviathans && st.phase === 'fight') {
+    st._leviathanT = (st._leviathanT ?? 3) - dt;
+    if (st._leviathanT <= 0) {
+      st._leviathanT = 3.2 + Math.random() * 3.5;
+      // Strike: thrash tension + snatch progress off the passive prey
+      st.tension += 0.18 + Math.random() * 0.22;
+      st.progress = Math.max(0, st.progress - (0.08 + Math.random() * 0.1));
+      st.fishVel += (Math.random() - 0.5) * 1.2;
+      st.leviathanEvent = 'Leviathan strikes the creature!';
+      // Rare: leviathan steals the catch
+      if (Math.random() < 0.06) {
+        st.phase = 'lost';
+        st._loseReason = 'leviathan_stole';
+        st.leviathanEvent = 'Leviathan stole your catch!';
+      }
+    }
+  }
+
+  // Passive titans: soft fill (not thrashing). hardCatch (glow whale) resists more.
+  if (p.behavior === 'passive_titan' && input.reelIn && inZone) {
+    const soft = p.hardCatch ? 0.02 : 0.05;
+    st.progress += soft * reelMul * dt;
+  }
+
   st.progress = Math.min(1, Math.max(0, st.progress));
   st.tension = Math.min(1.15, Math.max(0, st.tension));
 

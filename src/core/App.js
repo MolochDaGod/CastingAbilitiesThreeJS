@@ -2153,6 +2153,8 @@ export class App {
         waterY: WORLD.waterY,
         onToast: (m) => this.hud.showToast(m),
         getEquippedWeaponId: () => getEquippedWeapon?.()?.id || this.character?.weaponId || null,
+        getRaceId: () =>
+          this.character?.raceId || this._playerIdentity?.raceId || null,
         onCatch: (loot) => {
           try {
             this.inventory?.addItem?.(loot) || this.worldDrops?.spawnNearPlayer?.(loot);

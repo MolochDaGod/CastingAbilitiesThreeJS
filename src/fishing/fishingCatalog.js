@@ -22,6 +22,7 @@ import { sizeRank } from './fishScale.js';
 
 const FISH = './models/fish/species';
 const FISH_LG = './models/fish/species/large';
+const FISH_RARE = './models/fish/species/rare';
 const LURE = './models/fish/lures';
 const DOCK = './models/fish/docks';
 
@@ -74,7 +75,103 @@ export const FISH_SPECIES = Object.freeze([
   { id: 'dolphin', label: 'Dolphin', meshUrl: `${FISH_LG}/dolphin.glb`, pack: 'game', rarity: 'epic', sizeClass: 'huge', lengthM: 2.4, weightKg: [80, 200], strength: 0.82, speed: 0.78, stamina: 52, difficulty: 0.78, zoneWidthBase: 0.1, preferredLures: ['lure_game', 'lure_heavy'], value: 140, xpMul: 1.55, minLevel: 30, minRodTier: 3 },
   { id: 'manta_ray', label: 'Manta Ray', meshUrl: `${FISH_LG}/manta_ray.glb`, pack: 'game', rarity: 'epic', sizeClass: 'huge', lengthM: 2.8, lengthAspect: 1.05, weightKg: [60, 160], strength: 0.8, speed: 0.42, stamina: 58, difficulty: 0.82, zoneWidthBase: 0.095, preferredLures: ['lure_game', 'lure_deep'], value: 155, xpMul: 1.6, minLevel: 34, minRodTier: 3 },
   { id: 'shark_game', label: 'Game Shark', meshUrl: `${FISH_LG}/shark_game.glb`, pack: 'game', rarity: 'legendary', sizeClass: 'huge', lengthM: 3.2, weightKg: [90, 280], strength: 0.94, speed: 0.72, stamina: 68, difficulty: 0.9, zoneWidthBase: 0.085, preferredLures: ['lure_heavy', 'lure_game', 'lure_titan'], value: 220, xpMul: 1.85, minLevel: 42, minRodTier: 4 },
-  { id: 'whale', label: 'Whale', meshUrl: `${FISH_LG}/whale.glb`, pack: 'game', rarity: 'legendary', sizeClass: 'titan', lengthM: 8.5, weightKg: [2000, 12000], strength: 0.98, speed: 0.35, stamina: 90, difficulty: 0.97, zoneWidthBase: 0.07, preferredLures: ['lure_titan'], value: 500, xpMul: 2.5, minLevel: 50, minRodTier: 5 }
+  { id: 'whale', label: 'Whale', meshUrl: `${FISH_LG}/whale.glb`, pack: 'game', rarity: 'legendary', sizeClass: 'titan', lengthM: 8.5, weightKg: [2000, 12000], strength: 0.98, speed: 0.35, stamina: 90, difficulty: 0.97, zoneWidthBase: 0.07, preferredLures: ['lure_titan'], value: 500, xpMul: 2.5, minLevel: 50, minRodTier: 5 },
+
+  // —— Super rare / deep (species/rare/) — author meshes Documents + docks ——
+  {
+    id: 'pulbo_monstruo',
+    label: 'Pulbo Monstruo',
+    meshUrl: `${FISH_RARE}/pulbo_monstruo.glb`,
+    pack: 'rare',
+    rarity: 'rare',
+    sizeClass: 'large',
+    lengthM: 2.0,
+    weightKg: [25, 90],
+    strength: 0.78,
+    speed: 0.55,
+    stamina: 48,
+    difficulty: 0.72,
+    zoneWidthBase: 0.11,
+    preferredLures: ['lure_deep', 'lure_heavy'],
+    value: 95,
+    xpMul: 1.45,
+    minLevel: 28,
+    minRodTier: 3,
+    habitat: 'deep',
+    blurb: 'Deep rare · ink & tentacle craft'
+  },
+  {
+    id: 'aetherwing_turtle',
+    label: 'Aetherwing Turtle',
+    meshUrl: `${FISH_RARE}/aetherwing_turtle.glb`,
+    pack: 'rare',
+    rarity: 'legendary',
+    sizeClass: 'huge',
+    lengthM: 3.4,
+    weightKg: [200, 800],
+    strength: 0.7,
+    speed: 0.28,
+    stamina: 75,
+    difficulty: 0.88,
+    zoneWidthBase: 0.09,
+    preferredLures: ['lure_game', 'lure_titan'],
+    value: 400,
+    xpMul: 2.2,
+    minLevel: 45,
+    minRodTier: 4,
+    superRare: true,
+    unlocksFormOrMount: true,
+    blurb: 'Super rare · Worge form recipe OR mount recipe'
+  },
+  {
+    id: 'ocean_creature',
+    label: 'Ocean Creature',
+    meshUrl: `${FISH_RARE}/ocean_creature.glb`,
+    pack: 'rare',
+    rarity: 'legendary',
+    sizeClass: 'titan',
+    lengthM: 11,
+    weightKg: [5000, 25000],
+    strength: 0.35,
+    speed: 0.18,
+    stamina: 100,
+    difficulty: 0.75,
+    zoneWidthBase: 0.12,
+    preferredLures: ['lure_titan'],
+    value: 350,
+    xpMul: 2.0,
+    minLevel: 48,
+    minRodTier: 5,
+    behavior: 'passive_titan',
+    preyOfLeviathans: true,
+    superRare: true,
+    blurb: 'Passive titan · leviathans attack it during fight · huge'
+  },
+  {
+    id: 'glow_whale',
+    label: 'Glow Whale',
+    meshUrl: `${FISH_RARE}/glow_whale.glb`,
+    pack: 'rare',
+    rarity: 'legendary',
+    sizeClass: 'titan',
+    lengthM: 10,
+    weightKg: [4000, 20000],
+    strength: 0.55,
+    speed: 0.22,
+    stamina: 110,
+    difficulty: 0.96,
+    zoneWidthBase: 0.075,
+    preferredLures: ['lure_titan'],
+    value: 480,
+    xpMul: 2.4,
+    minLevel: 50,
+    minRodTier: 5,
+    behavior: 'passive_titan',
+    preyOfLeviathans: true,
+    hardCatch: true,
+    superRare: true,
+    blurb: 'Huge · hard catch · leviathan prey · glow essence'
+  }
 ]);
 
 /**
@@ -221,10 +318,56 @@ export const FISHING_LURES = Object.freeze([
 ]);
 
 export const FISHING_BUILDABLES = Object.freeze([
-  { id: 'dock_long', label: 'Long Dock', meshUrl: `${DOCK}/dock_long.glb`, kind: 'buildable', spanM: 8, professions: ['fishing'] },
-  { id: 'dock_wide', label: 'Wide Dock', meshUrl: `${DOCK}/dock_wide.glb`, kind: 'buildable', spanM: 6, professions: ['fishing'] },
+  // Claim-gated dock line (dock1/2/3 assets)
+  {
+    id: 'dock_t1',
+    label: 'Dock T1 (Berth)',
+    meshUrl: `${DOCK}/dock_t1.glb`,
+    kind: 'buildable',
+    building: true,
+    tier: 1,
+    spanM: 8,
+    boats: true,
+    boatSlots: 1,
+    requiresOwnClaim: false,
+    professions: ['fishing', 'building'],
+    blurb: 'Place as building anywhere · houses a boat'
+  },
+  {
+    id: 'dock_t2',
+    label: 'Dock T2 (Harbor)',
+    meshUrl: `${DOCK}/dock_t2.glb`,
+    kind: 'buildable',
+    building: true,
+    tier: 2,
+    spanM: 12,
+    boats: true,
+    boatSlots: 2,
+    requiresOwnClaim: true,
+    upgradesFrom: 'dock_t1',
+    professions: ['fishing', 'building'],
+    blurb: 'Upgrade only inside own claim flag'
+  },
+  {
+    id: 'dock_t3',
+    label: 'Dock T3 (Port)',
+    meshUrl: `${DOCK}/dock_t3.glb`,
+    kind: 'buildable',
+    building: true,
+    tier: 3,
+    spanM: 16,
+    boats: true,
+    boatSlots: 4,
+    requiresOwnClaim: true,
+    upgradesFrom: 'dock_t2',
+    professions: ['fishing', 'building'],
+    blurb: 'Max port · own claim flag required'
+  },
+  // Props / kit docks (original bundle)
+  { id: 'dock_long', label: 'Long Dock Prop', meshUrl: `${DOCK}/dock_long.glb`, kind: 'buildable', spanM: 8, professions: ['fishing'] },
+  { id: 'dock_wide', label: 'Wide Dock Prop', meshUrl: `${DOCK}/dock_wide.glb`, kind: 'buildable', spanM: 6, professions: ['fishing'] },
   { id: 'dock_stairs', label: 'Dock Stairs', meshUrl: `${DOCK}/dock_stairs.glb`, kind: 'buildable', spanM: 3, professions: ['fishing'] },
-  { id: 'fishing_boat', label: 'Fishing Boat', meshUrl: `${DOCK}/boat.glb`, kind: 'buildable', spanM: 4, professions: ['fishing'] },
+  { id: 'fishing_boat', label: 'Fishing Boat', meshUrl: `${DOCK}/boat.glb`, kind: 'buildable', spanM: 4, berthsAt: ['dock_t1', 'dock_t2', 'dock_t3'], professions: ['fishing'] },
   { id: 'fish_bucket', label: 'Fish Bucket', meshUrl: './models/fish/lures/worm.glb', kind: 'container', capacity: 12, professions: ['fishing', 'cooking'] }
 ]);
 
@@ -321,6 +464,12 @@ export function rollFishSpecies(ctx = {}) {
 
     // Sink: deep lures prefer large/huge slightly when matched
     if ((lure.sinkRate || 0) > 0.6 && sizeRank(f.sizeClass) >= 3) w *= 1.15;
+
+    // Super-rare gate — very low base weight even when gear allows
+    if (f.superRare) w *= 0.08;
+    if (f.hardCatch) w *= 0.65;
+    if (f.habitat === 'deep' && (lure.sinkRate || 0) < 0.5) w *= 0.25;
+    if (f.habitat === 'deep' && (lure.sinkRate || 0) >= 0.7) w *= 1.35;
 
     return Math.max(0, w);
   });

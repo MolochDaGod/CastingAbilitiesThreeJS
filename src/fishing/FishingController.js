@@ -30,6 +30,7 @@ import {
   eatMeal,
   unlockTreeNode
 } from './professionState.js';
+import { applyCatchRewards } from './fishingRewards.js';
 import { rodById } from './fishingRodTypes.js';
 import {
   applyFishWorldScale,
@@ -59,7 +60,8 @@ export class FishingController {
    *   waterY?: number,
    *   onToast?: (s: string) => void,
    *   onCatch?: (loot: object) => void,
-   *   getEquippedWeaponId?: () => string|null
+   *   getEquippedWeaponId?: () => string|null,
+   *   getRaceId?: () => string|null
    * }} opts
    */
   constructor(opts) {
@@ -74,6 +76,7 @@ export class FishingController {
     this.onToast = opts.onToast || (() => {});
     this.onCatch = opts.onCatch || (() => {});
     this.getEquippedWeaponId = opts.getEquippedWeaponId || (() => null);
+    this.getRaceId = opts.getRaceId || (() => null);
 
     this.prof = loadProfessionState();
     this._elapsed = 0;
@@ -517,15 +520,18 @@ export class FishingController {
           fishStrength: fish.strength,
           lineMax: computeLineMax(pole, pole.abilities, mods.tree?.lineMul || 1),
           control: pole.control || 1,
-          reelSpeed: rodMods.reelSpeed || 1
+          reelSpeed: rodMods.reelSpeed || 1,
+          preyOfLeviathans: !!fish.preyOfLeviathans,
+          behavior: fish.behavior || null,
+          hardCatch: !!fish.hardCatch
         });
         beginBite(this.fight, biteWin);
         this.phase = 'bite';
         this._renderHud('bite', { hint: 'BITE! S or RMB to snag' });
         const len = resolveLengthM(fish);
-        this.onToast(
-          `Bite! ${fish.label} · ${fish.sizeClass} · ${len.toFixed(2)} m · val ${fish.value}`
-        );
+        let toast = `Bite! ${fish.label} · ${fish.sizeClass} · ${len.toFixed(2)} m · ₡${fish.value}`;
+        if (fish.preyOfLeviathans) toast += ' · ⚠ leviathans hunt this';
+        this.onToast(toast);
         void this._spawnFishVisual(fish);
       } else {
         this._renderHud('waiting');
@@ -552,6 +558,10 @@ export class FishingController {
           moveLeft: this._input.moveLeft,
           reelSpeedMul: reelMul
         });
+        if (this.fight.leviathanEvent) {
+          this.onToast(this.fight.leviathanEvent);
+          this.fight.leviathanEvent = null;
+        }
         if (!wheelOn) {
           this._input.reelIn = keys?.has?.('KeyW') || false;
           this._input.slack = keys?.has?.('KeyS') || false;
@@ -603,6 +613,20 @@ export class FishingController {
     this.onToast(`Caught ${fish.label} (${len.toFixed(2)} m · ${loot.weightKg} kg)!`);
     this.onCatch(loot);
 
+    // Super-rare recipe / form / mount unlocks (Aetherwing turtle etc.)
+    try {
+      const raceId =
+        this.getRaceId?.() ||
+        this.character?.raceId ||
+        this.character?.race ||
+        null;
+      const rw = applyCatchRewards(fish.id, { raceId });
+      for (const m of rw.messages) this.onToast(m);
+      if (rw.unlocked.length) loot.unlocks = rw.unlocked;
+    } catch (e) {
+      console.warn('[Fishing] rewards', e);
+    }
+
     grantFishingXp(this.prof, catchXp(fish, qty));
     this.onToast(`Fishing Lv${this.prof.level} · SP ${this.prof.skillPoints}`);
 
@@ -619,7 +643,13 @@ export class FishingController {
   _lose(reason) {
     this.phase = 'lost';
     const msg =
-      reason === 'line_broke' ? 'Line snapped!' : reason === 'missed_snag' ? 'Missed the snag' : 'Got away';
+      reason === 'line_broke'
+        ? 'Line snapped!'
+        : reason === 'missed_snag'
+          ? 'Missed the snag'
+          : reason === 'leviathan_stole'
+            ? 'Leviathan stole your catch!'
+            : 'Got away';
     this.onToast(msg);
     this._renderHud('lost', { catchLabel: msg });
     // Small fail XP so progress isn't zero

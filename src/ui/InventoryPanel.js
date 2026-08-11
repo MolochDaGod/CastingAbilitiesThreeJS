@@ -71,6 +71,8 @@ import {
   saveProfessionState as saveFishingProf
 } from '../fishing/professionState.js';
 import { FISHING_LURES } from '../fishing/fishingCatalog.js';
+import { loadRewardsState } from '../fishing/fishingRewards.js';
+import { DOCK_TIERS, plantOwnClaim, loadOwnClaim, placeDock } from '../fishing/dockBuild.js';
 import {
   PAPERDOLL_LEFT,
   PAPERDOLL_RIGHT,
@@ -1249,7 +1251,33 @@ export class InventoryPanel {
               </div>`;
           }).join('')}
         </div>
-        <p class="inv-hint">Shift+F in world to fish · freeride windsurf uses nautical multiplier from tree + blue meals + rod.</p>
+        <div class="inv-card__row" style="margin-top:12px"><span>Catch rewards</span><b>forms · mounts · recipes</b></div>
+        <div class="inv-hint" style="margin:4px 0">
+          ${(() => {
+            const rw = loadRewardsState();
+            const bits = [];
+            if (rw.forms.length) bits.push(`Forms: ${rw.forms.join(', ')}`);
+            if (rw.mounts.length) bits.push(`Mounts: ${rw.mounts.join(', ')}`);
+            if (rw.recipes.length) bits.push(`Recipes: ${rw.recipes.slice(0, 6).join(', ')}${rw.recipes.length > 6 ? '…' : ''}`);
+            if (rw.caught.length) bits.push(`Caught: ${rw.caught.join(', ')}`);
+            return bits.length ? bits.join(' · ') : 'None yet · land Aetherwing Turtle for form/mount · rare deep fish for craft recipes';
+          })()}
+        </div>
+
+        <div class="inv-card__row" style="margin-top:10px"><span>Docks (boat berth)</span><b>claim for T2/T3</b></div>
+        <p class="inv-hint">T1 placeable as building anywhere. T2/T3 only inside your own claim flag.</p>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0">
+          <button type="button" class="inv-btn" data-plant-claim>Plant claim here (lab)</button>
+          ${DOCK_TIERS.map(
+            (d) => `
+            <button type="button" class="inv-btn inv-btn--ghost" data-place-dock="${d.id}" title="${d.blurb}">
+              Place ${d.label}${d.requiresOwnClaim ? ' ⚑' : ''}
+            </button>`
+          ).join('')}
+        </div>
+        <div class="inv-hint">${loadOwnClaim() ? `Claim planted · r=${loadOwnClaim().radiusM}m` : 'No claim planted yet'}</div>
+
+        <p class="inv-hint">Shift+F fish · freeride nautical · super-rares: ocean creature / glow whale / aetherwing · pulbo deep.</p>
       </div>
     `;
 
@@ -1301,6 +1329,35 @@ export class InventoryPanel {
           ? live.unlockNode(b.dataset.fishUnlock)
           : unlockFishingNode(st, b.dataset.fishUnlock);
         this.onToast(ok ? `Unlocked · ${b.dataset.fishUnlock}` : 'Cannot unlock (level / SP / prereq)');
+        this._fillProfessions();
+      });
+    });
+    host.querySelector('[data-plant-claim]')?.addEventListener('click', () => {
+      const app = window.__castingApp;
+      const p = app?.character?.position || { x: 0, z: 0 };
+      plantOwnClaim(p.x || 0, p.z || 0, 45);
+      this.onToast('Claim flag planted (lab) · T2/T3 docks allowed in radius');
+      this._fillProfessions();
+    });
+    host.querySelectorAll('[data-place-dock]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const app = window.__castingApp;
+        const p = app?.character?.position || { x: 0, y: 0, z: 0 };
+        const r = placeDock(
+          { dockId: b.dataset.placeDock, x: p.x || 0, y: p.y || 0, z: p.z || 0 },
+          {}
+        );
+        if (!r.ok) {
+          this.onToast(r.reason || 'Cannot place dock');
+        } else {
+          this.onToast(`Placed ${r.dock?.label} · boats ×${r.dock?.boatSlots || 1}`);
+          // Optional: spawn mesh via training deploy if available
+          try {
+            app?.trainingRoom?.placeMesh?.(r.dock.meshUrl, p);
+          } catch {
+            /* visual place later */
+          }
+        }
         this._fillProfessions();
       });
     });

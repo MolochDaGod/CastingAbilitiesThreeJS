@@ -147,3 +147,7 @@ public/models/vfx/**/*_src.gltf
 # Large local weapon sources until R2 (keep on disk for lab)
 public/models/weapons/t0-flintlock.glb
 
+
+# >100MB — keep local / CDN later
+public/models/fish/species/rare/ocean_creature.glb
+

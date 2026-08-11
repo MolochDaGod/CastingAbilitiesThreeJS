@@ -52,6 +52,20 @@ export const BIOME_PRESETS = Object.freeze([
     label: 'Highland',
     terrain: { seed: 63, amp: 1.2, flatCore: 5 },
     families: ['cliff', 'ore', 'rock', 'animal_passive']
+  },
+  {
+    id: 'home_island',
+    label: 'Home island (NPC)',
+    terrain: { seed: 21, amp: 0.55, flatCore: 14 },
+    families: ['home_scenery', 'farm_module', 'tree', 'herb', 'flower', 'rock'],
+    note: 'River village · lake · farm modular — flatter pad for building'
+  },
+  {
+    id: 'river_valley',
+    label: 'River valley',
+    terrain: { seed: 88, amp: 0.75, flatCore: 9 },
+    families: ['home_scenery', 'tree', 'rock', 'herb', 'animal_passive'],
+    note: 'Village + water feature focus'
   }
 ]);
 
@@ -119,6 +133,25 @@ export const NODE_FAMILIES = Object.freeze({
     adminTab: 'creatures',
     deployableKind: 'enemy',
     note: 'Training dummy + grudge6 enemy drafts'
+  },
+  /** Home-island scenery kits (farm · lake · river village) */
+  home_scenery: {
+    label: 'Home island scenery',
+    adminTab: 'world',
+    deployableKind: 'buildable',
+    note: 'island-scenery GLBs · HomeIslandScenery runtime'
+  },
+  farm_module: {
+    label: 'Farm modules',
+    adminTab: 'assets',
+    deployableKind: 'buildable',
+    note: 'Modular dirt/grass/trees from farm_modular_pack'
+  },
+  fishing_dock: {
+    label: 'Fishing docks',
+    adminTab: 'assets',
+    deployableKind: 'buildable',
+    note: 'T1 berth anywhere · T2/T3 upgrade inside own claim flag · boat housing'
   }
 });
 
@@ -243,6 +276,83 @@ export const NODE_PALETTE = Object.freeze([
     tint: '#e8a0c0',
     ready: true,
     note: 'Procedural stub until flora GLB pack on CDN'
+  },
+  // —— Home-island scenery (lake · village · farm pack) ——
+  {
+    id: 'node.scenery_lake',
+    label: 'Low-poly lake',
+    family: 'home_scenery',
+    source: 'mesh',
+    meshPool: ['./models/island-scenery/low_poly_lake.glb'],
+    defaultScale: 1,
+    tint: '#3a8ab8',
+    ready: true,
+    note: 'SI-fit water feature · HomeIslandScenery'
+  },
+  {
+    id: 'node.scenery_village',
+    label: 'River village',
+    family: 'home_scenery',
+    source: 'mesh',
+    meshPool: ['./models/island-scenery/river_village.glb'],
+    defaultScale: 1,
+    tint: '#8a6a4a',
+    ready: true,
+    note: 'NPC home hub · cm author → SI fit'
+  },
+  {
+    id: 'node.scenery_farm',
+    label: 'Farm modular pack',
+    family: 'farm_module',
+    source: 'mesh',
+    meshPool: ['./models/island-scenery/farm_modular_pack.glb'],
+    defaultScale: 1,
+    tint: '#5a8a3a',
+    ready: true,
+    note: 'Dirt/grass/trees kit · modular home fields'
+  },
+  {
+    id: 'node.dock_t1',
+    label: 'Dock T1 (Berth)',
+    family: 'fishing_dock',
+    source: 'mesh',
+    meshPool: ['./models/fish/docks/dock_t1.glb'],
+    defaultScale: 1,
+    tint: '#6a8aaa',
+    ready: true,
+    note: 'Building · place anywhere · 1 boat slot · no claim'
+  },
+  {
+    id: 'node.dock_t2',
+    label: 'Dock T2 (Harbor)',
+    family: 'fishing_dock',
+    source: 'mesh',
+    meshPool: ['./models/fish/docks/dock_t2.glb'],
+    defaultScale: 1,
+    tint: '#5a7a9a',
+    ready: true,
+    note: 'Upgrade inside **own claim flag** · 2 boats'
+  },
+  {
+    id: 'node.dock_t3',
+    label: 'Dock T3 (Port)',
+    family: 'fishing_dock',
+    source: 'mesh',
+    meshPool: ['./models/fish/docks/dock_t3.glb'],
+    defaultScale: 1,
+    tint: '#4a6a8a',
+    ready: true,
+    note: 'Max port · own claim flag · 4 boats'
+  },
+  {
+    id: 'node.home_spawn',
+    label: 'Home spawn marker',
+    family: 'home_scenery',
+    source: 'procedural',
+    defaultScale: 1,
+    tint: '#7fd6ff',
+    ready: true,
+    note: 'Player/NPC home start pin for home-island layouts'
   },
   {
     id: 'node.hemp',
