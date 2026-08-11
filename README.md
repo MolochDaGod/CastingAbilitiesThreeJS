@@ -73,13 +73,16 @@ Docs: `WEAPON_SKILL_PRODUCTION_SSOT.md` · `ELEMENTAL_LINEAR_CAST_SSOT.md` · `S
 
 | Input | Action |
 |-------|--------|
-| **Q** | Equip ↔ combat |
+| **Tap Q** | Dual weapon loadout swap (Weapon 1 ↔ Weapon 2 · mesh · anim pack · skills) |
+| **Hold Q** | Mode radial (combat ↔ harvest) |
 | **1–4** | Weapon skills (catalog hotbar) |
 | **RMB** | Focus aim (TPS) |
 | **Focus + LMB** | Staff/wand → **slot 1 normal** (orb stream) |
 | **F** | Weapon primary skill |
 | **Hold LMB + drag** | Path cast stroke (non-focus / freeride) |
 | **Alt+Shift+Q/E/R/F/V/G** | Arm linear skillshot (MOBA aim) |
+
+Dodge stays **AA / DD / X** — **Q never dodges**.
 
 ---
 
@@ -132,6 +135,35 @@ Code: `HoverboardRide.js` + `RideIK.js` (feet → deck, hands → boom/`sailRail
 | --- | --- |
 | HDRI | `public/hdri/spruit_sunrise.hdr` |
 
+### HUD · Bars pack (shipped)
+
+Product picks from `D:\Games\Models\bars-hud-pack` → `public/hud/bars/`.  
+SSOT: `src/ui/barsHudUi.js` · styles `bars-hud.css` · world plates `OverheadNameplates.js`.
+
+| Role | File |
+|------|------|
+| **Player unit frame** | `unit-frames/unit_frame_009.png` |
+| **Enemy overhead HP** | `overhead/overhead_health_003.png` |
+| **Ally overhead HP** | `overhead/overhead_health_001.png` |
+| **Bar fillers** | `fillers/health_fill_*` · `mana_fill_*` · `stamina_fill_*` |
+
+- Player TL frame = `009` chrome + fillers for HP/MP/STA (CraftPix portrait layers under).  
+- Training dummies / hostiles = world overhead **003** (fill tracks `userData.hp01`).  
+- Ally strip = **001** chrome when party members exist.  
+- CraftPix hotbar / cast bar stay under `public/ui/craftpix/` (complement, not replaced).
+
+### Paperdoll · dual weapons (Main Panel **I**)
+
+No belt / amulet / ring / cloak. Slots:
+
+| Column | Slots |
+|--------|--------|
+| Left | Head · Body · Arms · Legs · Shoulders · **Relic** |
+| Right | **Weapon 1** · **Off 1** · **Weapon 2** · **Off 2** · **Back** · Mount |
+
+Combat **Tap Q** swaps set A ↔ B (`equippedWeaponRuntime.swapWeaponLoadout`).  
+Code: `src/ui/mainPanelSlots.js` · `src/combat/equippedWeaponRuntime.js`.
+
 ---
 
 ## Terrain (three layers)
@@ -164,8 +196,9 @@ Aim / path / feet all use **one** `terrain.sample` via `projectToTerrain`.
 | **E** (mounted) | **Get off** — unparent, remove board, land controller |
 | **WASD** | Land move (DRC) · freeride boat thrust/turn when mounted |
 | **1–4** | Weapon skills (combat) / elements (equip) |
-| **Q** | Equip ↔ combat session |
-| **I** | Inventory panel |
+| **Tap Q** | Combat: swap Weapon 1 ↔ 2 (skills + loco) · Harvest: return combat |
+| **Hold Q** | Mode radial (combat ↔ harvest) |
+| **I** | Inventory / paperdoll (dual weapons · relic · back) |
 | **F** | Weapon primary skill |
 | **G** | VFX editor |
 | **C** | Clear effects / hard cancel ride |
@@ -225,7 +258,7 @@ Linked project: **casting-abilities-threejs** (`grudgenexus`).
 
 | What ships in `dist` | What loads at runtime |
 | --- | --- |
-| App JS/CSS, HDRI, **ride GLBs** | Toon RTS kits, atlases, anim JSON (CDN / Open) |
+| App JS/CSS, HDRI, **ride GLBs**, `hud/bars/*`, CraftPix UI | Toon RTS kits, atlases, anim JSON (CDN / Open) |
 
 ---
 
@@ -242,7 +275,7 @@ src/
   effects/        HoverboardRide, trails, bursts
   physics/        Rapier world + heightfield
   skillshot/      Linear skillshots (ice/thunder/meteor/…)
-  ui/             HUD, inventory, editor, AdminHub
+  ui/             HUD (bars pack + CraftPix), OverheadNameplates, inventory, AdminHub
   vfx/            VfxDirector, staffOrbVfx, elementAttackVfx
   world/          IslandHeightfield, grass, forest, StageWater, harvest
 public/

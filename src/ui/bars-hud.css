@@ -1,0 +1,260 @@
+/**
+ * Bars HUD pack chrome — player unit_frame_009 + overhead 001/003 + fillers.
+ * Vars from barsHudUi.js (url("./hud/bars/...")).
+ */
+
+/* ── Player unit frame (unit_frame_009) ─────────────────────── */
+
+.hud-frame.bars-frame--player {
+  min-width: 272px;
+  max-width: 320px;
+  padding: 0;
+  gap: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  overflow: visible;
+}
+
+.bars-frame__plate {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  min-height: 120px;
+  padding: 10px 14px 12px 10px;
+  /* Scale product 136×60 chrome as 9-stretch plate */
+  background-image: var(--bars-player-frame);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  image-rendering: auto;
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.55));
+}
+
+.bars-frame--player .cp-frame__avatar {
+  width: 52px;
+  height: 52px;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.bars-frame--player .cp-frame__body {
+  gap: 4px;
+  padding-top: 2px;
+  justify-content: flex-start;
+}
+
+.bars-frame--player .hud-frame__name {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-shadow: 0 1px 3px #000, 0 0 6px rgba(0, 0, 0, 0.8);
+  margin-bottom: 1px;
+}
+
+/* Fillers replace CraftPix grayscale bars */
+.bars-frame--player .cp-bar {
+  height: 12px;
+}
+
+.bars-frame--player .cp-bar__track {
+  background-image: none;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 2px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.65);
+}
+
+.bars-frame--player .cp-bar__fill-wrap {
+  left: 2px;
+  right: 2px;
+  top: 2px;
+  bottom: 2px;
+}
+
+.bars-frame--player .cp-bar__fill {
+  background-image: var(--bars-health-fill);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  filter: none;
+  border-radius: 1px;
+}
+
+.bars-frame--player .cp-bar--mp .cp-bar__fill,
+.bars-frame--player .cp-bar__fill--mp {
+  background-image: var(--bars-mana-fill);
+  filter: none;
+}
+
+.bars-frame--player .cp-bar--sta .cp-bar__fill,
+.bars-frame--player .cp-bar__fill--sta {
+  background-image: var(--bars-stamina-fill);
+  filter: none;
+}
+
+/* Target frame keeps CraftPix hostile shell; use bars health fill */
+.hud-frame--target .cp-bar--hostile .cp-bar__fill,
+.hud-frame--target .cp-bar__fill--hostile {
+  background-image: var(--bars-health-fill);
+  filter: hue-rotate(-8deg) saturate(1.15) brightness(1.05);
+}
+
+/* ── Ally strip (overhead_health_001 chrome) ────────────────── */
+
+.hud-allies:not(.is-empty) {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: fixed;
+  top: 190px;
+  left: 16px;
+  z-index: 22;
+  pointer-events: none;
+}
+
+.hud-ally.bars-ally {
+  position: relative;
+  width: 140px;
+  height: 28px;
+  padding: 0 6px 0 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background-image: var(--bars-overhead-ally);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
+}
+
+.hud-ally.bars-ally > span {
+  position: relative;
+  z-index: 2;
+  font-size: 9px;
+  font-weight: 700;
+  color: #e8fff0;
+  text-shadow: 0 1px 2px #000;
+  line-height: 1;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hud-ally.bars-ally > i {
+  display: block;
+  height: 6px;
+  max-width: 100%;
+  border-radius: 1px;
+  background-image: var(--bars-health-fill-thin);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  box-shadow: 0 0 4px rgba(80, 220, 120, 0.35);
+}
+
+/* ── World overhead nameplates ──────────────────────────────── */
+
+.hud-overheads {
+  position: fixed;
+  inset: 0;
+  z-index: 18;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.oh-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 92px;
+  height: 22px;
+  transform: translate(-50%, -100%);
+  will-change: transform, opacity;
+  opacity: 0.95;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.65));
+}
+
+.oh-bar--ally {
+  width: 120px;
+  height: 24px;
+}
+
+.oh-bar__chrome {
+  position: absolute;
+  inset: 0;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.oh-bar--enemy .oh-bar__chrome {
+  background-image: var(--bars-overhead-enemy);
+}
+
+.oh-bar--ally .oh-bar__chrome {
+  background-image: var(--bars-overhead-ally);
+}
+
+.oh-bar__track {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  top: 38%;
+  bottom: 28%;
+  overflow: hidden;
+  z-index: 1;
+  border-radius: 1px;
+}
+
+.oh-bar--ally .oh-bar__track {
+  left: 12%;
+  right: 10%;
+  top: 42%;
+  bottom: 30%;
+}
+
+.oh-bar__fill {
+  height: 100%;
+  width: 100%;
+  background-image: var(--bars-overhead-fill);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  transform-origin: left center;
+  transition: width 0.1s ease-out;
+}
+
+.oh-bar--enemy .oh-bar__fill {
+  filter: hue-rotate(-12deg) saturate(1.2);
+}
+
+.oh-bar--ally .oh-bar__fill {
+  filter: hue-rotate(40deg) saturate(1.15) brightness(1.05);
+}
+
+.oh-bar__name {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 2px);
+  transform: translateX(-50%);
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+  color: #fff;
+  text-shadow: 0 1px 2px #000;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.oh-bar.is-dead {
+  opacity: 0.25;
+}
+
+.oh-bar.is-low .oh-bar__fill {
+  filter: hue-rotate(-25deg) saturate(1.4) brightness(1.1);
+}
+
+.oh-bar.is-hidden {
+  visibility: hidden;
+  opacity: 0;
+}

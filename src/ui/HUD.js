@@ -8,10 +8,12 @@ import {
   preloadCraftpixUi,
   racePortraitUrl
 } from './craftpixUi.js';
+import { applyBarsHudCssVars, preloadBarsHudUi } from './barsHudUi.js';
 import { CastBar } from './CastBar.js';
 import './tightBar.css';
 import './showcase.css';
 import './craftpix-hud.css';
+import './bars-hud.css';
 import './castbar.css';
 
 /**
@@ -45,7 +47,10 @@ export class HUD {
     this._sta = 1;
 
     applyCraftpixCssVars(root);
+    applyBarsHudCssVars(root);
+    applyBarsHudCssVars(document.documentElement);
     void preloadCraftpixUi();
+    void preloadBarsHudUi();
 
     root.innerHTML = `
       <div class="hud__panel hud__title cp-panel">
@@ -53,31 +58,33 @@ export class HUD {
         <span data-blurb>1–6 elements · path cast · Surf (M)</span>
       </div>
 
-      <!-- Player unit frame — CraftPix UnitFrame layers -->
-      <div class="hud-frame hud-frame--player cp-frame" data-player-frame>
-        <div class="cp-frame__avatar" data-avatar>
-          <div class="cp-frame__avatar-bg"></div>
-          <img class="cp-frame__portrait-img" data-portrait-img alt="" />
-          <div class="cp-frame__avatar-border"></div>
-          <div class="cp-frame__avatar-overlay"></div>
-          <span class="cp-frame__glyph" data-portrait>WK</span>
-        </div>
-        <div class="cp-frame__body">
-          <div class="hud-frame__name" data-player-name>…</div>
-          <div class="cp-bar cp-bar--hp" title="Health">
-            <div class="cp-bar__track"></div>
-            <div class="cp-bar__fill-wrap"><div class="cp-bar__fill" data-hp-fill style="width:100%"></div></div>
-            <span class="hud-frame__val" data-hp-text>100%</span>
+      <!-- Player unit frame — bars pack unit_frame_009 + fillers -->
+      <div class="hud-frame hud-frame--player cp-frame bars-frame--player" data-player-frame>
+        <div class="bars-frame__plate">
+          <div class="cp-frame__avatar" data-avatar>
+            <div class="cp-frame__avatar-bg"></div>
+            <img class="cp-frame__portrait-img" data-portrait-img alt="" />
+            <div class="cp-frame__avatar-border"></div>
+            <div class="cp-frame__avatar-overlay"></div>
+            <span class="cp-frame__glyph" data-portrait>WK</span>
           </div>
-          <div class="cp-bar cp-bar--mp" title="Mana">
-            <div class="cp-bar__track cp-bar__track--sb"></div>
-            <div class="cp-bar__fill-wrap"><div class="cp-bar__fill cp-bar__fill--mp" data-mp-fill style="width:100%"></div></div>
-            <span class="hud-frame__val" data-mp-text>100</span>
-          </div>
-          <div class="cp-bar cp-bar--sta" title="Stamina">
-            <div class="cp-bar__track cp-bar__track--sb"></div>
-            <div class="cp-bar__fill-wrap"><div class="cp-bar__fill cp-bar__fill--sta" data-sta-fill style="width:100%"></div></div>
-            <span class="hud-frame__val" data-sta-text>100</span>
+          <div class="cp-frame__body">
+            <div class="hud-frame__name" data-player-name>…</div>
+            <div class="cp-bar cp-bar--hp" title="Health">
+              <div class="cp-bar__track"></div>
+              <div class="cp-bar__fill-wrap"><div class="cp-bar__fill" data-hp-fill style="width:100%"></div></div>
+              <span class="hud-frame__val" data-hp-text>100%</span>
+            </div>
+            <div class="cp-bar cp-bar--mp" title="Mana">
+              <div class="cp-bar__track cp-bar__track--sb"></div>
+              <div class="cp-bar__fill-wrap"><div class="cp-bar__fill cp-bar__fill--mp" data-mp-fill style="width:100%"></div></div>
+              <span class="hud-frame__val" data-mp-text>100</span>
+            </div>
+            <div class="cp-bar cp-bar--sta" title="Stamina">
+              <div class="cp-bar__track cp-bar__track--sb"></div>
+              <div class="cp-bar__fill-wrap"><div class="cp-bar__fill cp-bar__fill--sta" data-sta-fill style="width:100%"></div></div>
+              <span class="hud-frame__val" data-sta-text>100</span>
+            </div>
           </div>
         </div>
       </div>
@@ -365,12 +372,13 @@ export class HUD {
     host.hidden = false;
     host.setAttribute('aria-hidden', 'false');
     host.classList.remove('is-empty');
+    // Ally strip chrome = overhead_health_001 + thin health filler
     host.innerHTML = list
       .slice(0, 4)
       .map((a) => {
         const pct = Math.round(Math.max(0, Math.min(1, a.hp01 ?? 1)) * 100);
         const label = a.name || a.id || 'Ally';
-        return `<div class="hud-ally" title="${label}"><span>${label}</span><i style="width:${pct}%"></i></div>`;
+        return `<div class="hud-ally bars-ally" title="${label}"><span>${label}</span><i style="width:${pct}%"></i></div>`;
       })
       .join('');
   }

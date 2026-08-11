@@ -42,6 +42,7 @@ import {
 import { PostProcessing } from '../postprocessing/PostProcessing.js';
 
 import { HUD, LoadingScreen } from '../ui/HUD.js';
+import { OverheadNameplates } from '../ui/OverheadNameplates.js';
 import { Editor } from '../ui/Editor.js';
 import { InventoryPanel } from '../ui/InventoryPanel.js';
 import { AdminHub } from '../ui/AdminHub.js';
@@ -347,6 +348,11 @@ export class App {
 
     this.loading = new LoadingScreen();
     this.hud = new HUD(document.getElementById('hud'));
+    /** Bars pack overhead HP (enemy 003 · ally 001) */
+    this.overheadBars = new OverheadNameplates({
+      host: document.body,
+      maxDist: 48
+    });
     this.editor = new Editor({
       onClear: () => this.clearEffects(),
       onToast: (message) => this.hud.showToast(message)
@@ -432,7 +438,10 @@ export class App {
         await this.worldHarvest?.spawnDecor?.();
       },
       equipHarvestTool: () => this._equipHarvestTool?.(),
-      respawnDummies: () => this.worldHarvest?.spawnTrainingDummies?.()
+      respawnDummies: () => {
+        this.worldHarvest?.spawnTrainingDummies?.();
+        this.overheadBars?.bindDummies?.(this.worldHarvest?.dummies || []);
+      }
     });
 
     this.showcase = new ShowcasePanel({
@@ -1913,6 +1922,8 @@ export class App {
             ? boot.layout
             : null;
       await this.worldHarvest.init({ layout: useLayout });
+      // Enemy overhead bars (overhead_health_003 + fillers)
+      this.overheadBars?.bindDummies?.(this.worldHarvest.dummies || []);
       const src = this.worldHarvest.layoutSource || boot.source || 'default';
       console.info(
         `[App] ${TRAINING_ROOM_LABEL} · harvest=${this.worldHarvest.nodeCount} decor=${this.worldHarvest.decorCount} dummies=${this.worldHarvest.dummies?.length || 0} layout=${boot.source} F≤${HARVEST_RANGE_M}m padR=${WORLD.islandRadius.toFixed(0)}`
@@ -2252,6 +2263,14 @@ export class App {
       dt,
       this.character?.position || this.character?.root?.position
     );
+    // Overhead nameplates project after units move
+    {
+      const cam = this.camera;
+      const feet = this.character?.position || this.character?.root?.position;
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      this.overheadBars?.update?.(cam, w, h, feet);
+    }
     this.growingForest?.update?.(dt, this.elapsed);
     this.stylizedGrass?.update?.(dt, settings.terrain?.grassWind);
     // Pirate cursor intents when mouse unlocked (harvest / loot / attack)

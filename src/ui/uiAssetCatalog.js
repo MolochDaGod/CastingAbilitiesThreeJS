@@ -30,10 +30,28 @@ export const UI_ASSET_CATALOG = Object.freeze([
     system: 'TightBar · bag slots · skills'
   },
   {
+    id: 'bars.player_frame',
+    role: 'player unit frame',
+    local: './hud/bars/unit-frames/unit_frame_009.png',
+    system: 'HUD bars-frame--player · BARS_HUD_PICKS'
+  },
+  {
+    id: 'bars.overhead_enemy',
+    role: 'enemy overhead HP',
+    local: './hud/bars/overhead/overhead_health_003.png',
+    system: 'OverheadNameplates enemy'
+  },
+  {
+    id: 'bars.overhead_ally',
+    role: 'ally overhead HP',
+    local: './hud/bars/overhead/overhead_health_001.png',
+    system: 'OverheadNameplates ally · HUD ally strip'
+  },
+  {
     id: 'cp.unit_frame',
-    role: 'player / target unit frame',
+    role: 'CraftPix avatar layers (portrait well)',
     local: './ui/craftpix/unit/avatar_bg.png',
-    system: 'HUD player frame · HP/MP bars'
+    system: 'HUD portrait under bars unit_frame_009'
   },
   {
     id: 'cp.cast',
