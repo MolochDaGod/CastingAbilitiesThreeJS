@@ -703,9 +703,10 @@ export class WalkController {
     if (keys) {
       if (keys.has('KeyW') || keys.has('ArrowUp')) iz -= 1;
       if (keys.has('KeyS') || keys.has('ArrowDown')) iz += 1;
-      // A/D turn (boat feel) — same invert as combat strafe fix: A left turn
-      if (keys.has('KeyA') || keys.has('ArrowLeft')) ix -= 1;
-      if (keys.has('KeyD') || keys.has('ArrowRight')) ix += 1;
+      // A/D turn (boat): A = port (left), D = starboard (right)
+      // Sign flipped so +ix is left-yaw in freerideTurnRate (was inverted)
+      if (keys.has('KeyA') || keys.has('ArrowLeft')) ix += 1;
+      if (keys.has('KeyD') || keys.has('ArrowRight')) ix -= 1;
     }
 
     // Turn boat (tslda joystick X → yaw)
