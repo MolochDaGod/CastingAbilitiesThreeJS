@@ -6,8 +6,11 @@
 |--------|------|-----|
 | **Bip001 bake (live)** | `open.grudge-studio.com/anims/baked/pistol/*` | grudge6 / Casting / Multiverse |
 | **Mixamo author FBX** | `gameopen/.../anim/pistol/` — gunplay, drawing-gun, charged-pistol, pistol-whip | re-bake |
+| **grudgepistolzio (incoming)** | `D:\Games\Models\_anim_packs\grudge6_incoming_2026-08-01\grudgepistolzio` | one-hand gun **loco** + kneel; bake next |
 | **Minecraft TPS reference** | `minecraft_tps_model_1780812780503.glb` | timing + prop nodes only |
 | **Lab copy** | `Casting…/public/models/reference/minecraft_tps_pistol.glb` | preview |
+| **Flintlock mesh** | `public/models/weapons/t0-flintlock.glb` | `t0-gun` hand mesh |
+| **Bullet** | `public/models/vfx/projectiles/bullet1.glb` | Styloo pack · see PISTOL_FLINTLOCK_SSOT |
 
 **Do not** retarget TPS clips onto Bip001 — rigid Minecraft nodes (`Pistol_13`, `Rightarm_14`).
 

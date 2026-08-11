@@ -26,6 +26,7 @@ import { parseCatalogEffects } from './skillStatusSystem.js';
 import { planElementalLinearCast } from './elementalLinearCast.js';
 import { isStaffNormalAttack, staffProjectileMeshUrl, STAFF_CHARGE } from '../vfx/staffOrbVfx.js';
 import { inferElementAttackKind } from '../vfx/elementAttackVfx.js';
+import { isPistolBulletSkill, PISTOL_BULLET } from '../vfx/pistolBulletVfx.js';
 
 /**
  * @typedef {object} ProductionAnim
@@ -114,15 +115,19 @@ export function defaultPhysicsForStyle(style, skill = {}) {
     };
   }
   if (style === 'ranged') {
+    const gun =
+      /gun|pistol|flint|t0-gun|handgun/i.test(
+        `${skill.id || ''} ${skill.name || ''} ${skill.weaponTypeId || ''}`
+      );
     return {
-      force: 6 * intensity,
-      knockbackMm: 100 * intensity,
-      knockupVy: 0.6,
-      contactRadius: 0.35,
-      aoeM: 0.8,
-      speed: 28,
-      life: 2.2,
-      collider: { type: 'sphere', radius: 0.28 }
+      force: gun ? 6 * intensity : 6 * intensity,
+      knockbackMm: gun ? 80 * intensity : 100 * intensity,
+      knockupVy: gun ? 0.4 : 0.6,
+      contactRadius: gun ? 0.12 : 0.35,
+      aoeM: gun ? 0.35 : 0.8,
+      speed: gun ? 90 : 28,
+      life: gun ? 1.2 : 2.2,
+      collider: { type: 'sphere', radius: gun ? 0.12 : 0.28 }
     };
   }
   // spell
@@ -291,10 +296,32 @@ export function compileProductionWeaponSkill(catalogSkill, ctx = {}) {
       effects
     });
 
+  const gunBlob = `${catalogSkill.id} ${catalogSkill.name || ''} ${weaponTypeId} ${animPack}`;
+  const useBullet =
+    ov.useBulletProjectile === true ||
+    isPistolBulletSkill({
+      ...catalogSkill,
+      style,
+      animPack,
+      weaponTypeId,
+      slot: ctx.barSlot ?? 0,
+      slotType: catalogSkill.slotType
+    }) ||
+    (/t0-gun|flint|pistol|handgun/i.test(gunBlob) &&
+      (catalogSkill.slotType === 'primary' || ctx.barSlot === 0));
+
   const useOrb =
-    ov.useOrbProjectile ??
-    staffB?.useOrbProjectile ??
-    (style === 'spell' && (isStaffNormalAttack({ ...catalogSkill, style, slot: ctx.barSlot ?? 0, pathMode: staffB?.pathMode }) || staffB?.pathMode === 'stream'));
+    !useBullet &&
+    (ov.useOrbProjectile ??
+      staffB?.useOrbProjectile ??
+      (style === 'spell' &&
+        (isStaffNormalAttack({
+          ...catalogSkill,
+          style,
+          slot: ctx.barSlot ?? 0,
+          pathMode: staffB?.pathMode
+        }) ||
+          staffB?.pathMode === 'stream')));
 
   const meshKind = inferElementAttackKind({
     ...catalogSkill,
@@ -368,13 +395,18 @@ export function compileProductionWeaponSkill(catalogSkill, ctx = {}) {
       castEffectId,
       travelEffectId,
       impactEffectId,
-      meshId: ov.meshId || (useOrb ? `orb-${element === 'ice' ? 'ice' : element}` : null),
+      meshId:
+        ov.meshId ||
+        (useBullet ? 'bullet1' : useOrb ? `orb-${element === 'ice' ? 'ice' : element}` : null),
       projectileMeshUrl:
         ov.projectileMeshUrl ||
+        (useBullet ? PISTOL_BULLET.meshUrl : null) ||
         staffB?.projectileMeshUrl ||
         (useOrb ? staffProjectileMeshUrl(element) : null),
-      chargeMeshUrl: ov.chargeMeshUrl || staffB?.chargeMeshUrl || STAFF_CHARGE.path,
-      trailColor: ov.trailColor,
+      chargeMeshUrl: useBullet
+        ? null
+        : ov.chargeMeshUrl || staffB?.chargeMeshUrl || STAFF_CHARGE.path,
+      trailColor: ov.trailColor || (useBullet ? PISTOL_BULLET.trailColor : undefined),
       intensity: ov.intensity ?? 1
     },
     physics,
@@ -388,6 +420,8 @@ export function compileProductionWeaponSkill(catalogSkill, ctx = {}) {
     castPlan,
     meshKind,
     useOrbProjectile: !!useOrb,
+    useBulletProjectile: !!useBullet,
+    projectileKind: useBullet ? 'bullet' : useOrb ? 'orb' : null,
     isFocus,
     isWard,
     isHeal,
@@ -517,6 +551,8 @@ export function productionToDrcSkill(prod) {
     projectileMeshUrl: prod.projectileMeshUrl || prod.vfx.projectileMeshUrl,
     chargeMeshUrl: prod.chargeMeshUrl || prod.vfx.chargeMeshUrl,
     useOrbProjectile: prod.useOrbProjectile,
+    useBulletProjectile: prod.useBulletProjectile,
+    projectileKind: prod.projectileKind,
     pathMode: prod.pathMode,
     presentation: prod.presentation,
     delivery: prod.delivery,

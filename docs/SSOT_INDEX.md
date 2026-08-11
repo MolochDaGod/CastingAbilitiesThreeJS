@@ -15,6 +15,7 @@ Master index for agents. Prefer leaf docs; do not invent parallel folders.
 | Systems health | SYSTEMS_HEALTH_AUDIT |
 | Entry / fleet review | FLEET_ENTRY_DEPLOY_LOADERS_RAYCAST_REVIEW |
 | Character / anim | ANIM_LIBRARY · PRODUCTION_CONTROLLER · grudge6 |
+| Pistol / flintlock | PISTOL_ANIM · **PISTOL_FLINTLOCK_SSOT** |
 | T0 weapons | T0_WEAPONS · T0_STARTERS · T0_APPRENTICE_WAND · T0_TRAINING_SWORD |
 | UI | CRAFTPIX_HUD · MAIN_PANEL_INVENTORY · COMBAT_CAMERA_FOCUS |
 | Ride | WINDSURF_RIDE_SSOT (if present) · JUMP_AIR · ROLL |

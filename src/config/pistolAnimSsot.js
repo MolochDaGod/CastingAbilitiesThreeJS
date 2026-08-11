@@ -5,12 +5,19 @@
  * Author FBX: gameopen/artifacts/animator/public/anim/pistol/
  *   gunplay.fbx · drawing-gun.fbx · charged-pistol.fbx · pistol-whip.fbx · loco*
  *
+ * Incoming author pack (2026-08): 
+ *   D:\Games\Models\_anim_packs\grudge6_incoming_2026-08-01\grudgepistolzio\
+ *   → one-hand gun / crossbow loco + kneel (Mixamo Bip001). Combat fire still uses
+ *     Open baked gunplay/draw/whip until zio combat clips are baked to Open CDN.
+ *
  * TPS reference (voxel gunplay mesh + short clips, NOT Bip001):
- *   _grudge-kit-extract/.../minecraft_tps_model_1780812780503.glb
  *   Lab copy: public/models/reference/minecraft_tps_pistol.glb
  *
  * Do not bind TPS clips onto grudge6 — skeleton is rigid Minecraft nodes
  * (Rightarm_14, Pistol_13, Slide_4…). Use for timing + prop motion only.
+ *
+ * Weapon mesh: flintlock.glb → public/models/weapons/t0-flintlock.glb for t0-gun
+ * Bullet: Styloo bullet1.glb → public/models/vfx/projectiles/bullet1.glb
  */
 
 export const PISTOL_PACK_ID = 'pistol';
@@ -121,3 +128,46 @@ export function pistolRoleForSkillSlot(slotType, abilityIndex = 0) {
   const skills = ['skill1', 'skill2', 'skill3', 'skill4', 'skill5'];
   return skills[abilityIndex % skills.length] || 'gunplay';
 }
+
+/**
+ * grudgepistolzio incoming author clips (review 2026-08).
+ * One-hand guns + can cover crossbow-style loco; combat still Open bake.
+ */
+export const GRUDGE_PISTOL_ZIO_INCOMING = Object.freeze({
+  path: 'D:/Games/Models/_anim_packs/grudge6_incoming_2026-08-01/grudgepistolzio',
+  use: 'one_hand_gun_and_crossbow_loco',
+  clips: Object.freeze([
+    'pistol idle',
+    'pistol walk',
+    'pistol run',
+    'pistol walk backward',
+    'pistol run backward',
+    'pistol strafe',
+    'pistol strafe (2)',
+    'pistol walk arc',
+    'pistol walk arc (2)',
+    'pistol run arc',
+    'pistol run arc (2)',
+    'pistol run backward arc',
+    'pistol run backward arc (2)',
+    'pistol walk backward arc',
+    'pistol walk backward arc (2)',
+    'pistol jump',
+    'pistol jump (2)',
+    'pistol stand to kneel',
+    'pistol kneeling idle',
+    'pistol kneel to stand',
+    'Heavy_mixamo'
+  ]),
+  mapToFleet: Object.freeze({
+    'pistol idle': 'idle',
+    'pistol walk': 'walk',
+    'pistol run': 'run',
+    'pistol strafe': 'walkL',
+    'pistol strafe (2)': 'walkR',
+    'pistol jump': 'jump',
+    'pistol kneeling idle': 'cast',
+    Heavy_mixamo: 'attack' // review — may be heavy weapon, not flint fire
+  }),
+  note: 'Bake zio loco to open …/anims/baked/pistol/* when ready; keep combat gunplay/draw/whip from existing bake until author fire clips exist.'
+});

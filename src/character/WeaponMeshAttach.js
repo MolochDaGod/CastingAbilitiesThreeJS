@@ -54,13 +54,17 @@ export async function attachWeaponModel(handBone, modelUrl, opts = {}) {
       : profile === 'staff'
         ? 1.25
         : profile === 'pistol'
-          ? 0.42
+          ? 0.48 // flintlock SI hand length
           : profile === 'bow'
             ? 1.4
             : 1.2);
   const maxWidth =
     opts.maxWidthM ??
-    (profile === 'wand' || profile === 'staff' ? 0.55 : profile === 'pistol' ? 0.22 : 0.4);
+    (profile === 'wand' || profile === 'staff'
+      ? 0.55
+      : profile === 'pistol'
+        ? 0.28 // flintlock barrel + lock
+        : 0.4);
 
   try {
     // Shared Draco/Meshopt/KTX2 — do not new bare GLTFLoader (compressed CDN weapons)

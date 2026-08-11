@@ -105,6 +105,13 @@ export {
   createWaterBubbleMaterial
 } from '../vfx/elementAttackVfx.js';
 
+export {
+  PISTOL_BULLET,
+  FLINTLOCK_WEAPON,
+  isLivingTarget,
+  isPistolBulletSkill
+} from '../vfx/pistolBulletVfx.js';
+
 // ── Terrain ──────────────────────────────────────────────────────────
 export {
   TERRAIN_LAYER,

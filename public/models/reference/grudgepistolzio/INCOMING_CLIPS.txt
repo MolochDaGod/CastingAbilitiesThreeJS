@@ -1,0 +1,21 @@
+﻿Heavy_mixamo.fbx
+pistol idle.fbx
+pistol jump.fbx
+pistol run.fbx
+pistol jump (2).fbx
+pistol walk.fbx
+pistol run backward.fbx
+pistol walk backward.fbx
+pistol strafe.fbx
+pistol strafe (2).fbx
+pistol walk arc.fbx
+pistol walk arc (2).fbx
+pistol run arc.fbx
+pistol run arc (2).fbx
+pistol run backward arc.fbx
+pistol run backward arc (2).fbx
+pistol stand to kneel.fbx
+pistol kneeling idle.fbx
+pistol kneel to stand.fbx
+pistol walk backward arc.fbx
+pistol walk backward arc (2).fbx

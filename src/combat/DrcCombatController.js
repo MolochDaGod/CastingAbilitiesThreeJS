@@ -32,6 +32,7 @@ import {
   staffProjectileMeshUrl
 } from '../vfx/staffOrbVfx.js';
 import { inferElementAttackKind } from '../vfx/elementAttackVfx.js';
+import { isPistolBulletSkill, PISTOL_BULLET } from '../vfx/pistolBulletVfx.js';
 import {
   planElementalLinearCast,
   fireLinearFromPlan
@@ -509,6 +510,19 @@ export class DrcCombatController {
     // Traveling mesh projectile — staff normals use per-element orbs (gd_orbs split)
     if (this.projectiles && phys.meshKey !== 'residual') {
       const el = enriched.element || enriched.abilityElement || 'arcane';
+      // Flintlock / handgun primary — Styloo bullet, blood vs terrain
+      if (isPistolBulletSkill(enriched) && this.projectiles.spawnBullet) {
+        void this.projectiles.spawnBullet({
+          origin: resolved.origin,
+          target: resolved.target,
+          forward: resolved.forward,
+          targets,
+          speed: enriched.projectileSpeed || PISTOL_BULLET.speed,
+          meshUrl: enriched.projectileMeshUrl || PISTOL_BULLET.meshUrl
+        });
+        enriched._deliveryLabel = 'Bullet · flintlock';
+        return enriched;
+      }
       // Nature stream: prefer rocks over orbs for earth school staffs
       if (
         (el === 'nature' || el === 'earth') &&

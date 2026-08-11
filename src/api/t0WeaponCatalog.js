@@ -74,7 +74,9 @@ export const T0_ALL_WEAPON_IDS = Object.freeze([
  */
 export const T0_MODEL_CDN = Object.freeze({
   't0-wand': `${CDN}/prod/gltf/weapons/t0-wand.glb`,
-  't0-nature-staff': `${CDN}/prod/gltf/weapons/t0-nature-staff.glb`
+  't0-nature-staff': `${CDN}/prod/gltf/weapons/t0-nature-staff.glb`,
+  /** Flintlock Pistol — local lab mesh until R2 prod upload */
+  't0-gun': './models/weapons/t0-flintlock.glb'
 });
 
 /** category / id → kit mesh slot */

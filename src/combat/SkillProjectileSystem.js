@@ -10,10 +10,13 @@
  */
 
 import {
+  AdditiveBlending,
   Box3,
   Color,
+  DoubleSide,
   Group,
   Mesh,
+  MeshBasicMaterial,
   MeshStandardMaterial,
   SphereGeometry,
   Vector3
@@ -39,10 +42,15 @@ import {
   pickEarthRocks,
   resolveArrowEndEvent
 } from '../vfx/elementAttackVfx.js';
+import {
+  PISTOL_BULLET,
+  isLivingTarget
+} from '../vfx/pistolBulletVfx.js';
 
 const _v = new Vector3();
 const _box = new Box3();
 const _bubbleGeo = new SphereGeometry(0.5, 10, 10);
+const _trailGeo = new SphereGeometry(0.5, 6, 6);
 
 /**
  * @typedef {object} ProjectileHit
@@ -101,7 +109,8 @@ export class SkillProjectileSystem {
         ...EARTH_ROCK_MESHES,
         ARROW_SYSTEMS.path.mesh,
         ARROW_SYSTEMS.loft.mesh,
-        EARTH_EMERGE_CHARGE
+        EARTH_EMERGE_CHARGE,
+        PISTOL_BULLET.meshUrl
       ];
     await Promise.all(list.map((u) => this._loadTemplate(u).catch(() => null)));
   }
@@ -508,6 +517,218 @@ export class SkillProjectileSystem {
   }
 
   /**
+   * Flintlock / handgun bullet — Styloo bullet1, high speed, short trail (20%).
+   * Living hit → blood; terrain/aim → micro explosion (no blood).
+   * @param {{
+   *   origin: Vector3,
+   *   target: Vector3,
+   *   forward?: Vector3,
+   *   targets?: object[],
+   *   speed?: number,
+   *   meshUrl?: string
+   * }} opts
+   */
+  async spawnBullet(opts) {
+    const origin = opts.origin.clone();
+    const target = opts.target.clone();
+    let forward = opts.forward?.clone?.();
+    if (!forward || forward.lengthSq() < 1e-8) {
+      forward = target.clone().sub(origin);
+      if (forward.lengthSq() < 1e-8) forward.set(0, 0, 1);
+      else forward.normalize();
+    } else forward.normalize();
+
+    const speed = opts.speed ?? PISTOL_BULLET.speed;
+    const url = opts.meshUrl || PISTOL_BULLET.meshUrl;
+
+    // Muzzle flash (short)
+    this.vfx?.deploy?.('inferno', {
+      origin: origin.clone(),
+      forward: forward.clone(),
+      intensity: 0.35
+    });
+
+    let mesh = null;
+    try {
+      const tpl = await this._loadTemplate(url);
+      if (tpl) {
+        mesh = tpl.clone(true);
+        mesh.traverse((o) => {
+          if (o.isMesh && o.material) o.material = o.material.clone();
+        });
+        // SI: normalize max dim to bullet length
+        _box.setFromObject(mesh);
+        const size = new Vector3();
+        _box.getSize(size);
+        const maxDim = Math.max(size.x, size.y, size.z, 1e-4);
+        const targetLen = PISTOL_BULLET.lengthM;
+        mesh.scale.multiplyScalar(targetLen / maxDim);
+      }
+    } catch (e) {
+      console.warn('[SkillProjectile] bullet mesh', url, e);
+    }
+    if (!mesh) {
+      mesh = new Mesh(
+        this._placeholderGeo,
+        new MeshStandardMaterial({
+          color: 0xc0a060,
+          metalness: 0.7,
+          roughness: 0.35,
+          emissive: 0x331100,
+          emissiveIntensity: 0.25
+        })
+      );
+      mesh.scale.setScalar(PISTOL_BULLET.lengthM / 0.55);
+    }
+
+    mesh.position.copy(origin);
+    mesh.lookAt(origin.clone().add(forward));
+    this.scene.add(mesh);
+
+    // Short trail ribbon (20% default magic trail feel) — additive sparks
+    const trail = new Group();
+    trail.name = 'bulletTrail';
+    const trailMat = new MeshBasicMaterial({
+      color: PISTOL_BULLET.trailColor,
+      transparent: true,
+      opacity: 0.55,
+      depthWrite: false,
+      blending: AdditiveBlending,
+      side: DoubleSide
+    });
+    const segs = 5;
+    for (let i = 0; i < segs; i++) {
+      const s = new Mesh(_trailGeo, trailMat.clone());
+      const t = (i + 1) / segs;
+      // Trail length ≈ 20% of 1 m default → 0.2 m total
+      const back = t * 0.2 * (PISTOL_BULLET.trailLengthFrac / 0.2);
+      s.scale.setScalar(PISTOL_BULLET.trailWidthM * (1.1 - t * 0.7));
+      s.position.copy(forward).multiplyScalar(-back * 0.2);
+      trail.add(s);
+    }
+    mesh.add(trail);
+
+    const vel = forward.clone().multiplyScalar(speed);
+    this._live.push({
+      mesh,
+      vel,
+      gravity: PISTOL_BULLET.gravity,
+      contactRadius: PISTOL_BULLET.contactRadius,
+      life: PISTOL_BULLET.life,
+      age: 0,
+      force: PISTOL_BULLET.force,
+      knockbackMm: PISTOL_BULLET.knockbackMm,
+      knockupVy: PISTOL_BULLET.knockupVy,
+      aoe: PISTOL_BULLET.aoe,
+      element: 'physical',
+      explodeOnHit: true,
+      targets: opts.targets || [],
+      hit: false,
+      kind: 'bullet',
+      trail
+    });
+    return true;
+  }
+
+  /**
+   * Bullet impact: living → red liquid blood; terrain/props → micro boom (no blood).
+   * @param {object} p live projectile
+   * @param {object|null} target
+   */
+  _bulletImpact(p, target) {
+    const at = p.mesh?.position?.clone?.() || new Vector3();
+    const living = isLivingTarget(target);
+    if (living) {
+      // Red liquid-like blood splatter (no terrain blood)
+      this.vfx?.deploy?.('inferno', {
+        origin: at,
+        intensity: 0.55
+      });
+      const blood = new Group();
+      const mat = new MeshStandardMaterial({
+        color: 0x8b0000,
+        emissive: 0x440000,
+        emissiveIntensity: 0.4,
+        transparent: true,
+        opacity: 0.85,
+        roughness: 0.55,
+        metalness: 0.05
+      });
+      for (let i = 0; i < 10; i++) {
+        const drop = new Mesh(_bubbleGeo, mat);
+        const s = 0.04 + Math.random() * 0.07;
+        drop.scale.setScalar(s);
+        drop.position.set(
+          (Math.random() - 0.5) * 0.25,
+          Math.random() * 0.15,
+          (Math.random() - 0.5) * 0.25
+        );
+        blood.add(drop);
+        this._live.push({
+          mesh: drop,
+          vel: new Vector3(
+            (Math.random() - 0.5) * 2.5,
+            1.5 + Math.random() * 2.2,
+            (Math.random() - 0.5) * 2.5
+          ),
+          gravity: -12,
+          contactRadius: 0,
+          life: 0.55 + Math.random() * 0.35,
+          age: 0,
+          force: 0,
+          knockbackMm: 0,
+          knockupVy: 0,
+          aoe: 0,
+          element: 'physical',
+          explodeOnHit: false,
+          targets: [],
+          hit: false,
+          kind: 'blood_drop'
+        });
+        this.scene.add(drop);
+      }
+      // parent group not needed — drops are independent
+      void blood;
+    } else {
+      // Terrain / prop / aim — micro explosion, no blood
+      this.vfx?.deploy?.('inferno', {
+        origin: at,
+        intensity: 0.4
+      });
+      const flash = new Mesh(
+        _bubbleGeo,
+        new MeshBasicMaterial({
+          color: 0xffaa55,
+          transparent: true,
+          opacity: 0.7,
+          depthWrite: false,
+          blending: AdditiveBlending
+        })
+      );
+      flash.position.copy(at);
+      flash.scale.setScalar(0.12);
+      this.scene.add(flash);
+      this._live.push({
+        mesh: flash,
+        vel: new Vector3(),
+        gravity: 0,
+        contactRadius: 0,
+        life: 0.12,
+        age: 0,
+        force: 0,
+        knockbackMm: 0,
+        knockupVy: 0,
+        aoe: 0,
+        element: 'physical',
+        explodeOnHit: false,
+        targets: [],
+        hit: false,
+        kind: 'muzzle_micro'
+      });
+    }
+  }
+
+  /**
    * Earth rocks: pull from below terrain beside caster, then linear or aimed path.
    * @param {{
    *   casterPos: Vector3,
@@ -835,15 +1056,47 @@ export class SkillProjectileSystem {
         }
       }
 
-      // Contact
-      for (const t of p.targets) {
+      // Contact — prefer living targets over aim for bullets
+      const order =
+        p.kind === 'bullet'
+          ? [...(p.targets || [])].sort((a, b) => {
+              const la = isLivingTarget(a) ? 0 : 1;
+              const lb = isLivingTarget(b) ? 0 : 1;
+              return la - lb;
+            })
+          : p.targets || [];
+      for (const t of order) {
         if (!t?.point) continue;
+        // Aim soft-point only if no living within range (bullets)
+        if (p.kind === 'bullet' && t.kind === 'aim' && order.some((x) => isLivingTarget(x))) {
+          const nearLiving = order.find(
+            (x) =>
+              isLivingTarget(x) &&
+              x.point &&
+              p.mesh.position.distanceTo(x.point) <= p.contactRadius + 0.55
+          );
+          if (nearLiving) continue;
+        }
         const d = p.mesh.position.distanceTo(t.point);
-        if (d <= p.contactRadius + 0.45) {
+        const pad = p.kind === 'bullet' ? 0.25 : 0.45;
+        if (d <= p.contactRadius + pad) {
           p.hit = true;
           const fwd = p.vel.lengthSq() > 1e-4 ? p.vel.clone().normalize() : new Vector3(0, 0, 1);
           if (p.kind === 'arrow' && !p.endFired) this._fireArrowEnd(p, t);
-          else {
+          else if (p.kind === 'bullet') {
+            this._bulletImpact(p, t);
+            this.onHit({
+              point: p.mesh.position.clone(),
+              forward: fwd,
+              force: p.force,
+              knockbackMm: p.knockbackMm,
+              knockupVy: p.knockupVy,
+              aoe: p.aoe,
+              element: p.element,
+              target: t,
+              impactKind: isLivingTarget(t) ? 'blood' : 'micro_explode'
+            });
+          } else {
             this.onHit({
               point: p.mesh.position.clone(),
               forward: fwd,
@@ -857,17 +1110,30 @@ export class SkillProjectileSystem {
               freezeSec: p.freezeSec,
               endEvent: p.endEvent
             });
+            if (p.explodeOnHit) this._explode(p);
           }
-          if (p.explodeOnHit) this._explode(p);
           this._destroy(i, true);
           break;
         }
       }
-      // Ground hit for drop shots
-      if (p.gravity < 0 && p.mesh.position.y <= 0.08 && p.kind !== 'emerge_tell') {
+      // Ground hit for drop shots / bullets
+      if (p.gravity < 0 && p.mesh.position.y <= 0.08 && p.kind !== 'emerge_tell' && p.kind !== 'blood_drop') {
         p.hit = true;
         if (p.kind === 'arrow' && !p.endFired) this._fireArrowEnd(p);
-        else {
+        else if (p.kind === 'bullet') {
+          this._bulletImpact(p, { kind: 'terrain', id: 'ground' });
+          this.onHit({
+            point: p.mesh.position.clone(),
+            forward: new Vector3(0, -1, 0),
+            force: p.force,
+            knockbackMm: p.knockbackMm,
+            knockupVy: p.knockupVy,
+            aoe: p.aoe,
+            element: p.element,
+            target: { kind: 'terrain', id: 'ground' },
+            impactKind: 'micro_explode'
+          });
+        } else {
           this.onHit({
             point: p.mesh.position.clone(),
             forward: new Vector3(0, -1, 0),
@@ -879,8 +1145,8 @@ export class SkillProjectileSystem {
             target: null,
             endEvent: p.endEvent
           });
+          if (p.explodeOnHit) this._explode(p);
         }
-        if (p.explodeOnHit) this._explode(p);
         this._destroy(i, true);
       }
     }

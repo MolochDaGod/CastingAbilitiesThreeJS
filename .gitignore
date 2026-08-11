@@ -143,3 +143,7 @@ public/models/vfx/**/*_src.gltf
 
 # Duplicate override mirror (runtime SSOT is public/skills/production)
 /skills/
+
+# Large local weapon sources until R2 (keep on disk for lab)
+public/models/weapons/t0-flintlock.glb
+
