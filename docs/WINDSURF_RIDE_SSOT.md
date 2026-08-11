@@ -1,7 +1,8 @@
 # Windsurf ride SSOT — Casting lab
 
-**Asset:** `public/models/ride/windsurf_package.glb` + `ride.manifest.json`  
-**Code:** `WalkController` · `HoverboardRide` · `RideIK`  
+**Asset (ride):** `public/models/ride/windsurf_package.glb` + `ride.manifest.json`  
+**Asset (back stow):** `public/models/ride/back_fly_windsurf.glb` — quiver-scale spine attach  
+**Code:** `WalkController` · `HoverboardRide` · `RideIK` · `BackSlotEquip` · `SailCloth`  
 **Feel ref:** [Robpayot/tslda](https://github.com/Robpayot/tslda) (Wind Waker boat / sail)  
 **Back slot:** `settings.walk.backSlot = 'windsurf'` — deployable utility, not a second vehicle engine
 
@@ -98,12 +99,25 @@ Sockets (manifest SI, **travel frame +Z forward**):
 
 | State | Mesh | Code |
 |-------|------|------|
-| Land + equipped | Stowed board on `Bip001 Spine1` | `BackSlotEquip` |
-| Deployed vehicle | Stow **hidden** · full board vehicle | `setBackSlotDeployed(true)` |
-| Get-off | Vehicle gone · stow **shown** | `setBackSlotDeployed(false)` |
+| Land + equipped | **Shrunk** `back_fly_windsurf.glb` on **quiver bone** (Spine1 / Xtra_quiver parent) | `BackSlotEquip` |
+| Stow size | **~0.58 m** longest axis (quiver-class back item, not full board) | `stowLengthM` |
+| Sail look | Cloth PBR + **vertex wind** (`SailCloth`) — no Rapier soft-body | `applySailClothMaterials` |
+| Deployed vehicle | Stow **hidden** · full `windsurf_package.glb` vehicle | `setBackSlotDeployed(true)` |
+| Get-off | Vehicle gone · stow **shown** + cloth wind resumes | `setBackSlotDeployed(false)` |
 
-Same attach family as `WeaponMeshAttach` (hands) — spine bone, SI length cap, catalog slot **Back**.
+Same attach family as `WeaponMeshAttach` (hands) — **quiver-family** back bone, SI length cap, catalog slot **Back**.  
 Settings: `settings.walk.backSlot = 'windsurf'`.
+
+### Materials / textures (practice rules)
+
+| Rule | Value |
+|------|--------|
+| baseColor map | `colorSpace = SRGBColorSpace`, `flipY = false` (glTF) |
+| metal/rough / normal | linear data maps, flipY false |
+| Sail / cloth | `metalness ≤ 0.08`, `roughness ≥ 0.72`, **doubleSide** |
+| Cloth motion | shader vertex displace along normal (UV.y stronger at top) |
+| Physics | **visual only** — not a second cloth/soft-body system |
+| Scale | SI from human 1.8 m; stow never leaves author cm as metres |
 
 ## Deploy sequence
 

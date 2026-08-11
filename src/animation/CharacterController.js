@@ -1476,6 +1476,9 @@ export class CharacterController {
     this.mixer.timeScale = settings.global.animationSpeed;
     this.mixer.update(dt);
 
+    // Back-slot windsurf sail cloth (stow visible) — vertex wind only
+    this.backSlot?.update?.(dt, { wind: this._gait >= 2 ? 1.35 : this._gait >= 1 ? 1.1 : 0.85 });
+
     // Procedural flip: full revolution about local right (X) on tilt
     // _flipSign −1 backflip · +1 frontflip (windsurf deploy)
     if (this._flipActive) {

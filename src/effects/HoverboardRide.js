@@ -17,6 +17,11 @@ import { frame } from '../core/FrameUniforms.js';
 import { settings } from '../config/settings.js';
 import { getColor } from '../utils/color.js';
 import { Easing, saturate } from '../utils/math.js';
+import {
+  applySailClothMaterials,
+  setSailClothMode,
+  updateSailCloth
+} from '../materials/SailCloth.js';
 
 const UP = new Vector3(0, 1, 0);
 const _pos = new Vector3();
@@ -163,10 +168,13 @@ export class HoverboardRide {
             ? settings.walk.boardArtYawDeg
             : 0;
       scene.rotation.y = (artYawDeg * Math.PI) / 180;
+      // Sail cloth: sRGB maps + double-sided fabric + vertex wind (no soft-body engine)
+      applySailClothMaterials(scene, { forceCloth: false });
+      setSailClothMode(scene, 'ride');
       this.boardRoot.add(scene);
       this.mesh = scene;
       this._artYawDeg = artYawDeg;
-      console.info(`[HoverboardRide] mesh artYaw=${artYawDeg}° travel=+Z`);
+      console.info(`[HoverboardRide] mesh artYaw=${artYawDeg}° travel=+Z cloth=on`);
     } catch (err) {
       console.error('[HoverboardRide] GLB load failed', glbUrl, err);
       throw err;
@@ -345,6 +353,11 @@ export class HoverboardRide {
     if (!this.group.visible) return;
     const c = settings.walk;
     const motion = this.pack?.motion || { bankMaxDeg: 18, swayHz: 0.55, swayM: 0.04 };
+    // Sail flap with speed (visual cloth only)
+    if (this.mesh) {
+      const wind = MathUtils.clamp(0.7 + (speed || 0) * 0.08, 0.7, 2.0);
+      updateSailCloth(this.mesh, dt, { wind, speed: 1 });
+    }
 
     if (this._releasing) {
       this._death = saturate(this._death + dt / DEATH_TIME);
