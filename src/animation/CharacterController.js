@@ -1097,9 +1097,26 @@ export class CharacterController {
     if (!name) return false;
 
     this._gaitLocked = true;
-    this.animState = role === 'cast' ? 'cast_loop' : 'attack';
+    this.animState =
+      role === 'cast'
+        ? 'cast_loop'
+        : role === 'reload' || /reload/i.test(name)
+          ? 'reload'
+          : 'attack';
     this.play(name, 0.1);
-    const duration = this.actions.get(name)?.getClip()?.duration ?? 0.8;
+    const act = this.actions.get(name);
+    // Pistol fire / draw / reload cadence (TPS-aligned timeScale)
+    if (this.animPackId === 'pistol' && act) {
+      if (/reload/i.test(role + name)) act.timeScale = pistolTimeScale('reload');
+      else if (/draw|block|cast/i.test(role + name)) act.timeScale = pistolTimeScale('draw');
+      else if (/whip|skill3/i.test(role + name)) act.timeScale = pistolTimeScale('whip');
+      else if (/charged|skill2/i.test(role + name)) act.timeScale = pistolTimeScale('charged');
+      else act.timeScale = pistolTimeScale('fire');
+    } else if (act && act.timeScale !== 1) {
+      act.timeScale = 1;
+    }
+    const duration =
+      (act?.getClip?.()?.duration ?? 0.8) / Math.max(0.05, act?.timeScale || 1);
     // Light combo steps: don't lock gait for full clip (chain window needs free click)
     const isLight = /^attack[123]$/.test(role) || /^attack[123]$/.test(name);
     const lockDur = isLight ? Math.min(duration, 0.55) + 0.02 : duration + 0.04;
