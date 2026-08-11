@@ -48,10 +48,11 @@ body.focus-aim .hud {
   cursor: none !important;
 }
 
-/* Screen-center aim reticle — positional ticks + dynamic spread (snow-brawl inspired) */
+/* Screen-center reticle — GRUDOX animator parity (dot + 4 ticks + bloom gap + range) */
 .hud__crosshair {
   --xh-spread: 0;
-  --xh-size: calc(30px + var(--xh-spread) * 18px);
+  --ch-gap: 0px;
+  --xh-size: 48px;
   position: fixed;
   left: 50%;
   top: 50%;
@@ -61,24 +62,24 @@ body.focus-aim .hud {
   z-index: 26;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 0.12s ease, width 0.1s ease, height 0.1s ease, margin 0.1s ease;
+  transition: opacity 0.12s ease;
 }
 .hud__crosshair.is-visible {
   opacity: 1;
 }
 .hud__crosshair.is-focus .hud__crosshair-ring {
-  border-color: rgba(180, 230, 255, 0.92);
+  border-color: rgba(180, 230, 255, 0.55);
 }
 .hud__crosshair.is-softlock .hud__crosshair-ring {
-  border-color: rgba(255, 120, 90, 0.9);
-  box-shadow: 0 0 12px rgba(255, 90, 60, 0.35);
+  border-color: rgba(255, 120, 90, 0.75);
+  box-shadow: 0 0 12px rgba(255, 90, 60, 0.3);
 }
 .hud__crosshair.is-softlock .hud__crosshair-dot {
   background: #ffb0a0;
   box-shadow: 0 0 8px rgba(255, 120, 90, 0.95);
 }
 .hud__crosshair.is-fire .hud__crosshair-ring {
-  transform: scale(0.82);
+  transform: scale(0.88);
   border-color: #4ecdc4;
   transition: transform 0.08s ease, border-color 0.08s ease;
 }
@@ -92,40 +93,91 @@ body.focus-aim .hud {
   border-radius: 50%;
   background: #e8f4ff;
   box-shadow: 0 0 6px rgba(127, 214, 255, 0.9);
+  z-index: 2;
 }
+/* Soft outer ring (animator uses range ring more than full circle) */
 .hud__crosshair-ring {
   position: absolute;
-  inset: 0;
-  border: 1.5px solid rgba(127, 214, 255, 0.75);
+  inset: 10px;
+  border: 1px solid rgba(127, 214, 255, 0.28);
   border-radius: 50%;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.35);
   transition: transform 0.12s ease, border-color 0.12s ease;
 }
+/* Distance ring — green optimal / yellow far / red close (animator rangeState) */
+.hud__crosshair-range {
+  position: absolute;
+  inset: 4px;
+  border: 1.5px solid transparent;
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.12s ease, border-color 0.12s ease;
+}
+.hud__crosshair.is-range-optimal .hud__crosshair-range {
+  opacity: 0.85;
+  border-color: rgba(110, 230, 140, 0.9);
+  box-shadow: 0 0 10px rgba(80, 200, 100, 0.35);
+}
+.hud__crosshair.is-range-far .hud__crosshair-range {
+  opacity: 0.8;
+  border-color: rgba(240, 200, 80, 0.9);
+}
+.hud__crosshair.is-range-close .hud__crosshair-range {
+  opacity: 0.85;
+  border-color: rgba(255, 90, 80, 0.92);
+}
+/* Four ticks push out by --ch-gap (bloom / movement) */
 .hud__crosshair-tick {
   position: absolute;
-  background: rgba(232, 244, 255, 0.85);
-  box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+  background: rgba(232, 244, 255, 0.92);
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.55);
+  transition: top 0.08s ease, bottom 0.08s ease, left 0.08s ease, right 0.08s ease;
 }
 .hud__crosshair-tick--n,
 .hud__crosshair-tick--s {
   left: 50%;
-  width: 1.5px;
-  height: 6px;
-  margin-left: -0.75px;
+  width: 2px;
+  height: 7px;
+  margin-left: -1px;
 }
 .hud__crosshair-tick--e,
 .hud__crosshair-tick--w {
   top: 50%;
-  width: 6px;
-  height: 1.5px;
-  margin-top: -0.75px;
+  width: 7px;
+  height: 2px;
+  margin-top: -1px;
 }
-.hud__crosshair-tick--n { top: -1px; }
-.hud__crosshair-tick--s { bottom: -1px; }
-.hud__crosshair-tick--e { right: -1px; }
-.hud__crosshair-tick--w { left: -1px; }
+.hud__crosshair-tick--n { top: calc(50% - 14px - var(--ch-gap)); }
+.hud__crosshair-tick--s { bottom: calc(50% - 14px - var(--ch-gap)); top: auto; }
+.hud__crosshair-tick--e { right: calc(50% - 14px - var(--ch-gap)); left: auto; }
+.hud__crosshair-tick--w { left: calc(50% - 14px - var(--ch-gap)); }
 .hud__crosshair.is-softlock .hud__crosshair-tick {
-  background: rgba(255, 176, 160, 0.9);
+  background: rgba(255, 176, 160, 0.95);
+}
+/* Hit-marker X pulse (animator ch-hit) */
+.hud__crosshair-hit {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.hud__crosshair-hit.is-pulse {
+  animation: xh-hit-pulse 0.28s ease-out forwards;
+}
+.hud__crosshair-hit-line {
+  position: absolute;
+  width: 8px;
+  height: 1.5px;
+  background: #fff;
+  box-shadow: 0 0 4px rgba(255, 200, 120, 0.9);
+}
+.hud__crosshair-hit-tl { top: 12px; left: 12px; transform: rotate(45deg); }
+.hud__crosshair-hit-tr { top: 12px; right: 12px; transform: rotate(-45deg); }
+.hud__crosshair-hit-bl { bottom: 12px; left: 12px; transform: rotate(-45deg); }
+.hud__crosshair-hit-br { bottom: 12px; right: 12px; transform: rotate(45deg); }
+@keyframes xh-hit-pulse {
+  0% { opacity: 1; transform: scale(0.85); }
+  100% { opacity: 0; transform: scale(1.25); }
 }
 
 /* ------------------------------------------------------------------ *

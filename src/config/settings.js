@@ -560,7 +560,10 @@ export const settings = {
     /** Hand lateral offset (m) for L/R throw alternate */
     handOffsetM: 0.28,
     /** Use full 3D launch vector for skills/projectiles in focus */
-    use3dLaunch: true
+    use3dLaunch: true,
+    /** Crosshair range ring (m) vs soft-lock target — GRUDOX animator rangeState */
+    optimalRangeMin: 2.5,
+    optimalRangeMax: 12
   },
 
   /**
@@ -607,11 +610,13 @@ export const settings = {
     zoomDamping: 0.002,
     minPolar: 0.22,
     maxPolar: 1.4,
-    /** Free / equip FOV (WoW-ish 70°) */
+    /** Stable FOV (GRUDOX animator base; sprint uses sprintFov kick) */
     fov: 70,
-    /** Focus / TPS FOV — Fortnite-wide awareness (85°) */
-    actionFov: 85,
-    /** FOV damp toward action/free */
+    /** Sprint FOV target (animator / DGS CameraController kick) */
+    sprintFov: 78,
+    /** @deprecated unused — kept so old editor presets don't throw */
+    actionFov: 70,
+    /** FOV damp (sprint kick + editor) */
     fovDamping: 0.14,
     /** Look-at height (m) — Fortnite lower shoulder (~1.8 human chest/head band) */
     targetHeight: 1.55,
@@ -630,14 +635,14 @@ export const settings = {
      * Soft-lock camera look bias 0..1 when focus + target (not hard snap).
      * Higher when focused — soft lock is ON in focus.
      */
-    softLockLook: 0.32,
-    softLockLookFocus: 0.48,
-    /** Subtle yaw assist toward soft-lock target (rad/s cap) — action framing */
-    softLockYawAssist: 0.72,
-    /** Only assist when target within this cone of camera forward (deg) */
+    /** Mild free soft-look; stronger in focus for GRUDOX framing (not hard snap) */
+    softLockLook: 0.28,
+    softLockLookFocus: 0.42,
+    /** Purged: auto camera yaw toward target (was action-angle fight) */
+    softLockYawAssist: 0,
     softLockYawConeDeg: 48,
-    /** Nudge pitch toward target chest while soft-locked */
-    softLockPitchAssist: true,
+    /** Purged: auto pitch toward target chest */
+    softLockPitchAssist: false,
     softLockPitchDamp: 0.045,
     orbitSensitivity: 0.0042,
     /** Shoulder: -1 left · 0 center · +1 right */

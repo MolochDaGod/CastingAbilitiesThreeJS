@@ -65,6 +65,9 @@ export class CameraRig {
 
     this.distance = settings.camera.distance;
     this._fov = settings.camera.fov;
+    /** GRUDOX animator FOV kick — extra degrees on top of sprint FOV (setFovKick) */
+    this._externalFovKick = 0;
+    this._sprinting = false;
     /** When set, TPS yaw ignores body reverse (backflip setup) */
     this._holdCharacterYaw = null;
 
@@ -276,42 +279,53 @@ export class CameraRig {
   }
 
   /**
-   * Subtle camera yaw assist toward soft-lock target (best angle / aim help).
-   * Never hard-snaps — capped rad/s, only within max angle cone.
-   * @param {number} dt
-   * @param {import('three').Vector3} feet
+   * GRUDOX / DGS FOV kick — additive degrees on top of base/sprint FOV.
+   * @param {number} extraDeg
    */
-  applySoftLockYawAssist(dt, feet) {
-    if (this.viewMode !== 'tps') return;
-    if (!this.combatFocus?.focusEnabled) return;
-    if (!this.softLockPoint || this.softLockWeight < 0.05) return;
-    const cam = settings.camera;
-    const rate = cam.softLockYawAssist ?? 0.55; // rad/s max
-    if (rate <= 0) return;
-    const maxCone = MathUtils.degToRad(cam.softLockYawConeDeg ?? 42);
+  setFovKick(extraDeg = 0) {
+    this._externalFovKick = Number.isFinite(extraDeg) ? extraDeg : 0;
+  }
 
-    const dx = this.softLockPoint.x - feet.x;
-    const dz = this.softLockPoint.z - feet.z;
-    if (dx * dx + dz * dz < 0.25) return;
-    const targetYaw = Math.atan2(dx, dz);
-    let camYaw = this.getTpsYaw();
-    let err = targetYaw - camYaw;
-    while (err > Math.PI) err -= Math.PI * 2;
-    while (err < -Math.PI) err += Math.PI * 2;
-    if (Math.abs(err) > maxCone) return; // outside awareness cone — no assist
-    // Stronger when nearly on target (sticky aim), weaker at edge of cone
-    const falloff = 1 - Math.abs(err) / maxCone;
-    const step = Math.sign(err) * Math.min(Math.abs(err), rate * dt * (0.35 + falloff * 0.9));
-    this.characterYaw += step;
+  /**
+   * @param {boolean} on
+   */
+  setSprinting(on) {
+    this._sprinting = !!on;
+  }
+
+  /**
+   * Screen-centre aim ray (animator aimRay) — camera origin along forward.
+   * @returns {{ origin: Vector3, direction: Vector3 }}
+   */
+  aimRay() {
+    const origin = new Vector3();
+    const direction = new Vector3();
+    this.camera.getWorldPosition(origin);
+    this.camera.getWorldDirection(direction);
+    direction.normalize();
+    return { origin, direction };
+  }
+
+  /**
+   * Soft-lock yaw assist — **purged** for focus mode.
+   * Camera yaw is player mouse only; soft lock still biases aim point / reticle
+   * (CombatFocus + MouseAim), not auto camera angles.
+   * @param {number} _dt
+   * @param {import('three').Vector3} _feet
+   */
+  applySoftLockYawAssist(_dt, _feet) {
+    // no-op — action-angle / auto-yaw system removed
   }
 
   update(dt) {
     const cam = settings.camera;
 
-    // Fortnite TPS FOV: free ~70 · focus ~85 (grudge-third-person-controller)
+    // GRUDOX animator: base FOV + sprint FOV ease (not action zoom).
     if (this.viewMode === 'tps') {
-      const focusOn = !!this.combatFocus?.focusEnabled;
-      const wantFov = focusOn ? (cam.actionFov ?? 85) : (cam.fov ?? 70);
+      const base = cam.fov ?? 70;
+      const sprintFov = cam.sprintFov ?? base + 8;
+      const wantFov =
+        (this._sprinting ? sprintFov : base) + (this._externalFovKick || 0);
       this._fov = damp(this._fov, wantFov, cam.fovDamping ?? 0.14, dt);
       if (Math.abs(this.camera.fov - this._fov) > 0.05) {
         this.camera.fov = this._fov;
@@ -397,25 +411,10 @@ export class CameraRig {
       ? (cam.softLockLookFocus ?? cam.softLockLook ?? 0.48)
       : (cam.softLockLook ?? 0.22);
     const softW = softBase * (this.softLockWeight || 0);
+    // Soft look-at bias only (mild). Auto pitch/yaw angle systems purged.
     if (this.softLockPoint && softW > 0.01) {
       _soft.copy(this.softLockPoint);
       _desiredTarget.lerp(_soft, softW);
-      // Slight pitch assist toward target height (subtle, not snap)
-      if (focusOn && cam.softLockPitchAssist !== false) {
-        const dy = this.softLockPoint.y - this.anchor.y;
-        const xz = Math.hypot(
-          this.softLockPoint.x - this.anchor.x,
-          this.softLockPoint.z - this.anchor.z
-        );
-        if (xz > 1.2) {
-          const wantPitch = MathUtils.clamp(
-            Math.atan2(dy * 0.55, xz) + 0.28,
-            cam.minPitch ?? 0.12,
-            cam.maxPitch ?? 1.35
-          );
-          this._tpsPitch = damp(this._tpsPitch, wantPitch, cam.softLockPitchDamp ?? 0.04, dt);
-        }
-      }
     }
 
     // Spherical offset behind shoulder pivot (ref grudge-third-person-controller)

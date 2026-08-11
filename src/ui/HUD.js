@@ -157,12 +157,19 @@ export class HUD {
       </div>
 
       <div class="hud__crosshair" data-crosshair aria-hidden="true">
+        <span class="hud__crosshair-range" data-xh-range aria-hidden="true"></span>
         <span class="hud__crosshair-tick hud__crosshair-tick--n"></span>
         <span class="hud__crosshair-tick hud__crosshair-tick--e"></span>
         <span class="hud__crosshair-tick hud__crosshair-tick--s"></span>
         <span class="hud__crosshair-tick hud__crosshair-tick--w"></span>
         <span class="hud__crosshair-dot"></span>
         <span class="hud__crosshair-ring"></span>
+        <span class="hud__crosshair-hit" data-xh-hit aria-hidden="true">
+          <span class="hud__crosshair-hit-line hud__crosshair-hit-tl"></span>
+          <span class="hud__crosshair-hit-line hud__crosshair-hit-tr"></span>
+          <span class="hud__crosshair-hit-line hud__crosshair-hit-bl"></span>
+          <span class="hud__crosshair-hit-line hud__crosshair-hit-br"></span>
+        </span>
       </div>
 
       <div class="hud__toast" data-toast></div>
@@ -435,8 +442,16 @@ export class HUD {
   }
 
   /**
-   * Dynamic reticle (snow-brawl style states).
-   * @param {{ softLock?: boolean, fire?: boolean, focus?: boolean, spread?: number }} [st]
+   * Dynamic reticle — GRUDOX animator parity:
+   * centre dot + 4 ticks with bloom gap, range ring, hit-marker pulse.
+   * @param {{
+   *   softLock?: boolean,
+   *   fire?: boolean,
+   *   focus?: boolean,
+   *   spread?: number,
+   *   rangeState?: 'close'|'optimal'|'far'|'none',
+   *   hitMarker?: number
+   * }} [st]
    */
   setCrosshairState(st = {}) {
     const el = this._crosshair;
@@ -444,8 +459,25 @@ export class HUD {
     el.classList.toggle('is-softlock', !!st.softLock);
     el.classList.toggle('is-fire', !!st.fire);
     el.classList.toggle('is-focus', !!st.focus);
-    const spread = Math.max(0, Math.min(1, Number(st.spread) || 0));
-    el.style.setProperty('--xh-spread', String(spread));
+    // Animator: gap in px 0..28 from bloom (we map 0..1 → px)
+    const spread01 = Math.max(0, Math.min(1, Number(st.spread) || 0));
+    const gapPx = Math.round(spread01 * 22);
+    el.style.setProperty('--xh-spread', String(spread01));
+    el.style.setProperty('--ch-gap', `${gapPx}px`);
+    const range = st.rangeState || 'none';
+    el.dataset.range = range;
+    el.classList.toggle('is-range-close', range === 'close');
+    el.classList.toggle('is-range-optimal', range === 'optimal');
+    el.classList.toggle('is-range-far', range === 'far');
+    if (st.hitMarker != null && st.hitMarker > 0) {
+      const hit = el.querySelector('[data-xh-hit]');
+      if (hit) {
+        hit.classList.remove('is-pulse');
+        // reflow restart
+        void hit.offsetWidth;
+        hit.classList.add('is-pulse');
+      }
+    }
   }
 
   setCombatHud(cd01Fn, stamina, meleeCd01) {

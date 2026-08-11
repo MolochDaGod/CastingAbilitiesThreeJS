@@ -69,6 +69,17 @@ export class Editor {
     this.gui.show(!this._hidden);
   }
 
+  /** Force-hide VFX editor (focus mode / combat play). */
+  close() {
+    if (this._hidden) return;
+    this._hidden = true;
+    this.gui.show(false);
+  }
+
+  get isOpen() {
+    return !this._hidden;
+  }
+
   /* ------------------------------------------------------------------ */
   /* folders                                                             */
   /* ------------------------------------------------------------------ */

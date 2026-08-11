@@ -116,9 +116,40 @@ export class LinearSkillBridge {
   }
 
   /**
+   * Apply size/speed/angle/texture variant to a linear skill block (live knobs).
+   * One texture family · different cast reads. @see vfx/effectVariants.js
+   * @param {string} variantId  e.g. arc_bolt · arc_storm · aoe_snare
+   * @param {string} [skillId]  linear id (default selected)
+   */
+  applyVariant(variantId, skillId) {
+    const id = skillId || this.selected;
+    const block = linearSettings[id];
+    if (!block) return false;
+    // Dynamic import avoided — sync catalog
+    return import('../vfx/effectVariants.js').then(({ getEffectVariant, applyVariantToBlock }) => {
+      const v = getEffectVariant(variantId);
+      if (!v) {
+        this.onToast(`Unknown variant ${variantId}`);
+        return false;
+      }
+      applyVariantToBlock(block, v, {
+        baseSpeed: block.speed,
+        baseWidth: block.width
+      });
+      // Fan angle for multi-cast / launch offset
+      this._variantAngleDeg = v.angleDeg || 0;
+      this.onToast(
+        `Variant ${v.label} · size×${v.size} · speed×${v.speed}` +
+          (v.aoe ? ` · aoe ${v.aoe}m` : '')
+      );
+      return true;
+    });
+  }
+
+  /**
    * Select + arm skillshot for MOBA aim (or fire immediately if opts.instant).
    * @param {string} id product element or linear id
-   * @param {{ instant?: boolean, origin?: Vector3, direction?: Vector3, distance?: number }} [opts]
+   * @param {{ instant?: boolean, origin?: Vector3, direction?: Vector3, distance?: number, variantId?: string }} [opts]
    */
   select(id, opts = {}) {
     const linear = PRODUCT_TO_LINEAR[id] || (LINEAR_ELEMENTS.includes(id) ? id : null);
@@ -126,12 +157,21 @@ export class LinearSkillBridge {
     this.selected = linear;
     this.manager.select(linear);
     this.aim.setElement(linear);
+    if (opts.variantId) this.applyVariant(opts.variantId, linear);
 
     if (opts.instant && opts.origin && opts.direction) {
       const dist =
         opts.distance ??
         linearSettings[linear]?.range ??
         12;
+      // Variant angle: rotate launch dir in XZ
+      if (this._variantAngleDeg) {
+        const a = (this._variantAngleDeg * Math.PI) / 180;
+        const x = opts.direction.x;
+        const z = opts.direction.z;
+        opts.direction.x = x * Math.cos(a) - z * Math.sin(a);
+        opts.direction.z = x * Math.sin(a) + z * Math.cos(a);
+      }
       this._fire(opts.origin, opts.direction, dist);
       return true;
     }

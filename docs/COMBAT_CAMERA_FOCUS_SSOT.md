@@ -16,16 +16,18 @@
 |---------|----------------------------------|
 | Distance | **5.5 m** focus · ~6 m free |
 | Shoulder | **0.8 m** focus · 0.72 free |
-| FOV free | **70°** |
-| FOV focus | **85°** (situational awareness) |
-| Soft lock | **ON in focus** · Tab / Shift+Tab cycle |
+| FOV | **70°** base · **78°** sprint kick (GRUDOX animator / DGS) — not action zoom |
+| Soft lock | **ON in focus** · Tab / Shift+Tab cycle · **no auto camera yaw/pitch** |
+| Crosshair | Screen-centre reticle · bloom gap · range ring (close/optimal/far) · hit pulse |
+| Soft-look weight | free **0.28** · focus **0.42** (frame target, not snap) |
 | Smooth damping | Calm follow without OrbitControls fight |
+| Editor | **Closed on focus ON** — VFX edit / admin purged from combat look |
 
 ## What we keep (production)
 
 | System | Behavior |
 |--------|----------|
-| Soft lock | Bias aim + camera look toward target — **no hard snap** |
+| Soft lock | Bias **aim point / reticle** toward target only — **no hard snap**, no auto camera angles |
 | Session gates | TPS only when combat/freeride |
 | Path cast LMB | Staff path remains primary cast stroke |
 | OrbitControls | **Disabled in TPS** (fleet hard rule) |

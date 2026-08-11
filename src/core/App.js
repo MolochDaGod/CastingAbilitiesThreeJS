@@ -66,8 +66,15 @@ import {
   RADIAL_HOLD_S,
   nextActivityMode,
   HARVEST_TOOL_RADIAL,
-  MODE_LABEL
+  MODE_LABEL,
+  DEFAULT_HARVEST_TOOL
 } from '../combat/playerActivity.js';
+import {
+  createPlayerActivityActor,
+  activityFromSnap,
+  toolIdFromSnap,
+  DEFAULT_TOOL_ID
+} from '../combat/playerActivityMachine.js';
 import { getEquippedWeapon } from '../combat/equippedWeaponRuntime.js';
 import { PhysicsWorld } from '../physics/PhysicsWorld.js';
 import { VfxDirector } from '../vfx/VfxDirector.js';
@@ -211,8 +218,10 @@ export class App {
       this.hud.setCrosshairVisible?.(!!on);
       this.hud.root?.classList.toggle('hud--focus', !!on);
       this._applyMouseLockForFocus(!!on);
-      // Action soft-lock: combat session + TPS + directional acquire
+      // Focus play: purge editor / admin / equip chrome so look is pure combat
       if (on) {
+        this.editor?.close?.();
+        if (this.adminHub?.open) this.adminHub.setOpen?.(false);
         if (this.drc?.session === 'equip') this.drc.setSession?.('combat');
         if (this.session.mode === INTERACTION_MODE.WALK && !this.session.riding) {
           // Stay walk only if freeriding; land combat wants casting mode for TPS
@@ -386,9 +395,17 @@ export class App {
       onThrow: (item, cx, cy) => this._throwBagItem(item, cx, cy)
     });
 
-    /** Activity: combat | harvest (Open Hold-Q parity) */
+    /** Activity: combat | harvest (Open Hold-Q parity) — XState owns pure mode/hand/tool */
     this.activityMode = 'combat';
-    this.harvestToolId = 'pick';
+    this.harvestToolId = DEFAULT_HARVEST_TOOL || DEFAULT_TOOL_ID || 'pick';
+    this._combatWeaponId = null;
+    this.activityActor = createPlayerActivityActor({
+      onTransition: (snap) => {
+        this.activityMode = activityFromSnap(snap);
+        this.harvestToolId = toolIdFromSnap(snap);
+        this.input.setActivityMode?.(this.activityMode);
+      }
+    });
     this.modeRadial = new ModeRadial();
     this._qHold = { armed: false, t: 0, open: false };
     this._rHold = { armed: false, t: 0, open: false };
@@ -1028,6 +1045,9 @@ export class App {
       const aim = this.modeRadial?.getAimId?.();
       if (aim) this._selectHarvestTool(aim);
       this.modeRadial?.hide?.();
+    } else if (this._rHold.armed && this._rHold.t < RADIAL_HOLD_S) {
+      // Tap R → draw last used tool (default pick) without radial
+      this._drawLastHarvestTool();
     }
     this._rHold = { armed: false, t: 0, open: false };
   }
@@ -1035,30 +1055,112 @@ export class App {
   /**
    * @param {'combat'|'harvest'} mode
    */
-  setActivityMode(mode) {
+  async setActivityMode(mode) {
     const next = mode === 'harvest' ? 'harvest' : 'combat';
+    const prev = this.activityMode;
+    if (next === prev) {
+      this.hud.showToast?.(`${MODE_LABEL[next]} mode`);
+      return;
+    }
+
+    if (next === 'harvest') {
+      // Stow combat weapon memory → draw last tool (default pick)
+      const eq = getEquippedWeapon?.();
+      const combatId = eq?.id || this._combatWeaponId || null;
+      this._combatWeaponId = combatId;
+      this.activityActor?.send?.({
+        type: 'ENTER_HARVEST',
+        combatWeaponId: combatId,
+        toolId: this.harvestToolId || DEFAULT_TOOL_ID
+      });
+      await this._applyHandForHarvest(this.harvestToolId || DEFAULT_TOOL_ID);
+    } else {
+      // Stow tool → restore combat weapon
+      this.activityActor?.send?.({
+        type: 'ENTER_COMBAT',
+        combatWeaponId: this._combatWeaponId
+      });
+      await this._applyHandForCombat();
+      if (this.drc?.session === 'equip') {
+        this.drc.setSession?.('combat');
+      }
+    }
+
     this.activityMode = next;
     this.input.setActivityMode?.(next);
-    // Harvest: prefer equip session off, combat skills still for F fallback
-    if (next === 'combat' && this.drc?.session === 'equip') {
-      this.drc.setSession?.('combat');
-    }
-    this.hud.showToast?.(`${MODE_LABEL[next]} mode · Hold Q switch · ${
-      next === 'harvest' ? 'F nearest · Hold R tools' : 'F skill · 1–4'
-    }`);
+    this.hud.showToast?.(
+      `${MODE_LABEL[next]} mode · Hold Q switch · ${
+        next === 'harvest'
+          ? 'F nearest · Hold R tools · Tap R last tool'
+          : 'F skill · 1–4 · weapon restored'
+      }`
+    );
     this.hud.root?.classList.toggle('hud--harvest', next === 'harvest');
+  }
+
+  /** Tap R / machine DRAW_LAST_TOOL — pull last tool, default pick. */
+  async _drawLastHarvestTool() {
+    if (this.activityMode !== 'harvest') return;
+    this.activityActor?.send?.({ type: 'DRAW_LAST_TOOL' });
+    const toolId =
+      this.activityActor?.getSnapshot?.()?.context?.toolId ||
+      this.harvestToolId ||
+      DEFAULT_TOOL_ID;
+    await this._selectHarvestTool(toolId, { quiet: false, fromTapR: true });
+  }
+
+  /**
+   * Harvest enter: put away weapon mesh, equip tool.
+   * @param {string} toolId
+   */
+  async _applyHandForHarvest(toolId) {
+    await this._selectHarvestTool(toolId || DEFAULT_TOOL_ID, { quiet: true });
+  }
+
+  /** Combat enter: restore stashed weapon (or default staff/sword). */
+  async _applyHandForCombat() {
+    const id = this._combatWeaponId;
+    try {
+      const { equipWeaponById, unequipWeapon } = await import(
+        '../combat/equippedWeaponRuntime.js'
+      );
+      const { setActiveSkillTree } = await import('../combat/drcSkills.js');
+      if (id) {
+        await equipWeaponById(id, {
+          character: this.character,
+          onToast: (m) => this.hud.showToast(m)
+        });
+        setActiveSkillTree?.('equipped');
+      } else {
+        // Default combat hand: wand/staff for casting lab if nothing stashed
+        try {
+          await equipWeaponById('t0-wand', {
+            character: this.character,
+            onToast: () => {}
+          });
+          setActiveSkillTree?.('equipped');
+        } catch {
+          unequipWeapon?.({ character: this.character, onToast: () => {} });
+        }
+      }
+      this.hud.refreshSkillLabels?.();
+    } catch (e) {
+      this.hud.showToast?.(e?.message || 'Restore weapon failed');
+    }
   }
 
   /**
    * @param {string} toolId
+   * @param {{ quiet?: boolean, fromTapR?: boolean }} [opts]
    */
-  async _selectHarvestTool(toolId) {
+  async _selectHarvestTool(toolId, opts = {}) {
     const def = HARVEST_TOOL_RADIAL.find((t) => t.id === toolId);
     if (!def) return;
+    this.activityActor?.send?.({ type: 'SELECT_TOOL', toolId });
     this.harvestToolId = toolId;
     if (toolId === 'back_slot') {
       this.setMode('walk');
-      this.hud.showToast('Back slot · Surf (M) · Space deploy windsurf');
+      if (!opts.quiet) this.hud.showToast('Back slot · Surf (M) · Space deploy windsurf');
       return;
     }
     if (toolId === 'hand') {
@@ -1068,7 +1170,7 @@ export class App {
       } catch {
         /* ok */
       }
-      this.hud.showToast('Hands · gather herbs / pebbles');
+      if (!opts.quiet) this.hud.showToast('Hands · gather herbs / pebbles');
       return;
     }
     if (def.weaponId) {
@@ -1077,11 +1179,17 @@ export class App {
         const { setActiveSkillTree } = await import('../combat/drcSkills.js');
         await equipWeaponById(def.weaponId, {
           character: this.character,
-          onToast: (m) => this.hud.showToast(m)
+          onToast: opts.quiet ? () => {} : (m) => this.hud.showToast(m)
         });
         setActiveSkillTree?.('equipped');
         this.hud.refreshSkillLabels?.();
-        this.hud.showToast(`Tool · ${def.label} · F harvest nearest ≤5 m`);
+        if (!opts.quiet) {
+          this.hud.showToast(
+            opts.fromTapR
+              ? `Tool · ${def.label} (last) · F harvest ≤5 m`
+              : `Tool · ${def.label} · F harvest nearest ≤5 m`
+          );
+        }
       } catch (e) {
         this.hud.showToast(e?.message || `Equip ${def.label} failed`);
       }
@@ -1776,13 +1884,44 @@ export class App {
           this.input.keys.has('KeyA') ||
           this.input.keys.has('KeyS') ||
           this.input.keys.has('KeyD'));
-      const spread = soft ? 0.12 : moving ? (this.drc?._sprinting ? 0.55 : 0.32) : 0.08;
+      const sprinting = !!this.drc?._sprinting;
+      const spread = soft ? 0.1 : moving ? (sprinting ? 0.55 : 0.32) : 0.06;
+      // Range ring vs soft-lock target (animator rangeState)
+      let rangeState = 'none';
+      if (soft && this.combatFocus?.selectedTarget?.point && feetPos) {
+        const tp = this.combatFocus.selectedTarget.point;
+        const dx = tp.x - feetPos.x;
+        const dz = tp.z - feetPos.z;
+        const dist = Math.hypot(dx, dz);
+        const optMin = settings.aim?.optimalRangeMin ?? 2.5;
+        const optMax = settings.aim?.optimalRangeMax ?? 12;
+        if (dist < optMin) rangeState = 'close';
+        else if (dist > optMax) rangeState = 'far';
+        else rangeState = 'optimal';
+      }
       this.hud.setCrosshairState?.({
         focus: !!this.combatFocus?.focusEnabled,
         softLock: soft,
         fire: !!this.drc?._cast,
-        spread
+        spread,
+        rangeState
       });
+      this.rig?.setSprinting?.(sprinting);
+      // XState loco tag (anim / harvest gates read actor snapshot)
+      {
+        let loco = 'idle';
+        if (this.drc?._cast) loco = 'cast';
+        else if (!this.drc?._grounded) loco = 'jump';
+        else if (sprinting) loco = 'sprint';
+        else if (moving) loco = 'run';
+        else if (this.activityMode === 'harvest' && this.worldHarvest?.lastSwingAt) {
+          loco = 'harvest_swing';
+        }
+        if (this._lastLoco !== loco) {
+          this._lastLoco = loco;
+          this.activityActor?.send?.({ type: 'SET_LOCO', loco });
+        }
+      }
       this.hud.root?.classList.toggle('hud--focus', !!this.combatFocus?.focusEnabled);
       this.hud.root?.classList.toggle('hud--softlock', soft);
     } else {

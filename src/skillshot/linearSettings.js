@@ -403,83 +403,87 @@ export const settings = {
    * event, not a dimension — the same rule `IceAbility` follows.
    */
   thunder: {
-    /* --- the cast --- */
-    range: 24.0, // maximum cast distance, metres
-    minRange: 2.0, // closer than this and the cast is refused
-    speed: 105.0, // how fast the strike front travels, metres/second
-    lifetime: 0.45, // seconds the bolt holds after it lands
-    fadeTime: 0.5, // seconds it takes to blow out
-    cooldown: 0.5,
+    /* --- the cast — electric mastery look (hot core + branch alt texture) --- */
+    range: 26.0, // maximum cast distance, metres
+    minRange: 1.5, // closer than this and the cast is refused
+    speed: 118.0, // how fast the strike front travels, metres/second
+    lifetime: 0.52, // seconds the bolt holds after it lands
+    fadeTime: 0.42, // seconds it takes to blow out
+    cooldown: 0.45,
     castAnim: 'cast2', // which clip in `CAST_ANIMATIONS` the body throws
+    /** Effect variant hooks (effectVariants.js) — size/speed/angle without new meshes */
+    variantId: 'arc_bolt',
+    textureKey: 'electric_core',
+    textureAlt: 'electric_branch',
 
     /* --- where the bolt leaves the caster --- */
     // The beam starts at the hand, not at the feet, so these are measured from
     // the caster's origin in the cast's own frame.
-    handHeight: 1.28, // metres above the floor
-    handForward: 0.55, // metres in front of the caster
-    handSide: 0.16, // metres to the side (+ follows `Ability#side`)
-    endHeight: 0.35, // height of the bolt where it lands, metres
-    sag: 0.22, // metres the mid-span bows upward (negative droops)
+    handHeight: 1.32, // metres above the floor
+    handForward: 0.58, // metres in front of the caster
+    handSide: 0.18, // metres to the side (+ follows `Ability#side`)
+    endHeight: 0.42, // height of the bolt where it lands, metres
+    sag: 0.18, // metres the mid-span bows upward (negative droops)
 
-    /* --- the bundle of filaments --- */
-    strands: 9, // separate filaments (capped at 24)
-    spread: 0.75, // metres the bundle fans out at the far end
-    spreadNear: 0.05, // ... and at the hand
-    spreadCurve: 1.6, // >1 keeps the bundle tight then opens it late
-    twist: 0.45, // turns the bundle makes around the axis over its length
-    twistSpeed: 0.8, // turns/second it rolls on top of that
-    branchDim: 0.72, // how much dimmer an outer filament is than the spine
+    /* --- the bundle of filaments — denser electric look --- */
+    strands: 12, // separate filaments (capped at 24)
+    spread: 0.92, // metres the bundle fans out at the far end
+    spreadNear: 0.04, // ... and at the hand
+    spreadCurve: 1.45, // >1 keeps the bundle tight then opens it late
+    twist: 0.55, // turns the bundle makes around the axis over its length
+    twistSpeed: 1.15, // turns/second it rolls on top of that
+    branchDim: 0.68, // how much dimmer an outer filament is than the spine
 
     /* --- the shape of one filament --- */
-    jitter: 0.34, // metres of kink at the coarsest octave
-    jitterScale: 0.85, // kinks per metre
-    octaves: 4, // 1–5; each one halves the amplitude and doubles the rate
-    jitterFalloff: 0.55, // amplitude kept per octave
-    crawl: 3.2, // how fast the kinks slide along the bolt
-    pinch: 0.14, // fraction of the span the ends are pulled straight over
-    converge: 0.8, // how hard the far end is pulled onto the target, 0..1
+    jitter: 0.42, // metres of kink at the coarsest octave
+    jitterScale: 1.05, // kinks per metre
+    octaves: 5, // 1–5; each one halves the amplitude and doubles the rate
+    jitterFalloff: 0.58, // amplitude kept per octave
+    crawl: 4.0, // how fast the kinks slide along the bolt
+    pinch: 0.12, // fraction of the span the ends are pulled straight over
+    converge: 0.88, // how hard the far end is pulled onto the target, 0..1
 
-    /* --- the ribbon --- */
-    width: 0.025, // half-width of a filament at the hand, metres
-    widthTip: 0.43, // that width at the impact point, as a fraction
-    widthCurve: 1.09, // how early the taper happens
-    coreWidth: 1.31, // multiplier on the central spine
-    coreSharp: 4.95, // how hard the hot core falls off across the ribbon
-    glowWidth: 5.7, // the halo, × the core width
-    glowFalloff: 2.4, // how fast the halo fades across its ribbon
-    glowOpacity: 0.49,
-    softFade: 0.78, // metres of soft fade where the bolt meets geometry
+    /* --- the ribbon — brighter core + wider halo for "electric" read --- */
+    width: 0.032, // half-width of a filament at the hand, metres
+    widthTip: 0.5, // that width at the impact point, as a fraction
+    widthCurve: 1.05, // how early the taper happens
+    coreWidth: 1.45, // multiplier on the central spine
+    coreSharp: 5.2, // how hard the hot core falls off across the ribbon
+    glowWidth: 6.8, // the halo, × the core width
+    glowFalloff: 2.15, // how fast the halo fades across its ribbon
+    glowOpacity: 0.62,
+    softFade: 0.85, // metres of soft fade where the bolt meets geometry
 
     /* --- flicker & restrike --- */
-    restrike: 24, // times/second the filaments re-roll their shape
-    flicker: 0.3, // depth of the whole-bolt brightness stutter
+    restrike: 28, // times/second the filaments re-roll their shape
+    flicker: 0.38, // depth of the whole-bolt brightness stutter
     flickerSpeed: 34, // stutters/second
     strandFlash: 0.5, // how much individual filaments blink out
     tipGlow: 2.0, // extra heat on the leading edge while it travels
     tipLength: 0.08, // length of that leading edge, fraction of the span
 
-    /* --- colour --- */
-    colorCore: '#ffffff', // the centre of a filament
-    colorInner: '#c9ecff',
-    colorOuter: '#3aa0ff', // the outside of a filament
-    colorHalo: '#0b3fc8', // the wide glow around the bundle
-    glow: 2.3, // overall emissive gain
+    /* --- colour — hot white core, cyan branch, deep electric halo --- */
+    colorCore: '#f4fcff', // the centre of a filament
+    colorInner: '#b8ecff',
+    colorOuter: '#4eb8ff', // the outside of a filament
+    colorHalo: '#1a4cff', // the wide glow around the bundle
+    glow: 2.85, // overall emissive gain
     opacity: 1.0,
 
-    /* --- what the ground does --- */
-    arcRate: 0.9, // electric burns laid per metre of front travel
-    arcRadius: 1.5, // radius of one burn, metres
-    arcLife: 0.6, // seconds a burn lingers
-    arcIntensity: 1.0,
-    arcBranches: 0.6, // how finely the burn splits into filaments
-    scorchRadius: 0.5, // dark burn mark under the bolt, metres
-    scorchLife: 6.5,
-    scorchIntensity: 0.45,
-    colorArc: '#9fdcff',
+    /* --- what the ground does — AOE electric footprint --- */
+    arcRate: 1.15, // electric burns laid per metre of front travel
+    arcRadius: 1.85, // radius of one burn, metres
+    arcLife: 0.75, // seconds a burn lingers
+    arcIntensity: 1.2,
+    arcBranches: 0.78, // how finely the burn splits into filaments
+    scorchRadius: 0.65, // dark burn mark under the bolt, metres
+    scorchLife: 7.0,
+    scorchIntensity: 0.5,
+    colorArc: '#a8ecff',
     colorScorch: '#080b11',
-    colorEmber: '#4aa8ff',
-    shockRadius: 6.5, // impact shockwave ring, metres
-    colorShockA: '#c9ecff', // body of the shockwave ring
+    colorEmber: '#6ec8ff',
+    shockRadius: 7.5, // impact shockwave ring, metres
+    colorShockA: '#d0f4ff', // body of the shockwave ring
     colorShockB: '#ffffff', // its crest
 
     /* --- sparks, motes, smoke and debris --- */
@@ -585,14 +589,17 @@ export const settings = {
    * dragging `chunkSpeed` re-throws debris that has already landed.
    */
   meteor: {
-    /* --- the cast --- */
-    range: 20.0, // maximum cast distance, metres
+    /* --- the cast — AOE impact showcase --- */
+    range: 22.0, // maximum cast distance, metres
     minRange: 3.0, // closer than this and the cast is refused
-    speed: 21.0, // how fast the rock travels downrange, metres/second
-    lifetime: 2.2, // seconds the crater burns after the impact
-    fadeTime: 1.6, // seconds everything takes to clear
-    cooldown: 0.9,
+    speed: 23.0, // how fast the rock travels downrange, metres/second
+    lifetime: 2.4, // seconds the crater burns after the impact
+    fadeTime: 1.5, // seconds everything takes to clear
+    cooldown: 0.85,
     castAnim: 'cast1', // which clip in `CAST_ANIMATIONS` the body throws
+    textureKey: 'ember_core',
+    textureAlt: 'scorch_rim',
+    variantId: 'aoe_meteor',
 
     /* --- the flight path --- */
     // The rock is thrown from a hand, so these are measured from the caster's
@@ -601,11 +608,11 @@ export const settings = {
     handForward: 0.6, // metres in front of the caster
     handSide: 0.2, // metres to the side (+ follows `Ability#side`)
     endHeight: 0.75, // height of the rock where it lands, metres
-    arc: 2.6, // metres the mid-span lobs upward
+    arc: 2.8, // metres the mid-span lobs upward
     arcCurve: 0.85, // <1 flattens the top of the arc, >1 peaks it
 
     /* --- the rock --- */
-    radius: 0.8, // metres
+    radius: 0.95, // metres — readable AOE body
     facets: 3, // icosphere subdivisions, 0–3 (3 = 1280 triangles)
     lumpiness: 0.26, // low-frequency deformation, × the radius
     lumpScale: 1.5, // lumps per unit radius
@@ -1154,7 +1161,7 @@ export const settings = {
     /* --- the cast --- */
     range: 20.0, // maximum cast distance, metres
     minRange: 0.0, // a trap can legitimately be dropped on your own feet
-    zoneRadius: 4.4, // the footprint — what the circle indicator measures out
+    zoneRadius: 5.2, // AOE footprint (showcase) — circle indicator
     speed: 62.0, // how fast the leash races to the point, metres/second
     snapTime: 0.16, // seconds the ring takes to slam open once it lands
     lifetime: 2.6, // seconds the snare stands
@@ -1424,7 +1431,7 @@ export const settings = {
     /* --- the cast --- */
     range: 18.0, // maximum cast distance, metres
     minRange: 0.0, // a wall of ice around your own feet is a legitimate play
-    zoneRadius: 4.6, // the footprint — what the circle indicator measures out
+    zoneRadius: 5.4, // AOE frost crown footprint (showcase)
     speed: 44.0, // how fast the front races to the point, metres/second
     snapTime: 0.22, // seconds the sheet takes to freeze out to the boundary
     lifetime: 4.2, // seconds the crown stands

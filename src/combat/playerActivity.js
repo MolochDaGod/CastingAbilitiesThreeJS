@@ -4,15 +4,22 @@
  *
  * Hold Q → mode radial (↑ combat · ↓ harvest); tap Q toggles
  * Hold R (harvest) → tool radial
+ * Tap R (harvest) → draw last tool (default pick) — auto stow weapon on harvest enter
  * F harvest → nearest node for tool in hand
  *
+ * State machine: playerActivityMachine.js (XState) — mode / hand / loco / tool memory.
+ *
  * @see gameopen/artifacts/animator/src/three/playerMode.ts
+ * @see playerActivityMachine.js
  */
 
 /** @typedef {'combat'|'harvest'} ActivityMode */
 /** @typedef {'none'|'mode'|'tool'} RadialKind */
 
 export const ACTIVITY_MODES = Object.freeze(['combat', 'harvest']);
+
+/** Default harvest tool when none remembered (product: pick). */
+export const DEFAULT_HARVEST_TOOL = 'pick';
 
 export const MODE_LABEL = Object.freeze({
   combat: 'COMBAT',
@@ -33,6 +40,7 @@ export const MODE_SWITCH_RADIAL = Object.freeze([
 /**
  * Hold-R harvest tools (equip intent).
  * Maps to tool tags used by DevIslandHarvest / equipWeaponById.
+ * Default / first profession tool = pick (ore / rock).
  */
 export const HARVEST_TOOL_RADIAL = Object.freeze([
   { id: 'pick', label: 'Pick', glyph: '⛏', hint: 'ore', color: '#a0b0c8', weaponId: 't0-tool' },
@@ -43,7 +51,7 @@ export const HARVEST_TOOL_RADIAL = Object.freeze([
   { id: 'back_slot', label: 'Back', glyph: '🪽', hint: 'windsurf', color: '#b0c8ff', weaponId: null }
 ]);
 
-/** Hold duration (s) before radial opens. */
+/** Hold duration (s) before radial opens. Tap under this = toggle / draw last. */
 export const RADIAL_HOLD_S = 0.18;
 
 /**
