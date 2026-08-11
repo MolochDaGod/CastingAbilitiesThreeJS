@@ -10,10 +10,8 @@ import { Ground } from '../world/Ground.js';
 import { StageWater } from '../world/StageWater.js';
 import { OceanWindIndicators } from '../effects/OceanWindIndicators.js';
 import { IslandHeightfield } from '../world/IslandHeightfield.js';
-import { GrowingForest } from '../world/GrowingForest.js';
-import { StylizedGrassLayer } from '../world/StylizedGrassLayer.js';
 import { terrainHandle } from '../world/terrainGround.js';
-import { TERRAIN_LAYER } from '../world/terrainLayers.js';
+import { mountTerrainLayers, TERRAIN_LAYER } from '../world/terrainLayers.js';
 import { OpenSeaShells } from '../world/OpenSeaShells.js';
 import { DustMotes } from '../world/DustMotes.js';
 import { ContactShadows } from '../world/ContactShadows.js';
@@ -89,10 +87,21 @@ import {
   toolIdFromSnap,
   DEFAULT_TOOL_ID
 } from '../combat/playerActivityMachine.js';
-import { getEquippedWeapon } from '../combat/equippedWeaponRuntime.js';
+import {
+  getEquippedWeapon,
+  equipWeaponById,
+  unequipWeapon
+} from '../combat/equippedWeaponRuntime.js';
+import {
+  setActiveSkillTree,
+  getActiveSkills
+} from '../combat/drcSkills.js';
+import { T0_ALL_WEAPON_IDS } from '../api/t0WeaponCatalog.js';
 import { PhysicsWorld } from '../physics/PhysicsWorld.js';
 import { VfxDirector } from '../vfx/VfxDirector.js';
 import { loadGeneratedCatalog, spawnGeneratedProp } from '../assets/generatedCatalog.js';
+import { CASTING_LAB_CONTRACT } from '../sdk/castingLabSdk.js';
+import { fleetApi } from '../api/fleetApi.js';
 
 import { settings, ELEMENTS, MODES, MODE_META } from '../config/settings.js';
 import { SessionState, INTERACTION_MODE, DRC_SESSION } from './SessionState.js';
@@ -374,7 +383,6 @@ export class App {
       onDepositItem: async (item) => {
         // Prefer Railway deposit via fleetApi (InventoryPanel also tries first)
         try {
-          const { fleetApi } = await import('../api/fleetApi.js');
           const r = await fleetApi.depositItem(item);
           if (r.ok) {
             this.hud.showToast?.(r.message);
@@ -864,8 +872,6 @@ export class App {
    */
   async _equipHarvestTool() {
     try {
-      const { equipWeaponById } = await import('../combat/equippedWeaponRuntime.js');
-      const { setActiveSkillTree } = await import('../combat/drcSkills.js');
       await equipWeaponById('t0-tool', {
         character: this.character,
         onToast: (m) => this.hud.showToast(m)
@@ -1217,10 +1223,6 @@ export class App {
   async _applyHandForCombat() {
     const id = this._combatWeaponId;
     try {
-      const { equipWeaponById, unequipWeapon } = await import(
-        '../combat/equippedWeaponRuntime.js'
-      );
-      const { setActiveSkillTree } = await import('../combat/drcSkills.js');
       if (id) {
         await equipWeaponById(id, {
           character: this.character,
@@ -1228,7 +1230,6 @@ export class App {
         });
         setActiveSkillTree?.('equipped');
       } else {
-        // Default combat hand: wand/staff for casting lab if nothing stashed
         try {
           await equipWeaponById('t0-wand', {
             character: this.character,
@@ -1261,7 +1262,6 @@ export class App {
     }
     if (toolId === 'hand') {
       try {
-        const { unequipWeapon } = await import('../combat/equippedWeaponRuntime.js');
         unequipWeapon({ character: this.character, onToast: (m) => this.hud.showToast(m) });
       } catch {
         /* ok */
@@ -1271,8 +1271,6 @@ export class App {
     }
     if (def.weaponId) {
       try {
-        const { equipWeaponById } = await import('../combat/equippedWeaponRuntime.js');
-        const { setActiveSkillTree } = await import('../combat/drcSkills.js');
         await equipWeaponById(def.weaponId, {
           character: this.character,
           onToast: opts.quiet ? () => {} : (m) => this.hud.showToast(m)
@@ -1793,36 +1791,31 @@ export class App {
       })
       .catch((err) => console.warn('[App] prefab catalog', err));
 
-    // L2 vegetation: forestoutline/snakey trees + three-stylized grass (same L0 sample)
-    if (settings.terrain?.forestEnabled !== false && this.islandTerrain) {
-      this.growingForest = new GrowingForest({
-        scene: this.scene,
-        heightSample: this.terrain.sample,
-        count: settings.terrain?.forestCount ?? 48,
-        islandRadius: WORLD.islandRadius * 0.9,
-        clearRadius: settings.terrain?.forestClearRadius ?? 11,
-        onToast: (m) => this.hud.showToast(m)
-      });
-      console.info(
-        `[App] L2 forest ×${this.growingForest.trees.length} · layer=${TERRAIN_LAYER.L2_VEGETATION}`
-      );
-    }
-    if (settings.terrain?.grassEnabled !== false && this.islandTerrain) {
+    // L2 vegetation via mountTerrainLayers (one height sample — forest + grass)
+    if (this.islandTerrain) {
       try {
-        this.stylizedGrass = new StylizedGrassLayer({
+        const layers = mountTerrainLayers({
           scene: this.scene,
-          heightSample: this.terrain.sample,
-          islandRadius: WORLD.islandRadius * 0.88,
-          clearRadius: settings.terrain?.grassClearRadius ?? 6,
-          density: settings.terrain?.grassDensity ?? 28,
-          seed: (settings.terrain?.seed ?? 17) + 401,
-          bladeMaxHeight: settings.terrain?.grassBladeMax ?? 0.55
+          heightfield: this.islandTerrain,
+          forest: settings.terrain?.forestEnabled !== false,
+          grass: settings.terrain?.grassEnabled !== false,
+          onToast: (m) => this.hud.showToast(m)
         });
-        console.info(
-          `[App] L2 stylized grass ×${this.stylizedGrass.count} · three-stylized pattern`
-        );
+        // heightfield mesh already added at boot — avoid double-add
+        this.growingForest = layers.forest;
+        this.stylizedGrass = layers.grass;
+        if (this.growingForest) {
+          console.info(
+            `[App] L2 forest ×${this.growingForest.trees.length} · ${TERRAIN_LAYER.L2_VEGETATION}`
+          );
+        }
+        if (this.stylizedGrass) {
+          console.info(
+            `[App] L2 grass ×${this.stylizedGrass.count} · three-stylized · layers=${layers.layerIds?.join('+')}`
+          );
+        }
       } catch (e) {
-        console.warn('[App] stylized grass', e);
+        console.warn('[App] mountTerrainLayers', e);
       }
     }
 
@@ -1947,10 +1940,11 @@ export class App {
       const t0Id = m?.[1] || legacy;
       if (t0Id) {
         try {
-          const { equipWeaponById } = await import('../combat/equippedWeaponRuntime.js');
-          const { setActiveSkillTree, getActiveSkills } = await import('../combat/drcSkills.js');
-          const { T0_ALL_WEAPON_IDS } = await import('../api/t0WeaponCatalog.js');
-          const id = T0_ALL_WEAPON_IDS.includes(t0Id) ? t0Id : t0Id.startsWith('t0-') ? t0Id : null;
+          const id = T0_ALL_WEAPON_IDS.includes(t0Id)
+            ? t0Id
+            : t0Id.startsWith('t0-')
+              ? t0Id
+              : null;
           if (id) {
             const result = await equipWeaponById(id, {
               character: this.character,
@@ -1967,6 +1961,9 @@ export class App {
       }
     }
 
+    console.info(
+      `[App] casting-lab sdk ${CASTING_LAB_CONTRACT.version} · contract ${CASTING_LAB_CONTRACT.export.contractJson}`
+    );
     this.start();
   }
 

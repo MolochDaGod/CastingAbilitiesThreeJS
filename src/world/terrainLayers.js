@@ -69,7 +69,8 @@ export function mountTerrainLayers(opts) {
   };
 
   if (heightfield?.mesh) {
-    opts.scene.add(heightfield.mesh);
+    // Idempotent: App may already have added mesh at boot
+    if (!heightfield.mesh.parent) opts.scene.add(heightfield.mesh);
     heightfield.mesh.userData.terrainLayer = TERRAIN_LAYER.L1_SURFACE;
     heightfield.mesh.userData.heightLayer = TERRAIN_LAYER.L0_HEIGHT;
   }

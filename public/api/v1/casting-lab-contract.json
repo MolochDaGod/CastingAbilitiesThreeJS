@@ -1,0 +1,53 @@
+{
+  "id": "casting-lab",
+  "version": "1.1.0",
+  "productHost": "casting.grudge.studio",
+  "vercelHost": "casting-abilities-threejs.vercel.app",
+  "three": "^0.185",
+  "rapier": "@dimforge/rapier3d-compat",
+  "loaders": {
+    "draco": "https://www.gstatic.com/draco/versioned/decoders/1.5.7/",
+    "ktx2": "https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/libs/basis/",
+    "meshopt": true,
+    "entry": "src/loaders/gltfPipeline.js",
+    "sharedApi": "sharedGltfLoader | bindKtx2 | AssetLoader.bindRenderer"
+  },
+  "skills": {
+    "catalog": "master-weaponSkills + t0-weapons",
+    "production": "src/combat/weaponSkillProduction.js",
+    "statuses": "src/combat/skillStatusSystem.js",
+    "linear": "src/combat/elementalLinearCast.js",
+    "overrides": "public/skills/production/<id>.json",
+    "staffNormal": "slot 1 + focus LMB"
+  },
+  "terrain": {
+    "layers": ["L0_height", "L1_surface", "L2_vegetation", "L3_detail", "water"],
+    "sample": "IslandHeightfield.sample",
+    "doc": "docs/THREE_LAYER_TERRAIN_SSOT.md"
+  },
+  "character": {
+    "playKit": "toonKitPlay / loadRaceKit",
+    "mixer": 1,
+    "siHumanM": 1.8
+  },
+  "export": {
+    "module": "src/sdk/castingLabSdk.js",
+    "packageExport": "./sdk",
+    "contractJson": "/api/v1/casting-lab-contract.json"
+  },
+  "vfxMeshes": {
+    "orbs": "public/models/vfx/orbs/orb-*.glb",
+    "charge": "public/models/vfx/charge/staff-charge.glb",
+    "rocks": "public/models/vfx/rocks/rock-0..7.glb",
+    "arrows": "public/models/vfx/arrows/arrow-path.glb|arrow-loft.glb"
+  },
+  "docs": [
+    "docs/CASTING_LAB_SSOT.md",
+    "docs/CASTING_SDK_EXPORT_SSOT.md",
+    "docs/WEAPON_SKILL_PRODUCTION_SSOT.md",
+    "docs/LOADER_DRACO_KTX2_AUDIT.md",
+    "docs/SYSTEMS_HEALTH_AUDIT.md",
+    "docs/THREE_LAYER_TERRAIN_SSOT.md",
+    "docs/SSOT_INDEX.md"
+  ]
+}

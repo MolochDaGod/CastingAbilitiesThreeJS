@@ -21,7 +21,7 @@
 | Production skill + legacy skillDefToDrc | **OK** | Production first, legacy fallback |
 | SkillStatusSystem + ad-hoc freeze | **OK** | Hits go through statuses |
 | Ground.js + IslandHeightfield | **OK** | Flat ground hidden when heightfield on |
-| `mountTerrainLayers` vs App manual mount | **Soft** | App wires L0–L2 explicitly; helper unused — not a conflict |
+| `mountTerrainLayers` vs App manual mount | **Fixed** | App uses `mountTerrainLayers` for L2 |
 
 ---
 

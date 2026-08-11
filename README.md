@@ -6,8 +6,10 @@
 **Live (control plane):** [casting.grudge.studio](https://casting.grudge.studio) — dev → production lab  
 **Weapon skill DO:** [weapon-skills.grudge-studio.com](https://weapon-skills.grudge-studio.com/api/health)  
 **Live (Vercel):** [casting-abilities-threejs.vercel.app](https://casting-abilities-threejs.vercel.app)  
+**Lab contract:** `/api/v1/casting-lab-contract.json` · SDK `import … from 'casting-abilities/sdk'`  
 **API/DB:** same-origin `/api/*` → Railway `grudge-api` → Postgres · `docs/CASTING_DEPLOY_ENV_SSOT.md`  
 **Skills DO:** `docs/WEAPON_SKILL_DO_SSOT.md`  
+**SSOT index:** `docs/SSOT_INDEX.md` · **SDK export:** `docs/CASTING_SDK_EXPORT_SSOT.md`  
 **Team:** Vercel `grudgenexus` · project `casting-abilities-threejs`
 
 ### Hosts

@@ -136,3 +136,10 @@ dist
 .pnp.*
 .vercel
 .env*
+
+# Author multipacks (regen via scripts/* — do not ship in Vercel)
+public/models/vfx/**/*_src.glb
+public/models/vfx/**/*_src.gltf
+
+# Duplicate override mirror (runtime SSOT is public/skills/production)
+/skills/

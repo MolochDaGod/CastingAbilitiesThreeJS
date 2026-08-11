@@ -1,13 +1,42 @@
 {
   "name": "casting-abilities",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
-  "description": "Grudge Studio casting + DRC combat — three@0.185, Rapier CCT, vfxgrudge beauty VFX, Toon RTS.",
+  "description": "Grudge Studio casting + DRC combat — three@0.185, Rapier CCT, production weapon skills, three-layer terrain, shared glTF pipeline.",
   "type": "module",
+  "exports": {
+    ".": "./src/sdk/castingLabSdk.js",
+    "./sdk": "./src/sdk/castingLabSdk.js",
+    "./contract": "./public/api/v1/casting-lab-contract.json"
+  },
+  "files": [
+    "src/sdk",
+    "src/loaders/gltfPipeline.js",
+    "src/combat/weaponSkillProduction.js",
+    "src/combat/skillStatusSystem.js",
+    "src/combat/elementalLinearCast.js",
+    "src/combat/skillDelivery.js",
+    "src/combat/staffWeaponSkillsBind.js",
+    "src/combat/elementWeaponSkills.js",
+    "src/vfx/staffOrbVfx.js",
+    "src/vfx/elementAttackVfx.js",
+    "src/world/terrainLayers.js",
+    "src/world/IslandHeightfield.js",
+    "src/world/terrainGround.js",
+    "src/world/StylizedGrassLayer.js",
+    "src/world/GrowingForest.js",
+    "src/config/worldScale.js",
+    "public/api/v1/casting-lab-contract.json",
+    "docs/CASTING_SDK_EXPORT_SSOT.md",
+    "docs/SSOT_INDEX.md"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "split:orbs": "node scripts/split-gd-orbs-and-charge.mjs",
+    "split:elements": "node scripts/split-element-attack-meshes.mjs",
+    "scaffold:skill": "node scripts/scaffold-weapon-skill.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.3",
@@ -17,5 +46,11 @@
   },
   "devDependencies": {
     "vite": "^8.1.5"
+  },
+  "peerDependencies": {
+    "three": "^0.185.0"
+  },
+  "peerDependenciesMeta": {
+    "three": { "optional": false }
   }
 }

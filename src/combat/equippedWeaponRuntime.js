@@ -9,7 +9,8 @@ import {
   loadEquippableWeapons,
   hotbarForWeapon,
   exportWarlordsWeaponPrefab,
-  warmProductionOverrides
+  warmProductionOverrides,
+  clearEquippableWeaponsCache
 } from '../api/t0WeaponCatalog.js';
 import { attachWeaponModel, clearWeaponAttach } from '../character/WeaponMeshAttach.js';
 
@@ -42,9 +43,7 @@ export async function ensureWeaponCatalog() {
  * Used after Casting promote / Multiverse push.
  */
 export async function refreshWeaponCatalogFromDo() {
-  const { clearEquippableWeaponsCache } =
-    await import('../api/t0WeaponCatalog.js').catch(() => ({}));
-  if (typeof clearEquippableWeaponsCache === 'function') clearEquippableWeaponsCache();
+  clearEquippableWeaponsCache();
   _catalog = null;
   _catalog = await loadEquippableWeapons();
   return _catalog;
