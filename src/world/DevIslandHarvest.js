@@ -1,13 +1,16 @@
 /**
- * Dev Island harvest + training-dummy runtime (Casting lab).
+ * Training Room · DevIsland harvest + training-dummy runtime (Casting lab).
  *
+ * Same map as /devnode authoring — one island, not a second world.
  * - Spawns baked rock/ore/pebble GLBs + herb stubs on WORLD.islandRadius pad
  * - F / tryInteract: harvest nearest alive node within HARVEST_RANGE_M (5 m)
  * - Tool gate via equipped weapon (TOOL / t0-tool / pick tags)
  * - Swing → attack one-shot anim → HP drain → bag loot + world drop splash
  * - Training dummies register with CombatFocus as hostiles
+ * - applyNodeLayout() consumes DevNode / Training Room JSON
  *
  * Extends App worldHarvest hook — does not fork combat or invent a second mixer.
+ * @see trainingRoomMap.js · docs/TRAINING_ROOM_SSOT.md
  */
 
 import {
@@ -39,6 +42,11 @@ import {
   toolMatches
 } from './devIslandCatalog.js';
 import { getEquippedWeapon } from '../combat/equippedWeaponRuntime.js';
+import {
+  TRAINING_ROOM_LABEL,
+  TRAINING_ROOM_MAP_ID,
+  paletteIdToHarvestDef
+} from './trainingRoomMap.js';
 
 const _v = new Vector3();
 const _box = new Box3();
@@ -87,12 +95,16 @@ export class DevIslandHarvest {
       typeof opts.heightSample === 'function' ? opts.heightSample : (x, z) => 0;
 
     this.group = new Group();
-    this.group.name = 'DevIslandHarvest';
+    this.group.name = 'TrainingRoomHarvest';
+    this.group.userData.mapId = TRAINING_ROOM_MAP_ID;
     this.scene.add(this.group);
 
     this.dummyGroup = new Group();
-    this.dummyGroup.name = 'DevIslandDummies';
+    this.dummyGroup.name = 'TrainingRoomDummies';
     this.scene.add(this.dummyGroup);
+
+    /** Active layout source: default | storage | import */
+    this.layoutSource = 'default';
 
     /** @type {HarvestNode[]} */
     this.nodes = [];
@@ -114,17 +126,115 @@ export class DevIslandHarvest {
   }
 
   /**
-   * Boot default layout + décor + dummies (full map deploy on pad).
+   * Boot Training Room map: optional DevNode layout, else default harvest+decor+dummies.
+   * @param {{ layout?: object|null }} [opts]
    */
-  async init() {
-    await this.spawnDefaultLayout();
-    await this.spawnDecor();
-    this.spawnTrainingDummies();
+  async init(opts = {}) {
+    const layout = opts.layout || null;
+    if (layout?.nodes?.length) {
+      await this.applyNodeLayout(layout);
+      this.layoutSource = layout.source || 'import';
+    } else {
+      await this.spawnDefaultLayout();
+      await this.spawnDecor();
+      this.spawnTrainingDummies();
+      this.layoutSource = 'default';
+    }
     this._ready = true;
     console.info(
-      `[DevIsland] harvest=${this.nodes.length} decor=${this.decorCount} dummies=${this.dummies.length} range=${this.rangeM}m padR=${this.islandRadius.toFixed(1)}`
+      `[${TRAINING_ROOM_LABEL}] harvest=${this.nodes.length} decor=${this.decorCount} dummies=${this.dummies.length} src=${this.layoutSource} range=${this.rangeM}m padR=${this.islandRadius.toFixed(1)}`
     );
     return this;
+  }
+
+  /**
+   * Apply DevNode / Training Room layout JSON (cartesian nodes).
+   * Harvestable palette → spawnNode; cliffs → decor; pve_dummy → dummies.
+   * @param {object} layout
+   */
+  async applyNodeLayout(layout) {
+    this.clearNodes();
+    this.clearDummies();
+    if (!this._decor) this._decor = [];
+    for (const d of this._decor) {
+      this.group.remove(d);
+      this._disposeObject(d);
+    }
+    this._decor.length = 0;
+
+    const nodes = layout?.nodes || [];
+    const jobs = [];
+    let di = 0;
+    for (const n of nodes) {
+      const pid = n.paletteId || '';
+      const defId = paletteIdToHarvestDef(pid);
+      if (defId && HARVEST_NODE_DEFS[defId]) {
+        jobs.push(
+          this.spawnNode(HARVEST_NODE_DEFS[defId], n.x, n.z, di++).then((node) => {
+            if (node?.root && n.yaw != null) node.root.rotation.y = n.yaw;
+            if (node?.root && n.scale != null && n.scale !== 1) {
+              node.root.scale.setScalar(n.scale);
+            }
+          })
+        );
+        continue;
+      }
+      if (pid === 'node.pve_dummy' || pid.includes('pve_dummy')) {
+        const dummy = this._makeDummy(n.label || 'Training dummy');
+        const y = this.heightSample(n.x, n.z) || 0;
+        dummy.position.set(n.x, y, n.z);
+        if (n.yaw != null) dummy.rotation.y = n.yaw;
+        this.dummyGroup.add(dummy);
+        this.dummies.push(dummy);
+        this.combatFocus?.addSelectable?.(dummy, 'hostile');
+        continue;
+      }
+      if (
+        pid.startsWith('node.cliff') ||
+        pid.includes('cliff') ||
+        pid.includes('wall') ||
+        pid.includes('arch') ||
+        pid.includes('column')
+      ) {
+        jobs.push(this._spawnDecorAt(n, di++));
+      }
+      // tree / flower / animal / hemp = play preview via forest/grass layers — skip mesh here
+    }
+    await Promise.all(jobs.filter(Boolean));
+    // If layout had no dummies, keep a minimal combat pad
+    if (!this.dummies.length) this.spawnTrainingDummies();
+  }
+
+  /**
+   * @param {{ x: number, z: number, yaw?: number, scale?: number, paletteId?: string }} n
+   * @param {number} seed
+   */
+  async _spawnDecorAt(n, seed = 0) {
+    const url =
+      DECOR_MESH_POOL[seed % DECOR_MESH_POOL.length] || DECOR_MESH_POOL[0];
+    if (!url) return;
+    try {
+      const model = await this._loadModel(url, n.scale ?? 1.2);
+      if (!model) return;
+      const root = new Group();
+      root.name = `decor_layout_${seed}`;
+      root.userData.decor = true;
+      const landY = this.heightSample(n.x, n.z) || 0;
+      root.position.set(n.x, landY, n.z);
+      root.rotation.y = n.yaw ?? 0;
+      root.add(model);
+      try {
+        _box.setFromObject(root);
+        if (Number.isFinite(_box.min.y)) root.position.y += landY - _box.min.y;
+      } catch {
+        root.position.y = landY;
+      }
+      this.group.add(root);
+      if (!this._decor) this._decor = [];
+      this._decor.push(root);
+    } catch (err) {
+      console.warn('[TrainingRoom] decor layout fail', url, err?.message || err);
+    }
   }
 
   get decorCount() {
@@ -287,7 +397,8 @@ export class DevIslandHarvest {
       const x = Math.cos(slot.angle) * r;
       const z = Math.sin(slot.angle) * r;
       const dummy = this._makeDummy(slot.label || 'Training dummy');
-      dummy.position.set(x, 0, z);
+      const y = this.heightSample(x, z) || 0;
+      dummy.position.set(x, y, z);
       this.dummyGroup.add(dummy);
       this.dummies.push(dummy);
       this.combatFocus?.addSelectable?.(dummy, 'hostile');

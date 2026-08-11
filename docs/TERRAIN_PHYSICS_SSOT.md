@@ -1,25 +1,31 @@
 # Terrain · land · water physics SSOT (Casting lab)
 
 **Deploy host:** casting-abilities-threejs.vercel.app / casting.grudge-studio.com  
-**Repo:** CastingAbilitiesThreeJS
+**Repo:** CastingAbilitiesThreeJS  
+**Map:** Training Room · DevIsland (`training_room`) — see `docs/TRAINING_ROOM_SSOT.md`
 
 ## Learned references (patterns ported)
 
 | Source | What we take |
 |--------|----------------|
 | [snakey-locomotion](https://github.com/muratkamci/snakey-locomotion) | Single CPU `heightAt` = mesh = feet; multi-band FBM; trees on height |
-| [three-stylized](https://github.com/Steve245270533/three-stylized) | Warped FBM terrain, SI cell density, dirt/meadow |
+| [three-stylized](https://github.com/Steve245270533/three-stylized) | **Grounds** + instanced grass wind, dirt/meadow, external surface sample |
+| [threejs-examples ∞ terrain](https://simonstorlschulke.github.io/threejs-examples/?scene=0) | Infinite tile stream (later chunk L0–L2) |
+| Desktop `forestoutline.html` | Instanced trees, leaf texture/sway, SI scatter, LOD |
 | three.js `physics_rapier_terrain` | Float32 heights → Rapier heightfield collider |
-| Desktop `forestoutline.html` | Instanced trees, growth/scatter SI, leaf sway |
 | `grudge-rapier` skill | Fixed 1/60, CCT, heightfield not dynamic trimesh |
 
-## Layers
+**Full map:** `docs/THREE_LAYER_TERRAIN_SSOT.md` · `terrainLayers.js` · `StylizedGrassLayer.js`
+
+## Layers (three + water)
 
 | Layer | Visual | Physics | Sample API |
 |-------|--------|---------|------------|
-| **Land** | `IslandHeightfield` mesh | Rapier **heightfield** | `islandTerrain.sample(x,z)` |
-| **Water** | `StageWater` (waves) | Sensor slab + freeride Y | `water.sampleHeight(x,z,t)` |
-| **Void / far** | fog | outer flat removed under pad | — |
+| **L0 height** | bake grid | Rapier **heightfield** | `islandTerrain.sample(x,z)` |
+| **L1 ground** | `IslandHeightfield` mesh (meadow/dirt/shore) | same | same |
+| **L2 vegetation** | `StylizedGrassLayer` + `GrowingForest` | none / harvest | roots on L0 |
+| **L3 detail** | harvest rocks | static | L0 Y |
+| **Water** | `StageWater` (waves) | Sensor + freeride Y | `water.sampleHeight` |
 
 **One height source** for mesh, Rapier, harvest Y, player feet, **aim, and path draw**.
 

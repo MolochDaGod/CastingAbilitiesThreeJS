@@ -811,9 +811,9 @@ export class AdminHub {
           <button type="button" class="admin-btn" data-act="tool">Equip t0-tool (pick)</button>
           <button type="button" class="admin-btn" data-act="dummies">Respawn dummies</button>
           <button type="button" class="admin-btn" data-act="help">Keyboard help (?)</button>
-          <a class="admin-btn" href="./devnode.html" target="_blank" rel="noopener">DevNode editor ↗</a>
+          <a class="admin-btn" href="./devnode.html" target="_blank" rel="noopener">Training Room editor ↗</a>
         </div>
-        <p class="admin-hint">DevNode: biomes · cliffs · trees · rocks · flowers/hemp · ore · animals · PvE palette · export layout JSON.</p>
+        <p class="admin-hint">Training Room = DevIsland = /devnode — one island map (terrain L0–L3 + harvest + PvE). Export layout → play.</p>
       </div>
       <div class="admin-card">
         <h3>Input contract (Open parity)</h3>

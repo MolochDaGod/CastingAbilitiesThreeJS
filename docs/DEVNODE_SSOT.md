@@ -1,7 +1,10 @@
-# /devnode — world node authoring lab
+# /devnode — Training Room · DevIsland authoring
 
 **URL:** `…/devnode.html` (local) · `…/devnode.html` on casting deploy  
+**Map:** same as play — **`training_room`** (aliases: devisland, devnode)  
 **Purpose:** Edit **nodes** for biomes, terrain knobs, cliffs, trees, rocks, flowers/hemp, animals, ore, PvE — without inventing a second Forge or harvest engine.
+
+**SSOT:** `docs/TRAINING_ROOM_SSOT.md` · `src/world/trainingRoomMap.js`
 
 ---
 
@@ -52,7 +55,7 @@
 }
 ```
 
-Play lab can import via future `DevIslandHarvest.applyLayout(layout)` (layout JSON handoff).
+Play lab imports via `DevIslandHarvest.applyNodeLayout(layout)` (localStorage handoff after Export).
 
 ---
 
@@ -88,6 +91,6 @@ Play lab can import via future `DevIslandHarvest.applyLayout(layout)` (layout JS
 [x] Terrain sample places Y on heightfield (IslandHeightfield + projectToTerrain)
 [x] Export JSON validates (validateNodeLayout)
 [x] No second harvest runtime inside devnode (preview only)
-[ ] DevIslandHarvest.applyLayout(layout) — play import next
+[x] DevIslandHarvest.applyNodeLayout(layout) — play imports Training Room storage
 [ ] Fauna CDN meshes for animal_passive / pve_grunt
 ```

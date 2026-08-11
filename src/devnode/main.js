@@ -1,6 +1,6 @@
 /**
- * /devnode entry — world node authoring (biomes · terrain · harvest · PvE drafts).
- * @see docs/DEVNODE_SSOT.md
+ * /devnode entry — author the same Training Room · DevIsland map as play.
+ * @see docs/DEVNODE_SSOT.md · docs/TRAINING_ROOM_SSOT.md
  */
 
 import {
@@ -10,9 +10,16 @@ import {
   createEmptyNodeLayout,
   validateNodeLayout
 } from '../world/nodePalette.js';
+import {
+  TRAINING_ROOM_LABEL,
+  TRAINING_ROOM_MAP_ID,
+  createTrainingRoomLayout,
+  loadTrainingRoomLayoutFromStorage,
+  saveTrainingRoomLayoutToStorage,
+  stampTrainingRoomLayout,
+  trainingRoomTerrain
+} from '../world/trainingRoomMap.js';
 import { DevNodeEditor } from './DevNodeEditor.js';
-
-const STORAGE_KEY = 'grudge.casting.devnode.layout.v1';
 
 const el = {
   canvas: document.getElementById('dn-canvas'),
@@ -31,6 +38,8 @@ const el = {
 el.canvas?.addEventListener('contextmenu', (e) => e.preventDefault());
 
 const editor = new DevNodeEditor(/** @type {HTMLCanvasElement} */ (el.canvas));
+// Match play island terrain knobs (Training Room · DevIsland)
+editor.setBiomeTerrain(trainingRoomTerrain());
 
 /** @type {string} */
 let familyFilter = 'all';
@@ -89,6 +98,7 @@ function fillPalette() {
 function refreshStats() {
   const L = editor.exportLayout();
   el.stats.textContent = [
+    `map: ${TRAINING_ROOM_MAP_ID}`,
     `nodes: ${L.nodes.length}`,
     `biome: ${L.biomeId || '—'}`,
     `sel: ${selectedId}`,
@@ -110,20 +120,18 @@ el.biome.addEventListener('change', () => {
 });
 
 el.export.addEventListener('click', () => {
-  const data = editor.exportLayout();
-  data.biomeId = el.biome.value;
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  } catch {
-    /* ok */
-  }
+  const data = stampTrainingRoomLayout({
+    ...editor.exportLayout(),
+    biomeId: el.biome.value
+  });
+  saveTrainingRoomLayoutToStorage(data);
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `devnode-${data.biomeId || 'layout'}-${Date.now()}.json`;
+  a.download = `training-room-${data.biomeId || 'layout'}-${Date.now()}.json`;
   a.click();
   URL.revokeObjectURL(a.href);
-  el.hint.textContent = 'Exported layout JSON · also saved to localStorage';
+  el.hint.textContent = `Saved ${TRAINING_ROOM_LABEL} · play lab reads this layout`;
   refreshStats();
 });
 
@@ -139,9 +147,11 @@ el.file.addEventListener('change', async () => {
       el.hint.textContent = `Import failed: ${v.error}`;
       return;
     }
-    editor.loadLayout(v.layout);
-    if (v.layout.biomeId) el.biome.value = v.layout.biomeId;
-    el.hint.textContent = `Imported ${editor.nodeCount} nodes`;
+    const stamped = stampTrainingRoomLayout(v.layout);
+    editor.loadLayout(stamped);
+    saveTrainingRoomLayoutToStorage(stamped);
+    if (stamped.biomeId) el.biome.value = stamped.biomeId;
+    el.hint.textContent = `Imported ${editor.nodeCount} nodes → ${TRAINING_ROOM_LABEL}`;
     refreshStats();
   } catch (err) {
     el.hint.textContent = `Import error: ${err?.message || err}`;
@@ -153,29 +163,31 @@ el.clear.addEventListener('click', () => {
   refreshStats();
 });
 
-// Boot
+// Boot — same Training Room map as play (index.html)
 fillBiomes();
 fillFamilies();
 fillPalette();
 editor.setSelectedPalette(selectedId);
 
-// Restore last local draft if any
-try {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (raw) {
-    const v = validateNodeLayout(JSON.parse(raw));
-    if (v.ok) {
-      editor.loadLayout(v.layout);
-      if (v.layout.biomeId) el.biome.value = v.layout.biomeId;
-      el.hint.textContent = `Restored ${editor.nodeCount} nodes from local draft`;
-    }
-  }
-} catch {
-  /* ok */
+const stored = loadTrainingRoomLayoutFromStorage();
+if (stored?.nodes?.length) {
+  editor.loadLayout(stored);
+  if (stored.biomeId) el.biome.value = stored.biomeId;
+  el.hint.textContent = `Restored ${editor.nodeCount} nodes · ${TRAINING_ROOM_LABEL}`;
+} else {
+  const builtIn = createTrainingRoomLayout();
+  editor.loadLayout(builtIn);
+  el.hint.textContent = `Loaded built-in ${TRAINING_ROOM_LABEL} · export to play`;
 }
 
 // Poll stats while placing
 setInterval(refreshStats, 500);
 refreshStats();
 
-console.info('[DevNode] ready · palette', NODE_PALETTE.length, '· empty', createEmptyNodeLayout());
+console.info(
+  `[DevNode] ${TRAINING_ROOM_LABEL} · palette`,
+  NODE_PALETTE.length,
+  '· mapId',
+  TRAINING_ROOM_MAP_ID,
+  createEmptyNodeLayout()
+);

@@ -11,7 +11,9 @@ import { StageWater } from '../world/StageWater.js';
 import { OceanWindIndicators } from '../effects/OceanWindIndicators.js';
 import { IslandHeightfield } from '../world/IslandHeightfield.js';
 import { GrowingForest } from '../world/GrowingForest.js';
+import { StylizedGrassLayer } from '../world/StylizedGrassLayer.js';
 import { terrainHandle } from '../world/terrainGround.js';
+import { TERRAIN_LAYER } from '../world/terrainLayers.js';
 import { OpenSeaShells } from '../world/OpenSeaShells.js';
 import { DustMotes } from '../world/DustMotes.js';
 import { ContactShadows } from '../world/ContactShadows.js';
@@ -53,6 +55,12 @@ import { loadPrefabCatalog, pickSamplePrefab, bagItemFromPresent } from '../loot
 import { WorldDrops } from '../world/WorldDrops.js';
 import { DevIslandHarvest } from '../world/DevIslandHarvest.js';
 import { HARVEST_RANGE_M } from '../world/devIslandCatalog.js';
+import {
+  TRAINING_ROOM_BUILDERS,
+  TRAINING_ROOM_LABEL,
+  TRAINING_ROOM_MAP_ID,
+  loadTrainingRoomLayoutFromStorage
+} from '../world/trainingRoomMap.js';
 import { DropBag } from '../ui/DropBag.js';
 import '../ui/dropBag.css';
 import {
@@ -145,6 +153,8 @@ export class App {
     this.islandTerrain =
       settings.terrain?.enabled !== false ? new IslandHeightfield() : null;
     this.growingForest = null;
+    /** L2 stylized grass (three-stylized pattern on L0 height) */
+    this.stylizedGrass = null;
     this.dust = new DustMotes();
     this.contactShadows = new ContactShadows(this.renderer, {
       size: 2.6 * Math.sqrt(WORLD.mapScale),
@@ -160,8 +170,14 @@ export class App {
       if (this.ground.mesh) this.ground.mesh.visible = false;
     }
     this.dust.setPixelRatio(this.renderer.gl.getPixelRatio());
+    /** One map: Training Room · DevIsland (play + /devnode) */
+    this.mapId = TRAINING_ROOM_MAP_ID;
+    this.mapLabel = TRAINING_ROOM_LABEL;
     console.info(
-      `[App] world SI mapScale=${WORLD.mapScale} ground=${WORLD.groundSize}m fogFar=${WORLD.fogFar}m water=${WORLD.waterSize}m terrain=${!!this.islandTerrain}`
+      `[App] ${TRAINING_ROOM_LABEL} · SI mapScale=${WORLD.mapScale} ground=${WORLD.groundSize}m fogFar=${WORLD.fogFar}m water=${WORLD.waterSize}m terrain=${!!this.islandTerrain}`
+    );
+    console.info(
+      `[App] layers L0=${TRAINING_ROOM_BUILDERS.layers.L0_height.code} L2 grass+forest L3=${TRAINING_ROOM_BUILDERS.layers.L3_detail.harvest.code}`
     );
 
     /* ---- shared VFX services ---- */
@@ -1739,22 +1755,43 @@ export class App {
       })
       .catch((err) => console.warn('[App] prefab catalog', err));
 
-    // Growing forest (forestoutline / snakey trees) on heightfield
+    // L2 vegetation: forestoutline/snakey trees + three-stylized grass (same L0 sample)
     if (settings.terrain?.forestEnabled !== false && this.islandTerrain) {
       this.growingForest = new GrowingForest({
         scene: this.scene,
         heightSample: this.terrain.sample,
         count: settings.terrain?.forestCount ?? 48,
         islandRadius: WORLD.islandRadius * 0.9,
-        clearRadius: 11,
+        clearRadius: settings.terrain?.forestClearRadius ?? 11,
         onToast: (m) => this.hud.showToast(m)
       });
-      console.info(`[App] growing forest ×${this.growingForest.trees.length}`);
+      console.info(
+        `[App] L2 forest ×${this.growingForest.trees.length} · layer=${TERRAIN_LAYER.L2_VEGETATION}`
+      );
+    }
+    if (settings.terrain?.grassEnabled !== false && this.islandTerrain) {
+      try {
+        this.stylizedGrass = new StylizedGrassLayer({
+          scene: this.scene,
+          heightSample: this.terrain.sample,
+          islandRadius: WORLD.islandRadius * 0.88,
+          clearRadius: settings.terrain?.grassClearRadius ?? 6,
+          density: settings.terrain?.grassDensity ?? 28,
+          seed: (settings.terrain?.seed ?? 17) + 401,
+          bladeMaxHeight: settings.terrain?.grassBladeMax ?? 0.55
+        });
+        console.info(
+          `[App] L2 stylized grass ×${this.stylizedGrass.count} · three-stylized pattern`
+        );
+      } catch (e) {
+        console.warn('[App] stylized grass', e);
+      }
     }
 
-    // Dev Island: baked rocks + harvest + training dummies (replaces empty lab pad content)
-    this.loading.setProgress(0.74, 'Dev island harvest…');
+    // Training Room · DevIsland: same map as /devnode (layout from storage or default)
+    this.loading.setProgress(0.74, 'Training Room…');
     try {
+      const authored = loadTrainingRoomLayoutFromStorage();
       this.worldHarvest = new DevIslandHarvest({
         scene: this.scene,
         assets,
@@ -1767,18 +1804,19 @@ export class App {
         rangeM: HARVEST_RANGE_M,
         heightSample: this.terrain?.sample || null
       });
-      await this.worldHarvest.init();
+      await this.worldHarvest.init({ layout: authored });
+      const src = this.worldHarvest.layoutSource || 'default';
       console.info(
-        `[App] DevIsland map · harvest=${this.worldHarvest.nodeCount} decor=${this.worldHarvest.decorCount} dummies=${this.worldHarvest.dummies?.length || 0} F≤${HARVEST_RANGE_M}m padR=${WORLD.islandRadius.toFixed(0)}`
+        `[App] ${TRAINING_ROOM_LABEL} · harvest=${this.worldHarvest.nodeCount} decor=${this.worldHarvest.decorCount} dummies=${this.worldHarvest.dummies?.length || 0} src=${src} F≤${HARVEST_RANGE_M}m padR=${WORLD.islandRadius.toFixed(0)}`
       );
       this.hud.showToast?.(
-        `Dev Island · ${this.worldHarvest.nodeCount} nodes · open sea · M→Space windsurf`,
-        3200
+        `${TRAINING_ROOM_LABEL} · ${this.worldHarvest.nodeCount} nodes (${src}) · edit /devnode.html`,
+        3600
       );
     } catch (err) {
-      console.warn('[App] DevIsland harvest failed', err);
+      console.warn('[App] Training Room harvest failed', err);
       this.worldHarvest = null;
-      this.hud.showToast?.('Dev Island map failed — check /models/dev-island', 4000);
+      this.hud.showToast?.('Training Room map failed — check /models/dev-island', 4000);
     }
 
     // Horizon islands (CDN) + open-sea water ring — freeride backdrop
@@ -2076,6 +2114,7 @@ export class App {
       this.character?.position || this.character?.root?.position
     );
     this.growingForest?.update?.(dt, this.elapsed);
+    this.stylizedGrass?.update?.(dt, settings.terrain?.grassWind);
     // Pirate cursor intents when mouse unlocked (harvest / loot / attack)
     this._updateInteractCursor?.();
     this._tickRadials?.(dt);

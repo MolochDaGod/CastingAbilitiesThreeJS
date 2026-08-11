@@ -159,6 +159,8 @@ export class DevNodeEditor {
   exportLayout() {
     return {
       ...this.layout,
+      mapId: this.layout.mapId || 'training_room',
+      mapLabel: this.layout.mapLabel || 'Training Room · DevIsland',
       nodes: this.layout.nodes.map((n) => ({ ...n })),
       exportedAt: new Date().toISOString()
     };
