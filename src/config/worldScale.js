@@ -37,9 +37,9 @@ export const WORLD = Object.freeze({
   humanHeightM: HUMAN_HEIGHT_M,
   heroHeightM: HERO_HEIGHT_M,
 
-  /** Fog (metres) */
-  fogNear: ORIG.fogNear * MAP_SCALE,
-  fogFar: ORIG.fogFar * MAP_SCALE,
+  /** Fog (metres) — slightly further than 1.0× scale so meadow/hero stay readable */
+  fogNear: ORIG.fogNear * MAP_SCALE * 1.2,
+  fogFar: ORIG.fogFar * MAP_SCALE * 1.45,
 
   /** Floor radial pool in Ground shader (metres) */
   floorPoolInner: ORIG.floorPoolInner * MAP_SCALE,

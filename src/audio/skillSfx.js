@@ -185,13 +185,17 @@ export function playSkillSfx(role, opts = {}) {
 
 /**
  * Map weapon skill / element → SFX roles for cast begin.
+ *
+ * Default = **cast_ramp** (clean cast start). Impact uses impact_magic a/b/c.
+ * **cast_chant** is the blood/shaman clip — only for explicit dark/blood skills
+ * (it reads as a death moan on normal staff/spell casts — do not default to it).
+ *
  * @param {{ element?: string, style?: string, id?: string, label?: string, isWard?: boolean }|null|undefined} skill
  * @param {{ duration?: number }} [ctx]
  */
 export function playForWeaponSkillCast(skill, ctx = {}) {
   const el = String(skill?.element || skill?.abilityElement || '').toLowerCase();
   const id = String(skill?.id || skill?.label || '').toLowerCase();
-  const dur = Number(ctx.duration) || 0;
 
   if (skill?.isWard || /parry|block|guard|ward/.test(id)) {
     playSkillSfx('parry', { volume: 0.85 });
@@ -201,38 +205,38 @@ export function playForWeaponSkillCast(skill, ctx = {}) {
     playSkillSfx('heal', { volume: 0.8 });
     return 'heal';
   }
-  if (el === 'fire' || /burn|flame|inferno|fire/.test(id)) {
-    playSkillSfx('cast_ramp', { volume: 0.7, rate: 1.05 });
-    return 'cast_ramp';
-  }
-  // Longer channels or blood/dark/arcane get chant layer
-  if (dur >= 0.55 || el === 'arcane' || /blood|shaman|shadow|death|dark|void/.test(id)) {
-    playSkillSfx('cast_chant', { volume: 0.75 });
+  // Explicit blood / death / void kits only — not arcane/storm/long cast
+  if (/blood|shaman|shadow.?bolt|death.?coil|void.?bolt|necromanc/.test(id)) {
+    playSkillSfx('cast_chant', { volume: 0.62 });
     return 'cast_chant';
   }
-  playSkillSfx('cast_ramp', { volume: 0.78 });
+  // All normal spells / fire / ice / storm / arcane / residual cast start
+  const rate =
+    el === 'fire' || /burn|flame|inferno|fire/.test(id)
+      ? 1.05
+      : el === 'ice' || el === 'water'
+        ? 0.95
+        : el === 'storm' || el === 'arcane'
+          ? 1.08
+          : 1.0;
+  playSkillSfx('cast_ramp', { volume: 0.76, rate });
   return 'cast_ramp';
 }
 
 /**
  * Path / ability cast (element spline).
+ * Prefer ramp + later impact_magic — never death/chant on path cast.
  * @param {string} element
  */
 export function playForElementCast(element) {
   const el = String(element || '').toLowerCase();
-  if (el === 'fire') {
-    playSkillSfx('cast_ramp', { volume: 0.72 });
-    return;
-  }
   if (el === 'holy' || el === 'nature') {
     playSkillSfx('heal', { volume: 0.55, rate: 1.1 });
     return;
   }
-  if (el === 'arcane' || el === 'storm') {
-    playSkillSfx('cast_chant', { volume: 0.65 });
-    return;
-  }
-  playSkillSfx('cast_ramp', { volume: 0.7 });
+  const rate =
+    el === 'fire' ? 1.05 : el === 'storm' || el === 'arcane' ? 1.08 : el === 'ice' ? 0.95 : 1.0;
+  playSkillSfx('cast_ramp', { volume: 0.72, rate });
 }
 
 /**

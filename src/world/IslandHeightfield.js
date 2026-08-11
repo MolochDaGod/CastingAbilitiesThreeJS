@@ -27,6 +27,7 @@ import {
 import { WORLD } from '../config/worldScale.js';
 import { settings } from '../config/settings.js';
 import { getColor } from '../utils/color.js';
+import { LAYER } from '../core/Layers.js';
 
 function hash(x, z, seed) {
   const v = Math.sin(x * 127.1 + z * 311.7 + seed * 74.7) * 43758.5453123;
@@ -199,9 +200,15 @@ export class IslandHeightfield {
     geo.rotateX(-Math.PI / 2);
     const pos = geo.attributes.position;
     const colors = new Float32Array(pos.count * 3);
-    const meadow = getColor(settings.environment?.floorColor || '#2a3328').clone();
-    const shore = getColor(settings.environment?.shoreColor || '#3d4a3a').clone();
-    const dirt = new Color(0x6f5435);
+    /**
+     * Lab-readable meadow — NEVER use environment.floorColor (#14181d-class void).
+     * Dark stage slab color is for Ground dissolve only; island must read as grass/dirt
+     * or the whole playfield is pitch black against fog/backdrop (live bug 2026-08).
+     */
+    const t = settings.terrain || {};
+    const meadow = getColor(t.meadowColor || '#3f6b3a').clone();
+    const shore = getColor(t.shoreColor || settings.environment?.shoreColor || '#8a7355').clone();
+    const dirt = getColor(t.dirtColor || '#6f5435').clone();
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
       const z = pos.getZ(i);
@@ -221,9 +228,12 @@ export class IslandHeightfield {
 
     this.material = new MeshStandardMaterial({
       vertexColors: true,
-      roughness: 0.92,
+      roughness: 0.88,
       metalness: 0.0,
-      dithering: true
+      dithering: true,
+      // Slight emissive lift so dark ambient does not crush land to pure black
+      emissive: new Color(0x0a1208),
+      emissiveIntensity: 0.12
     });
     this.mesh = new Mesh(geo, this.material);
     this.mesh.name = 'IslandHeightfield';
@@ -231,6 +241,8 @@ export class IslandHeightfield {
     this.mesh.castShadow = false;
     this.mesh.userData.terrain = true;
     this.mesh.userData.heightfield = true;
+    // Render LAYER.WORLD (bit 0) — not TERRAIN_LAYER L0–L3 (authoring labels only)
+    this.mesh.layers.set(LAYER.WORLD);
   }
 
   /**

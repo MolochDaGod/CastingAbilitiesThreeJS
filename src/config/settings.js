@@ -673,6 +673,10 @@ export const settings = {
     grid: 65,
     shoreBand: null, // null → WORLD.shoreBand
     flatCore: 8,
+    /** Island mesh vertex colors (NOT environment.floorColor void slab) */
+    meadowColor: '#3f6b3a',
+    dirtColor: '#6f5435',
+    shoreColor: '#8a7355',
     /** L2 Growing forest (forestoutline / snakey trees) */
     forestCount: 48,
     forestEnabled: true,
@@ -760,26 +764,26 @@ export const settings = {
     // The key rakes in from the left of the default camera; the rim sits almost
     // opposite it, behind the character, so it draws a cool edge against the
     // dark backdrop instead of lighting the floor.
+    // Lab-readable fill (was 0.12/0.34 — crushed meadow + hero to pure black on live)
     sunIntensity: 3.0,
     sunColor: '#fff2dd',
     sunAzimuth: 2.95,
     sunElevation: 0.6,
-    ambientIntensity: 0.12,
-    ambientColor: '#8ea8d8',
-    hemiIntensity: 0.34,
-    hemiSkyColor: '#bdd7ff',
-    hemiGroundColor: '#3a4552',
-    rimIntensity: 0.9,
+    ambientIntensity: 0.32,
+    ambientColor: '#9eb4d4',
+    hemiIntensity: 0.55,
+    hemiSkyColor: '#c5dcff',
+    hemiGroundColor: '#3d5240',
+    rimIntensity: 0.95,
     rimColor: '#9ec2ff',
     rimAzimuth: 5.45, // radians
     rimElevation: 0.35,
-    envIntensity: 0.3,
-    // Backdrop and fog share a colour, so the floor dissolves into the void
-    // instead of showing a hard horizon.
-    backgroundColor: '#14181d',
-    fogColor: '#14181d',
-    fogNear: 10,
-    fogFar: 38,
+    envIntensity: 0.45,
+    // Slightly lifted void so island green separates from sky (still cinematic)
+    backgroundColor: '#1a222c',
+    fogColor: '#1a222c',
+    fogNear: 18,
+    fogFar: 72,
     shadowBias: -0.0008,
     shadowRadius: 2.2,
     floorColor: '#1a1f26',

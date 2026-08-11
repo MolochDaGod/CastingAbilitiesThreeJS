@@ -37,22 +37,31 @@ export const CRAFTPIX = {
 };
 
 /**
- * Absolute CraftPix texture URL (CDN — CORS OK for img/css).
+ * Absolute CraftPix texture URL.
+ * **Same-origin first** (`/ui/craftpix` shipped in public/) — CDN lacks CORS for
+ * crossOrigin Image() preload and caused console noise + missing chrome on casting.grudge.studio.
+ * Never return relative paths (CSS vars resolve against /assets/*.css → 404).
+ *
  * @param {string} rel path under ui/craftpix
  * @param {{ preferCdn?: boolean, localOnly?: boolean }} [opts]
  */
 export function craftpixUrl(rel, opts = {}) {
   const clean = String(rel || '').replace(/^\/+/, '');
-  if (!clean) return CDN;
-  // Absolute CDN only — never ./ or /assets/ relative
-  if (opts.localOnly && typeof window !== 'undefined' && window.location?.origin) {
+  if (!clean) {
+    return typeof window !== 'undefined' && window.location?.origin
+      ? `${window.location.origin}/ui/craftpix`
+      : CDN;
+  }
+  if (opts.preferCdn) return `${CDN}/${clean}`;
+  // Default: same-origin ship (public/ui/craftpix) — production lab / client handoff
+  if (typeof window !== 'undefined' && window.location?.origin) {
     return `${window.location.origin}/ui/craftpix/${clean}`;
   }
   return `${CDN}/${clean}`;
 }
 
 /**
- * CSS custom properties — full absolute url("https://...") only.
+ * CSS custom properties — full absolute url("https://host/ui/craftpix/...") only.
  * @param {HTMLElement} [el]
  */
 export function applyCraftpixCssVars(el = document.documentElement) {
@@ -80,7 +89,7 @@ export function applyCraftpixCssVars(el = document.documentElement) {
     '--cp-cast-icon': CRAFTPIX.castIconFrame,
   };
   for (const [k, rel] of Object.entries(map)) {
-    const abs = craftpixUrl(rel, { preferCdn: true });
+    const abs = craftpixUrl(rel); // same-origin
     el.style.setProperty(k, `url("${abs}")`);
   }
   el.classList.add('craftpix-ui');
@@ -122,8 +131,8 @@ export function preloadCraftpixUi() {
           const img = new Image();
           img.onload = () => resolve();
           img.onerror = () => resolve();
-          img.crossOrigin = 'anonymous';
-          img.src = craftpixUrl(rel, { preferCdn: true });
+          // Same-origin → no CORS; crossOrigin only needed for CDN canvas taint
+          img.src = craftpixUrl(rel);
         }),
     ),
   ).then(() => undefined);

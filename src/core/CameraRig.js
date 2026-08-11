@@ -2,7 +2,7 @@ import { PerspectiveCamera, Vector3, MathUtils, MOUSE, TOUCH } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { settings } from '../config/settings.js';
 import { clamp, damp } from '../utils/math.js';
-import { LAYER } from './Layers.js';
+import { LAYER, enableMainCameraLayers } from './Layers.js';
 
 const _dir = new Vector3();
 const _desiredTarget = new Vector3();
@@ -30,7 +30,8 @@ export class CameraRig {
       400
     );
     this.camera.position.set(-6.5, 6.0, 9.5);
-    this.camera.layers.enable(LAYER.VFX);
+    // WORLD (default) + VFX — single camera, no second combat camera
+    enableMainCameraLayers(this.camera);
 
     this.controls = new OrbitControls(this.camera, domElement);
     this.controls.enableDamping = true;

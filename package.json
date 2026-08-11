@@ -34,6 +34,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "deploy:prod": "npm run build && npx vercel --prod --yes",
     "split:orbs": "node scripts/split-gd-orbs-and-charge.mjs",
     "split:elements": "node scripts/split-element-attack-meshes.mjs",
     "scaffold:skill": "node scripts/scaffold-weapon-skill.mjs"

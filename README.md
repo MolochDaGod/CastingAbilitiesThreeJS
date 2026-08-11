@@ -27,12 +27,29 @@
 
 | Package | Role |
 |---------|------|
-| `three` ^0.185 | Renderer / GLTF / AnimationMixer · Draco + Meshopt + KTX2 |
+| `three` ^0.185 | **Vanilla** scene graph · GLTF · AnimationMixer · Draco + Meshopt + KTX2 |
 | `@dimforge/rapier3d-compat` ^0.19 | Ground heightfield + human CCT (SI capsule) |
 | `xstate` | Player activity machine |
 | VFX beauty | [vfxgrudge.puter.site](https://vfxgrudge.puter.site/) → `src/vfx/VfxDirector.js` |
 
-**Do not** reintroduce Mixamo FBX as play, Meshy heroes, dual mixers, dual Draco loaders, or OrbitControls during combat TPS.
+**Not R3F** — this lab is vanilla Three + Vite. Forge uses R3F elsewhere.  
+**Engine / deploy / client handoff:** `docs/ENGINE_DEPLOY_SSOT.md`  
+**Dev:** `npm run dev` · **Prod:** `npm run deploy:prod` (build + `vercel --prod`)
+
+**Do not** reintroduce Mixamo FBX as play, Meshy heroes, dual mixers, dual physics, dual cameras, dual Draco loaders, or OrbitControls writing mid-TPS combat.
+
+### Render layers vs terrain L0–L3 (not the same)
+
+| System | Meaning |
+|--------|---------|
+| `LAYER` WORLD/VFX/DISTORTION/CONTACT | Three.js camera bits (`src/core/Layers.js`) |
+| `TERRAIN_LAYER` L0–L3 | Map authoring labels only |
+| Dummy overhead bars | HTML (`OverheadNameplates`) — not a second 3D layer |
+
+### Spell SFX (no death moan on cast)
+
+Default cast = `cast_ramp` · land = `impact_magic` a/b/c.  
+`cast_chant` (blood shaman) only for explicit blood/void skill ids.
 
 ### Loaders (shared pipeline)
 
