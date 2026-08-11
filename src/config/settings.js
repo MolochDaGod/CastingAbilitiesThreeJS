@@ -570,6 +570,11 @@ export const settings = {
      */
     /** Max soft-lock magnetic angle from crosshair (deg) — generous for action assist */
     softLockMaxAngleDeg: 26,
+    /** Pistol / flintlock soft-lock (stronger assist — loud not accurate) */
+    pistolSoftLockBlend: 0.82,
+    pistolSoftLockMaxAngleDeg: 34,
+    pistolOptimalRangeMin: 3,
+    pistolOptimalRangeMax: 18,
     /** Camera ray length (m) when no ground/mesh hit */
     aimRayFar: 80,
     /** Projectile aim height on ground hits (m, SI chest) */

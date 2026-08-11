@@ -94,25 +94,80 @@ export const PISTOL_BIP001_DURATION = Object.freeze({
 /**
  * Suggested timeScale so Mixamo gunplay/fire feels closer to TPS snap (~0.21s).
  * gunplay ~0.57s → scale ≈ 0.57/0.21 ≈ 2.7 for hyper-snap; use milder default.
- * @param {'fire'|'draw'|'spin'|'charged'|'whip'} kind
+ * @param {'fire'|'draw'|'spin'|'charged'|'whip'|'reload'} kind
  */
 export function pistolTimeScale(kind = 'fire') {
   const tps = TPS_PISTOL_TIMING.clips;
   switch (kind) {
     case 'fire':
     case 'spin':
-      // gunplay 0.567 → aim ~0.35s (between TPS fire and full flourish)
-      return Math.min(2.2, PISTOL_BIP001_DURATION.gunplay / 0.35);
+      // gunplay 0.567 → aim ~0.38s (readable flintlock snap, not hyper)
+      return Math.min(1.85, PISTOL_BIP001_DURATION.gunplay / 0.38);
     case 'draw':
-      return Math.min(1.8, PISTOL_BIP001_DURATION['drawing-gun'] / Math.max(0.35, tps.draw * 2));
+      return Math.min(1.55, PISTOL_BIP001_DURATION['drawing-gun'] / Math.max(0.45, tps.draw * 2.2));
+    case 'reload':
+      // drawing-gun as reload base — stretch slightly for powder pour overlay
+      return Math.min(1.15, PISTOL_BIP001_DURATION['drawing-gun'] / FLINTLOCK_RELOAD.durationSec);
     case 'charged':
-      return 1.0;
+      return 0.95;
     case 'whip':
       return 1.05;
     default:
       return 1.0;
   }
 }
+
+/**
+ * Flintlock fire cadence — hit frame + burst gap + muzzle (SI).
+ * Aligned with TPS fire (~0.21s) on scaled gunplay (~0.38s wall).
+ */
+export const FLINTLOCK_FIRE = Object.freeze({
+  /** Seconds into fire clip when bullet leaves barrel (after timeScale) */
+  hitFrameSec: 0.14,
+  /** Wall-clock fire clip target (s) after timeScale */
+  fireDurationSec: 0.38,
+  /** Burst Fire gap between rounds (s) */
+  burstGapSec: 0.09,
+  /** Small yaw fan per burst index (rad) */
+  burstSpreadRad: 0.026,
+  /** Hand → muzzle along barrel when marker missing (m) */
+  muzzleFallbackM: 0.42,
+  /** Delay after last bullet before reload pose (s) */
+  reloadAfterShotSec: 0.12
+});
+
+/**
+ * Procedural powder reload (power-shot refill feel).
+ * Gun rotates toward body middle · off-hand to barrel · barrel tilts up.
+ */
+export const FLINTLOCK_RELOAD = Object.freeze({
+  durationSec: 0.92,
+  powerDurationSec: 1.25,
+  /** Degrees barrel tilts up during pour phase */
+  barrelTiltDeg: 22,
+  /** 0..1 how hard gun pulls toward chest midline */
+  gunInWeight: 0.72,
+  /** Play reload after Practice / Burst / Suppress (lab feel) */
+  afterShot: true
+});
+
+/**
+ * Soft-lock / crosshair assist when pistol pack is equipped.
+ * Stronger magnetic pull than default melee — flintlock is loud not accurate.
+ */
+export const PISTOL_SOFT_LOCK = Object.freeze({
+  softLockBlend: 0.82,
+  softLockMaxAngleDeg: 34,
+  softLockRange: 36,
+  /** Crosshair spread when soft-lock snug */
+  spreadSoft: 0.06,
+  /** Crosshair spread free aim (homemade inaccurate) */
+  spreadFree: 0.22,
+  optimalRangeMin: 3,
+  optimalRangeMax: 18,
+  /** Auto-acquire nearest frontal target on fire if none selected */
+  acquireOnFire: true
+});
 
 /** Lab reference GLB path (same-origin after copy). */
 export const TPS_PISTOL_REF_URL = './models/reference/minecraft_tps_pistol.glb';
@@ -127,6 +182,17 @@ export function pistolRoleForSkillSlot(slotType, abilityIndex = 0) {
   if (slotType === 'secondary') return 'draw';
   const skills = ['skill1', 'skill2', 'skill3', 'skill4', 'skill5'];
   return skills[abilityIndex % skills.length] || 'gunplay';
+}
+
+/**
+ * Hit-frame delay (s) for bullet spawn — catalog override wins.
+ * @param {object} [skill]
+ */
+export function pistolHitFrameSec(skill = {}) {
+  if (skill.hitFrameDelay != null && Number(skill.hitFrameDelay) >= 0) {
+    return Number(skill.hitFrameDelay);
+  }
+  return FLINTLOCK_FIRE.hitFrameSec;
 }
 
 /**

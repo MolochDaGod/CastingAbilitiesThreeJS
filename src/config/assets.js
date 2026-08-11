@@ -204,6 +204,8 @@ export const ANIM_PACKS = {
     gunplay: ['pistol/gunplay'],
     spin: ['pistol/gunplay'],
     draw: ['pistol/drawing-gun', 'pistol/gunplay'],
+    /** Powder reload base clip — procedural pose layers gun-in + L-hand to barrel */
+    reload: ['pistol/drawing-gun', 'pistol/charged-pistol', 'pistol/gunplay'],
     skill1: ['pistol/drawing-gun', 'pistol/gunplay'],
     skill2: ['pistol/charged-pistol', 'pistol/gunplay'],
     skill3: ['pistol/pistol-whip', 'pistol/gunplay'],

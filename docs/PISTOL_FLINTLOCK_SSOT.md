@@ -103,17 +103,30 @@ Config: `src/config/pistolAnimSsot.js` · `GRUDGE_PISTOL_ZIO_INCOMING`
 
 ---
 
+## Fire timing · barrel · soft-lock · reload
+
+| Concern | SSOT | Value |
+|---------|------|--------|
+| Fire timeScale | `pistolTimeScale('fire')` | gunplay → ~0.38 s wall |
+| Hit frame | `FLINTLOCK_FIRE.hitFrameSec` | **0.14 s** then bullet leaves muzzle |
+| Burst gap | `FLINTLOCK_FIRE.burstGapSec` | **0.09 s** |
+| Muzzle | `WeaponAttach` → `WeaponMuzzle` | farthest mesh tip from grip |
+| Soft-lock blend | `settings.aim.pistolSoftLockBlend` | **0.82** · max **34°** |
+| Crosshair | App pistol spread | tight on lock · wider free (inaccurate) |
+| Reload | `PistolReloadPose` | gun → chest · L-hand barrel · barrel tilt up ~22° |
+
+Reload is **procedural** (not a second mixer): layers on `drawing-gun` + weapon/hand IK after shot.
+
 ## Wiring path
 
 ```
 Equip t0-gun (?t0=t0-gun)
-  → flintlock mesh + pistol anim pack
+  → flintlock mesh + pistol anim pack + muzzle marker
   → hotbar: Practice Shot · Take Cover · Burst Fire|Suppressing Shot
-  → compileProductionWeaponSkill (bullet / ward / multiHit)
-  → keys 1–3 / F
-       1 Practice Shot → spawnBullet ×1
+  → keys 1–3 / F  (+ RMB focus for soft-lock assist)
+       1 Practice → gunplay @ fire scale → hit 0.14s → muzzle bullet → powder reload
        2 Take Cover → ward −dmg taken 2s
-       3 Burst → spawnBullet ×3 · Suppress → bullet + slow
+       3 Burst → ×3 muzzle · Suppress → bullet + slow → reload
   → hit living → blood · hit terrain → micro boom
 ```
 
@@ -130,7 +143,11 @@ Equip t0-gun (?t0=t0-gun)
 [x] Practice Shot / Take Cover / Burst Fire / Suppressing Shot runtime
 [x] multiHit 3 for Burst · ward DR for Take Cover · slow for Suppress
 [x] anim pack pistol (not longbow) in presentation
+[x] Fire hit-frame timing + muzzle barrel spawn
+[x] Soft-lock / crosshair assist for pistol pack
+[x] Procedural reload (gun in · off-hand · barrel tilt)
 [ ] Upload flintlock to R2 prod
 [ ] Bake zio loco → Open CDN
+[ ] Authored Bip001 reload clip (optional replace procedural)
 [ ] Crossbow pack choice (longbow vs pistol) product decision
 ```

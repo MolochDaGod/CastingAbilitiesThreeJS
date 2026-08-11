@@ -6,11 +6,15 @@
  * (mushroom / resonance heads) without becoming 100× giants.
  */
 
-import { Group, Box3, Vector3, MathUtils } from 'three';
+import { Group, Box3, Vector3, MathUtils, Object3D } from 'three';
 import { sharedGltfLoader } from '../loaders/gltfPipeline.js';
+import { FLINTLOCK_FIRE } from '../config/pistolAnimSsot.js';
 
 const _box = new Box3();
 const _size = new Vector3();
+const _handW = new Vector3();
+const _corner = new Vector3();
+const _best = new Vector3();
 
 /**
  * @param {import('three').Object3D|null} handBone
@@ -103,15 +107,122 @@ export async function attachWeaponModel(handBone, modelUrl, opts = {}) {
     }
 
     // Grip: shaft along +Y local (Toon R_hand)
+    // Pistol: barrel should read forward of grip after orient — same -90 pitch as melee
     root.rotation.x = MathUtils.degToRad(profile === 'bow' ? -75 : -90);
+    if (profile === 'pistol') {
+      // Slight yaw so flintlock sits across palm → barrel out from body
+      root.rotation.z = MathUtils.degToRad(8);
+    }
     root.position.set(0, 0, 0);
 
+    // Parent first so world AABB / hand origin are valid for muzzle tip
     handBone.add(holder);
+    // Barrel tip marker (muzzle) — farthest mesh extent from hand grip
+    placeMuzzleMarker(holder, profile);
+    handBone.updateWorldMatrix?.(true, true);
     return holder;
   } catch (err) {
     console.warn('[WeaponMeshAttach] load failed', modelUrl, err);
     return null;
   }
+}
+
+/**
+ * Place Object3D muzzle at barrel tip (world-farthest from hand = tip heuristic).
+ * @param {import('three').Object3D} holder WeaponAttach group
+ * @param {string} profile
+ */
+export function placeMuzzleMarker(holder, profile = 'melee') {
+  if (!holder) return null;
+  // Clear old
+  for (const c of [...holder.children]) {
+    if (c.name === 'WeaponMuzzle' || c.userData?.isMuzzle) holder.remove(c);
+  }
+
+  const hand = holder.parent;
+  if (hand) hand.getWorldPosition(_handW);
+  else holder.getWorldPosition(_handW);
+
+  // Prefer mesh AABB corners in world — tip ≈ max distance from grip
+  _box.setFromObject(holder);
+  const { min, max } = _box;
+  const xs = [min.x, max.x];
+  const ys = [min.y, max.y];
+  const zs = [min.z, max.z];
+  let bestD = -1;
+  for (const x of xs) {
+    for (const y of ys) {
+      for (const z of zs) {
+        _corner.set(x, y, z);
+        const d = _corner.distanceToSquared(_handW);
+        if (d > bestD) {
+          bestD = d;
+          _best.copy(_corner);
+        }
+      }
+    }
+  }
+
+  // Fallback: local +Y scaled (pre -90 mesh long axis often Y)
+  if (bestD < 1e-8) {
+    const fb =
+      profile === 'pistol'
+        ? FLINTLOCK_FIRE.muzzleFallbackM
+        : profile === 'bow'
+          ? 0.9
+          : 0.55;
+    _best.set(0, fb, 0);
+    holder.localToWorld(_best);
+  }
+
+  // Slightly past tip along grip→tip
+  _corner.copy(_best).sub(_handW);
+  if (_corner.lengthSq() > 1e-8) {
+    _corner.normalize().multiplyScalar(0.012);
+    _best.add(_corner);
+  }
+
+  const muzzle = new Object3D();
+  muzzle.name = 'WeaponMuzzle';
+  muzzle.userData.isMuzzle = true;
+  holder.worldToLocal(_best);
+  muzzle.position.copy(_best);
+  holder.add(muzzle);
+  holder.userData.muzzle = muzzle;
+  holder.userData.muzzleLocal = muzzle.position.clone();
+  return muzzle;
+}
+
+/**
+ * Find WeaponAttach under a hand bone.
+ * @param {import('three').Object3D|null} handBone
+ */
+export function getWeaponAttachFromHand(handBone) {
+  if (!handBone) return null;
+  for (const c of handBone.children) {
+    if (c.userData?.weaponAttach || c.name === 'WeaponAttach') return c;
+  }
+  let found = null;
+  handBone.traverse((o) => {
+    if (!found && (o.userData?.weaponAttach || o.name === 'WeaponAttach')) found = o;
+  });
+  return found;
+}
+
+/**
+ * World muzzle position.
+ * @param {import('three').Object3D|null} attach
+ * @param {import('three').Vector3} [out]
+ */
+export function getMuzzleWorldFromAttach(attach, out = new Vector3()) {
+  if (!attach) return out.set(0, 0, 0);
+  const m = attach.userData?.muzzle;
+  if (m) {
+    m.getWorldPosition(out);
+    return out;
+  }
+  attach.getWorldPosition(out);
+  return out;
 }
 
 /**

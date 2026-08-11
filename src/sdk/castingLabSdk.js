@@ -113,6 +113,21 @@ export {
   pistolBulletCount
 } from '../vfx/pistolBulletVfx.js';
 
+export {
+  FLINTLOCK_FIRE,
+  FLINTLOCK_RELOAD,
+  PISTOL_SOFT_LOCK,
+  pistolTimeScale,
+  pistolHitFrameSec
+} from '../config/pistolAnimSsot.js';
+
+export {
+  PistolReloadPose,
+  findWeaponAttach,
+  getMuzzleWorld,
+  getBarrelForward
+} from '../animation/pistolReloadPose.js';
+
 // ── Terrain ──────────────────────────────────────────────────────────
 export {
   TERRAIN_LAYER,

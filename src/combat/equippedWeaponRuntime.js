@@ -161,6 +161,11 @@ export async function equipWeapon(weapon, ctx) {
       profile,
       maxLengthM
     });
+    // Character keeps pointer for getWeaponTip / reload pose
+    if (character) {
+      character.weaponAttach = _attach;
+      character.syncWeaponAttach?.();
+    }
   }
 
   // 4) Warm production skill overrides (public/skills/production/<id>.json) before hotbar compile
@@ -190,11 +195,16 @@ export async function equipWeapon(weapon, ctx) {
   };
 }
 
+export function getWeaponAttach() {
+  return _attach;
+}
+
 export function unequipWeapon(ctx) {
   const character = ctx?.character;
   const bones = character?.equipment?.findBones?.() || character?.bones || {};
   clearWeaponAttach(bones.rHand || character?.bones?.rHand);
   _attach = null;
+  if (character) character.weaponAttach = null;
   _equipped = null;
   _slot3Id = null;
   ctx?.onToast?.('Unequipped');

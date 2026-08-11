@@ -2038,10 +2038,16 @@ export class App {
           this.combatFocus.acquireBest?.(feetPos, fwd0);
           softPt = this.combatFocus.getSoftLockPoint?.() || null;
         }
+        // Pistol / flintlock: stronger magnetic soft-lock assist (homemade inaccurate)
+        const pistolAim = this.character?.animPackId === 'pistol';
         this.mouseAim.updateFocusAim?.(feetPos, {
           softTarget: softPt,
-          softBlend: settings.aim?.softLockBlend,
-          maxSoftAngleDeg: settings.aim?.softLockMaxAngleDeg
+          softBlend: pistolAim
+            ? (settings.aim?.pistolSoftLockBlend ?? 0.82)
+            : settings.aim?.softLockBlend,
+          maxSoftAngleDeg: pistolAim
+            ? (settings.aim?.pistolSoftLockMaxAngleDeg ?? 34)
+            : settings.aim?.softLockMaxAngleDeg
         }) || this.mouseAim.updateFromCenter?.(feetPos);
         // Body / launch XZ from camera look (action TPS)
         this.rig?.getCameraForward?.(this.mouseAim.forward);
@@ -2084,7 +2090,9 @@ export class App {
         settings.aim?.crosshair !== false && !!this.combatFocus?.focusEnabled;
       this.hud.setCrosshairVisible?.(!!showXh);
       const soft = !!this.combatFocus?.selectedTarget;
+      const pistolAim = this.character?.animPackId === 'pistol';
       // Spread opens slightly when free-running / closes when soft-lock snug
+      // Flintlock: slightly wider free spread (loud not accurate), tight when soft-lock
       const moving =
         this.drc?._grounded &&
         (this.input.keys.has('KeyW') ||
@@ -2092,7 +2100,21 @@ export class App {
           this.input.keys.has('KeyS') ||
           this.input.keys.has('KeyD'));
       const sprinting = !!this.drc?._sprinting;
-      const spread = soft ? 0.1 : moving ? (sprinting ? 0.55 : 0.32) : 0.06;
+      const spread = soft
+        ? pistolAim
+          ? 0.06
+          : 0.1
+        : moving
+          ? sprinting
+            ? pistolAim
+              ? 0.48
+              : 0.55
+            : pistolAim
+              ? 0.28
+              : 0.32
+          : pistolAim
+            ? 0.18
+            : 0.06;
       // Range ring vs soft-lock target (animator rangeState)
       let rangeState = 'none';
       if (soft && this.combatFocus?.selectedTarget?.point && feetPos) {
@@ -2100,8 +2122,12 @@ export class App {
         const dx = tp.x - feetPos.x;
         const dz = tp.z - feetPos.z;
         const dist = Math.hypot(dx, dz);
-        const optMin = settings.aim?.optimalRangeMin ?? 2.5;
-        const optMax = settings.aim?.optimalRangeMax ?? 12;
+        const optMin = pistolAim
+          ? (settings.aim?.pistolOptimalRangeMin ?? 3)
+          : settings.aim?.optimalRangeMin ?? 2.5;
+        const optMax = pistolAim
+          ? (settings.aim?.pistolOptimalRangeMax ?? 18)
+          : settings.aim?.optimalRangeMax ?? 12;
         if (dist < optMin) rangeState = 'close';
         else if (dist > optMax) rangeState = 'far';
         else rangeState = 'optimal';

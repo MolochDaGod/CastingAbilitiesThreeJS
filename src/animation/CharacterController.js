@@ -20,7 +20,9 @@ import {
 } from '../config/assets.js';
 import { animPackForLoadout, activeWeaponSlot, packCombatBlurb } from '../config/weaponAnimPack.js';
 import { describeAnimLibrary, roleBlurb } from '../config/animLibrary.js';
-import { pistolTimeScale } from '../config/pistolAnimSsot.js';
+import { pistolTimeScale, FLINTLOCK_FIRE } from '../config/pistolAnimSsot.js';
+import { PistolReloadPose, findWeaponAttach, getMuzzleWorld, getBarrelForward } from './pistolReloadPose.js';
+import { getWeaponAttachFromHand } from '../character/WeaponMeshAttach.js';
 import {
   atlasUrlForRace,
   kitUrlForRace,
@@ -443,13 +445,19 @@ export class CharacterController {
   playLibraryClip(role) {
     if (!role || !this.actions.has(role)) return false;
     const once =
-      /attack|block|parry|jump|cast|dodge|roll|slide|gunplay|spin|draw|skill\d/i.test(role);
+      /attack|block|parry|jump|cast|dodge|roll|slide|gunplay|spin|draw|reload|skill\d/i.test(
+        role
+      );
     this.play(role, once ? 0.12 : 0.25);
     if (once) {
       const act = this.actions.get(role);
-      // T0 pistol: speed gunplay/spin toward TPS fire snap (~0.21s feel)
-      if (this.animPackId === 'pistol' && act && /attack|gunplay|spin/i.test(role)) {
-        act.timeScale = pistolTimeScale(/draw/i.test(role) ? 'draw' : 'fire');
+      // T0 pistol: fire / draw / reload timing from pistolAnimSsot
+      if (this.animPackId === 'pistol' && act) {
+        if (/reload/i.test(role)) act.timeScale = pistolTimeScale('reload');
+        else if (/draw|cast|block/i.test(role)) act.timeScale = pistolTimeScale('draw');
+        else if (/attack|gunplay|spin/i.test(role)) act.timeScale = pistolTimeScale('fire');
+        else if (/charged|skill2/i.test(role)) act.timeScale = pistolTimeScale('charged');
+        else if (/whip|skill3/i.test(role)) act.timeScale = pistolTimeScale('whip');
       } else if (act && act.timeScale !== 1) {
         act.timeScale = 1;
       }
@@ -458,15 +466,34 @@ export class CharacterController {
       this._gaitLocked = true;
       this.animState = /attack|gunplay|spin/i.test(role)
         ? 'attack'
-        : /roll/i.test(role)
-          ? 'roll'
-          : /slide/i.test(role)
-            ? 'slide'
-            : /dodge/i.test(role)
-              ? 'dodge'
-              : this.animState;
+        : /reload/i.test(role)
+          ? 'reload'
+          : /roll/i.test(role)
+            ? 'roll'
+            : /slide/i.test(role)
+              ? 'slide'
+              : /dodge/i.test(role)
+                ? 'dodge'
+                : this.animState;
     }
     return true;
+  }
+
+  /**
+   * Procedural flintlock powder reload: gun to body middle · L-hand to barrel · tilt up.
+   * @param {{ power?: boolean, durationSec?: number }} [opts]
+   */
+  playPistolReload(opts = {}) {
+    if (!this._pistolReload) this._pistolReload = new PistolReloadPose();
+    return this._pistolReload.start(this, opts);
+  }
+
+  /** Refresh weaponAttach pointer from R_hand (after equip). */
+  syncWeaponAttach() {
+    const hand = this.bones?.rHand;
+    this.weaponAttach =
+      getWeaponAttachFromHand(hand) || findWeaponAttach(this) || this.weaponAttach || null;
+    return this.weaponAttach;
   }
 
   /**
@@ -1274,20 +1301,49 @@ export class CharacterController {
   }
 
   /**
-   * Approx weapon tip: R_hand + offset along facing (grip→tip proxy).
-   * Used for melee residual / Getsuga spawn (Open meleeStrikeFx pattern).
+   * Weapon tip / barrel muzzle world position.
+   * Pistol: WeaponAttach muzzle marker (barrel tip). Melee: facing offset from grip.
    * @param {import('three').Vector3} [out]
-   * @param {number} [tipOffsetM] metres along blade from grip
+   * @param {number} [tipOffsetM] metres along blade from grip (melee fallback)
    */
   getWeaponTip(out, tipOffsetM = 0.55) {
     const target = out || _castOrigin;
+    const attach =
+      this.weaponAttach || getWeaponAttachFromHand(this.bones?.rHand) || findWeaponAttach(this);
+    if (attach) this.weaponAttach = attach;
+
+    // Flintlock / any WeaponAttach with muzzle — true barrel tip
+    if (attach?.userData?.muzzle || attach?.userData?.profile === 'pistol') {
+      getMuzzleWorld(attach, target);
+      if (target.lengthSq() > 1e-8) return target;
+    }
+
     this.getCastOrigin(target);
-    const off = Number.isFinite(tipOffsetM) ? tipOffsetM : 0.55;
+    const off =
+      this.animPackId === 'pistol'
+        ? FLINTLOCK_FIRE.muzzleFallbackM
+        : Number.isFinite(tipOffsetM)
+          ? tipOffsetM
+          : 0.55;
     // Blade roughly forward + slight up from hand (SI)
     target.x += Math.sin(this.facing) * off;
     target.z += Math.cos(this.facing) * off;
-    target.y += off * 0.15;
+    target.y += off * 0.12;
     return target;
+  }
+
+  /**
+   * Barrel / blade forward unit (world). Pistol uses grip→muzzle.
+   * @param {import('three').Vector3} [out]
+   */
+  getWeaponForward(out = new Vector3()) {
+    const attach =
+      this.weaponAttach || getWeaponAttachFromHand(this.bones?.rHand) || findWeaponAttach(this);
+    if (attach?.userData?.muzzle || attach?.userData?.profile === 'pistol') {
+      return getBarrelForward(attach, out);
+    }
+    out.set(Math.sin(this.facing), 0.05, Math.cos(this.facing)).normalize();
+    return out;
   }
 
   /**
@@ -1475,6 +1531,14 @@ export class CharacterController {
 
     this.mixer.timeScale = settings.global.animationSpeed;
     this.mixer.update(dt);
+
+    // Flintlock procedural reload (post-mixer bone / weapon overlay)
+    if (this._pistolReload?.active) {
+      this._pistolReload.update(dt);
+    }
+
+    // Soft hand aim toward soft-lock / cast target (optional HandIK)
+    if (this.ik?.aimWeight > 1e-3) this.ik.update?.();
 
     // Back-slot windsurf sail cloth (stow visible) — vertex wind only
     this.backSlot?.update?.(dt, { wind: this._gait >= 2 ? 1.35 : this._gait >= 1 ? 1.1 : 0.85 });

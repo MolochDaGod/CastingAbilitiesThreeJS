@@ -27,6 +27,7 @@ import { planElementalLinearCast } from './elementalLinearCast.js';
 import { isStaffNormalAttack, staffProjectileMeshUrl, STAFF_CHARGE } from '../vfx/staffOrbVfx.js';
 import { inferElementAttackKind } from '../vfx/elementAttackVfx.js';
 import { isPistolBulletSkill, PISTOL_BULLET } from '../vfx/pistolBulletVfx.js';
+import { pistolHitFrameSec } from '../config/pistolAnimSsot.js';
 
 /**
  * @typedef {object} ProductionAnim
@@ -416,7 +417,13 @@ export function compileProductionWeaponSkill(catalogSkill, ctx = {}) {
         catalogSkill.prefab?.animationClip ||
         staffB?.castClip ||
         null,
-      hitFrameDelay: ov.hitFrameDelay ?? (style === 'melee' ? 0.18 : castDuration * 0.85),
+      hitFrameDelay:
+        ov.hitFrameDelay ??
+        (useBullet
+          ? pistolHitFrameSec(catalogSkill)
+          : style === 'melee'
+            ? 0.18
+            : castDuration * 0.85),
       comboStages: ov.comboStages || null
     },
     vfx: {

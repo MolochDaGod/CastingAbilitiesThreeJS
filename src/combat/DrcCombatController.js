@@ -38,6 +38,12 @@ import {
   PISTOL_BULLET
 } from '../vfx/pistolBulletVfx.js';
 import {
+  FLINTLOCK_FIRE,
+  FLINTLOCK_RELOAD,
+  PISTOL_SOFT_LOCK,
+  pistolHitFrameSec
+} from '../config/pistolAnimSsot.js';
+import {
   planElementalLinearCast,
   fireLinearFromPlan
 } from './elementalLinearCast.js';
@@ -356,10 +362,30 @@ export class DrcCombatController {
     // Prefer snow-brawl launch origin from pose (chest + hand) when provided
     if (pose?.origin) _origin.copy(pose.origin);
     else this.character.getCastOrigin(_origin);
+    // Barrel muzzle for pistol; melee tip otherwise
     if (typeof this.character.getWeaponTip === 'function') {
-      this.character.getWeaponTip(_tip, settings.residual?.tipOffset ?? 0.55);
+      const tipOff =
+        this.character.animPackId === 'pistol'
+          ? FLINTLOCK_FIRE.muzzleFallbackM
+          : settings.residual?.tipOffset ?? 0.55;
+      this.character.getWeaponTip(_tip, tipOff);
     } else {
       _tip.copy(_origin);
+    }
+
+    // Soft-lock assist: auto-acquire frontal hostile for gun shots if none selected
+    if (
+      isPistolBulletSkill(skill) &&
+      PISTOL_SOFT_LOCK.acquireOnFire &&
+      this.combatFocus &&
+      !this.combatFocus.selectedTarget
+    ) {
+      const feet = this.character.position;
+      const fwd0 =
+        pose.forward?.clone?.() ||
+        this.aim?.forward?.clone?.() ||
+        new Vector3(Math.sin(this.character.facing), 0, Math.cos(this.character.facing));
+      this.combatFocus.acquireBest?.(feet, fwd0);
     }
 
     // 3D hit (focus) > soft-lock target > ground marker
@@ -372,7 +398,11 @@ export class DrcCombatController {
     const targetPt =
       this.combatFocus?.selectedTarget?.point?.clone?.() || aimPt.clone();
 
-    const fwd3 =
+    // Prefer soft-lock / aim launch dir; barrel for presentation only at spawn
+    let fwd3 =
+      (this.combatFocus?.selectedTarget?.point
+        ? targetPt.clone().sub(_tip)
+        : null) ||
       pose.forward?.clone?.() ||
       (this.aim?.forward3d?.lengthSq?.() > 1e-6
         ? this.aim.forward3d.clone()
@@ -380,6 +410,9 @@ export class DrcCombatController {
       this.aim?.forward?.clone?.() ||
       new Vector3(0, 0, 1);
     if (fwd3.lengthSq() > 1e-8) fwd3.normalize();
+    else if (typeof this.character.getWeaponForward === 'function') {
+      this.character.getWeaponForward(fwd3);
+    }
 
     const resolved = resolveDeliveryPose(pattern, {
       casterPos: this.character.position.clone(),
@@ -517,18 +550,33 @@ export class DrcCombatController {
     // Traveling mesh projectile — staff normals use per-element orbs (gd_orbs split)
     if (this.projectiles && phys.meshKey !== 'residual') {
       const el = enriched.element || enriched.abilityElement || 'arcane';
-      // Flintlock / handgun — Styloo bullet, blood vs terrain
-      // Burst Fire: three-round multi-hit (catalog Multi-hit / three-round)
+      // Flintlock / handgun — muzzle origin · hit-frame delay · burst · reload
       if (isPistolBulletSkill(enriched) && this.projectiles.spawnBullet) {
         const count = pistolBulletCount(enriched);
         const speed = enriched.projectileSpeed || PISTOL_BULLET.speed;
         const meshUrl = enriched.projectileMeshUrl || PISTOL_BULLET.meshUrl;
-        const origin = resolved.origin.clone();
-        const forward = resolved.forward.clone();
+        const hitSec = pistolHitFrameSec(enriched);
+        const gapSec = FLINTLOCK_FIRE.burstGapSec;
+        const spreadRad = FLINTLOCK_FIRE.burstSpreadRad;
         const fireOne = (spreadYaw = 0) => {
-          const f = forward.clone();
+          // Live barrel tip at fire frame (hand moved with gunplay)
+          if (typeof this.character.getWeaponTip === 'function') {
+            this.character.getWeaponTip(_tip, FLINTLOCK_FIRE.muzzleFallbackM);
+          }
+          const origin = _tip.clone();
+          let f;
+          if (this.combatFocus?.selectedTarget?.point) {
+            f = this.combatFocus.selectedTarget.point.clone().sub(origin);
+          } else if (this.aim?.hitPoint) {
+            f = this.aim.hitPoint.clone().sub(origin);
+          } else if (typeof this.character.getWeaponForward === 'function') {
+            f = this.character.getWeaponForward(new Vector3());
+          } else {
+            f = resolved.forward.clone();
+          }
+          if (!f || f.lengthSq() < 1e-8) f = resolved.forward.clone();
+          f.normalize();
           if (spreadYaw !== 0) {
-            // Small horizontal fan for multi-round (lab readable, not sniper)
             const c = Math.cos(spreadYaw);
             const s = Math.sin(spreadYaw);
             const x = f.x * c - f.z * s;
@@ -537,7 +585,7 @@ export class DrcCombatController {
             f.z = z;
             f.normalize();
           }
-          const tgt = origin.clone().addScaledVector(f, 40);
+          const tgt = origin.clone().addScaledVector(f, 48);
           void this.projectiles.spawnBullet({
             origin: origin.clone(),
             target: tgt,
@@ -547,42 +595,73 @@ export class DrcCombatController {
             meshUrl
           });
         };
-        if (count <= 1) {
-          fireOne(0);
-          enriched._deliveryLabel = 'Bullet · flintlock';
-        } else {
-          // Stagger rounds ~80 ms apart (homemade flintlock loud burst feel)
-          const gapMs = 80;
-          for (let i = 0; i < count; i++) {
-            const yaw = (i - (count - 1) / 2) * 0.028; // ~1.6° per step
-            if (i === 0) fireOne(yaw);
-            else {
-              setTimeout(() => {
-                try {
-                  fireOne(yaw);
-                } catch {
-                  /* dispose mid-cast */
-                }
-              }, i * gapMs);
+
+        const scheduleFire = () => {
+          if (count <= 1) {
+            fireOne(0);
+            enriched._deliveryLabel = 'Bullet · muzzle';
+          } else {
+            for (let i = 0; i < count; i++) {
+              const yaw = (i - (count - 1) / 2) * spreadRad;
+              const delayMs = Math.round(i * gapSec * 1000);
+              if (delayMs <= 0) fireOne(yaw);
+              else {
+                setTimeout(() => {
+                  try {
+                    fireOne(yaw);
+                  } catch {
+                    /* dispose mid-cast */
+                  }
+                }, delayMs);
+              }
             }
+            enriched._deliveryLabel = `Bullet · burst ×${count}`;
           }
-          enriched._deliveryLabel = `Bullet · burst ×${count}`;
-        }
-        // Apply on-hit statuses to soft-lock (slow from Suppressing Shot)
-        if (this.statuses && enriched.statuses?.length && this.combatFocus?.selectedTarget) {
-          this.statuses.applyHit({
-            target: {
-              id: this.combatFocus.selectedTarget.id,
-              point: this.combatFocus.selectedTarget.point,
-              mesh: this.combatFocus.selectedTarget.mesh,
-              kind: this.combatFocus.selectedTarget.kind || 'hostile'
-            },
-            skill: enriched,
-            hit: { damage: enriched.damage, force: phys.force },
-            character: this.character,
-            physics: this.physics,
-            drc: this
-          });
+          // Soft-lock status package (Suppressing Shot slow)
+          if (this.statuses && enriched.statuses?.length && this.combatFocus?.selectedTarget) {
+            this.statuses.applyHit({
+              target: {
+                id: this.combatFocus.selectedTarget.id,
+                point: this.combatFocus.selectedTarget.point,
+                mesh: this.combatFocus.selectedTarget.mesh,
+                kind: this.combatFocus.selectedTarget.kind || 'hostile'
+              },
+              skill: enriched,
+              hit: { damage: enriched.damage, force: phys.force },
+              character: this.character,
+              physics: this.physics,
+              drc: this
+            });
+          }
+          // Procedural powder reload after shot(s)
+          if (FLINTLOCK_RELOAD.afterShot !== false && this.character?.playPistolReload) {
+            const lastRound = (count - 1) * gapSec;
+            const reloadAt = Math.round(
+              (lastRound + FLINTLOCK_FIRE.reloadAfterShotSec) * 1000
+            );
+            const power = /charged|power|suppress/i.test(
+              `${enriched.id} ${enriched.label}`
+            );
+            setTimeout(() => {
+              try {
+                this.character.playPistolReload({ power });
+              } catch {
+                /* */
+              }
+            }, reloadAt);
+          }
+        };
+
+        const hitMs = Math.round(Math.max(0, hitSec) * 1000);
+        if (hitMs <= 0) scheduleFire();
+        else {
+          setTimeout(() => {
+            try {
+              scheduleFire();
+            } catch {
+              /* */
+            }
+          }, hitMs);
         }
         return enriched;
       }
