@@ -1,0 +1,93 @@
+{
+  "$schema": "casting-t0-weapon-play-stack",
+  "id": "t0-gun",
+  "product": "weapon",
+  "note": "Checklist only. Catalog rows + skill ids stay ObjectStore / t0-weapons SSOT. Do not invent skills.",
+  "docs": [
+    "docs/T0_WEAPON_PLAY_STACK_SSOT.md",
+    "docs/T0_WEAPONS_SSOT.md",
+    "docs/WEAPON_SKILL_PRODUCTION_SSOT.md"
+  ],
+  "catalog": {
+    "t0Url": "https://info.grudge-studio.com/api/v1/t0-weapons.json",
+    "skillsBrowse": "https://info.grudge-studio.com/WEAPON_SKILLS.html",
+    "verified": false
+  },
+  "layers": {
+    "identity": {
+      "done": false,
+      "weaponType": null,
+      "tier": 0
+    },
+    "mesh": {
+      "done": false,
+      "modelUrl": null,
+      "meshSlot": null
+    },
+    "icon": {
+      "done": false,
+      "iconUrl": null
+    },
+    "animPack": {
+      "done": false,
+      "pack": "pistol"
+    },
+    "locomotion": {
+      "done": false,
+      "roles": [
+        "idle",
+        "walk",
+        "run",
+        "jump",
+        "fall",
+        "roll",
+        "dodge"
+      ]
+    },
+    "traversal": {
+      "done": false,
+      "note": "Usually N/A for T0; back/ride separate (windsurf / wings)"
+    },
+    "skills": {
+      "done": false,
+      "slot1": null,
+      "slot2": null,
+      "slot3Options": [],
+      "scaffoldCmd": "node scripts/scaffold-weapon-skill.mjs --id <skillId> --weapon TYPE"
+    },
+    "productionOverrides": {
+      "done": false,
+      "paths": []
+    },
+    "projectiles": {
+      "done": false,
+      "meshUrls": []
+    },
+    "dualLoadout": {
+      "done": false,
+      "note": "Weapon 1/2 paperdoll · combat Tap Q swap"
+    },
+    "prefabExport": {
+      "done": false
+    },
+    "smoke": {
+      "done": false,
+      "url": "https://casting-abilities-threejs.vercel.app/?t0=t0-gun"
+    },
+    "deploy": {
+      "done": false,
+      "vercel": false,
+      "skillDo": false
+    }
+  },
+  "checklist": {
+    "catalogIdVerified": false,
+    "equipLive": false,
+    "animPackBound": false,
+    "skillsFire": false,
+    "projectilesSI": false,
+    "dualQSwap": false,
+    "readinessGreen": false,
+    "smokeCastingLab": false
+  }
+}

@@ -1,7 +1,7 @@
 /**
  * Scaffold a T0 weapon play-stack checklist manifest.
  *
- * Does NOT invent catalog weapons — writes skills/play-stack/<id>.json
+ * Does NOT invent catalog weapons — writes docs/play-stack/<id>.play-stack.json
  * so agents/authors track mesh · pack · loco · skills · VFX · deploy.
  *
  * Usage:
@@ -16,7 +16,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
-const OUT_DIR = path.join(ROOT, 'skills/play-stack');
+const OUT_DIR = path.join(ROOT, 'docs/play-stack');
 
 const args = process.argv.slice(2);
 function flag(name, def = null) {

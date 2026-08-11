@@ -92,6 +92,7 @@ node scripts/scaffold-weapon-skill.mjs --id t0_sword_practice_slash --weapon SWO
 
 # Full play-stack checklist manifest for one T0 weapon
 node scripts/scaffold-t0-weapon-play.mjs --id t0-sword
+# → docs/play-stack/t0-sword.play-stack.json
 node scripts/scaffold-t0-weapon-play.mjs --list
 ```
 
