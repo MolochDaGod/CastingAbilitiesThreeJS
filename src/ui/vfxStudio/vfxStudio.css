@@ -1,0 +1,460 @@
+/**
+ * VFX Studio — singular tabbed authoring shell (Casting lab).
+ * Floats over viewport; does not invent a second combat UI.
+ */
+
+.vfx-studio {
+  --vs-bg: rgba(10, 14, 20, 0.94);
+  --vs-panel: rgba(16, 22, 32, 0.98);
+  --vs-border: rgba(255, 255, 255, 0.1);
+  --vs-accent: #7fd6ff;
+  --vs-accent-dim: rgba(127, 214, 255, 0.15);
+  --vs-text: rgba(238, 245, 255, 0.94);
+  --vs-dim: rgba(180, 200, 220, 0.55);
+  --vs-radius: 12px;
+  --vs-width: min(420px, 96vw);
+  --vs-max-h: min(88vh, 920px);
+  --vs-font: 'Inter', 'Segoe UI', system-ui, sans-serif;
+
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 80;
+  width: var(--vs-width);
+  max-height: var(--vs-max-h);
+  display: flex;
+  flex-direction: column;
+  font-family: var(--vs-font);
+  color: var(--vs-text);
+  background: var(--vs-bg);
+  border: 1px solid var(--vs-border);
+  border-radius: var(--vs-radius);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(12px);
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+.vfx-studio.is-hidden {
+  display: none;
+}
+
+.vfx-studio__head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--vs-border);
+  background: linear-gradient(180deg, rgba(40, 55, 75, 0.5), transparent);
+  cursor: grab;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.vfx-studio__head:active {
+  cursor: grabbing;
+}
+
+.vfx-studio__title {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  flex: 1;
+}
+
+.vfx-studio__title span {
+  color: var(--vs-accent);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  opacity: 0.85;
+  margin-left: 0.35rem;
+  font-size: 0.72rem;
+}
+
+.vfx-studio__head-btn {
+  appearance: none;
+  border: 1px solid var(--vs-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--vs-text);
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.vfx-studio__head-btn:hover {
+  border-color: var(--vs-accent);
+  color: var(--vs-accent);
+}
+
+/* Tab strip */
+.vfx-studio__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 0.4rem 0.45rem;
+  border-bottom: 1px solid var(--vs-border);
+  background: rgba(0, 0, 0, 0.25);
+  flex-shrink: 0;
+}
+
+.vfx-studio__tab {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--vs-dim);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0.35rem 0.45rem;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.vfx-studio__tab:hover {
+  color: var(--vs-text);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.vfx-studio__tab.is-active {
+  color: var(--vs-accent);
+  background: var(--vs-accent-dim);
+  border-color: rgba(127, 214, 255, 0.25);
+}
+
+.vfx-studio__tab-icon {
+  opacity: 0.85;
+  font-size: 0.75rem;
+}
+
+/* Body */
+.vfx-studio__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.65rem 0.75rem 0.9rem;
+}
+
+.vfx-studio__panel {
+  display: none;
+  animation: vsFade 0.12s ease;
+}
+
+.vfx-studio__panel.is-active {
+  display: block;
+}
+
+@keyframes vsFade {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.vfx-studio__hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--vs-dim);
+}
+
+.vfx-studio__section {
+  margin-bottom: 0.85rem;
+}
+
+.vfx-studio__section-title {
+  margin: 0 0 0.4rem;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--vs-accent);
+  opacity: 0.9;
+}
+
+/* Cards / samples grid */
+.vfx-studio__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.45rem;
+}
+
+.vfx-studio__grid--3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.vfx-studio__card {
+  appearance: none;
+  text-align: left;
+  border: 1px solid var(--vs-border);
+  background: var(--vs-panel);
+  border-radius: 8px;
+  padding: 0.45rem;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.12s, transform 0.12s;
+}
+
+.vfx-studio__card:hover {
+  border-color: rgba(127, 214, 255, 0.4);
+  transform: translateY(-1px);
+}
+
+.vfx-studio__card.is-selected {
+  border-color: var(--vs-accent);
+  box-shadow: 0 0 0 1px rgba(127, 214, 255, 0.2);
+}
+
+.vfx-studio__card-swatch {
+  height: 42px;
+  border-radius: 5px;
+  margin-bottom: 0.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background-size: cover;
+  background-position: center;
+}
+
+.vfx-studio__card-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.vfx-studio__card-meta {
+  display: block;
+  font-size: 0.62rem;
+  color: var(--vs-dim);
+  margin-top: 0.1rem;
+  line-height: 1.3;
+}
+
+/* Delivery chips */
+.vfx-studio__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.vfx-studio__chip {
+  appearance: none;
+  border: 1px solid var(--vs-border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--vs-text);
+  border-radius: 999px;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.vfx-studio__chip.is-selected,
+.vfx-studio__chip:hover {
+  border-color: var(--vs-accent);
+  color: var(--vs-accent);
+  background: var(--vs-accent-dim);
+}
+
+/* Pipeline steps */
+.vfx-studio__steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: vs-step;
+}
+
+.vfx-studio__steps li {
+  counter-increment: vs-step;
+  position: relative;
+  padding: 0.45rem 0.5rem 0.45rem 2rem;
+  margin-bottom: 0.35rem;
+  border: 1px solid var(--vs-border);
+  border-radius: 8px;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.vfx-studio__steps li::before {
+  content: counter(vs-step);
+  position: absolute;
+  left: 0.45rem;
+  top: 0.45rem;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  background: var(--vs-accent-dim);
+  color: var(--vs-accent);
+  font-size: 0.62rem;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+
+.vfx-studio__steps b {
+  color: var(--vs-accent);
+  font-weight: 650;
+}
+
+/* Skill form */
+.vfx-studio__form {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.vfx-studio__field {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr;
+  gap: 0.35rem;
+  align-items: center;
+  font-size: 0.7rem;
+}
+
+.vfx-studio__field label {
+  color: var(--vs-dim);
+}
+
+.vfx-studio__field input,
+.vfx-studio__field select {
+  appearance: none;
+  width: 100%;
+  border: 1px solid var(--vs-border);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--vs-text);
+  border-radius: 6px;
+  padding: 0.3rem 0.4rem;
+  font-size: 0.72rem;
+}
+
+.vfx-studio__field input:focus,
+.vfx-studio__field select:focus {
+  outline: none;
+  border-color: var(--vs-accent);
+}
+
+/* Actions */
+.vfx-studio__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.65rem;
+}
+
+.vfx-studio__btn {
+  appearance: none;
+  border: 1px solid var(--vs-border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--vs-text);
+  border-radius: 7px;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.vfx-studio__btn:hover {
+  border-color: var(--vs-accent);
+  color: var(--vs-accent);
+}
+
+.vfx-studio__btn--primary {
+  background: linear-gradient(180deg, rgba(80, 160, 220, 0.35), rgba(40, 90, 140, 0.45));
+  border-color: rgba(127, 214, 255, 0.35);
+  color: #e8f6ff;
+}
+
+/* Knobs host — lil-gui reparented here */
+.vfx-studio__knobs-host {
+  min-height: 200px;
+}
+
+.vfx-studio__knobs-host .lil-gui {
+  --background-color: transparent !important;
+  --widget-color: rgba(255, 255, 255, 0.08) !important;
+  --focus-color: #7fd6ff !important;
+  --number-color: #a8e0ff !important;
+  --string-color: #c8f0c0 !important;
+  position: relative !important;
+  top: auto !important;
+  right: auto !important;
+  max-height: none !important;
+  width: 100% !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+.vfx-studio__knobs-host .lil-gui.root > .title {
+  display: none; /* studio head is the title */
+}
+
+/* Catalog list */
+.vfx-studio__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-height: 280px;
+  overflow: auto;
+}
+
+.vfx-studio__list-item {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--vs-border);
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  font-size: 0.7rem;
+}
+
+.vfx-studio__list-item:hover,
+.vfx-studio__list-item.is-selected {
+  border-color: rgba(127, 214, 255, 0.4);
+}
+
+.vfx-studio__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.vfx-studio__footer {
+  flex-shrink: 0;
+  padding: 0.4rem 0.75rem;
+  border-top: 1px solid var(--vs-border);
+  font-size: 0.62rem;
+  color: var(--vs-dim);
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+/* When studio open, hide floating lil-gui default position if not reparented yet */
+body.vfx-studio-open .lil-gui.root:not(.vfx-studio-docked) {
+  /* still show if knobs tab not visited — Editor manages show */
+}
+
+/* Compact on short screens */
+@media (max-height: 700px) {
+  .vfx-studio {
+    --vs-max-h: 94vh;
+    top: 4px;
+    right: 4px;
+  }
+}

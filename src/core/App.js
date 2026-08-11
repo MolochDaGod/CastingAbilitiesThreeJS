@@ -45,6 +45,7 @@ import { PostProcessing } from '../postprocessing/PostProcessing.js';
 import { HUD, LoadingScreen } from '../ui/HUD.js';
 import { OverheadNameplates } from '../ui/OverheadNameplates.js';
 import { Editor } from '../ui/Editor.js';
+import { VfxStudio } from '../ui/vfxStudio/VfxStudio.js';
 import { InventoryPanel } from '../ui/InventoryPanel.js';
 import { AdminHub } from '../ui/AdminHub.js';
 import { ShowcasePanel } from '../ui/ShowcasePanel.js';
@@ -365,6 +366,32 @@ export class App {
       onClear: () => this.clearEffects(),
       onToast: (message) => this.hud.showToast(message)
     });
+    /** Singular tabbed VFX / skill authoring shell (hosts lil-gui knobs) */
+    this.vfxStudio = new VfxStudio({
+      editor: this.editor,
+      onClear: () => this.clearEffects(),
+      onToast: (message) => this.hud.showToast(message),
+      onPreviewEffect: (effectId) => {
+        try {
+          this.drc?.previewSandboxEffect?.(effectId);
+        } catch {
+          /* optional */
+        }
+      },
+      onPreviewDelivery: (pattern) => {
+        this.hud.showToast(`Delivery · ${pattern}`);
+      },
+      getActiveSkill: () => {
+        try {
+          const f = typeof skillForFKey === 'function' ? skillForFKey() : null;
+          return f || this.drc?.skills?.[0] || null;
+        } catch {
+          return null;
+        }
+      }
+    });
+    // Studio is the shell — start closed; V / toggleEditor opens it
+    this.vfxStudio.close();
     this.inventory = new InventoryPanel({
       character: this.character,
       onToast: (message) => this.hud.showToast(message),
@@ -789,7 +816,8 @@ export class App {
         this.spawnWorldLoot?.(3);
         break;
       case 'editor':
-        this.editor.toggle();
+        if (this.vfxStudio) this.vfxStudio.toggle();
+        else this.editor.toggle();
         break;
       case 'admin':
         this.adminHub?.openTab?.('prefabs');
@@ -1064,7 +1092,8 @@ export class App {
         }
         break;
       case 'toggleEditor':
-        this.editor.toggle();
+        if (this.vfxStudio) this.vfxStudio.toggle();
+        else this.editor.toggle();
         break;
       case 'toggleInventory':
         if (this.drc.inCombat) this.drc.setSession('equip');
@@ -2462,6 +2491,7 @@ export class App {
     this.contactShadows.dispose();
     this.post.dispose();
     this.environment.dispose();
+    this.vfxStudio?.dispose?.();
     this.editor.dispose();
     this.rig.dispose();
     this.renderer.dispose();

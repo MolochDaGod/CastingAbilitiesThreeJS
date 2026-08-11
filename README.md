@@ -51,6 +51,15 @@
 Default cast = `cast_ramp` · land = `impact_magic` a/b/c.  
 `cast_chant` (blood shaman) only for explicit blood/void skill ids.
 
+### VFX Studio (singular skill authoring shell)
+
+**Toggle:** **V** / HUD **VFX** · `src/ui/vfxStudio/VfxStudio.js`  
+**Doc:** `docs/SKILL_AUTHORING_STUDIO_SSOT.md` · map `src/config/skillAuthoringSSOT.js`
+
+Tabs: **Pipeline · Skill · Delivery · VFX · Linear · Samples · Knobs · Export**  
+uMMORPG-shaped (scriptable skill → delivery → effect modules → export).  
+Knobs tab hosts existing lil-gui (`settings.js` live). Samples set meshId + colors.
+
 ### Loaders (shared pipeline)
 
 | Decoder | Pin |
