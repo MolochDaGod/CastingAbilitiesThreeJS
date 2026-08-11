@@ -637,14 +637,30 @@ export class App {
     });
 
     this.input.on('element', (index) => {
-      // Combat: digits fire skills; also keep element aligned with staff slot
+      // Combat: digits align element; fire is hold-to-charge (skillHold:start/end)
       if (this.session.gates.combatSkills || this.drc.inCombat) {
         const el = ELEMENTS[index];
         if (el) this.selectElement(el);
-        this.drc.useSkill(index);
+        // Do not instant-fire here — skillHold:start begins charge / skillHold:end releases
         return;
       }
       this.selectElement(ELEMENTS[index]);
+    });
+    // Hold-to-charge weapon skills (Charged Shot UX · combat timer · rest)
+    this.input.on('skillHold:start', (slot) => {
+      if (!(this.session.gates.combatSkills || this.drc.inCombat)) return;
+      if (slot === 'f') {
+        // F still runs best-action first via combatAction; charge only if no pickup
+        return;
+      }
+      this.drc.beginWeaponCharge?.(slot);
+    });
+    this.input.on('skillHold:end', (slot) => {
+      if (!(this.session.gates.combatSkills || this.drc.inCombat)) return;
+      // Release Charged Shot (F or digit) — tap or full charge
+      if (this.drc.weaponCharge?.active) {
+        this.drc.releaseWeaponCharge?.();
+      }
     });
     this.input.on('action', (action, detail) => this._handleAction(action, detail));
     this.input.on('sandboxVfx', (effectId) => {
@@ -692,7 +708,8 @@ export class App {
 
     this.hud.onSelect = (element) => this.selectElement(element);
     this.hud.onSkillSlot = (slot) => {
-      if (this.drc.inCombat) this.drc.useSkill(slot);
+      // UI click = tap fire (no hold). Keyboard uses skillHold charge UX.
+      if (this.drc.inCombat) this.drc.useSkill(slot, { skipCharge: true });
     };
     this.hud.onMelee = () => {
       // F slot = weapon skill (not residual)

@@ -103,6 +103,22 @@ Config: `src/config/pistolAnimSsot.js` · `GRUDGE_PISTOL_ZIO_INCOMING`
 
 ---
 
+## Charged Shot UX (hold · ticks · rest · blend)
+
+| Step | Behavior |
+|------|----------|
+| **Hold 1 / F** | Begin charge · cast bar ticks (20 Hz) · **charged-pistol** wind-up blend |
+| **Levels** | Tap → Wind → Charged → Power → Full (damage mul ~1–2.05) |
+| **Release** | Fire with intensity costs + damage mul · muzzle bullet |
+| **Best rest** | ~0.42 s + intensity · blocks next weapon skill |
+| **GCD** | 0.12 s global combat timer between attacks |
+| **Cancel** | short rest · restore gait blend |
+| **UI click** | tap fire (no hold) |
+
+Code: `weaponChargeSystem.js` · `beginWeaponCharge` / `releaseWeaponCharge` · `CharacterController.beginWeaponChargeAnim`
+
+---
+
 ## Chamber (production) — empty → **1 = Reload**
 
 | State | Key 1 | Fire (1 loaded / 3) |

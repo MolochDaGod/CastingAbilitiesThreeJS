@@ -488,6 +488,107 @@ export class CharacterController {
     return this._pistolReload.start(this, opts);
   }
 
+  /**
+   * Charged Shot wind-up — blend into charged-pistol / skill2, slow timeScale.
+   * @param {string} [role]
+   */
+  beginWeaponChargeAnim(role = 'skill2') {
+    const name =
+      (this.actions.has(role) && role) ||
+      (this.actions.has('skill2') && 'skill2') ||
+      (this.actions.has('cast') && 'cast') ||
+      (this.actions.has('attack') && 'attack');
+    if (!name) return false;
+    this._weaponChargeAnim = name;
+    this._gaitLocked = true;
+    this.animState = 'charge';
+    // Longer blend into charge pose (production weapon UX)
+    const blend = settings.character?.chargeBlend ?? 0.22;
+    this.play(name, blend);
+    const act = this.actions.get(name);
+    if (act) {
+      try {
+        act.setLoop(LoopOnce, 1);
+        act.clampWhenFinished = true;
+        // Slow wind — charged-pistol ~2.5s feels like draw power
+        act.timeScale =
+          this.animPackId === 'pistol'
+            ? Math.min(0.75, pistolTimeScale('charged') * 0.55)
+            : 0.65;
+        act.time = 0;
+      } catch {
+        /* */
+      }
+    }
+    this._oneShotTimer = 99; // hold until endWeaponChargeAnim
+    return true;
+  }
+
+  /**
+   * Advance charge pose (scrub into clip by progress).
+   * @param {number} progress01
+   * @param {number} holdSec
+   */
+  tickWeaponChargeAnim(progress01, holdSec = 0) {
+    const name = this._weaponChargeAnim;
+    if (!name) return;
+    const act = this.actions.get(name);
+    if (!act) return;
+    const clip = act.getClip?.();
+    const dur = clip?.duration ?? 1;
+    // Scrub first ~55% of charged clip while holding (windup rest pose)
+    const t = Math.min(0.55, Math.max(0, progress01) * 0.55) * dur;
+    try {
+      act.time = t;
+      act.paused = progress01 > 0.92; // hold full pose near max charge
+      if (!act.paused && !act.isRunning()) act.play();
+    } catch {
+      /* */
+    }
+    this._oneShotTimer = 99;
+  }
+
+  /**
+   * End charge windup — fire snap or cancel restore gait blend.
+   * @param {boolean} [fireCharged]
+   */
+  endWeaponChargeAnim(fireCharged = false) {
+    const name = this._weaponChargeAnim;
+    this._weaponChargeAnim = null;
+    const act = name ? this.actions.get(name) : null;
+    if (act) {
+      try {
+        act.paused = false;
+        if (fireCharged) {
+          // Snap remaining clip at fire scale
+          act.timeScale =
+            this.animPackId === 'pistol' ? pistolTimeScale('charged') : 1.1;
+          act.time = Math.max(act.time, (act.getClip?.()?.duration ?? 1) * 0.45);
+          act.setLoop(LoopOnce, 1);
+          act.clampWhenFinished = true;
+          if (!act.isRunning()) act.play();
+          this._oneShotTimer = Math.max(
+            0.35,
+            ((act.getClip?.()?.duration ?? 0.6) - act.time) / Math.max(0.1, act.timeScale)
+          );
+          this.animState = 'attack';
+          return true;
+        }
+        // Cancel — fade out charge, restore gait
+        act.fadeOut(settings.character?.gaitBlend ?? 0.28);
+      } catch {
+        /* */
+      }
+    }
+    this._oneShotTimer = 0.08;
+    this._gaitLocked = false;
+    this.animState = 'idle';
+    const g = this._gait;
+    this._gait = -1;
+    this.setGait?.(g, g >= 2);
+    return true;
+  }
+
   /** Refresh weaponAttach pointer from R_hand (after equip). */
   syncWeaponAttach() {
     const hand = this.bones?.rHand;
@@ -919,9 +1020,14 @@ export class CharacterController {
     const isGait =
       /^(idle|walk|run|walkL|walkR|runL|runR)$/i.test(name) ||
       /:idle$|:walk$|:run$/i.test(name);
-    const isCombat = /attack|finisher|cast|dodge|roll|slide|jump|parry|block/i.test(name);
+    const isCombat =
+      /attack|finisher|cast|dodge|roll|slide|jump|parry|block|skill|gunplay|charg|reload|whip/i.test(
+        name
+      );
     let fade = fadeDuration;
     if (isGait) fade = Math.max(fade, settings.character?.gaitBlend ?? 0.28);
+    else if (/charg|skill2/i.test(name))
+      fade = Math.max(fade, settings.character?.chargeBlend ?? 0.2);
     else if (isCombat) fade = Math.min(fade, settings.character?.combatBlend ?? 0.12);
     if (opts.exclusive) fade = Math.min(fade, 0.08);
 

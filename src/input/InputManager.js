@@ -156,36 +156,45 @@ export class InputManager extends EventEmitter {
     }
 
     // Digit skills / element select (1–6 staffs: fire storm ice nature holy arcane)
+    // Combat: emit skillHold:start for hold-to-charge (Charged Shot); keyup releases
     if (event.code === 'Digit1') {
       this.emit('element', 0);
+      this.emit('skillHold:start', 0);
       return;
     }
     if (event.code === 'Digit2') {
       this.emit('element', 1);
+      this.emit('skillHold:start', 1);
       return;
     }
     if (event.code === 'Digit3') {
       this.emit('element', 2);
+      this.emit('skillHold:start', 2);
       return;
     }
     if (event.code === 'Digit4') {
       this.emit('element', 3);
+      this.emit('skillHold:start', 3);
       return;
     }
     if (event.code === 'Digit5') {
       this.emit('element', 4);
+      this.emit('skillHold:start', 4);
       return;
     }
     if (event.code === 'Digit6') {
       this.emit('element', 5);
+      this.emit('skillHold:start', 5);
       return;
     }
 
     // F = best next action always (pickup / harvest / standard attack)
     // Alt+F is sandbox frost (handled above). Residual is attack fallback, not a free skill key.
+    // Combat F also starts skillHold for Charged Shot when weapon skill is chargeable.
     if (event.code === 'KeyF') {
       event.preventDefault();
       this.emit('combatAction', 'interact');
+      this.emit('skillHold:start', 'f');
       return;
     }
 
@@ -309,6 +318,19 @@ export class InputManager extends EventEmitter {
     }
     if (event.code === 'KeyR') {
       this.emit('action', 'rHoldEnd');
+    }
+    // Digit / F release — Charged Shot release or tap fire
+    const digitMap = {
+      Digit1: 0,
+      Digit2: 1,
+      Digit3: 2,
+      Digit4: 3,
+      Digit5: 4,
+      Digit6: 5,
+      KeyF: 'f'
+    };
+    if (digitMap[event.code] !== undefined) {
+      this.emit('skillHold:end', digitMap[event.code]);
     }
   };
 

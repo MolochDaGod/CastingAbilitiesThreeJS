@@ -18,6 +18,7 @@ This document is the **agent learning map** for character, weapons, skills, anim
 | **Gait / blend** | `CharacterController.play` | gaitBlend · combatBlend |
 | **Combat** | `DrcCombatController` | land loco, skills, path cast, resources |
 | **Resources** | `castResources.js` | **mana + stamina**, hold intensity |
+| **Weapon charge** | `weaponChargeSystem.js` | hold → ticks → release · rest · GCD · charged-pistol blend |
 | **Spells** | `castingSpellKit.js` + `staffSignatureSkills.js` | 10 + Inferno/Blizzard/Warp/Quake/Tempest |
 | **Elemental × linear** | `elementalLinearCast.js` · `LinearSkillBridge` | plan → castToward + path Ability + mesh |
 | **T0 weapons** | `t0ApprenticeWand.js` · `t0WeaponCatalog.js` | base attacks + mana |

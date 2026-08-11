@@ -118,6 +118,25 @@ export const settings = {
       intensityMin: 1,
       intensityMax: 3
     },
+    /**
+     * Weapon charge (Charged Shot) — hold digit/F → ticks → release.
+     * @see combat/weaponChargeSystem.js
+     */
+    weaponCharge: {
+      tapMaxSec: 0.18,
+      maxHoldSec: 1.35,
+      minChargeSec: 0.22,
+      tickHz: 20,
+      restSec: 0.42,
+      restPerIntensity: 0.12,
+      cancelRestSec: 0.18,
+      gcdSec: 0.12,
+      maxDamageMul: 2.05,
+      hitFrameMul: 1.15,
+      label: 'Charged Shot'
+    },
+    /** Move cancels charge after min charge (pistol aim usually false) */
+    chargeCancelOnMove: false,
     /** Base path-cast costs by placement kind (before intensity) */
     pathCastCosts: {
       aoe: { mana: 8, stamina: 6 },
@@ -378,6 +397,8 @@ export const settings = {
     blendTime: 0.9, // seconds to cross-fade between the two
     /** Locomotion crossfade (idle↔walk↔run) — production controller smoothness */
     gaitBlend: 0.28,
+    /** Blend into charged-pistol wind-up */
+    chargeBlend: 0.22,
     /** Attack/cast/dodge one-shot fade */
     combatBlend: 0.12,
     breathing: 1.0, // breath amplitude while seated (0 = perfectly still)

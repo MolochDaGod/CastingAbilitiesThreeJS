@@ -138,6 +138,16 @@ export {
   FLINTLOCK_ANIM_REVIEW
 } from '../combat/flintlockChamber.js';
 
+export {
+  WeaponChargeSession,
+  isChargeableWeaponSkill,
+  chargeBarState,
+  chargeDamageMul,
+  weaponChargeConfig,
+  WEAPON_CHARGE_DEFAULTS,
+  CHARGE_LEVELS
+} from '../combat/weaponChargeSystem.js';
+
 // ── Terrain ──────────────────────────────────────────────────────────
 export {
   TERRAIN_LAYER,

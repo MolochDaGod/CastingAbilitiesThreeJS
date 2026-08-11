@@ -51,6 +51,13 @@ import {
 } from './flintlockChamber.js';
 import { getEquippedWeapon } from './equippedWeaponRuntime.js';
 import {
+  WeaponChargeSession,
+  isChargeableWeaponSkill,
+  chargeBarState,
+  weaponChargeConfig,
+  weaponRestAfterFire
+} from './weaponChargeSystem.js';
+import {
   planElementalLinearCast,
   fireLinearFromPlan
 } from './elementalLinearCast.js';
@@ -134,6 +141,12 @@ export class DrcCombatController {
     this._wardReduce = 0;
     /** Flintlock single-load chamber (empty → key 1 = Reload) */
     this.flintlock = createFlintlockChamber();
+    /** Hold-to-charge weapon session (Charged Shot UX) */
+    this.weaponCharge = new WeaponChargeSession();
+    /** Best rest — next weapon skill blocked until elapsed */
+    this._weaponRestUntil = 0;
+    /** Short global combat timer between weapon attacks */
+    this._weaponGcdUntil = 0;
     // Catalog starters: ?wand=1 · ?sapling=1 · ?sword=1 Training Sword · ?arcane=1
     if (typeof location !== 'undefined') {
       if (/[?&]wand=1\b/.test(location.search)) {
@@ -564,7 +577,11 @@ export class DrcCombatController {
         const count = pistolBulletCount(enriched);
         const speed = enriched.projectileSpeed || PISTOL_BULLET.speed;
         const meshUrl = enriched.projectileMeshUrl || PISTOL_BULLET.meshUrl;
-        const hitSec = pistolHitFrameSec(enriched);
+        // Charged Shot: slightly longer hit-frame (wind-up already played)
+        const chargeMul = Number(enriched._chargeMul) || 1;
+        const hitSec =
+          pistolHitFrameSec(enriched) *
+          (chargeMul > 1.01 ? (settings.drc?.weaponCharge?.hitFrameMul ?? 1.15) : 1);
         const gapSec = FLINTLOCK_FIRE.burstGapSec;
         const spreadRad = FLINTLOCK_FIRE.burstSpreadRad;
         const fireOne = (spreadYaw = 0) => {
@@ -744,6 +761,7 @@ export class DrcCombatController {
     this.projectiles?.update?.(dt);
     this.statuses?.update?.(this.elapsed);
     this.flintlock?.tick?.(this.elapsed);
+    this._tickWeaponCharge(dt, keys);
     // Dual resource regen (settings.drc)
     const staR = settings.drc?.staminaRegen ?? 18;
     const manaR = settings.drc?.manaRegen ?? 12;
@@ -1353,13 +1371,158 @@ export class DrcCombatController {
       this.onToast('No weapon skill — equip a weapon (I → Weapon)');
       return false;
     }
-    return this.useSkill('f', { skill, bound: getSkillBinding('f') });
+    // Chargeable F (Charged Shot) — begin hold; App should call release on keyup
+    return this.beginWeaponCharge('f', { skill });
+  }
+
+  /**
+   * Weapon rest / GCD gate (best rest after charged shot).
+   * @param {boolean} [toast]
+   */
+  _weaponReady(toast = true) {
+    if (this.elapsed < this._weaponRestUntil) {
+      if (toast) this.onToast('Weapon rest…');
+      return false;
+    }
+    if (this.elapsed < this._weaponGcdUntil) {
+      if (toast) this.onToast('…');
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Begin hold-to-charge (keydown). Tap→release fires quick; hold builds Charged Shot.
+   * @param {number|string} slot
+   * @param {{ skill?: object }} [opts]
+   */
+  beginWeaponCharge(slot, opts = {}) {
+    if (!this.inCombat) {
+      this.onToast('Enter combat (Q) to use weapon skills');
+      return false;
+    }
+    if (this.weaponCharge?.active) return true;
+    if (!this._weaponReady(true)) return false;
+    if (this._cast) {
+      this.onToast('Already casting');
+      return false;
+    }
+
+    let skill = opts.skill || (slot === 'f' || slot === -1 ? skillForFKey() : skillBySlot(slot));
+    if (!skill) return false;
+
+    const pack = this.character?.animPackId || '';
+    const weapon = typeof getEquippedWeapon === 'function' ? getEquippedWeapon() : null;
+    const flintCtx = isFlintlockContext(skill, weapon, pack);
+
+    if (flintCtx && this.flintlock) {
+      this.flintlock.tick(this.elapsed);
+      const slotN = slot === 'f' || slot === -1 ? 0 : Number(slot);
+      if (
+        (slotN === 0 || slot === 'f' || slot === -1) &&
+        this.flintlock.isEmpty() &&
+        !this.flintlock.isReloading()
+      ) {
+        return this.useSkill(slot, { skill: makeReloadSkillDef(), skipCharge: true });
+      }
+      if (skillNeedsLoad(skill) && (this.flintlock.isEmpty() || this.flintlock.isReloading())) {
+        this.onToast(this.flintlock.isReloading() ? 'Reloading…' : 'Empty · press 1 to Reload');
+        return false;
+      }
+    }
+
+    if (!isChargeableWeaponSkill(skill, { animPack: pack, weaponId: weapon?.id })) {
+      return this.useSkill(slot, { skill, skipCharge: true });
+    }
+
+    const animRole =
+      pack === 'pistol' || flintCtx
+        ? 'skill2'
+        : skill.animRole === 'skill2'
+          ? 'skill2'
+          : 'cast';
+    this.weaponCharge.begin(
+      slot === 'f' || slot === -1 ? 0 : Number(slot),
+      skill,
+      this.elapsed,
+      animRole
+    );
+    this.character.beginWeaponChargeAnim?.(animRole) ||
+      this.character.requestOneShot?.(animRole) ||
+      this.character.requestOneShot?.('cast');
+    this.onCastBar?.(chargeBarState({ holdSec: 0, skill, active: true }));
+    this.onToast(`${skill.label} · hold to charge`);
+    return true;
+  }
+
+  /**
+   * Keyup — tap fire or charged release.
+   * @param {{ cancel?: boolean }} [opts]
+   */
+  releaseWeaponCharge(opts = {}) {
+    if (!this.weaponCharge?.active) return false;
+    const payload = this.weaponCharge.end(opts.cancel ? 'cancel' : 'release');
+    this.onCastBar?.(null);
+    this.character.endWeaponChargeAnim?.(payload.reason === 'release' && payload.isCharged);
+
+    if (payload.reason === 'cancel' || opts.cancel) {
+      this._weaponRestUntil = this.elapsed + payload.restSec;
+      this.onToast('Charge cancel');
+      return false;
+    }
+
+    const skill = payload.skill;
+    if (!skill) return false;
+
+    return this.useSkill(payload.slot, {
+      skill,
+      skipCharge: true,
+      chargeHoldSec: payload.isCharged ? payload.holdSec : 0,
+      chargeDamageMul: payload.isCharged ? payload.damageMul : 1,
+      chargeIntensity: payload.isCharged ? payload.intensity : 1,
+      chargeLevel: payload.level,
+      forceAnimRole: payload.isCharged
+        ? 'skill2'
+        : skill.animRole || (skill.style === 'ranged' ? 'attack' : null)
+    });
+  }
+
+  /** @param {number} dt @param {Set<string>} [keys] */
+  _tickWeaponCharge(dt, keys) {
+    if (!this.weaponCharge?.active) return;
+    const cfg = weaponChargeConfig();
+    const u = this.weaponCharge.update(dt, this.elapsed);
+    if (u.tick || u.levelChanged) {
+      this.onCastBar?.(
+        chargeBarState({
+          holdSec: u.holdSec,
+          skill: this.weaponCharge.skill,
+          active: true
+        })
+      );
+      this.character.tickWeaponChargeAnim?.(u.progress01, u.holdSec);
+      if (u.levelChanged && u.level.id !== 'tap') {
+        this.onToast(`${this.weaponCharge.skill?.label || 'Charge'} · ${u.level.label}`);
+      }
+    }
+    if (u.holdSec >= cfg.maxHoldSec) {
+      this.releaseWeaponCharge();
+    }
   }
 
   /**
    * Fire weapon skill slot 0–3, or F via opts.
    * @param {number|string} slot 0–3 or 'f'
-   * @param {{ skill?: object, bound?: object|null }} [opts]
+   * @param {{
+   *   skill?: object,
+   *   bound?: object|null,
+   *   skipCharge?: boolean,
+   *   chargeHoldSec?: number,
+   *   chargeDamageMul?: number,
+   *   chargeIntensity?: number,
+   *   chargeLevel?: object,
+   *   forceAnimRole?: string
+   * }} [opts]
    * @returns {boolean}
    */
   useSkill(slot, opts = {}) {
@@ -1375,8 +1538,23 @@ export class DrcCombatController {
     // Windsurf freeride: allow ranged/staff skills (tslda boat combat feel)
     if (this.character._rideActive && !this._allowRideSkill()) return false;
 
+    if (this.weaponCharge?.active && !opts.skipCharge) {
+      return true;
+    }
+
+    if (!opts.skipCharge && !this._weaponReady(true)) return false;
+
     let skill = opts.skill || (slot === 'f' || slot === -1 ? skillForFKey() : skillBySlot(slot));
     if (!skill) return false;
+
+    // Route chargeable → hold UX (unless release/tap already set skipCharge)
+    if (!opts.skipCharge) {
+      const pack0 = this.character?.animPackId || '';
+      const weapon0 = typeof getEquippedWeapon === 'function' ? getEquippedWeapon() : null;
+      if (isChargeableWeaponSkill(skill, { animPack: pack0, weaponId: weapon0?.id })) {
+        return this.beginWeaponCharge(slot, { skill });
+      }
+    }
 
     // ── Flintlock chamber: empty → digit 1 is Reload (production Warlords) ──
     const pack = this.character?.animPackId || '';
@@ -1461,16 +1639,38 @@ export class DrcCombatController {
       this.onToast(`${skill.label} CD`);
       return false;
     }
-    // Digit skills: base cost (no hold) — path cast uses hold intensity
-    const costs = skillCastCosts(skill, 0, 0);
+    // Digit / charged: hold intensity scales cost (Charged Shot)
+    const holdSec = Number(opts.chargeHoldSec) || 0;
+    const costs = skillCastCosts(skill, holdSec, 0);
     if (!this._spendResources(costs.mana, costs.stamina, skill.label)) return false;
     this._cdUntil.set(skill.id, this.elapsed + skill.cooldown);
     if (this._cast) {
       this.onToast('Already casting');
       return false;
     }
+    // Charge mul on damage / force for this cast
+    const dmgMul = Number(opts.chargeDamageMul) || 1;
+    if (dmgMul > 1.01) {
+      skill = {
+        ...skill,
+        damage: Math.round((Number(skill.damage) || 0) * dmgMul),
+        force: (Number(skill.force) || 6) * dmgMul,
+        _chargeMul: dmgMul,
+        _chargeLevel: opts.chargeLevel?.id || null,
+        _chargeHoldSec: holdSec
+      };
+    }
+    if (opts.forceAnimRole) {
+      skill = { ...skill, animRole: opts.forceAnimRole };
+    }
     // Production hit package for projectiles / melee residual
     this._lastSkill = skill;
+    // Combat timer: short GCD + best rest after any weapon fire
+    const cfgCh = weaponChargeConfig();
+    this._weaponGcdUntil = this.elapsed + cfgCh.gcdSec;
+    this._weaponRestUntil =
+      this.elapsed +
+      weaponRestAfterFire(holdSec, opts.chargeIntensity || costs.intensity || 1, cfgCh);
 
     // Flintlock reload path (baked pistol/reload + procedural powder pose)
     if (
