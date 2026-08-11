@@ -238,26 +238,49 @@ function buildActions(target, h) {
 }
 
 /**
+ * Pick paperdoll slot for bag Equip.
+ * Dual weapons: fill empty Weapon 1 first, then Weapon 2 (was ring/cloak).
+ * Off hands: Off 1 then Off 2. No belt/amulet/ring/cloak.
  * @param {object} item
  */
 export function bestSlotForItem(item) {
   const slots = ALL_PAPERDOLL_SLOTS;
-  // Prefer explicit slotHint
+  const equipMap = loadEquipMap();
+  // Prefer explicit slotHint (weapon2 / offHand2 / mainHand / …)
   const hint = String(item.slotHint || item.equipSlot || item.slot || '').toLowerCase();
   if (hint) {
     const exact = slots.find(
       (s) =>
         s.id.toLowerCase() === hint ||
         s.meshSlot === hint ||
-        s.accepts?.some((a) => hint.includes(String(a).toLowerCase()))
+        (hint === 'mainhand' && s.id === 'mainHand') ||
+        (hint === 'weapon2' && s.id === 'weapon2') ||
+        (hint === 'offhand' && s.id === 'offHand') ||
+        (hint === 'offhand2' && s.id === 'offHand2')
     );
-    if (exact) return exact;
+    if (exact && itemFitsSlot(item, exact)) return exact;
   }
   // Category / kind
   const kind = String(item.kind || item.category || '').toLowerCase();
-  if (/weapon|tool|t0/.test(kind)) return slots.find((s) => s.id === 'mainHand') || null;
-  if (/shield|tome|offhand/.test(kind)) return slots.find((s) => s.id === 'offHand') || null;
-  if (/back|cape|wing|windsurf/.test(kind + hint)) return slots.find((s) => s.id === 'back') || null;
+  if (/weapon|tool|t0/.test(kind) && !/shield|tome|offhand/.test(kind + hint)) {
+    // Prefer empty main set slots in order Weapon 1 → Weapon 2
+    for (const id of ['mainHand', 'weapon2']) {
+      const s = slots.find((x) => x.id === id);
+      if (s && !equipMap[id] && itemFitsSlot(item, s)) return s;
+    }
+    // Both filled → active set main (swap replaces that slot on equip path)
+    return slots.find((s) => s.id === 'mainHand') || null;
+  }
+  if (/shield|tome|offhand/.test(kind + hint)) {
+    for (const id of ['offHand', 'offHand2']) {
+      const s = slots.find((x) => x.id === id);
+      if (s && !equipMap[id] && itemFitsSlot(item, s)) return s;
+    }
+    return slots.find((s) => s.id === 'offHand') || null;
+  }
+  if (/back|cape|wing|windsurf|shell|glider/.test(kind + hint)) {
+    return slots.find((s) => s.id === 'back') || null;
+  }
   if (/relic|class/.test(kind)) return slots.find((s) => s.id === 'relic') || null;
   if (/mount/.test(kind)) return slots.find((s) => s.id === 'mount') || null;
   if (/armour|armor|head|body|arms|legs/.test(kind + hint)) {

@@ -2,15 +2,19 @@
  * Player activity modes — Open Danger parity (combat / harvest).
  * SSOT port of gameopen playerMode.ts for Casting Dev Island.
  *
- * Hold Q → mode radial (↑ combat · ↓ harvest); tap Q toggles
+ * Hold Q → mode radial (↑ combat · ↓ harvest)
+ * Tap Q · combat → dual weapon loadout swap (Weapon 1 ↔ Weapon 2 · skills · loco)
+ * Tap Q · harvest → return to combat
  * Hold R (harvest) → tool radial
  * Tap R (harvest) → draw last tool (default pick) — auto stow weapon on harvest enter
  * F harvest → nearest node for tool in hand
+ * Dodge stays AA / DD / X — Q never dodges
  *
  * State machine: playerActivityMachine.js (XState) — mode / hand / loco / tool memory.
  *
  * @see gameopen/artifacts/animator/src/three/playerMode.ts
  * @see playerActivityMachine.js
+ * @see equippedWeaponRuntime.js swapWeaponLoadout
  */
 
 /** @typedef {'combat'|'harvest'} ActivityMode */

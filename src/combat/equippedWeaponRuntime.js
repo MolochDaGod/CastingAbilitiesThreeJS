@@ -1,8 +1,12 @@
 /**
  * Equipped weapon runtime — skills + assets follow the item, not a free skill tree.
  *
+ * Dual loadout (paperdoll):
+ *  - Set A: mainHand + offHand
+ *  - Set B: weapon2 + offHand2
+ * Combat **Q** (tap) swaps active set → mesh, anim pack, hotbar skills.
+ *
  * Equip t0-sword / t0-wand / … → anim pack · mesh slot · 3-slot hotbar · icon · 3D attach
- * Export → Warlords weapon prefab JSON for authoring.
  */
 
 import {
@@ -13,6 +17,7 @@ import {
   clearEquippableWeaponsCache
 } from '../api/t0WeaponCatalog.js';
 import { attachWeaponModel, clearWeaponAttach } from '../character/WeaponMeshAttach.js';
+import { loadEquipMap, saveEquipMap } from '../ui/mainPanelSlots.js';
 
 /** @type {import('../api/t0WeaponCatalog.js').EquippableWeapon|null} */
 let _equipped = null;
@@ -23,12 +28,47 @@ let _attach = null;
 /** @type {Awaited<ReturnType<typeof loadEquippableWeapons>>|null} */
 let _catalog = null;
 
+/**
+ * Active weapon set: 0 = Weapon 1 (mainHand) · 1 = Weapon 2 (weapon2)
+ * @type {0|1}
+ */
+let _loadoutIndex = 0;
+
+/** Per-set slot3 skill choice */
+let _slot3BySet = /** @type {Record<number, string|null>} */ ({ 0: null, 1: null });
+
+const LS_LOADOUT = 'casting.weaponLoadoutIndex.v1';
+
 export function getEquippedWeapon() {
   return _equipped;
 }
 
+export function getActiveLoadoutIndex() {
+  return _loadoutIndex;
+}
+
 export function getEquippedSlot3Id() {
-  return _slot3Id || _equipped?.defaultSlot3Id || null;
+  return (
+    _slot3BySet[_loadoutIndex] ||
+    _slot3Id ||
+    _equipped?.defaultSlot3Id ||
+    null
+  );
+}
+
+/**
+ * Paperdoll slot id for active set main hand.
+ * @param {0|1} [idx]
+ */
+export function mainSlotForLoadout(idx = _loadoutIndex) {
+  return idx === 1 ? 'weapon2' : 'mainHand';
+}
+
+/**
+ * @param {0|1} [idx]
+ */
+export function offSlotForLoadout(idx = _loadoutIndex) {
+  return idx === 1 ? 'offHand2' : 'offHand';
 }
 
 export async function ensureWeaponCatalog() {
@@ -68,8 +108,86 @@ export function equippedWeaponHotbar() {
 export function setEquippedSlot3(skillId) {
   if (!_equipped) return null;
   const ok = _equipped.slot3Options.some((s) => s.id === skillId);
-  if (ok) _slot3Id = skillId;
+  if (ok) {
+    _slot3Id = skillId;
+    _slot3BySet[_loadoutIndex] = skillId;
+  }
   return getEquippedSlot3Id();
+}
+
+/**
+ * Resolve paperdoll weapon item id for a set index.
+ * @param {0|1} idx
+ */
+export function getLoadoutWeaponId(idx) {
+  const map = loadEquipMap();
+  const mainId = map[mainSlotForLoadout(idx)]?.id || null;
+  return mainId;
+}
+
+/**
+ * Swap active weapon set (0 ↔ 1). Re-applies mesh, anim pack, skills.
+ * @param {{
+ *   character: import('../animation/CharacterController.js').CharacterController,
+ *   onToast?: (s: string) => void,
+ *   onSkills?: () => void
+ * }} ctx
+ * @param {0|1} [forceIndex] optional force set
+ */
+export async function swapWeaponLoadout(ctx, forceIndex) {
+  const character = ctx.character;
+  const toast = ctx.onToast || (() => {});
+  const map = loadEquipMap();
+  const a = map.mainHand?.id;
+  const b = map.weapon2?.id;
+  if (!a && !b) {
+    toast('No dual weapons — equip Weapon 1 and Weapon 2');
+    return { ok: false, index: _loadoutIndex };
+  }
+  // Only one weapon → stay / equip that one
+  if (a && !b) {
+    await equipWeaponById(a, ctx);
+    _loadoutIndex = 0;
+    localStorage.setItem(LS_LOADOUT, '0');
+    ctx.onSkills?.();
+    toast(`Weapon 1 · ${_equipped?.name || a}`);
+    return { ok: true, index: 0, weapon: _equipped };
+  }
+  if (!a && b) {
+    await equipWeaponById(b, ctx);
+    _loadoutIndex = 1;
+    localStorage.setItem(LS_LOADOUT, '1');
+    ctx.onSkills?.();
+    toast(`Weapon 2 · ${_equipped?.name || b}`);
+    return { ok: true, index: 1, weapon: _equipped };
+  }
+
+  const next =
+    forceIndex === 0 || forceIndex === 1
+      ? forceIndex
+      : /** @type {0|1} */ (_loadoutIndex === 0 ? 1 : 0);
+  const id = getLoadoutWeaponId(next);
+  if (!id) {
+    toast('Empty weapon set');
+    return { ok: false, index: _loadoutIndex };
+  }
+  _loadoutIndex = next;
+  localStorage.setItem(LS_LOADOUT, String(next));
+  _slot3Id = _slot3BySet[next] || null;
+  await equipWeaponById(id, { ...ctx, skipPaperdollWrite: true, quiet: true });
+  // Keep paperdoll: active set is logical only — items stay in their slots
+  ctx.onSkills?.();
+  toast(
+    `Weapon ${next + 1} · ${_equipped?.name || id} · ${_equipped?.animPack || ''} · skills swapped`
+  );
+  return { ok: true, index: next, weapon: _equipped };
+}
+
+/** Restore loadout index after page reload (call after equip map ready). */
+export function restoreLoadoutIndex() {
+  const raw = localStorage.getItem(LS_LOADOUT);
+  _loadoutIndex = raw === '1' ? 1 : 0;
+  return _loadoutIndex;
 }
 
 /**
@@ -99,7 +217,18 @@ export async function equipWeapon(weapon, ctx) {
   const toast = ctx.onToast || (() => {});
 
   _equipped = weapon;
-  _slot3Id = weapon.defaultSlot3Id;
+  if (!_slot3BySet[_loadoutIndex]) {
+    _slot3Id = weapon.defaultSlot3Id;
+    _slot3BySet[_loadoutIndex] = weapon.defaultSlot3Id;
+  } else {
+    _slot3Id = _slot3BySet[_loadoutIndex];
+  }
+
+  // If equipping into a specific paperdoll set (from Inventory), set index
+  if (ctx.weaponSet === 0 || ctx.weaponSet === 1) {
+    _loadoutIndex = ctx.weaponSet;
+    localStorage.setItem(LS_LOADOUT, String(_loadoutIndex));
+  }
 
   // 1) Kit mesh_ids exclusive weapon slot
   const slot = weapon.meshSlot;
@@ -190,9 +319,11 @@ export async function equipWeapon(weapon, ctx) {
 
   // 5) Skill bar — caller sets setActiveSkillTree('equipped') + drc.skills refresh
 
-  toast(
-    `Equipped ${weapon.name} · ${weapon.weaponType} · ${weapon.animPack} · skills ${weapon.slot1.name} / ${weapon.slot2.name}`
-  );
+  if (!ctx.quiet) {
+    toast(
+      `Equipped ${weapon.name} · ${weapon.weaponType} · ${weapon.animPack} · skills ${weapon.slot1.name} / ${weapon.slot2.name}`
+    );
+  }
 
   return {
     weapon,

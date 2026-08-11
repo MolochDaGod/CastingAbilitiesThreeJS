@@ -366,12 +366,18 @@ export async function listT0T1ForSlot(slotId, opts = {}) {
     out.push(row);
   };
 
-  if (sid === 'mainhand') {
+  // Weapon set A (mainHand) + set B (weapon2) share the same main-weapon catalog
+  if (sid === 'mainhand' || sid === 'weapon2') {
     for (const r of [...cat.byCategory.t0, ...cat.byCategory.weapons, ...cat.byCategory.tools]) {
       push(r);
     }
-  } else if (sid === 'offhand') {
+  } else if (sid === 'offhand' || sid === 'offhand2') {
     for (const r of cat.byCategory.offhand) push(r);
+    // Dual-wield: also list light weapons for Off 1 / Off 2
+    for (const r of [...cat.byCategory.t0, ...cat.byCategory.weapons]) {
+      const wt = String(r.weaponType || r.id || '').toLowerCase();
+      if (/dagger|pistol|handgun|off|shield|tome|wand/.test(wt)) push(r);
+    }
   } else if (['head', 'body', 'arms', 'legs', 'shoulders'].includes(sid)) {
     for (const r of cat.byCategory.armor) {
       const h = String(r.slotHint || r.slot || '').toLowerCase();

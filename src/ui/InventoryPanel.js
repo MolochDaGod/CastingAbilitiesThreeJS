@@ -35,6 +35,7 @@ import {
   getEquippedWeapon,
   getEquippedSlot3Id,
   setEquippedSlot3,
+  getActiveLoadoutIndex,
   downloadEquippedPrefab,
   exportEquippedPrefab
 } from '../combat/equippedWeaponRuntime.js';
@@ -246,8 +247,14 @@ export class InventoryPanel {
         const it = unequipPaperdollSlot(slotId);
         if (it) {
           try {
-            if (slotId === 'mainHand' || slotId === 'offHand') {
+            const active = getActiveLoadoutIndex();
+            const activeMain = active === 1 ? 'weapon2' : 'mainHand';
+            const activeOff = active === 1 ? 'offHand2' : 'offHand';
+            // Clear live 3D only when removing the active set main hand
+            if (slotId === activeMain) {
               await unequipWeapon({ character: this.character, onToast: this.onToast });
+            } else if (slotId === activeOff) {
+              // Off-hand paperdoll only for now (shield mesh optional later)
             }
           } catch {
             /* ok */
@@ -420,46 +427,62 @@ export class InventoryPanel {
 
   /* ── Character paperdoll (TI / Warlords) ───────────────────── */
 
-  _slotButtonHtml(slot, equipMap) {
+  _slotButtonHtml(slot, equipMap, activeSet = 0) {
     const item = equipMap[slot.id];
     const isTarget = this._equipTarget === slot.id;
+    const setIdx = slot.weaponSet;
+    const isActiveSet =
+      setIdx === 0 || setIdx === 1 ? setIdx === activeSet : false;
+    const setCls =
+      setIdx === 0 || setIdx === 1
+        ? `mp-slot--set${setIdx}${isActiveSet ? ' is-active-set' : ''}`
+        : '';
     return `
-      <button type="button" class="mp-slot ${item ? 'is-filled' : ''} ${isTarget ? 'is-target' : ''}"
+      <button type="button" class="mp-slot ${item ? 'is-filled' : ''} ${isTarget ? 'is-target' : ''} ${setCls}"
         data-pd-slot="${slot.id}"
-        title="${slot.label} · LMB bag options · RMB equip menu">
+        data-weapon-set="${setIdx ?? ''}"
+        title="${slot.label}${isActiveSet ? ' · ACTIVE (Q swap)' : setIdx === 0 || setIdx === 1 ? ' · Q combat swap' : ''} · LMB bag · RMB equip">
         ${
           item
             ? `<img class="mp-slot__icon" src="${resolveItemIcon(item) || item.icon || ''}" alt="" referrerpolicy="no-referrer" />`
             : `<span class="mp-slot__empty">+</span>`
         }
-        <span class="mp-slot__label">${slot.label}</span>
+        <span class="mp-slot__label">${slot.label}${isActiveSet ? ' ●' : ''}</span>
       </button>`;
   }
 
   _renderPaperdoll(host) {
     const s = this.character.getLabSummary?.() || {};
     const equipMap = loadEquipMap();
-    const left = PAPERDOLL_LEFT.map((sl) => this._slotButtonHtml(sl, equipMap)).join('');
-    const right = PAPERDOLL_RIGHT.map((sl) => this._slotButtonHtml(sl, equipMap)).join('');
+    const activeSet = getActiveLoadoutIndex();
+    const left = PAPERDOLL_LEFT.map((sl) =>
+      this._slotButtonHtml(sl, equipMap, activeSet)
+    ).join('');
+    const right = PAPERDOLL_RIGHT.map((sl) =>
+      this._slotButtonHtml(sl, equipMap, activeSet)
+    ).join('');
     const pack = s.animPackId || '—';
+    const w1 = equipMap.mainHand?.name || equipMap.mainHand?.id || '—';
+    const w2 = equipMap.weapon2?.name || equipMap.weapon2?.id || '—';
 
     host.innerHTML = `
-      <div class="mp-doll" data-doll>
+      <div class="mp-doll" data-doll data-active-set="${activeSet}">
         <div class="mp-doll__col">
-          <div class="mp-doll__col-title">Enhancements</div>
+          <div class="mp-doll__col-title">Armour · Relic</div>
           ${left}
         </div>
         <div class="mp-doll__center">
           <div class="mp-doll__silhouette" aria-hidden="true"></div>
           <div class="mp-doll__stats">${s.raceLabel || s.raceId || 'Hero'} · ${(s.heightM ?? 1.8).toFixed?.(2) || '1.80'} m · ${pack}</div>
+          <div class="mp-doll__loadout">Active <b>Weapon ${activeSet + 1}</b> · Q swap · set1 ${w1} · set2 ${w2}</div>
         </div>
         <div class="mp-doll__col">
-          <div class="mp-doll__col-title">Enchant</div>
+          <div class="mp-doll__col-title">Weapons · Back · Mount</div>
           ${right}
         </div>
         <div class="mp-picker" data-picker hidden></div>
       </div>
-      <p class="inv-hint"><b>RMB slot</b> → T0–T1 catalog / Unequip / Mesh edit · <b>LMB</b> bag options · weapons · armour · back · relics. Production: <a href="${MAIN_PANEL_PROD.equipment}" target="_blank" rel="noopener">ui equipment ↗</a></p>
+      <p class="inv-hint"><b>RMB slot</b> → T0–T1 catalog · <b>Weapon 1/2 + Off 1/2</b> dual loadout · combat <b>Q</b> swaps set · Relic/Back (no belt/amulet/ring/cloak). <a href="${MAIN_PANEL_PROD.equipment}" target="_blank" rel="noopener">ui equipment ↗</a></p>
       <div class="inv-btn-row">
         <button type="button" class="inv-btn" data-open-inv>Open Inventory</button>
         <button type="button" class="inv-btn" data-seed-t0>Seed bag T0 weapons+back</button>
@@ -618,16 +641,33 @@ export class InventoryPanel {
     try {
       if (slotDef.kind === 'hand' && item.id) {
         await ensureWeaponCatalog();
+        const setIdx = slotDef.weaponSet === 1 ? 1 : 0;
+        const isMain = slotDef.hand === 'main' || !slotDef.hand;
         try {
-          await equipWeaponById(item.id, {
-            character: this.character,
-            onToast: this.onToast
-          });
+          if (isMain) {
+            const active = getActiveLoadoutIndex();
+            const otherMainId = setIdx === 0 ? map.weapon2?.id : map.mainHand?.id;
+            // Apply live mesh/skills only for active set (or sole weapon equip)
+            const applyLive = setIdx === active || !otherMainId;
+            if (applyLive) {
+              await equipWeaponById(item.id, {
+                character: this.character,
+                onToast: this.onToast,
+                weaponSet: setIdx
+              });
+              setActiveSkillTree('equipped');
+            } else {
+              this.onToast(
+                `Weapon ${setIdx + 1} ready · combat Q swaps to it (${item.name})`
+              );
+            }
+          } else {
+            // Off hand paperdoll — stored for set; 3D shield attach later
+            this.onToast(`Off ${setIdx + 1} · ${item.name}`);
+          }
         } catch {
-          // Catalog weapon not in T0 list — still keep paperdoll row
           this.onToast(`Paperdoll ${item.name} (3D if model URL later)`);
         }
-        // Mesh color / scale from saved appearance
         const { applyWeaponAppearance } = await import('../equipment/meshAppearance.js');
         applyWeaponAppearance(this.character, item.id);
       } else if (slotDef.kind === 'mesh' && slotDef.meshSlot) {
@@ -810,7 +850,12 @@ export class InventoryPanel {
           const next = setAppearance(item.id, read());
           const eq = loadEquipMap();
           // Apply to weapon if main hand
-          if (eq.mainHand?.id === item.id || eq.offHand?.id === item.id) {
+          if (
+            eq.mainHand?.id === item.id ||
+            eq.offHand?.id === item.id ||
+            eq.weapon2?.id === item.id ||
+            eq.offHand2?.id === item.id
+          ) {
             applyWeaponAppearance(this.character, item.id);
           } else {
             // Try armour slots

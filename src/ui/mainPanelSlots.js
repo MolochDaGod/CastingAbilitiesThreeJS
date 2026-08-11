@@ -11,8 +11,14 @@
 /** @typedef {'mesh'|'hand'|'back'|'hud'|'mount'} SlotKind */
 
 /**
- * Paperdoll columns — Warlords / TI layout.
- * Left = armour/mesh (ENHANCEMENTS) · Right = gear hands/relic (ENCHANT)
+ * Paperdoll columns — Warlords combat loadout.
+ *
+ * No belt / amulet / ring / cloak.
+ * - Left: armour mesh_ids
+ * - Right: **Weapon set A** (main+off) · **Weapon set B** (main2+off2) · back · relic
+ * Combat **Q** swaps active set A ↔ B (skills + loco + mesh).
+ *
+ * @see combat/equippedWeaponRuntime.js dual loadout
  */
 export const PAPERDOLL_LEFT = Object.freeze([
   { id: 'head', label: 'Head', kind: 'mesh', meshSlot: 'head', accepts: ['armour', 'head'] },
@@ -20,19 +26,59 @@ export const PAPERDOLL_LEFT = Object.freeze([
   { id: 'arms', label: 'Arms', kind: 'mesh', meshSlot: 'arms', accepts: ['armour', 'arms'] },
   { id: 'legs', label: 'Legs', kind: 'mesh', meshSlot: 'legs', accepts: ['armour', 'legs'] },
   { id: 'shoulders', label: 'Shoulders', kind: 'mesh', meshSlot: 'shoulders', accepts: ['armour'] },
-  { id: 'bag', label: 'Bag', kind: 'mesh', meshSlot: 'bag', accepts: ['utility', 'bag'] },
+  /** Was belt/amulet area — relic HUD passive */
+  { id: 'relic', label: 'Relic', kind: 'hud', meshSlot: null, accepts: ['relic'] }
 ]);
 
 export const PAPERDOLL_RIGHT = Object.freeze([
-  { id: 'mainHand', label: 'Main hand', kind: 'hand', meshSlot: 'sword', accepts: ['weapon', 'tool'] },
-  { id: 'offHand', label: 'Off hand', kind: 'hand', meshSlot: 'shield', accepts: ['weapon', 'shield', 'tome'] },
+  /** Weapon set A (active when loadoutIndex 0) */
+  {
+    id: 'mainHand',
+    label: 'Weapon 1',
+    kind: 'hand',
+    meshSlot: 'sword',
+    accepts: ['weapon', 'tool'],
+    weaponSet: 0,
+    hand: 'main'
+  },
+  {
+    id: 'offHand',
+    label: 'Off 1',
+    kind: 'hand',
+    meshSlot: 'shield',
+    accepts: ['weapon', 'shield', 'tome'],
+    weaponSet: 0,
+    hand: 'off'
+  },
+  /** Weapon set B — was ring/cloak · Q combat swap target */
+  {
+    id: 'weapon2',
+    label: 'Weapon 2',
+    kind: 'hand',
+    meshSlot: 'sword',
+    accepts: ['weapon', 'tool'],
+    weaponSet: 1,
+    hand: 'main'
+  },
+  {
+    id: 'offHand2',
+    label: 'Off 2',
+    kind: 'hand',
+    meshSlot: 'shield',
+    accepts: ['weapon', 'shield', 'tome'],
+    weaponSet: 1,
+    hand: 'off'
+  },
+  /** Back mobility (not cloak) — windsurf / wings / shell */
   { id: 'back', label: 'Back', kind: 'back', meshSlot: 'back', accepts: ['back', 'utility'] },
-  { id: 'relic', label: 'Relic', kind: 'hud', meshSlot: null, accepts: ['relic'] },
-  { id: 'mount', label: 'Mount', kind: 'mount', meshSlot: null, accepts: ['mount'] },
-  { id: 'quiver', label: 'Quiver', kind: 'mesh', meshSlot: 'quiver', accepts: ['utility'] },
+  { id: 'mount', label: 'Mount', kind: 'mount', meshSlot: null, accepts: ['mount'] }
 ]);
 
 export const ALL_PAPERDOLL_SLOTS = Object.freeze([...PAPERDOLL_LEFT, ...PAPERDOLL_RIGHT]);
+
+/** Paperdoll ids that hold weapon set A / B main hands */
+export const WEAPON_SET_MAIN_SLOTS = Object.freeze(['mainHand', 'weapon2']);
+export const WEAPON_SET_OFF_SLOTS = Object.freeze(['offHand', 'offHand2']);
 
 /**
  * Bag grid — inventory.png Warlords layout: 9×3 main + hotbar row.
@@ -394,11 +440,21 @@ export function itemFitsSlot(item, slotDef) {
   const id = String(item.id || '').toLowerCase();
   if (slotDef.accepts?.some((a) => kind.includes(a) || hint.includes(a) || a === kind)) return true;
   if (hint === slotDef.id.toLowerCase() || hint === slotDef.meshSlot) return true;
-  // Catalog categories
-  if (slotDef.id === 'mainHand' && /weapon|tool|t0|gun|sword|wand|staff|bow|axe/.test(kind + id)) {
+  // Catalog categories — dual weapon sets (Weapon 1/2 · Off 1/2)
+  if (
+    (slotDef.id === 'mainHand' || slotDef.id === 'weapon2') &&
+    /weapon|tool|t0|gun|sword|wand|staff|bow|axe|rifle|pistol|dagger|spear|hammer/.test(
+      kind + id
+    )
+  ) {
     return true;
   }
-  if (slotDef.id === 'offHand' && /shield|tome|offhand/.test(kind + hint)) return true;
+  if (
+    (slotDef.id === 'offHand' || slotDef.id === 'offHand2') &&
+    /shield|tome|offhand|off|weapon|dagger/.test(kind + hint + id)
+  ) {
+    return true;
+  }
   if (slotDef.id === 'back' && /back|cape|wing|windsurf|shell|glider/.test(kind + id + hint)) {
     return true;
   }

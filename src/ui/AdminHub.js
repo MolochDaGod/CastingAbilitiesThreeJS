@@ -259,7 +259,7 @@ export class AdminHub {
       </div>
       <div class="admin-card">
         <h3>Activity · equipment</h3>
-        <p class="admin-hint">Hold Q = combat ↔ harvest · Hold R (harvest) = tools · F nearest node · I = Main Panel paperdoll.</p>
+        <p class="admin-hint">Hold Q = mode radial · Tap Q combat = weapon 1↔2 · Hold R harvest tools · F nearest · I paperdoll.</p>
         <label class="admin-label">Race kit
           <select data-race>${raceOpts || '<option value="WK">WK</option>'}</select>
         </label>
@@ -829,7 +829,7 @@ export class AdminHub {
       <div class="admin-card">
         <h3>Input contract (Open parity)</h3>
         <div class="admin-row"><span>Hold Q</span><b>Mode radial · ↑ combat · ↓ harvest</b></div>
-        <div class="admin-row"><span>Tap Q</span><b>Toggle combat ↔ harvest</b></div>
+        <div class="admin-row"><span>Tap Q</span><b>Combat: swap Weapon 1 ↔ 2 (skills+loco)</b></div>
         <div class="admin-row"><span>Hold R</span><b>Tool radial (harvest only)</b></div>
         <div class="admin-row"><span>F</span><b>pickup → harvest ≤5 m → skill</b></div>
         <div class="admin-row"><span>Shift+Q</span><b>Equip session (lab panel)</b></div>

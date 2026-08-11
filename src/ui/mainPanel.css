@@ -124,6 +124,23 @@
   box-shadow: 0 0 12px rgba(60, 180, 255, 0.45), inset 0 0 8px rgba(40, 120, 200, 0.2);
 }
 
+/* Dual weapon sets — active set (combat Q) highlighted */
+.mp-slot.is-active-set {
+  outline: 2px solid rgba(255, 180, 70, 0.85);
+  box-shadow: 0 0 10px rgba(255, 160, 40, 0.35);
+}
+.mp-slot.mp-slot--set0:not(.is-active-set),
+.mp-slot.mp-slot--set1:not(.is-active-set) {
+  opacity: 0.78;
+}
+.mp-doll__loadout {
+  font-size: 11px;
+  opacity: 0.85;
+  margin-top: 6px;
+  text-align: center;
+  line-height: 1.35;
+  max-width: 14rem;
+}
 .mp-slot.is-filled {
   border-color: #3a6a90;
 }

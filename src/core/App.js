@@ -76,7 +76,6 @@ import '../ui/warlords-dev-ui.css';
 import { ModeRadial } from '../ui/ModeRadial.js';
 import {
   RADIAL_HOLD_S,
-  nextActivityMode,
   HARVEST_TOOL_RADIAL,
   MODE_LABEL,
   DEFAULT_HARVEST_TOOL
@@ -90,7 +89,8 @@ import {
 import {
   getEquippedWeapon,
   equipWeaponById,
-  unequipWeapon
+  unequipWeapon,
+  swapWeaponLoadout
 } from '../combat/equippedWeaponRuntime.js';
 import {
   setActiveSkillTree,
@@ -355,6 +355,13 @@ export class App {
       character: this.character,
       onToast: (message) => this.hud.showToast(message),
       onEquip: () => {
+        // Weapon equip / dual-set swap refreshes hotbar from equipped catalog
+        try {
+          setActiveSkillTree('equipped');
+          if (this.drc) this.drc.skills = getActiveSkills();
+        } catch {
+          /* catalog optional during boot */
+        }
         this._syncPlayerFrame();
         this.hud.refreshSkillLabels?.();
       },
@@ -1148,10 +1155,41 @@ export class App {
       else if (aim === 'mode_combat') this.setActivityMode('combat');
       this.modeRadial?.hide?.();
     } else if (this._qHold.armed && this._qHold.t < RADIAL_HOLD_S) {
-      // Tap Q → toggle combat ↔ harvest
-      this.setActivityMode(nextActivityMode(this.activityMode));
+      // Tap Q · combat → dual weapon loadout A↔B (mesh · anim pack · skills)
+      // Tap Q · harvest → back to combat (hold Q = mode radial)
+      if (this.activityMode === 'combat') {
+        void this._swapWeaponLoadoutTap();
+      } else {
+        this.setActivityMode('combat');
+      }
     }
     this._qHold = { armed: false, t: 0, open: false };
+  }
+
+  /**
+   * Combat Q-tap: swap Weapon 1 ↔ Weapon 2 (paperdoll mainHand / weapon2).
+   * Rotates mesh attach, anim pack / locomotion, and equipped skill hotbar.
+   */
+  async _swapWeaponLoadoutTap() {
+    try {
+      const result = await swapWeaponLoadout({
+        character: this.character,
+        onToast: (m) => this.hud.showToast(m),
+        onSkills: () => {
+          setActiveSkillTree('equipped');
+          if (this.drc) this.drc.skills = getActiveSkills();
+          this.hud.refreshSkillLabels?.();
+          this.inventory?.refresh?.();
+        }
+      });
+      if (result?.ok) {
+        this._combatWeaponId = result.weapon?.id || this._combatWeaponId;
+        this._syncPlayerFrame?.();
+      }
+    } catch (err) {
+      console.warn('[App] weapon loadout swap', err);
+      this.hud.showToast(err?.message || 'Weapon swap failed');
+    }
   }
 
   _beginRHold() {
@@ -1212,7 +1250,7 @@ export class App {
       `${MODE_LABEL[next]} mode · Hold Q switch · ${
         next === 'harvest'
           ? 'F nearest · Hold R tools · Tap R last tool'
-          : 'F skill · 1–4 · weapon restored'
+          : 'Tap Q weapon 1↔2 · F skill · 1–4'
       }`
     );
     this.hud.root?.classList.toggle('hud--harvest', next === 'harvest');
@@ -1589,7 +1627,10 @@ export class App {
       label: this.activityMode === 'harvest' ? 'Harvest mode' : 'Ready',
       lmb: 'Select target',
       rmb: rmbAlways,
-      extra: this.activityMode === 'harvest' ? 'Hold R · tools · F harvest' : 'Hold Q · mode'
+      extra:
+        this.activityMode === 'harvest'
+          ? 'Hold R · tools · F harvest'
+          : 'Tap Q weapon swap · Hold Q mode'
     });
   }
 
