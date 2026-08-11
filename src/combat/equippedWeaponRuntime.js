@@ -18,6 +18,7 @@ import {
 } from '../api/t0WeaponCatalog.js';
 import { attachWeaponModel, clearWeaponAttach } from '../character/WeaponMeshAttach.js';
 import { loadEquipMap, saveEquipMap } from '../ui/mainPanelSlots.js';
+import { normalizeHoldKind } from '../character/weaponHoldPose.js';
 
 /** @type {import('../api/t0WeaponCatalog.js').EquippableWeapon|null} */
 let _equipped = null;
@@ -293,6 +294,10 @@ export async function equipWeapon(weapon, ctx) {
     // Character keeps pointer for getWeaponTip / reload pose
     if (character) {
       character.weaponAttach = _attach;
+      // Hold-pose kind SSOT (main-panel + play equip share applyWeaponHoldPose)
+      character.weaponHoldKind = normalizeHoldKind(
+        weapon.weaponType || weapon.kind || weapon.id || profile
+      );
       character.syncWeaponAttach?.();
       // Lab mesh appearance (color / scale / rotate) if saved
       try {
@@ -302,6 +307,8 @@ export async function equipWeapon(weapon, ctx) {
         /* optional */
       }
     }
+  } else if (character) {
+    character.weaponHoldKind = normalizeHoldKind(weapon.weaponType || weapon.kind || weapon.id);
   }
 
   // 4) Warm production skill overrides (public/skills/production/<id>.json) before hotbar compile

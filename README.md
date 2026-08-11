@@ -58,6 +58,23 @@ Audit: `docs/LOADER_DRACO_KTX2_AUDIT.md` · health: `docs/SYSTEMS_HEALTH_AUDIT.m
 | Production package | `weaponSkillProduction.js` — anim · VFX · physics · statuses |
 | Statuses | push · freeze · stun · slow · burn · root · knockup (`skillStatusSystem`) |
 | Staff weapons (1–6) | Fire…Arcane brands · path cast pools (`WEAPON_STAFF_IDS`) |
+| **Hold pose residual** | `applyWeaponHoldPose(mixer, gait, kind)` after mixer — see below |
+
+### Weapon hold pose (play equip · same SSOT as Main Panel)
+
+**Canonical source:** ObjectStore `js/grudge6-weapon-hold-pose.js`  
+**Play mirror (keep in sync):** `src/character/weaponHoldPose.js`
+
+After equip (`equipWeaponById` sets `character.weaponHoldKind`), every frame:
+
+```text
+mixer.update(dt)
+→ applyWeaponHoldPose(mixer, this._gait, weaponHoldKind)   // residual on R/L hand
+→ pistol reload overlay (if active — hold residual skipped)
+```
+
+Wired in `CharacterController.update` · kind from `equippedWeaponRuntime`.  
+**Do not** add a second grip/hold module — extend the ObjectStore SSOT and re-copy.
 | Staff normal | Hotbar **1** + **focus LMB** → shared stream orb |
 | Linear skillshots | ice / thunder / meteor / beam / snare / glacier (`elementalLinearCast`) |
 | Path cast | Fire/Water/Earth/Wind Ability pools (draw stroke under staff weapons) |

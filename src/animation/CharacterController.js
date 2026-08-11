@@ -2,13 +2,16 @@ import {
   AnimationMixer,
   Box3,
   ClampToEdgeWrapping,
+  Euler,
   Group,
   LoopOnce,
   LoopRepeat,
   MathUtils,
+  Quaternion,
   SRGBColorSpace,
   Vector3
 } from 'three';
+import { applyWeaponHoldPose, normalizeHoldKind } from '../character/weaponHoldPose.js';
 import {
   ANIM_PACKS,
   DODGE_ROLE,
@@ -1797,6 +1800,20 @@ export class CharacterController {
 
     this.mixer.timeScale = settings.global.animationSpeed;
     this.mixer.update(dt);
+
+    // Post-mixer weapon hold residual (SSOT: ObjectStore grudge6-weapon-hold-pose)
+    // Same applyWeaponHoldPose(mixer, gait, kind) as main-panel viewport — no parallel stack.
+    if (this.mixer && this.model && !this._pistolReload?.active) {
+      const kind =
+        this.weaponHoldKind ||
+        normalizeHoldKind(this.weaponAttach?.userData?.profile || this.animPackId || 'sword');
+      applyWeaponHoldPose(this.mixer, this._gait, kind, {
+        THREE: { Quaternion, Euler },
+        root: this.model,
+        hand: 'both',
+        offKind: this.weaponHoldOffKind || null
+      });
+    }
 
     // Flintlock procedural reload (post-mixer bone / weapon overlay)
     if (this._pistolReload?.active) {
