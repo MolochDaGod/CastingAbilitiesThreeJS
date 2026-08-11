@@ -160,8 +160,10 @@ export class StageWater {
 
     this.mesh = new Mesh(new PlaneGeometry(size, size, segs, segs), this.material);
     this.mesh.rotation.x = -Math.PI / 2;
-    this.mesh.position.y = WORLD.waterY;
+    // Sea surface at 0 m — seafloor is a separate mesh at WORLD.seafloorY (−5)
+    this.mesh.position.y = WORLD.waterY ?? 0;
     this.mesh.name = 'StageWater';
+    this.mesh.userData.waterSurface = true;
     this.mesh.receiveShadow = false;
     this.mesh.castShadow = false;
     this.mesh.layers.set(LAYER.WORLD);

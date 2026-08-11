@@ -8,12 +8,13 @@ import { frame } from './FrameUniforms.js';
 import { Environment } from '../world/Environment.js';
 import { Ground } from '../world/Ground.js';
 import { StageWater } from '../world/StageWater.js';
+import { Seafloor } from '../world/Seafloor.js';
 import { OceanWindIndicators } from '../effects/OceanWindIndicators.js';
 import { IslandHeightfield } from '../world/IslandHeightfield.js';
+import { IslandTown } from '../world/IslandTown.js';
 import { terrainHandle } from '../world/terrainGround.js';
 import { mountTerrainLayers, TERRAIN_LAYER } from '../world/terrainLayers.js';
 import { OpenSeaShells } from '../world/OpenSeaShells.js';
-import { HomeIslandScenery } from '../world/homeIslandScenery.js';
 import { DustMotes } from '../world/DustMotes.js';
 import { ContactShadows } from '../world/ContactShadows.js';
 import { WORLD } from '../config/worldScale.js';
@@ -175,7 +176,10 @@ export class App {
     );
     settings.camera.minDistance = Math.min(settings.camera.minDistance ?? 2.5, WORLD.cameraMinDistance);
 
-    this.ground = new Ground(this.environment);
+    // Ground pad removed when heightfield is on — was double ground + z-fight.
+    // Seafloor (−5 m sand) + single StageWater (y=0) only.
+    this.ground = null;
+    this.seafloor = new Seafloor();
     this.water = new StageWater();
     /** Heightfield land (snakey / three-stylized / Rapier terrain patterns) */
     this.islandTerrain =
@@ -183,6 +187,7 @@ export class App {
     this.growingForest = null;
     /** L2 stylized grass (three-stylized pattern on L0 height) */
     this.stylizedGrass = null;
+    this.islandTown = null;
     this.dust = new DustMotes();
     this.contactShadows = new ContactShadows(this.renderer, {
       size: 2.6 * Math.sqrt(WORLD.mapScale),
@@ -190,13 +195,24 @@ export class App {
       blur: 2.0
     });
 
-    this.scene.add(this.water.mesh, this.ground.mesh, this.dust.points, this.contactShadows.group);
+    this.scene.add(
+      this.seafloor.mesh,
+      this.water.mesh,
+      this.dust.points,
+      this.contactShadows.group
+    );
     /** One terrain handle for aim / path / harvest / drops (no N lambdas) */
     this.terrain = terrainHandle(this.islandTerrain);
     if (this.islandTerrain?.mesh) {
       this.scene.add(this.islandTerrain.mesh);
-      if (this.ground.mesh) this.ground.mesh.visible = false;
+    } else {
+      // Fallback flat pad only if heightfield disabled
+      this.ground = new Ground(this.environment);
+      this.scene.add(this.ground.mesh);
     }
+    console.info(
+      `[App] world waterY=${WORLD.waterY} seafloorY=${WORLD.seafloorY} (single water · no snow ground)`
+    );
     this.dust.setPixelRatio(this.renderer.gl.getPixelRatio());
     /** One map: Training Room · DevIsland (play + /devnode) */
     this.mapId = TRAINING_ROOM_MAP_ID;
@@ -2029,7 +2045,7 @@ export class App {
       this.hud.showToast?.('Training Room map failed — check /models/dev-island', 4000);
     }
 
-    // Horizon islands (CDN) + open-sea water ring — freeride backdrop
+    // Horizon islands (CDN) welded to seafloorY=-5 · water surface 0
     this.loading.setProgress(0.76, 'Open sea shells…');
     try {
       this.openSea = new OpenSeaShells({ scene: this.scene, assets });
@@ -2039,27 +2055,27 @@ export class App {
       this.openSea = null;
     }
 
-    // Home-island scenery: farm modular · lake · river village (L3 dress)
-    // ?scenery=0 disables; default ON for Training Room / NPC home authoring
-    this.loading.setProgress(0.77, 'Home island scenery…');
+    // Riverside hamlet ON play island (sand/timber — not white snow GLB / missing scenery module)
+    // Planted on heightfield; ?town=0 disables
+    this.loading.setProgress(0.78, 'Island town…');
     try {
-      const sceneryOff = /[?&]scenery=0\b/.test(location.search);
-      this.homeScenery = new HomeIslandScenery({
-        scene: this.scene,
-        assets,
-        heightSample: this.terrain?.sample || null,
-        enabled: !sceneryOff
-      });
-      if (!sceneryOff) {
-        await this.homeScenery.init({ farm: true, lake: true, village: true });
-        // Softer ocean near pad when lake/village dress is present
+      const townOff = /[?&]town=0\b/.test(location.search);
+      this.homeScenery = null;
+      if (!townOff) {
+        this.islandTown = new IslandTown({
+          sampleHeight: (x, z) => this.terrain?.sample?.(x, z) ?? 0,
+          islandRadius: WORLD.islandRadius
+        });
+        this.islandTown.build();
+        this.scene.add(this.islandTown.group);
+        // Softer ocean near pad when town dress is present
         if (this.water?.uniforms?.uStorm) {
           this.water._stormTarget = Math.min(this.water._stormTarget ?? 0.35, 0.22);
         }
       }
     } catch (err) {
-      console.warn('[App] HomeIslandScenery', err);
-      this.homeScenery = null;
+      console.warn('[App] IslandTown', err);
+      this.islandTown = null;
     }
 
     this.generatedCatalog = null;
@@ -2453,7 +2469,7 @@ export class App {
     this._updateInteractCursor?.();
     this._tickRadials?.(dt);
 
-    this.ground.update(this.elapsed);
+    this.ground?.update?.(this.elapsed);
     this.water?.update?.(this.elapsed);
     this.dust.update(this.elapsed, this.character.position);
 
@@ -2630,7 +2646,11 @@ export class App {
     this.walk.dispose();
     this.character.dispose();
     this.water?.dispose?.();
-    this.ground.dispose();
+    this.seafloor?.dispose?.();
+    this.islandTown?.dispose?.();
+    this.openSea?.dispose?.();
+    this.ground?.dispose?.();
+    this.islandTerrain?.dispose?.();
     this.dust.dispose();
     this.contactShadows.dispose();
     this.post.dispose();

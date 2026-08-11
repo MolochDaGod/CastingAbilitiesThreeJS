@@ -88,7 +88,8 @@ export function terrainOpts() {
     /** Shore blend width (m) inside islandRadius */
     shoreBand: t.shoreBand ?? WORLD.shoreBand ?? 4.5,
     islandRadius: t.islandRadius ?? WORLD.islandRadius,
-    waterY: t.waterY ?? WORLD.waterY ?? -0.04,
+    waterY: t.waterY ?? WORLD.waterY ?? 0,
+    seafloorY: t.seafloorY ?? WORLD.seafloorY ?? -5,
     /** Flat pad radius (spawn / path cast comfort) before hills rise */
     flatCore: t.flatCore ?? 8
   };
@@ -96,7 +97,7 @@ export function terrainOpts() {
 
 /**
  * Exact CPU land height at world XZ (metres). Same function as mesh bake.
- * Returns waterY outside island (ocean floor for swimming / board — visual water separate).
+ * Outside island pad → seafloorY (−5 m); water surface is WORLD.waterY (0).
  * @param {number} x
  * @param {number} z
  * @param {ReturnType<typeof terrainOpts>} [opts]
@@ -105,7 +106,8 @@ export function heightAt(x, z, opts = terrainOpts()) {
   const r = Math.hypot(x, z);
   const pad = opts.islandRadius;
   const waterY = opts.waterY;
-  if (r >= pad) return waterY;
+  const seafloorY = opts.seafloorY ?? WORLD.seafloorY ?? -5;
+  if (r >= pad) return seafloorY;
 
   // Snakey-style multi-band FBM (scaled down for lab SI)
   const rolling = (fbm(x * 0.012 + 13.7, z * 0.012 + 71.3, opts.seed, 3) - 0.5) * 2.0;
@@ -117,7 +119,7 @@ export function heightAt(x, z, opts = terrainOpts()) {
   const core = smooth01(r, opts.flatCore * 0.65, opts.flatCore * 1.35);
   h *= core;
 
-  // Shore: blend land height down to waterY so feet walk into sea gently
+  // Shore: blend land height down toward water line (0), not seafloor
   const shoreInner = Math.max(0, pad - opts.shoreBand);
   const shore = smooth01(r, shoreInner, pad);
   h = h * (1 - shore) + waterY * shore;
@@ -145,7 +147,9 @@ export function heightAtFromGrid(heights, n, size, x, z) {
   const half = size * 0.5;
   const u = (x + half) / size;
   const v = (z + half) / size;
-  if (u < 0 || u > 1 || v < 0 || v > 1) return terrainOpts().waterY;
+  if (u < 0 || u > 1 || v < 0 || v > 1) {
+    return terrainOpts().seafloorY ?? WORLD.seafloorY ?? -5;
+  }
   const fx = u * n;
   const fz = v * n;
   const i0 = Math.floor(fx);
@@ -207,8 +211,12 @@ export class IslandHeightfield {
      */
     const t = settings.terrain || {};
     const meadow = getColor(t.meadowColor || '#3f6b3a').clone();
-    const shore = getColor(t.shoreColor || settings.environment?.shoreColor || '#8a7355').clone();
+    // Warm sand shore (WORLD.sandColor) — never white/snow
+    const shore = getColor(
+      t.shoreColor || WORLD.sandColor || settings.environment?.shoreColor || '#c2a86a'
+    ).clone();
     const dirt = getColor(t.dirtColor || '#6f5435').clone();
+    const sandDeep = getColor(WORLD.seafloorColor || '#8a7350').clone();
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
       const z = pos.getZ(i);
@@ -216,8 +224,16 @@ export class IslandHeightfield {
       pos.setY(i, h);
       const r = Math.hypot(x, z);
       const shoreAmt = smooth01(r, this.opts.islandRadius - this.opts.shoreBand, this.opts.islandRadius);
+      const wetSand = smooth01(r, this.opts.islandRadius - this.opts.shoreBand * 0.45, this.opts.islandRadius);
       const dirtAmt = fbm(x * 0.27, z * 0.27, this.opts.seed + 3, 3);
-      const c = meadow.clone().lerp(dirt, dirtAmt * 0.35 * (1 - shoreAmt)).lerp(shore, shoreAmt * 0.7);
+      const sandCol = shore.clone().lerp(sandDeep, wetSand * 0.55);
+      const c = meadow
+        .clone()
+        .lerp(dirt, dirtAmt * 0.35 * (1 - shoreAmt))
+        .lerp(sandCol, shoreAmt * 0.92);
+      // Guard: never allow near-white terrain (snow bug)
+      const lum = (c.r + c.g + c.b) / 3;
+      if (lum > 0.72) c.lerp(sandDeep, 0.55);
       colors[i * 3] = c.r;
       colors[i * 3 + 1] = c.g;
       colors[i * 3 + 2] = c.b;

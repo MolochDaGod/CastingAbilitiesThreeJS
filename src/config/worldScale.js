@@ -50,7 +50,17 @@ export const WORLD = Object.freeze({
 
   /** Water plane under/around stage (metres) — open-sea freeride ring */
   waterSize: ORIG.floorPoolOuter * MAP_SCALE * 7.5,
-  waterY: -0.04,
+  /**
+   * Sea surface Y (metres). SI: water line = 0.
+   * Land hills rise above 0; seafloor sits below.
+   */
+  waterY: 0,
+
+  /**
+   * Ocean floor Y (metres) — horizon islands weld here; undersea collision.
+   * Water surface stays at waterY (0); seafloor is a separate sand plane.
+   */
+  seafloorY: -5,
 
   /**
    * Stage island pad (metres):
@@ -65,6 +75,9 @@ export const WORLD = Object.freeze({
   shoreBand: 4.5 * MAP_SCALE,
   /** Beach tint mix strength 0..1 at shore */
   shoreTint: 0.55,
+  /** Sand beach color (hex string for settings / materials) */
+  sandColor: '#c2a86a',
+  seafloorColor: '#8a7350',
 
   /** Rapier ground cuboid half-extents XZ */
   physicsGroundHalf: ORIG.physicsHalf * MAP_SCALE,
