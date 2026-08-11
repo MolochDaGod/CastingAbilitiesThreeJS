@@ -232,8 +232,27 @@ export const settings = {
     variant: 'slashblue',
     /** tip offset along grip→tip approx (m) when no blade mesh measure */
     tipOffset: 0.55,
-    /** hit-frame delay after attack start (s) */
-    hitFrameDelay: 0.18
+    /** hit-frame delay after attack start (s) — residual apex / combo apex */
+    hitFrameDelay: 0.18,
+    /**
+     * Melee hit volume starts this far past the blade tip (m).
+     * Physics residual + VFX origin use tip + beyondBladeM along blade forward.
+     */
+    beyondBladeM: 0.38,
+    /** Sample grip→tip ribbon during swing (weapon mesh trail) */
+    trailEnabled: true,
+    /** Seconds of tip sampling around the swing */
+    trailDuration: 0.34,
+    /** Ribbon half-width scale (m) */
+    trailWidth: 0.14,
+    trailMaxPoints: 18,
+    /** Fire-style blur trail (uses fire Ability path + warm ribbon) */
+    fireTrail: true,
+    trailColor: '#ff6a22',
+    /** Spawn SkillProjectileSystem residual along blade at apex */
+    physicsProjectile: true,
+    /** Cast fire Ability ribbon along residual path */
+    pathTrail: true
   },
 
   /**

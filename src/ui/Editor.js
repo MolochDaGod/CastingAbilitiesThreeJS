@@ -234,7 +234,15 @@ export class Editor {
     residual.addColor(r, 'color').name('color');
     residual.add(r, 'variant', ['slashblue', 'slashred', 'slashpurple', 'slashyellow']).name('slash mesh');
     R(residual, r, 'tipOffset', 0.15, 1.4, 0.01, 'tip offset (m)');
-    R(residual, r, 'hitFrameDelay', 0, 0.5, 0.01, 'hit frame delay');
+    R(residual, r, 'hitFrameDelay', 0, 0.5, 0.01, 'hit frame delay (apex)');
+    R(residual, r, 'beyondBladeM', 0, 1.2, 0.02, 'beyond blade (m)');
+    residual.add(r, 'trailEnabled').name('tip trail');
+    residual.add(r, 'fireTrail').name('fire blur trail');
+    residual.add(r, 'physicsProjectile').name('physics residual');
+    residual.add(r, 'pathTrail').name('ability path trail');
+    R(residual, r, 'trailDuration', 0.1, 0.8, 0.01, 'trail duration (s)');
+    R(residual, r, 'trailWidth', 0.04, 0.4, 0.01, 'trail width (m)');
+    residual.addColor(r, 'trailColor').name('trail color');
 
     const berry = folder.addFolder('Strawberry modes (learn)');
     for (const [mode, preset] of Object.entries(STRAWBERRY_MODE_PRESETS)) {

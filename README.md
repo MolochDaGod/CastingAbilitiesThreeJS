@@ -75,6 +75,39 @@ mixer.update(dt)
 
 Wired in `CharacterController.update` · kind from `equippedWeaponRuntime`.  
 **Do not** add a second grip/hold module — extend the ObjectStore SSOT and re-copy.
+
+### Weapon mesh collider (cylinder + 0.02 m pad)
+
+**Doc:** `docs/WEAPON_MESH_COLLIDER_SSOT.md` · **Code:** `src/character/weaponMeshCollider.js`
+
+| Step | Action |
+|------|--------|
+| 1 | Resolve weapon **mesh** (`WeaponAttach` child or kit sword/axe/…) |
+| 2 | Sample verts → principal axis (blade/barrel) |
+| 3 | Cylinder radius = max radial + **0.02 m** pad |
+| 4 | Markers: tip / grip / mid under mesh (ride anim) |
+| 5 | `character.rebuildWeaponVolume()` after equip |
+
+Feeds: **tip trail**, **apex residual projectiles**, **IK grip**, **effects**, **SFX**, **parry** (`weaponVolumeBlocks` / `tryParryBlock`).
+
+### Melee weapon tip · trail · apex residual
+
+| Piece | Module |
+|-------|--------|
+| Tip (mesh cylinder / muzzle) | `CharacterController.getWeaponTip` ← `weaponVolume` |
+| Swing ribbon | `src/vfx/weaponTipTrail.js` · samples tip each frame |
+| Apex (combo hit frame) | `settings.residual.hitFrameDelay` → getsuga + fire blur + physics past blade |
+| Beyond-blade hit | `beyondBladeM` + contact from volume.radius |
+| Knobs | Editor → Melee residual · `settings.residual` |
+
+```text
+equip → rebuildWeaponVolume (mesh cylinder + 0.02 m)
+attack start → tipTrail.beginSwing
+  · each frame: sample tip → ribbon (blur if fireTrail)
+  · at apex: residual from tip+beyondBlade · fire path · physics proj (radius from mesh)
+combo step 2/3 / finisher → new beginSwing (apex per hit)
+parry (C) → tryParryBlock(attackPoint) vs weapon cylinder
+```
 | Staff normal | Hotbar **1** + **focus LMB** → shared stream orb |
 | Linear skillshots | ice / thunder / meteor / beam / snare / glacier (`elementalLinearCast`) |
 | Path cast | Fire/Water/Earth/Wind Ability pools (draw stroke under staff weapons) |

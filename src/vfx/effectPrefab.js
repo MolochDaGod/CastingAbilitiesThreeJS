@@ -143,7 +143,11 @@ export function residualFromSettings() {
     range: r.range ?? 3.2,
     contactRadius: r.contactRadius ?? 0.65,
     tipOffset: r.tipOffset ?? 0.55,
-    hitFrameDelay: r.hitFrameDelay ?? 0.18
+    hitFrameDelay: r.hitFrameDelay ?? 0.18,
+    beyondBladeM: r.beyondBladeM ?? 0.38,
+    trailEnabled: r.trailEnabled !== false,
+    fireTrail: r.fireTrail !== false,
+    trailDuration: r.trailDuration ?? 0.34
   };
 }
 

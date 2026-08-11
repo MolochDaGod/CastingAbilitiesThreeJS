@@ -299,6 +299,12 @@ export async function equipWeapon(weapon, ctx) {
         weapon.weaponType || weapon.kind || weapon.id || profile
       );
       character.syncWeaponAttach?.();
+      // Oriented cylinder from weapon mesh (+0.02 m pad) → tip / residual / parry
+      try {
+        character.rebuildWeaponVolume?.({ debug: false });
+      } catch {
+        /* optional */
+      }
       // Lab mesh appearance (color / scale / rotate) if saved
       try {
         const { applyWeaponAppearance } = await import('../equipment/meshAppearance.js');
@@ -309,6 +315,11 @@ export async function equipWeapon(weapon, ctx) {
     }
   } else if (character) {
     character.weaponHoldKind = normalizeHoldKind(weapon.weaponType || weapon.kind || weapon.id);
+    try {
+      character.rebuildWeaponVolume?.({ debug: false });
+    } catch {
+      /* optional */
+    }
   }
 
   // 4) Warm production skill overrides (public/skills/production/<id>.json) before hotbar compile

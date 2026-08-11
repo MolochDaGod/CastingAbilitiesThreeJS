@@ -11,7 +11,14 @@ import {
   SRGBColorSpace,
   Vector3
 } from 'three';
+// Box3 used by getWeaponTip mesh-tip measure
 import { applyWeaponHoldPose, normalizeHoldKind } from '../character/weaponHoldPose.js';
+import {
+  buildWeaponMeshVolume,
+  getVolumeAxisWorld,
+  getVolumeTipWorld,
+  WEAPON_COLLIDER_PAD_M
+} from '../character/weaponMeshCollider.js';
 import {
   ANIM_PACKS,
   DODGE_ROLE,
@@ -1581,10 +1588,25 @@ export class CharacterController {
       this.weaponAttach || getWeaponAttachFromHand(this.bones?.rHand) || findWeaponAttach(this);
     if (attach) this.weaponAttach = attach;
 
-    // Flintlock / any WeaponAttach with muzzle — true barrel tip
-    if (attach?.userData?.muzzle || attach?.userData?.profile === 'pistol') {
+    // Prefer mesh-fitted cylinder tip (weapon volume SSOT)
+    if (this.weaponVolume) {
+      getVolumeTipWorld(this.weaponVolume, target);
+      if (target.lengthSq() > 1e-8) return target;
+    }
+
+    // Any WeaponAttach with muzzle/tip marker (pistol barrel OR measured tip)
+    if (attach?.userData?.muzzle) {
       getMuzzleWorld(attach, target);
       if (target.lengthSq() > 1e-8) return target;
+    }
+    if (attach?.userData?.profile === 'pistol') {
+      getMuzzleWorld(attach, target);
+      if (target.lengthSq() > 1e-8) return target;
+    }
+
+    // Mesh tip: farthest visible weapon mesh AABB corner from hand (kit swords)
+    if (this._weaponTipFromVisibleMesh?.(target)) {
+      return target;
     }
 
     this.getCastOrigin(target);
@@ -1602,10 +1624,79 @@ export class CharacterController {
   }
 
   /**
+   * Rebuild oriented cylinder (+0.02 m pad) from equipped weapon mesh.
+   * Call after equip / mesh_ids change. Drives tip, residual, parry, IK grip.
+   * @param {{ debug?: boolean, padM?: number }} [opts]
+   */
+  rebuildWeaponVolume(opts = {}) {
+    const attach =
+      this.weaponAttach || getWeaponAttachFromHand(this.bones?.rHand) || findWeaponAttach(this);
+    const hand = this.bones?.rHand || null;
+    this.weaponVolume = buildWeaponMeshVolume(this.model, {
+      weaponAttach: attach,
+      handBone: hand,
+      padM: opts.padM ?? WEAPON_COLLIDER_PAD_M,
+      debug: !!opts.debug || !!this._debugWeaponVolume
+    });
+    if (this.weaponVolume) {
+      this.weaponHoldKind =
+        this.weaponHoldKind ||
+        normalizeHoldKind(attach?.userData?.profile || this.animPackId || 'sword');
+    }
+    return this.weaponVolume;
+  }
+
+  /**
+   * Farthest corner of visible kit/lab weapon mesh from R hand — blade tip proxy.
+   * @param {import('three').Vector3} out
+   * @returns {boolean}
+   */
+  _weaponTipFromVisibleMesh(out) {
+    const hand = this.bones?.rHand;
+    const root = this.model;
+    if (!hand || !root || !out) return false;
+    hand.getWorldPosition(_castOrigin);
+    const handW = _castOrigin.clone();
+    let bestD = -1;
+    let best = null;
+    const re = /sword|axe|hammer|spear|dagger|knife|blade|mace|staff|wand|club|pick|weapon/i;
+    const ex = /shield|quiver|bag|arrow/i;
+    root.traverse((o) => {
+      if (!o.isMesh || !o.visible) return;
+      const n = o.name || '';
+      if (ex.test(n)) return;
+      if (!re.test(n) && !o.userData?.labWeapon && !o.userData?.weaponAttach) return;
+      o.updateWorldMatrix?.(true, false);
+      const box = new Box3().setFromObject(o);
+      if (box.isEmpty()) return;
+      const { min, max } = box;
+      for (const x of [min.x, max.x]) {
+        for (const y of [min.y, max.y]) {
+          for (const z of [min.z, max.z]) {
+            const d =
+              (x - handW.x) ** 2 + (y - handW.y) ** 2 + (z - handW.z) ** 2;
+            if (d > bestD) {
+              bestD = d;
+              best = { x, y, z };
+            }
+          }
+        }
+      }
+    });
+    if (!best || bestD < 1e-6) return false;
+    out.set(best.x, best.y, best.z);
+    return true;
+  }
+
+  /**
    * Barrel / blade forward unit (world). Pistol uses grip→muzzle.
    * @param {import('three').Vector3} [out]
    */
   getWeaponForward(out = new Vector3()) {
+    if (this.weaponVolume) {
+      getVolumeAxisWorld(this.weaponVolume, out);
+      if (out.lengthSq() > 1e-8) return out;
+    }
     const attach =
       this.weaponAttach || getWeaponAttachFromHand(this.bones?.rHand) || findWeaponAttach(this);
     if (attach?.userData?.muzzle || attach?.userData?.profile === 'pistol') {

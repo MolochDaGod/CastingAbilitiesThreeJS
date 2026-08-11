@@ -129,11 +129,13 @@ type EffectPrimitive = {
 | Step | Rule | Casting lab |
 |------|------|-------------|
 | 1 | Attack anim one-shot (`sword_shield` / pack attack) | `playWeaponAttack` / `requestOneShot('attack')` |
-| 2 | Hit frame delay | `settings.residual.hitFrameDelay` (default 0.18 s) |
-| 3 | Origin = weapon tip | `CharacterController.getWeaponTip` (R_hand + tipOffset) |
-| 4 | Dir = blade / facing | character facing on XZ |
-| 5 | Spawn residual | `VfxDirector.deploy('getsuga_slash', { fromTip })` + short path |
-| 6 | Profile knobs | range, speed, meshScale, contactRadius, aoeRadius, color, variant |
+| 2 | Hit frame delay (apex) | `settings.residual.hitFrameDelay` (default 0.18 s) |
+| 3 | Origin = weapon tip | `getWeaponTip` (muzzle / mesh AABB / tipOffset) |
+| 4 | Beyond blade | `beyondBladeM` — hit volume starts past tip |
+| 5 | Dir = blade / facing | `getWeaponForward` or facing on XZ |
+| 6 | Swing trail | `WeaponTipTrailSystem` ribbon samples tip each frame |
+| 7 | Apex residual | `getsuga_slash` + fire blur path + physics projectile |
+| 8 | Profile knobs | range, speed, trail*, fireTrail, contactRadius, aoeRadius |
 
 **Input:** **F** = melee residual · **Space** = jump only · **1–4** = element spells  
 **Never:** free Space Getsuga · whole `fireball.glb` as bolt
@@ -175,7 +177,10 @@ Lab default residual: range **3.2 m**, slashblue, meshScale **0.9** — tune in 
 | Getsuga residual on F | **Wired** (`useMeleeStrike` + residual knobs) |
 | EffectPrefab export | **Wired** (Editor ⚡ folder) |
 | Orb travel for staff | Next — bind `meshId: orb-*` to Ability travel |
-| Blade trail during swing | Next — sample tip each frame in hit window |
+| Blade trail during swing | **Wired** — `WeaponTipTrailSystem` samples tip each frame |
+| Apex residual + physics past blade | **Wired** — `beyondBladeM` + projectile at hitFrameDelay |
+| Fire blur trail on residual | **Wired** — fire Ability path + warm ribbon (`fireTrail`) |
+| Combo apex per hit | **Wired** — each attack1–3 / finisher begins a new swing session |
 | Strawberry force/cool presets | **Editor buttons** apply knobs (no mesh yet) |
 | Main Panel T0 icons on DRC bar | Next — icons only, no new radial |
 | Wind SKILL_VFX_BIND | **Fixed** |

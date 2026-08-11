@@ -70,6 +70,7 @@ import {
 } from './elementalLinearCast.js';
 import { SkillStatusSystem } from './skillStatusSystem.js';
 import { WeaponTipTrailSystem } from '../vfx/weaponTipTrail.js';
+import { pointHitsWeaponVolume } from '../character/weaponMeshCollider.js';
 
 const _origin = new Vector3();
 const _tip = new Vector3();
@@ -2824,6 +2825,18 @@ export class DrcCombatController {
     return false;
   }
 
+  /**
+   * True if a world-space attack point intersects the equipped weapon cylinder
+   * (mesh-fit + 0.02 m pad). Used for defensive parry success vs incoming strike.
+   * @param {import('three').Vector3} attackPoint
+   * @param {number} [attackRadius=0.15]
+   */
+  weaponVolumeBlocks(attackPoint, attackRadius = 0.15) {
+    const vol = this.character?.weaponVolume;
+    if (!vol || !attackPoint) return false;
+    return pointHitsWeaponVolume(vol, attackPoint, attackRadius);
+  }
+
   /** Parry with block/parry clip. SFX fires on **attempt** (key press), not only success. */
   parry() {
     try {
@@ -2831,6 +2844,14 @@ export class DrcCombatController {
     } catch (_) {}
     const stam = settings.drc?.parryStamina ?? 8;
     return this._utilityAction('parry', 0.65, stam, () => {
+      // Ensure mesh cylinder is fresh for defensive tests this window
+      try {
+        this.character.rebuildWeaponVolume?.({ debug: false });
+      } catch {
+        /* optional */
+      }
+      /** Parry active until — weaponVolumeBlocks(point) valid in this window */
+      this._parryUntil = this.elapsed + (settings.drc?.parryWindowSec ?? 0.35);
       this.character.playParry?.() || this.character.requestOneShot?.('block');
       _fwd.set(Math.sin(this.character.facing), 0, Math.cos(this.character.facing));
       this.vfx?.deploy?.('arcane_swirl', {
@@ -2840,6 +2861,23 @@ export class DrcCombatController {
       });
       this.onToast(this._isMagicParryContext() ? 'Magic parry (C)' : 'Parry (C)');
     });
+  }
+
+  /**
+   * Incoming attack vs weapon cylinder during parry window.
+   * @param {import('three').Vector3} attackPoint
+   * @param {number} [attackRadius]
+   */
+  tryParryBlock(attackPoint, attackRadius = 0.18) {
+    if (!this._parryUntil || this.elapsed > this._parryUntil) return false;
+    if (!this.weaponVolumeBlocks(attackPoint, attackRadius)) return false;
+    this.vfx?.deploy?.('arcane_swirl', {
+      origin: attackPoint.clone?.() || this.character.position.clone(),
+      forward: _fwd.set(0, 1, 0),
+      intensity: 1.1
+    });
+    this.onToast('Parried!');
+    return true;
   }
 
   /**
