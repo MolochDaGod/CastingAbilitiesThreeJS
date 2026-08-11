@@ -1,7 +1,7 @@
-import { MathUtils, Plane, Raycaster, Vector2, Vector3 } from 'three';
+import { MathUtils, Raycaster, Vector2, Vector3 } from 'three';
 import { settings } from '../config/settings.js';
+import { projectToTerrain } from '../world/terrainGround.js';
 
-const GROUND = new Plane(new Vector3(0, 1, 0), 0);
 const _ndc = new Vector2();
 const _hit = new Vector3();
 const _tmp = new Vector3();
@@ -12,14 +12,10 @@ const _dir = new Vector3();
 /**
  * Combat mouse aim — snow-brawl style ray → world hit → launch vector.
  *
- * Free mode: pointer NDC → ground plane (select / tank aim).
- * Focus mode: screen-center (or free reticle NDC) camera ray → ground/far point,
- * optional soft-lock magnetic bias, then **3D** launch dir for projectiles.
+ * Free / focus: camera ray → **terrain mesh or height sample** (one SSOT),
+ * then soft-lock bias + 3D launch dir. No separate heightmap here.
  *
- * Ref: discourse snow-brawl (setFromCamera → intersect → dir = target − spawn).
- * Body still yaws with camera look (CombatFocus); this supplies accurate attack math.
- *
- * @see docs/COMBAT_CAMERA_FOCUS_SSOT.md
+ * @see world/terrainGround.js · docs/TERRAIN_PHYSICS_SSOT.md
  */
 export class MouseAim {
   /**
@@ -48,6 +44,8 @@ export class MouseAim {
     this.ndc = new Vector2();
     /** Optional colliders for ray (walls, props) — focus aim only */
     this.aimColliders = [];
+    /** @type {import('../world/terrainGround.js').TerrainGround|null} */
+    this.terrain = null;
   }
 
   /**
@@ -58,7 +56,15 @@ export class MouseAim {
   }
 
   /**
-   * Free cursor: NDC → ground plane.
+   * One terrain handle from App (mesh + sample). Same as PathDrawer.
+   * @param {import('../world/terrainGround.js').TerrainGround|null} terrain
+   */
+  setTerrain(terrain) {
+    this.terrain = terrain || null;
+  }
+
+  /**
+   * Free cursor: NDC → terrain ground.
    * @param {Vector2|{x:number,y:number}} pointerNdc InputManager.pointer (-1..1)
    * @param {Vector3} playerPos character feet
    * @returns {boolean}
@@ -72,11 +78,13 @@ export class MouseAim {
     this.rayOrigin.copy(this.raycaster.ray.origin);
     this.rayDir.copy(this.raycaster.ray.direction).normalize();
 
-    const hit = this.raycaster.ray.intersectPlane(GROUND, _hit);
-    if (!hit) {
-      // Fall back: far point along ray (snow-brawl style)
+    if (!projectToTerrain(this.raycaster, _hit, this.terrain)) {
       this.hitPoint.copy(this.rayOrigin).addScaledVector(this.rayDir, this._aimFar());
-      this.point.set(this.hitPoint.x, 0, this.hitPoint.z);
+      const y =
+        typeof this.terrain?.sample === 'function'
+          ? this.terrain.sample(this.hitPoint.x, this.hitPoint.z)
+          : 0;
+      this.point.set(this.hitPoint.x, Number.isFinite(y) ? y : 0, this.hitPoint.z);
       this.valid = true;
       this._fromPlayer(playerPos);
       this._refreshLaunch(playerPos);
@@ -84,7 +92,10 @@ export class MouseAim {
     }
     this.point.copy(_hit);
     this.hitPoint.copy(_hit);
-    this.hitPoint.y = Math.max(0.15, _hit.y);
+    this.hitPoint.y = Math.max(
+      _hit.y + 0.15,
+      (settings.aim?.projectileAimHeight ?? 1.15) * 0.2 + _hit.y
+    );
     this.valid = true;
     this._fromPlayer(playerPos);
     this._refreshLaunch(playerPos);
@@ -110,23 +121,17 @@ export class MouseAim {
     this.rayOrigin.copy(this.raycaster.ray.origin);
     this.rayDir.copy(this.raycaster.ray.direction).normalize();
 
-    // 1) Prefer mesh colliders (walls / props) like snow-brawl ice+walls
+    // 1) Prefer mesh colliders (walls / props)
     let hit3 = null;
     if (this.aimColliders.length) {
       const hits = this.raycaster.intersectObjects(this.aimColliders, true);
       if (hits[0]) hit3 = hits[0].point.clone();
     }
-    // 2) Ground plane
-    if (!hit3) {
-      const g = this.raycaster.ray.intersectPlane(GROUND, _hit);
-      if (g) {
-        hit3 = _hit.clone();
-        // Aim at chest height above ground for projectiles (dynamic elev)
-        hit3.y = Math.max(
-          settings.aim?.projectileAimHeight ?? 1.15,
-          hit3.y + (settings.aim?.projectileAimHeight ?? 1.15) * 0.15
-        );
-      }
+    // 2) Terrain mesh / height sample (same SSOT as free aim + path draw)
+    if (!hit3 && projectToTerrain(this.raycaster, _hit, this.terrain)) {
+      hit3 = _hit.clone();
+      const aimH = settings.aim?.projectileAimHeight ?? 1.15;
+      hit3.y = _hit.y + aimH * 0.15;
     }
     // 3) Far point along look ray
     if (!hit3) {
@@ -147,7 +152,6 @@ export class MouseAim {
         _dir.normalize();
         const ang = this.rayDir.angleTo(_dir);
         if (ang <= maxAng) {
-          // Action assist: stronger pull near crosshair, still capped (not hard lock)
           const closeness = 1 - ang / Math.max(1e-4, maxAng);
           const w = blend * (0.35 + closeness * 0.75);
           this.hitPoint.lerp(soft, MathUtils.clamp(w, 0, 0.9));
@@ -155,8 +159,16 @@ export class MouseAim {
       }
     }
 
-    // Ground marker under hit
-    this.point.set(this.hitPoint.x, 0.05, this.hitPoint.z);
+    // Ground marker on terrain surface under hit
+    const gy =
+      typeof this.terrain?.sample === 'function'
+        ? this.terrain.sample(this.hitPoint.x, this.hitPoint.z)
+        : 0;
+    this.point.set(
+      this.hitPoint.x,
+      (Number.isFinite(gy) ? gy : 0) + 0.05,
+      this.hitPoint.z
+    );
     this.valid = true;
     this._fromPlayer(playerPos);
     this._refreshLaunch(playerPos);

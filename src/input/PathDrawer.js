@@ -1,19 +1,17 @@
-import { Raycaster, Plane, Vector3, CatmullRomCurve3, MathUtils } from 'three';
+import { Raycaster, Vector3, CatmullRomCurve3, MathUtils } from 'three';
 import { settings } from '../config/settings.js';
 import { EventEmitter } from '../utils/EventEmitter.js';
 import { PathTrail } from '../effects/PathTrail.js';
-
-const GROUND_PLANE = new Plane(new Vector3(0, 1, 0), 0);
+import { projectToTerrain } from '../world/terrainGround.js';
 
 /**
  * Turns a mouse drag into a smooth, castable spline.
  *
  * Pipeline:
- *   pointer NDC → raycast onto the ground plane → jitter-filtered sample list
+ *   pointer NDC → terrain ground (mesh / sample) → jitter-filtered samples
  *   → exponential smoothing → CatmullRomCurve3 → uniform arc-length resample.
  *
- * The resampled polyline is what the preview ribbon and the abilities consume,
- * so the visible trail and the ability trajectory are guaranteed to agree.
+ * Ground projection is the same helper as MouseAim — no parallel height math.
  *
  * Emits: `cast` (curve, points, length), `start`, `cancel`.
  */
@@ -37,6 +35,8 @@ export class PathDrawer extends EventEmitter {
     /** Last projected point (AOE place on short cancel) */
     this.lastHit = new Vector3();
     this._combatMinLength = null;
+    /** @type {import('../world/terrainGround.js').TerrainGround|null} */
+    this.terrain = null;
 
     this._hit = new Vector3();
     this._smoothed = new Vector3();
@@ -44,6 +44,14 @@ export class PathDrawer extends EventEmitter {
 
     // Pre-allocate the resample buffer so drawing never allocates.
     for (let i = 0; i < 320; i++) this.resampled.push(new Vector3());
+  }
+
+  /**
+   * Same terrain handle as MouseAim (App sets once).
+   * @param {import('../world/terrainGround.js').TerrainGround|null} terrain
+   */
+  setTerrain(terrain) {
+    this.terrain = terrain || null;
   }
 
   /** Combat staff casts allow shorter paths (AOE place). */
@@ -55,10 +63,10 @@ export class PathDrawer extends EventEmitter {
     return this.trail.mesh;
   }
 
-  /** Project a pointer position onto the ground plane. @returns {boolean} hit */
+  /** Project pointer onto terrain. @returns {boolean} hit */
   _project(pointer, out) {
     this.raycaster.setFromCamera(pointer, this.camera);
-    return this.raycaster.ray.intersectPlane(GROUND_PLANE, out) !== null;
+    return projectToTerrain(this.raycaster, out, this.terrain);
   }
 
   begin(pointer) {

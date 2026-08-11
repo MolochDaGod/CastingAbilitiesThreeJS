@@ -21,7 +21,15 @@
 | **Water** | `StageWater` (waves) | Sensor slab + freeride Y | `water.sampleHeight(x,z,t)` |
 | **Void / far** | fog | outer flat removed under pad | — |
 
-**One height source** for mesh, Rapier, harvest Y, player feet. Do not invent a second heightmap.
+**One height source** for mesh, Rapier, harvest Y, player feet, **aim, and path draw**.
+
+| Consumer | How |
+|----------|-----|
+| Rapier / feet | `PhysicsWorld` heightfield + `landHeightAt` |
+| Aim / path | `terrainGround.projectToTerrain` via `this.terrain` |
+| Harvest / forest / drops | `this.terrain.sample(x,z)` |
+
+Do **not** invent a second heightmap or ray-plane-only ground when terrain is on.
 
 ## SI scaling
 
@@ -58,10 +66,11 @@ settings.terrain = {
 
 ```
 [ ] Walk hills — feet follow heightfield (no float)
-[ ] Path / cast still works on pad
+[ ] Path trail sits on hills (not y=0 plane under mesh)
+[ ] Ground aim marker on terrain surface
 [ ] Ocean freeride still samples StageWater
 [ ] Harvest rocks at correct Y
 [ ] Trees grow and F harvests wood
 [ ] ?physicsDebug=1 shows heightfield
-[ ] No second physics engine
+[ ] No second physics engine / no duplicate height APIs
 ```

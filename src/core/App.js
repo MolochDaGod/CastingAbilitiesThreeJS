@@ -11,6 +11,7 @@ import { StageWater } from '../world/StageWater.js';
 import { OceanWindIndicators } from '../effects/OceanWindIndicators.js';
 import { IslandHeightfield } from '../world/IslandHeightfield.js';
 import { GrowingForest } from '../world/GrowingForest.js';
+import { terrainHandle } from '../world/terrainGround.js';
 import { OpenSeaShells } from '../world/OpenSeaShells.js';
 import { DustMotes } from '../world/DustMotes.js';
 import { ContactShadows } from '../world/ContactShadows.js';
@@ -152,10 +153,10 @@ export class App {
     });
 
     this.scene.add(this.water.mesh, this.ground.mesh, this.dust.points, this.contactShadows.group);
+    /** One terrain handle for aim / path / harvest / drops (no N lambdas) */
+    this.terrain = terrainHandle(this.islandTerrain);
     if (this.islandTerrain?.mesh) {
-      // Visual hills on pad — flat Ground still used for far void ring if needed
       this.scene.add(this.islandTerrain.mesh);
-      // Hide flat ground under island extent so heightfield reads clean
       if (this.ground.mesh) this.ground.mesh.visible = false;
     }
     this.dust.setPixelRatio(this.renderer.gl.getPixelRatio());
@@ -230,6 +231,9 @@ export class App {
     this.pathDrawer = new PathDrawer(this.camera);
     this.scene.add(this.pathDrawer.object3D);
     this.mouseAim = new MouseAim(this.camera);
+    // Same terrain for aim + path (after both exist)
+    this.mouseAim.setTerrain(this.terrain);
+    this.pathDrawer.setTerrain(this.terrain);
     this.combatFocus = new CombatFocus();
     this.rig.setCombatFocus?.(this.combatFocus);
     this.combatFocus.on('toast', (msg) => this.hud.showToast(msg));
@@ -1643,7 +1647,7 @@ export class App {
       // Land heightfield + water sensor layer (must learn: one height source)
       if (this.islandTerrain) {
         const ok = this.physics.addHeightfield(this.islandTerrain.rapierDesc(), {
-          landHeightAt: (x, z) => this.islandTerrain.sample(x, z),
+          landHeightAt: this.terrain?.sample || null,
           waterHeightAt: (x, z, t) =>
             this.water?.sampleHeight?.(x, z, t ?? this.elapsed) ?? WORLD.waterY
         });
@@ -1725,7 +1729,7 @@ export class App {
       assets,
       waterY: WORLD.waterY,
       groundY: 0,
-      heightSample: (x, z) => this.islandTerrain?.sample?.(x, z) ?? 0,
+      heightSample: this.terrain?.sample || null,
       onToast: (m) => this.hud.showToast(m)
     });
     loadPrefabCatalog()
@@ -1739,7 +1743,7 @@ export class App {
     if (settings.terrain?.forestEnabled !== false && this.islandTerrain) {
       this.growingForest = new GrowingForest({
         scene: this.scene,
-        heightSample: (x, z) => this.islandTerrain.sample(x, z),
+        heightSample: this.terrain.sample,
         count: settings.terrain?.forestCount ?? 48,
         islandRadius: WORLD.islandRadius * 0.9,
         clearRadius: 11,
@@ -1761,7 +1765,7 @@ export class App {
         onToast: (m) => this.hud.showToast(m),
         islandRadius: WORLD.islandRadius,
         rangeM: HARVEST_RANGE_M,
-        heightSample: (x, z) => this.islandTerrain?.sample?.(x, z) ?? 0
+        heightSample: this.terrain?.sample || null
       });
       await this.worldHarvest.init();
       console.info(
