@@ -40,6 +40,8 @@ import { MAIN_PANEL_PROD } from './uiAssetCatalog.js';
  * @property {(item: object) => void|Promise<void>} [onDeposit]
  * @property {() => void} [onRefresh]
  * @property {(slotId: string) => void} [onOpenSlotPicker]
+ * @property {(slotId: string) => void} [onOpenCatalogPicker]
+ * @property {(item: object) => void} [onEditMesh]
  */
 
 let _menuEl = null;
@@ -92,6 +94,11 @@ function buildActions(target, h) {
   if (!item) {
     if (target.source === 'paperdoll' && target.slotId) {
       actions.push({
+        id: 'catalog',
+        label: 'Browse T0–T1 catalog…',
+        run: () => h.onOpenCatalogPicker?.(target.slotId)
+      });
+      actions.push({
         id: 'pick',
         label: 'Choose from bag…',
         run: () => h.onOpenSlotPicker?.(target.slotId)
@@ -133,9 +140,19 @@ function buildActions(target, h) {
       }
     });
     actions.push({
+      id: 'catalog',
+      label: 'Replace from T0–T1 catalog…',
+      run: () => h.onOpenCatalogPicker?.(target.slotId)
+    });
+    actions.push({
       id: 'swap',
       label: 'Replace from bag…',
       run: () => h.onOpenSlotPicker?.(target.slotId)
+    });
+    actions.push({
+      id: 'mesh',
+      label: 'Edit mesh color / scale / rotate…',
+      run: () => h.onEditMesh?.(item)
     });
   }
 
@@ -226,10 +243,25 @@ function buildActions(target, h) {
 export function bestSlotForItem(item) {
   const slots = ALL_PAPERDOLL_SLOTS;
   // Prefer explicit slotHint
-  const hint = String(item.slotHint || item.equipSlot || '').toLowerCase();
+  const hint = String(item.slotHint || item.equipSlot || item.slot || '').toLowerCase();
   if (hint) {
-    const exact = slots.find((s) => s.id.toLowerCase() === hint || s.meshSlot === hint);
-    if (exact && itemFitsSlot(item, exact)) return exact;
+    const exact = slots.find(
+      (s) =>
+        s.id.toLowerCase() === hint ||
+        s.meshSlot === hint ||
+        s.accepts?.some((a) => hint.includes(String(a).toLowerCase()))
+    );
+    if (exact) return exact;
+  }
+  // Category / kind
+  const kind = String(item.kind || item.category || '').toLowerCase();
+  if (/weapon|tool|t0/.test(kind)) return slots.find((s) => s.id === 'mainHand') || null;
+  if (/shield|tome|offhand/.test(kind)) return slots.find((s) => s.id === 'offHand') || null;
+  if (/back|cape|wing|windsurf/.test(kind + hint)) return slots.find((s) => s.id === 'back') || null;
+  if (/relic|class/.test(kind)) return slots.find((s) => s.id === 'relic') || null;
+  if (/mount/.test(kind)) return slots.find((s) => s.id === 'mount') || null;
+  if (/armour|armor|head|body|arms|legs/.test(kind + hint)) {
+    return slots.find((s) => itemFitsSlot(item, s) || s.id === (item.slotHint || 'body')) || null;
   }
   return slots.find((s) => itemFitsSlot(item, s)) || null;
 }

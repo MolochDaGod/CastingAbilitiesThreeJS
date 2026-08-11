@@ -1316,3 +1316,9 @@ body.focus-aim .hud__crosshair {
   background: rgba(255, 255, 255, 0.06);
   font-size: 10px;
 }
+
+/* Catalog T0�T1 picker */
+.mp-picker__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; max-height: 280px; overflow: auto; margin-top: 8px; }
+.mp-picker__search { width: 100%; margin: 6px 0; padding: 6px 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.12); background: #1a1d24; color: #e8e8e8; }
+.mp-picker__item small { opacity: 0.55; margin-left: 4px; }
+.mp-mesh-app { margin-top: 12px; }

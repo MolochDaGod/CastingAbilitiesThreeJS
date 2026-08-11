@@ -295,6 +295,17 @@ export class InventoryPanel {
           const host = this.el.querySelector('[data-panel="character"]');
           if (host) this._onPaperdollSlotClick(slotId, host);
         });
+      },
+      onOpenCatalogPicker: (slotId) => {
+        this._setTab('character');
+        requestAnimationFrame(() => {
+          const host = this.el.querySelector('[data-panel="character"]');
+          if (host) this._openCatalogPicker(slotId, host);
+        });
+      },
+      onEditMesh: (item) => {
+        this._setTab('character');
+        requestAnimationFrame(() => this._openMeshEditor(item));
       }
     };
   }
@@ -448,9 +459,10 @@ export class InventoryPanel {
         </div>
         <div class="mp-picker" data-picker hidden></div>
       </div>
-      <p class="inv-hint">LMB slot → bag options · <b>RMB</b> Unequip / Replace · pick bag item then LMB slot to equip. Production: <a href="${MAIN_PANEL_PROD.equipment}" target="_blank" rel="noopener">ui equipment ↗</a></p>
+      <p class="inv-hint"><b>RMB slot</b> → T0–T1 catalog / Unequip / Mesh edit · <b>LMB</b> bag options · weapons · armour · back · relics. Production: <a href="${MAIN_PANEL_PROD.equipment}" target="_blank" rel="noopener">ui equipment ↗</a></p>
       <div class="inv-btn-row">
         <button type="button" class="inv-btn" data-open-inv>Open Inventory</button>
+        <button type="button" class="inv-btn" data-seed-t0>Seed bag T0 weapons+back</button>
         <button type="button" class="inv-btn inv-btn--ghost" data-unequip-all>Clear paperdoll</button>
         <a class="inv-btn inv-btn--ghost" href="${MAIN_PANEL_PROD.full}" target="_blank" rel="noopener">Fleet Main Panel ↗</a>
         <a class="inv-btn inv-btn--ghost" href="${CRAFT_SSOT_URL}" target="_blank" rel="noopener">Craft bag ↗</a>
@@ -479,6 +491,35 @@ export class InventoryPanel {
       );
     });
     host.querySelector('[data-open-inv]')?.addEventListener('click', () => this._setTab('inventory'));
+    host.querySelector('[data-seed-t0]')?.addEventListener('click', async () => {
+      try {
+        const { listAllT0T1 } = await import('../api/gameItemCatalog.js');
+        const rows = await listAllT0T1({ maxTier: 0 });
+        let n = 0;
+        for (const r of rows.slice(0, 24)) {
+          bagAdd({
+            id: r.id,
+            name: r.name,
+            kind: r.kind || r.category,
+            slotHint: r.slotHint,
+            icon: r.iconUrl,
+            iconUrl: r.iconUrl,
+            tier: r.tier,
+            qty: 1
+          });
+          n++;
+        }
+        // Back mobility always
+        for (const id of ['windsurf', 'holy_wings', 'traveler_wings']) {
+          bagAdd({ id, name: id, kind: 'back', slotHint: 'back', qty: 1 });
+          n++;
+        }
+        this.onToast(`Seeded ${n} catalog items into bag`);
+        this.refresh();
+      } catch (e) {
+        this.onToast(e?.message || 'Seed failed');
+      }
+    });
     host.querySelector('[data-unequip-all]')?.addEventListener('click', () => {
       saveEquipMap({});
       this.onToast('Paperdoll cleared (local map)');
@@ -521,14 +562,15 @@ export class InventoryPanel {
               .map(
                 ({ it, i }) => `
             <button type="button" class="mp-picker__item" data-pick-i="${i}">
-              <img src="${it.icon || ''}" alt="" referrerpolicy="no-referrer" />
+              <img src="${it.icon || it.iconUrl || ''}" alt="" referrerpolicy="no-referrer" />
               <span>${it.name} ×${it.qty || 1}</span>
             </button>`
               )
               .join('')
-          : `<p class="mp-picker__empty">No matching items. Open Inventory or Craft SSOT.</p>`
+          : `<p class="mp-picker__empty">No bag items for this slot.</p>`
       }
-      <button type="button" class="inv-btn inv-btn--ghost" data-picker-close style="width:100%;margin-top:6px">Close</button>
+      <button type="button" class="inv-btn" data-open-catalog style="width:100%;margin-top:6px">Browse T0–T1 catalog…</button>
+      <button type="button" class="inv-btn inv-btn--ghost" data-picker-close style="width:100%;margin-top:4px">Close</button>
     `;
     picker.querySelectorAll('[data-pick-i]').forEach((b) => {
       b.addEventListener('click', () => {
@@ -539,6 +581,9 @@ export class InventoryPanel {
         this._equipTarget = null;
         this.refresh();
       });
+    });
+    picker.querySelector('[data-open-catalog]')?.addEventListener('click', () => {
+      this._openCatalogPicker(slotId, host);
     });
     picker.querySelector('[data-picker-close]')?.addEventListener('click', () => {
       picker.hidden = true;
@@ -551,9 +596,16 @@ export class InventoryPanel {
     const map = loadEquipMap();
     // Return previous to bag
     if (map[slotDef.id]) bagAdd(map[slotDef.id]);
-    map[slotDef.id] = { ...item, qty: 1 };
+    const equipped = {
+      ...item,
+      qty: 1,
+      kind: item.kind || item.category || 'item',
+      icon: item.icon || item.iconUrl,
+      iconUrl: item.iconUrl || item.icon
+    };
+    map[slotDef.id] = equipped;
     saveEquipMap(map);
-    // Remove one from bag
+    // Remove one from bag (catalog equip may have no bag index)
     const bag = loadBag();
     if (bagIndex != null && bag.slots[bagIndex]) {
       const q = (bag.slots[bagIndex].qty || 1) - 1;
@@ -562,26 +614,235 @@ export class InventoryPanel {
       saveBag(bag);
     }
 
-    // Live 3D: weapon catalog or mesh_ids
+    // Live 3D: weapons · armour mesh_ids · back mobility · appearance
     try {
       if (slotDef.kind === 'hand' && item.id) {
         await ensureWeaponCatalog();
-        await equipWeaponById(item.id, {
-          character: this.character,
-          onToast: this.onToast,
-        });
+        try {
+          await equipWeaponById(item.id, {
+            character: this.character,
+            onToast: this.onToast
+          });
+        } catch {
+          // Catalog weapon not in T0 list — still keep paperdoll row
+          this.onToast(`Paperdoll ${item.name} (3D if model URL later)`);
+        }
+        // Mesh color / scale from saved appearance
+        const { applyWeaponAppearance } = await import('../equipment/meshAppearance.js');
+        applyWeaponAppearance(this.character, item.id);
       } else if (slotDef.kind === 'mesh' && slotDef.meshSlot) {
         const cat = this.character.equipment?.getCatalogSummary?.() || {};
         const variants = cat[slotDef.meshSlot]?.variants || [];
-        const pick = variants[0] || 'A';
+        // Prefer A / item variant hint
+        const pick =
+          variants.find((v) => v === item.variant || v === 'A' || v === '_default') ||
+          variants[0] ||
+          'A';
         this.character.equipment?.setSlot?.(slotDef.meshSlot, pick);
         this.character._reGroundAfterEquip?.();
+        const { applyArmorAppearance } = await import('../equipment/meshAppearance.js');
+        applyArmorAppearance(this.character, slotDef.meshSlot, item.id);
+      } else if (slotDef.kind === 'back' || slotDef.id === 'back') {
+        await this.character.equipBackSlot?.(item.id, {
+          modelUrl: item.modelUrl || item.deployModelUrl || undefined
+        });
+        this.onToast(
+          item.domain === 'water'
+            ? `${item.name} stowed · water deploy only`
+            : item.domain === 'air'
+              ? `${item.name} stowed · flight next`
+              : `Back · ${item.name}`
+        );
+      } else if (slotDef.id === 'relic' || slotDef.id === 'mount') {
+        // HUD / passive lab — paperdoll map only for now
+        this.onToast(`${slotDef.label} · ${item.name} (catalog)`);
       }
     } catch (e) {
       this.onToast(e?.message || 'Equip 3D skipped');
     }
     this.onToast(`Equipped ${item.name} → ${slotDef.label}`);
     this.onEquip();
+  }
+
+  /**
+   * RMB empty/filled slot → browse live T0–T1 catalog with icons.
+   * @param {string} slotId
+   * @param {HTMLElement} host
+   */
+  async _openCatalogPicker(slotId, host) {
+    const slotDef = ALL_PAPERDOLL_SLOTS.find((s) => s.id === slotId);
+    if (!slotDef) return;
+    const picker = host.querySelector('[data-picker]');
+    if (!picker) return;
+    picker.hidden = false;
+    picker.innerHTML = `<h4>${slotDef.label} — T0–T1 catalog…</h4><p class="mp-picker__empty">Loading…</p>`;
+
+    try {
+      const { listT0T1ForSlot } = await import('../api/gameItemCatalog.js');
+      const rows = await listT0T1ForSlot(slotId, { maxTier: 1 });
+      const list = rows.slice(0, 80);
+      picker.innerHTML = `
+        <h4>${slotDef.label} — T0–T1 (${list.length}${rows.length > 80 ? '+' : ''})</h4>
+        <input type="search" class="mp-picker__search" data-cat-q placeholder="Filter name…" />
+        <div class="mp-picker__grid" data-cat-grid>
+          ${
+            list.length
+              ? list
+                  .map(
+                    (r) => `
+            <button type="button" class="mp-picker__item" data-cat-id="${r.id}" title="${r.source || ''}">
+              <img src="${r.iconUrl || ''}" alt="" referrerpolicy="no-referrer" />
+              <span>${r.name} <small>T${r.tier ?? 0}</small></span>
+            </button>`
+                  )
+                  .join('')
+              : `<p class="mp-picker__empty">No T0–T1 items for this slot (catalog empty / offline).</p>`
+          }
+        </div>
+        <button type="button" class="inv-btn inv-btn--ghost" data-picker-close style="width:100%;margin-top:6px">Close</button>
+      `;
+
+      const bindRows = (items) => {
+        const grid = picker.querySelector('[data-cat-grid]');
+        if (!grid) return;
+        grid.innerHTML = items
+          .map(
+            (r) => `
+            <button type="button" class="mp-picker__item" data-cat-id="${r.id}">
+              <img src="${r.iconUrl || ''}" alt="" referrerpolicy="no-referrer" />
+              <span>${r.name} <small>T${r.tier ?? 0}</small></span>
+            </button>`
+          )
+          .join('');
+        grid.querySelectorAll('[data-cat-id]').forEach((b) => {
+          b.addEventListener('click', async () => {
+            const id = b.dataset.catId;
+            const row = rows.find((x) => x.id === id);
+            if (!row) return;
+            // Equip from catalog without requiring bag first
+            await this._equipItemToSlot(
+              {
+                id: row.id,
+                name: row.name,
+                kind: row.kind || row.category,
+                slotHint: row.slotHint || slotDef.id,
+                icon: row.iconUrl,
+                iconUrl: row.iconUrl,
+                modelUrl: row.modelUrl,
+                tier: row.tier,
+                domain: row.domain,
+                category: row.category
+              },
+              slotDef,
+              null
+            );
+            this._equipTarget = null;
+            this.refresh();
+          });
+        });
+      };
+      bindRows(list);
+
+      picker.querySelector('[data-cat-q]')?.addEventListener('input', (e) => {
+        const q = String(e.target.value || '').toLowerCase();
+        bindRows(
+          rows
+            .filter((r) => !q || `${r.name} ${r.id}`.toLowerCase().includes(q))
+            .slice(0, 80)
+        );
+      });
+      picker.querySelector('[data-picker-close]')?.addEventListener('click', () => {
+        picker.hidden = true;
+        this.refresh();
+      });
+    } catch (err) {
+      picker.innerHTML = `<p class="mp-picker__empty">${err?.message || 'Catalog load failed'}</p>
+        <button type="button" class="inv-btn" data-picker-close>Close</button>`;
+      picker.querySelector('[data-picker-close]')?.addEventListener('click', () => {
+        picker.hidden = true;
+      });
+    }
+  }
+
+  /**
+   * Mesh appearance editor (color · scale · rotate · offset).
+   * @param {object} item
+   */
+  _openMeshEditor(item) {
+    if (!item?.id) return;
+    const host = this.el.querySelector('[data-panel="character"]');
+    if (!host) return;
+    let panel = host.querySelector('[data-mesh-app]');
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.className = 'inv-card mp-mesh-app';
+      panel.dataset.meshApp = '1';
+      host.appendChild(panel);
+    }
+    import('../equipment/meshAppearance.js').then(
+      ({ getAppearance, setAppearance, applyWeaponAppearance, applyArmorAppearance }) => {
+        const app = getAppearance(item.id);
+        panel.innerHTML = `
+          <h4>Mesh · ${item.name || item.id}</h4>
+          <p class="inv-hint">Color / scale / rotate / offset — saved per item id for casting lab develop.</p>
+          <label class="inv-row"><span>Color</span><input type="color" data-app-color value="${app.color || '#c8a070'}" /></label>
+          <label class="inv-row"><span>Scale</span><input type="range" data-app-scale min="0.4" max="2.2" step="0.02" value="${app.scale ?? 1}" /></label>
+          <label class="inv-row"><span>Yaw °</span><input type="range" data-app-yaw min="-180" max="180" step="1" value="${app.eulerDeg?.[1] ?? 0}" /></label>
+          <label class="inv-row"><span>Pitch °</span><input type="range" data-app-pitch min="-90" max="90" step="1" value="${app.eulerDeg?.[0] ?? 0}" /></label>
+          <label class="inv-row"><span>Roll °</span><input type="range" data-app-roll min="-90" max="90" step="1" value="${app.eulerDeg?.[2] ?? 0}" /></label>
+          <label class="inv-row"><span>Emissive</span><input type="range" data-app-em min="0" max="1.5" step="0.05" value="${app.emissive ?? 0}" /></label>
+          <div class="inv-btn-row">
+            <button type="button" class="inv-btn" data-app-apply>Apply</button>
+            <button type="button" class="inv-btn inv-btn--ghost" data-app-reset>Reset</button>
+          </div>
+        `;
+        const read = () => ({
+          color: panel.querySelector('[data-app-color]')?.value,
+          scale: Number(panel.querySelector('[data-app-scale]')?.value) || 1,
+          eulerDeg: [
+            Number(panel.querySelector('[data-app-pitch]')?.value) || 0,
+            Number(panel.querySelector('[data-app-yaw]')?.value) || 0,
+            Number(panel.querySelector('[data-app-roll]')?.value) || 0
+          ],
+          emissive: Number(panel.querySelector('[data-app-em]')?.value) || 0
+        });
+        const apply = () => {
+          const next = setAppearance(item.id, read());
+          const eq = loadEquipMap();
+          // Apply to weapon if main hand
+          if (eq.mainHand?.id === item.id || eq.offHand?.id === item.id) {
+            applyWeaponAppearance(this.character, item.id);
+          } else {
+            // Try armour slots
+            for (const sid of ['head', 'body', 'arms', 'legs', 'shoulders']) {
+              if (eq[sid]?.id === item.id) {
+                const def = ALL_PAPERDOLL_SLOTS.find((s) => s.id === sid);
+                applyArmorAppearance(this.character, def?.meshSlot || sid, item.id);
+              }
+            }
+          }
+          this.onToast(`Mesh · ${item.name} · scale ${next.scale?.toFixed?.(2) ?? 1}`);
+        };
+        panel.querySelector('[data-app-apply]')?.addEventListener('click', apply);
+        panel.querySelectorAll('input').forEach((inp) => {
+          inp.addEventListener('input', () => {
+            // Live preview
+            setAppearance(item.id, read());
+            applyWeaponAppearance(this.character, item.id);
+          });
+        });
+        panel.querySelector('[data-app-reset]')?.addEventListener('click', () => {
+          setAppearance(item.id, {
+            color: '#c8a070',
+            scale: 1,
+            eulerDeg: [0, 0, 0],
+            emissive: 0
+          });
+          applyWeaponAppearance(this.character, item.id);
+          this._openMeshEditor(item);
+        });
+      }
+    );
   }
 
   _fillCharacter() {

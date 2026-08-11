@@ -12,6 +12,7 @@
 
 import { CDN, presentPrefab, loadPrefabCatalog, cdnUrl, tierPresent } from '../loot/prefabAssets.js';
 import { loadEquippableWeapons, T0_STARTER_WEAPON_IDS } from './t0WeaponCatalog.js';
+import { BACK_MOBILITY_CATALOG } from '../config/backSlotMobilitySsot.js';
 
 export const INFO_API = 'https://info.grudge-studio.com/api/v1';
 export const INFO_MIRROR = 'https://objectstore.grudge-studio.com/api/v1';
@@ -27,10 +28,11 @@ export const PREFAB_CATEGORIES = Object.freeze([
   { id: 'tools', label: 'Tools', authority: 'master-weapon-prefabs.json (TOOL)', equip: true },
   { id: 'offhand', label: 'Off-hands', authority: 'SHIELD · TOME prefabs', equip: true },
   { id: 't0', label: 'T0 starters', authority: 't0-weapons.json', equip: true },
-  { id: 'armor', label: 'Armour', authority: 'master-armor.json', equip: false },
-  { id: 'relics', label: 'Relics', authority: 'master-relics.json', equip: false },
-  { id: 'class', label: 'Class items', authority: 'master-classRelics.json · classes.json', equip: false },
-  { id: 'mounts', label: 'Mounts', authority: 'master-mounts.json', equip: false },
+  { id: 'armor', label: 'Armour', authority: 'master-armor.json', equip: true },
+  { id: 'back', label: 'Back / mobility', authority: 'backSlotMobilitySsot + armor back', equip: true },
+  { id: 'relics', label: 'Relics', authority: 'master-relics.json', equip: true },
+  { id: 'class', label: 'Class items', authority: 'master-classRelics.json · classes.json', equip: true },
+  { id: 'mounts', label: 'Mounts', authority: 'master-mounts.json', equip: true },
   { id: 'special', label: 'Specials', authority: 'artifacts · enchants · infusions', equip: false }
 ]);
 
@@ -105,15 +107,37 @@ export function presentItem(row, category, source) {
     category === 'tools' ||
     category === 'offhand' ||
     category === 't0' ||
+    category === 'armor' ||
+    category === 'back' ||
+    category === 'relics' ||
+    category === 'mounts' ||
     !!row.equippable;
+
+  const slot =
+    row.slot || row.equipSlot || row.subCategory || row.weaponType || null;
+
+  // Bag / paperdoll kind hints (itemFitsSlot)
+  let kind = category;
+  if (category === 't0' || category === 'weapons') kind = 'weapon';
+  else if (category === 'tools') kind = 'tool';
+  else if (category === 'offhand') kind = /shield/i.test(String(row.weaponType || ''))
+    ? 'shield'
+    : 'tome';
+  else if (category === 'armor') kind = 'armour';
+  else if (category === 'back') kind = 'back';
+  else if (category === 'relics' || category === 'class') kind = 'relic';
+  else if (category === 'mounts') kind = 'mount';
 
   return {
     id: String(id),
     uuid: row.uuid || null,
     name: row.name || row.baseName || String(id),
     category,
+    kind,
     tier,
-    slot: row.slot || row.equipSlot || row.subCategory || row.weaponType || null,
+    slot,
+    slotHint: row.slotHint || slot || null,
+    equipSlot: slot,
     iconUrl: iconOf(row) || cdnUrl('icons/pack/weapons/staff_1.png'),
     modelUrl: modelOf(row),
     stats: row.stats || null,
@@ -166,6 +190,7 @@ export async function loadGameItemCatalog() {
       offhand: [],
       t0: [],
       armor: [],
+      back: [],
       relics: [],
       class: [],
       mounts: [],
@@ -211,18 +236,61 @@ export async function loadGameItemCatalog() {
       }
     }
 
-    // Armor
-    for (const a of armor?.items || []) {
+    // Armor (body/head/arms/legs/back sets)
+    for (const a of armor?.items || armor?.armor || []) {
+      const slot = a.slot || a.equipSlot || a.subCategory || '';
+      const isBack = /back|cape|cloak|pack|wings/i.test(String(slot));
+      const bucket = isBack ? 'back' : 'armor';
       const row = presentItem(
         {
           ...a,
-          equipSlot: a.slot || a.equipSlot,
-          icon: a.icon || a.iconPath
+          equipSlot: slot,
+          slotHint: isBack
+            ? 'back'
+            : /head|helm/i.test(String(slot))
+              ? 'head'
+              : /leg|boot|pant/i.test(String(slot))
+                ? 'legs'
+                : /arm|glove|hand/i.test(String(slot))
+                  ? 'arms'
+                  : /shoulder/i.test(String(slot))
+                    ? 'shoulders'
+                    : 'body',
+          icon: a.icon || a.iconPath,
+          equippable: true
         },
-        'armor',
+        bucket,
         'master-armor.json'
       );
-      if (row) byCategory.armor.push(row);
+      if (row) byCategory[bucket].push(row);
+    }
+
+    // Lab back mobility (windsurf · wings) — always available for casting develop
+    for (const m of Object.values(BACK_MOBILITY_CATALOG)) {
+      if (m.id === 'none') continue;
+      const row = presentItem(
+        {
+          id: m.id,
+          name: m.label,
+          tier: 0,
+          slot: 'back',
+          slotHint: 'back',
+          equipSlot: 'back',
+          description: m.notes || m.domain,
+          modelUrl: m.modelUrl,
+          equippable: true,
+          domain: m.domain,
+          deployKind: m.deployKind,
+          flight: m.flight || null
+        },
+        'back',
+        'backSlotMobilitySsot'
+      );
+      if (row) {
+        row.kind = 'back';
+        row.domain = m.domain;
+        byCategory.back.push(row);
+      }
     }
 
     // Relics
@@ -275,6 +343,78 @@ export async function loadGameItemCatalog() {
   })();
 
   return _loading;
+}
+
+/**
+ * T0–T1 items that fit a paperdoll slot (for RMB catalog browse).
+ * @param {string} slotId mainHand|body|back|relic|…
+ * @param {{ maxTier?: number, q?: string }} [opts]
+ * @returns {Promise<GameItemRow[]>}
+ */
+export async function listT0T1ForSlot(slotId, opts = {}) {
+  const cat = await loadGameItemCatalog();
+  const maxTier = opts.maxTier ?? 1;
+  const q = String(opts.q || '').toLowerCase().trim();
+  const sid = String(slotId || '').toLowerCase();
+
+  /** @type {GameItemRow[]} */
+  const out = [];
+  const push = (row) => {
+    if (!row || !row.equippable) return;
+    if ((row.tier ?? 0) > maxTier) return;
+    if (q && !`${row.name} ${row.id}`.toLowerCase().includes(q)) return;
+    out.push(row);
+  };
+
+  if (sid === 'mainhand') {
+    for (const r of [...cat.byCategory.t0, ...cat.byCategory.weapons, ...cat.byCategory.tools]) {
+      push(r);
+    }
+  } else if (sid === 'offhand') {
+    for (const r of cat.byCategory.offhand) push(r);
+  } else if (['head', 'body', 'arms', 'legs', 'shoulders'].includes(sid)) {
+    for (const r of cat.byCategory.armor) {
+      const h = String(r.slotHint || r.slot || '').toLowerCase();
+      if (!h || h === sid || h.includes(sid) || (sid === 'body' && /chest|torso|armor|body/i.test(h))) {
+        push(r);
+      }
+    }
+  } else if (sid === 'back') {
+    for (const r of cat.byCategory.back) push(r);
+  } else if (sid === 'relic') {
+    for (const r of [...cat.byCategory.relics, ...cat.byCategory.class]) push(r);
+  } else if (sid === 'mount') {
+    for (const r of cat.byCategory.mounts) push(r);
+  } else {
+    // Generic: all equippable T0–T1
+    for (const list of Object.values(cat.byCategory)) {
+      for (const r of list) push(r);
+    }
+  }
+
+  // Dedupe by id
+  const seen = new Set();
+  return out.filter((r) => {
+    if (seen.has(r.id)) return false;
+    seen.add(r.id);
+    return true;
+  });
+}
+
+/**
+ * Flat list T0–T1 for inventory seed / admin.
+ * @param {{ maxTier?: number }} [opts]
+ */
+export async function listAllT0T1(opts = {}) {
+  const cat = await loadGameItemCatalog();
+  const maxTier = opts.maxTier ?? 1;
+  const out = [];
+  for (const list of Object.values(cat.byCategory)) {
+    for (const r of list) {
+      if (r.equippable && (r.tier ?? 0) <= maxTier) out.push(r);
+    }
+  }
+  return out;
 }
 
 export function getGameItemCatalogCache() {

@@ -165,6 +165,13 @@ export async function equipWeapon(weapon, ctx) {
     if (character) {
       character.weaponAttach = _attach;
       character.syncWeaponAttach?.();
+      // Lab mesh appearance (color / scale / rotate) if saved
+      try {
+        const { applyWeaponAppearance } = await import('../equipment/meshAppearance.js');
+        applyWeaponAppearance(character, weapon.id);
+      } catch {
+        /* optional */
+      }
     }
   }
 

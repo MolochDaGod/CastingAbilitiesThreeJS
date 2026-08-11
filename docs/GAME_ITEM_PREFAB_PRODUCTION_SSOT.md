@@ -90,14 +90,34 @@ Loadout pattern (weapons): T0 **three-slot starter** · T1+ **five-slot** (`load
 
 ---
 
-## 5. Lab: Prefabs tab (dev)
+## 5. Lab: Equipment + Prefabs (casting develop surface)
 
-**Import only** from info API — no forked skill rows.
+**Import only** from info API + lab back mobility SSOT — no forked skill rows.
+
+### Paperdoll RMB (primary equip flow)
+
+1. **I** → Character / Equipment
+2. **RMB empty or filled slot** →
+   - **Browse T0–T1 catalog…** (icons · filter · equip live)
+   - Unequip / Replace from bag
+   - **Edit mesh color / scale / rotate…** (weapons & armour appearance)
+3. Live 3D:
+   - **mainHand/offHand** → `equipWeaponById` + mesh appearance
+   - **head/body/arms/legs** → kit `mesh_ids` + colour tint
+   - **back** → `equipBackSlot` (windsurf water-only · wings prefabs)
+   - **relic/mount** → paperdoll map (HUD)
+
+### Prefabs tab
 
 1. **I → Prefabs**
-2. Filter category: Weapons · Armor · Relics · Mounts · Class · Offhand · T0
+2. Filter category: Weapons · Armor · Back · Relics · Mounts · Class · Offhand · T0
 3. Select row → see icon, stats, skills (if any), model URL, export snapshot
-4. **Equip** if weapon/tool/offhand → combat bar + hand mesh when model exists
+4. **Equip** if weapon/tool/offhand/back → combat bar + hand/back mesh when model exists
+
+### Mesh appearance
+
+`src/equipment/meshAppearance.js` — per-item localStorage: color, scale, euler, offset, emissive.  
+Develop on casting → later export into prefab production JSON.
 5. **Export** Warlords-style prefab JSON for that row
 
 Code: `gameItemCatalog.js` · `presentItem` · Inventory Prefabs panel.

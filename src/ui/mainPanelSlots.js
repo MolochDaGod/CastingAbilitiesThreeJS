@@ -299,6 +299,34 @@ export function ensureDemoBag() {
       kind: 'armour',
       slotHint: 'body',
       qty: 1
+    },
+    {
+      id: 't0-gun',
+      name: 'Flintlock Pistol',
+      kind: 'weapon',
+      slotHint: 'mainHand',
+      qty: 1
+    },
+    {
+      id: 'windsurf',
+      name: 'Windsurf',
+      kind: 'back',
+      slotHint: 'back',
+      qty: 1
+    },
+    {
+      id: 'holy_wings',
+      name: 'Holy Wings',
+      kind: 'back',
+      slotHint: 'back',
+      qty: 1
+    },
+    {
+      id: 'traveler_wings',
+      name: "Traveler's Wings",
+      kind: 'back',
+      slotHint: 'back',
+      qty: 1
     }
   ];
   for (const d of demos) bagAdd(enrichBagSlotIcon(d));
@@ -317,6 +345,10 @@ export function enrichBagSlotIcon(item) {
   const byId = {
     't0-sword': `${CDN}/W_Sword001.png`,
     't0-wand': `${CDN}/W_Wand001.png`,
+    't0-gun': `${CDN}/W_Gun001.png`,
+    windsurf: `${CDN}/I_Water.png`,
+    holy_wings: `${CDN}/S_Light_01.png`,
+    traveler_wings: `${CDN}/S_Buff01.png`,
     't0-tool': `${CDN}/W_PickAxe001.png`,
     'mat-wood': `${CDN}/I_Wood01.png`,
     t0_wood: `${CDN}/I_Wood01.png`,
@@ -357,9 +389,26 @@ export function reenrichAllBagIcons() {
 
 export function itemFitsSlot(item, slotDef) {
   if (!item || !slotDef) return false;
-  const kind = String(item.kind || item.slotType || '').toLowerCase();
-  const hint = String(item.slotHint || item.equipSlot || '').toLowerCase();
+  const kind = String(item.kind || item.slotType || item.category || '').toLowerCase();
+  const hint = String(item.slotHint || item.equipSlot || item.slot || '').toLowerCase();
+  const id = String(item.id || '').toLowerCase();
   if (slotDef.accepts?.some((a) => kind.includes(a) || hint.includes(a) || a === kind)) return true;
   if (hint === slotDef.id.toLowerCase() || hint === slotDef.meshSlot) return true;
+  // Catalog categories
+  if (slotDef.id === 'mainHand' && /weapon|tool|t0|gun|sword|wand|staff|bow|axe/.test(kind + id)) {
+    return true;
+  }
+  if (slotDef.id === 'offHand' && /shield|tome|offhand/.test(kind + hint)) return true;
+  if (slotDef.id === 'back' && /back|cape|wing|windsurf|shell|glider/.test(kind + id + hint)) {
+    return true;
+  }
+  if (slotDef.id === 'relic' && /relic|class/.test(kind)) return true;
+  if (slotDef.id === 'mount' && /mount/.test(kind)) return true;
+  if (
+    ['head', 'body', 'arms', 'legs', 'shoulders'].includes(slotDef.id) &&
+    (/armour|armor/.test(kind) || hint === slotDef.id)
+  ) {
+    return true;
+  }
   return false;
 }
