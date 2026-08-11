@@ -13,6 +13,7 @@ import {
 } from 'three';
 // Box3 used by getWeaponTip mesh-tip measure
 import { applyWeaponHoldPose, normalizeHoldKind } from '../character/weaponHoldPose.js';
+import { WeaponSheathRuntime } from '../character/WeaponSheathRuntime.js';
 import {
   buildWeaponMeshVolume,
   getVolumeAxisWorld,
@@ -137,7 +138,22 @@ export class CharacterController {
     this.rideIk = null;
     /** @type {import('../character/BackSlotEquip.js').BackSlotEquip|null} */
     this.backSlot = null;
+    /**
+     * Hand ↔ hip/back sheath for traversal + mount.
+     * Hold-pose residual only while drawn.
+     * @type {WeaponSheathRuntime}
+     */
+    this.weaponSheath = new WeaponSheathRuntime({
+      getModel: () => this.model,
+      getBones: () => this.bones || this.equipment?.findBones?.() || {},
+      getAttach: () => this.weaponAttach,
+      setAttach: (a) => {
+        this.weaponAttach = a;
+      }
+    });
     this._rideActive = false;
+    /** Last sprint flag from setGait (for sheath policy) */
+    this._sprinting = false;
     /** World heading for ride pole vectors (set by WalkController) */
     this._rideYaw = 0;
     /**
@@ -325,6 +341,7 @@ export class CharacterController {
     if (this.rideIk) this.rideIk.rebind(kit);
     else this.rideIk = new RideIK(kit);
     this._rideActive = false;
+    this.weaponSheath?.rebind?.();
 
     // Back-slot utility (windsurf stow on spine) — same equip family as hands
     const backId = settings.walk?.backSlot || 'windsurf';
@@ -503,6 +520,10 @@ export class CharacterController {
       /attack|block|parry|jump|cast|dodge|roll|slide|gunplay|spin|draw|reload|skill\d/i.test(
         role
       );
+    // Combat flourishes need weapon in hand before clip starts
+    if (/attack|gunplay|spin|cast|draw|reload|block|parry|skill\d/i.test(role)) {
+      this.weaponSheath?.unsheath?.('combat-clip');
+    }
     this.play(role, once ? 0.12 : 0.25);
     if (once) {
       const act = this.actions.get(role);
@@ -649,7 +670,23 @@ export class CharacterController {
     const hand = this.bones?.rHand;
     this.weaponAttach =
       getWeaponAttachFromHand(hand) || findWeaponAttach(this) || this.weaponAttach || null;
+    // Fresh equip → always drawn (combat ready); re-evaluate next frame
+    this.weaponSheath?.rebind?.();
+    this.weaponSheath?.unsheath?.('equip');
     return this.weaponAttach;
+  }
+
+  /** True when weapon is on hand socket (not hip/back stow). */
+  get isWeaponDrawn() {
+    return this.weaponSheath ? this.weaponSheath.isDrawn : true;
+  }
+
+  /**
+   * Manual sheath lock (UI). null = follow traversal/mount policy.
+   * @param {boolean|null} sheath
+   */
+  setWeaponSheathed(sheath) {
+    this.weaponSheath?.setManual?.(sheath, 'ui');
   }
 
   /**
@@ -1198,6 +1235,8 @@ export class CharacterController {
     if (next === this._castingExternal) return;
     this._castingExternal = next;
     if (next) {
+      // Cast needs drawn weapon in hand
+      this.weaponSheath?.unsheath?.('cast');
       // Hold gait lock + loop cast for channel window
       this._gaitLocked = true;
       this._oneShotTimer = 0;
@@ -1250,6 +1289,7 @@ export class CharacterController {
     this._gait = g;
     this._gaitKey = key;
     this._strafe = strafe;
+    this._sprinting = !!sprinting || g >= 2;
 
     if (g === 0) {
       if (this.actions.has('idle') && this.animState !== 'cast_loop') {
@@ -1788,12 +1828,16 @@ export class CharacterController {
     if (Number.isFinite(yaw)) this._rideYaw = yaw;
     if (this.rideIk) this.rideIk.setActive(this._rideActive);
     if (this._rideActive) {
+      // Mount / freeride: hands free for boom/rail IK — sheath weapon
+      this.weaponSheath?.sheath?.('mount');
       // Hold idle gait under ride — mixer still runs, IK overrides limbs
       this.setGait?.(0, false);
       this._gaitLocked = true;
     } else {
       this._gaitLocked = false;
       this._rideParented = false;
+      // Dismount → draw for combat/land ready
+      this.weaponSheath?.unsheath?.('dismount');
     }
   }
 
@@ -1963,9 +2007,35 @@ export class CharacterController {
     this.mixer.timeScale = settings.global.animationSpeed;
     this.mixer.update(dt);
 
+    // Auto sheath / unsheath: traversal · mount · air · mobility vs combat draw
+    // oneShotActive only for combat flourishes (not jump/dodge timers)
+    const combatOneShot =
+      this._oneShotTimer > 0 &&
+      !this._rideActive &&
+      (this.animState === 'attack' ||
+        this.animState === 'charge' ||
+        this.animState === 'parry' ||
+        this.animState === 'cast_loop');
+    this.weaponSheath?.update?.({
+      dt,
+      gait: this._gait,
+      sprinting: this._sprinting || this._gait >= 2,
+      rideActive: this._rideActive,
+      rideParented: this._rideParented,
+      animState: this.animState,
+      casting: this._castingExternal,
+      pistolReload: !!this._pistolReload?.active,
+      oneShotActive: combatOneShot
+    });
+
     // Post-mixer weapon hold residual (SSOT: ObjectStore grudge6-weapon-hold-pose)
-    // Same applyWeaponHoldPose(mixer, gait, kind) as main-panel viewport — no parallel stack.
-    if (this.mixer && this.model && !this._pistolReload?.active) {
+    // Only while drawn — sheathed mesh rides hip/back stow, not hand residual.
+    if (
+      this.mixer &&
+      this.model &&
+      !this._pistolReload?.active &&
+      this.weaponSheath?.isDrawn !== false
+    ) {
       const kind =
         this.weaponHoldKind ||
         normalizeHoldKind(this.weaponAttach?.userData?.profile || this.animPackId || 'sword');
