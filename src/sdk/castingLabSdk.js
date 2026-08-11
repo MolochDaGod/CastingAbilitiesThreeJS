@@ -84,6 +84,7 @@ export {
   playForWeaponSkillCast,
   playForElementCast,
   playForImpact,
+  playMagicImpactSfx,
   playParrySfx,
   playHealSfx,
   playBurnSfx,

@@ -8,6 +8,7 @@
  *  cast_chant  — longer cast / blood·arcane·holy flavor
  *  parry       — C parry **attempt** melee/metal (not only success)
  *  parry_magic — magical ward / staff / lightning parry attempt
+ *  impact_magic — magical hit/impact (3 variants, random)
  *  burn        — soft **loop** while player has burn status (not fire impact)
  *  heal        — heal / regenerate (two variants, random)
  */
@@ -20,6 +21,11 @@ export const SKILL_SFX_URLS = {
   cast_chant: `${BASE}/cast-chant.wav`,
   parry: `${BASE}/parry.wav`,
   parry_magic: `${BASE}/parry-magic.wav`,
+  impact_magic: [
+    `${BASE}/impact-magic-a.wav`,
+    `${BASE}/impact-magic-b.wav`,
+    `${BASE}/impact-magic-c.wav`,
+  ],
   burn: `${BASE}/burn.wav`,
   heal: [`${BASE}/heal-a.wav`, `${BASE}/heal-b.wav`],
 };
@@ -230,22 +236,73 @@ export function playForElementCast(element) {
 }
 
 /**
+ * Magical impact one-shot (random of 3 user clips).
+ * @param {{ volume?: number, rate?: number, variant?: number }} [opts]
+ */
+export function playMagicImpactSfx(opts = {}) {
+  const n = Array.isArray(SKILL_SFX_URLS.impact_magic) ? SKILL_SFX_URLS.impact_magic.length : 3;
+  const variant = opts.variant != null ? opts.variant : Math.floor(Math.random() * n);
+  return playSkillSfx('impact_magic', {
+    volume: opts.volume != null ? opts.volume : 0.78,
+    rate: opts.rate != null ? opts.rate : 0.95 + Math.random() * 0.15,
+    variant,
+  });
+}
+
+/**
  * Impact / residual by element or skill.
  * Note: fire impact does **not** use burn.wav — that file is the soft burn loop on the player.
+ * Magical elements / spell residual use impact_magic (a/b/c random).
  * @param {string} [element]
  * @param {{ skill?: object, kind?: string }} [opts]
  */
 export function playForImpact(element, opts = {}) {
   const el = String(element || opts.skill?.element || '').toLowerCase();
   const kind = String(opts.kind || '').toLowerCase();
+  const skill = opts.skill;
+  const style = String(skill?.style || '').toLowerCase();
+  const idBlob = `${skill?.id || ''} ${skill?.label || ''}`.toLowerCase();
+
   if (el === 'holy' || kind === 'heal') {
     playSkillSfx('heal', { volume: 0.7 });
-    return;
+    return 'heal';
   }
-  // Fire / bomb / residual: cast-ramp crackle only (burn loop is status-driven)
-  if (el === 'fire' || kind === 'fire' || kind === 'bomb' || kind === 'residual' || kind === 'melee') {
-    playSkillSfx('cast_ramp', { volume: kind === 'fire' || kind === 'bomb' ? 0.45 : 0.32, rate: 1.25 });
+
+  const isMagic =
+    kind === 'magic' ||
+    kind === 'spell' ||
+    kind === 'impact' ||
+    style === 'spell' ||
+    [
+      'fire',
+      'ice',
+      'water',
+      'storm',
+      'arcane',
+      'holy',
+      'nature',
+      'earth',
+      'wind',
+    ].includes(el) ||
+    /spell|magic|bolt|orb|nova|staff|wand|arcane|lightning|flame/.test(idBlob);
+
+  // Magical hits → pokemon-style impact pack (random a/b/c)
+  if (isMagic && kind !== 'melee') {
+    playMagicImpactSfx({
+      volume: kind === 'bomb' || el === 'fire' || el === 'storm' ? 0.82 : 0.74,
+    });
+    return 'impact_magic';
   }
+
+  // Physical residual / melee: light cast-ramp tick only
+  if (kind === 'residual' || kind === 'melee') {
+    playSkillSfx('cast_ramp', { volume: 0.32, rate: 1.25 });
+    return 'cast_ramp';
+  }
+
+  // Default: still prefer magic impact for unknown cast impacts
+  playMagicImpactSfx({ volume: 0.7 });
+  return 'impact_magic';
 }
 
 /**
@@ -342,6 +399,7 @@ export const SkillSfx = {
   playForWeaponSkillCast,
   playForElementCast,
   playForImpact,
+  playMagicImpact: playMagicImpactSfx,
   playParry: playParrySfx,
   playHeal: playHealSfx,
   playBurn: playBurnSfx,
