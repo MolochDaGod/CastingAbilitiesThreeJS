@@ -2,35 +2,18 @@
  * CraftPix RPG MMO UI — production chrome for casting / Warlords player HUD.
  *
  * Local SSOT: D:\Games\Models\craftpix-rpg-mmo-ui
- * Shipped: public/ui/craftpix/* (and CDN assets.grudge-studio.com/ui/craftpix/*)
- * Skill: craftpix-rpg-mmo-ui
+ * Shipped: public/ui/craftpix/* + CDN assets.grudge-studio.com/ui/craftpix/*
  *
- * Prefer same-origin /ui/craftpix (Vercel deploy). CDN is fallback for missing files.
+ * CRITICAL: Never return relative urls for CSS custom properties.
+ * When CSS in /assets/main-*.css does background-image: var(--cp-*),
+ * relative urls resolve against the *stylesheet* path → /assets/ui/craftpix → 404.
+ * Always use absolute https:// URLs.
  */
 
 const CDN = 'https://assets.grudge-studio.com/ui/craftpix';
 
-/**
- * Absolute URL for CraftPix files.
- * CRITICAL: CSS `url()` in vars resolves relative to the *stylesheet* path
- * (`/assets/main-*.css`), so `./ui/craftpix` became `/assets/ui/craftpix` → 404.
- * Always return document-origin absolute or CDN absolute.
- */
-function absoluteUiUrl(rel) {
-  const clean = String(rel || '').replace(/^\/+/, '');
-  if (typeof window !== 'undefined' && window.location?.href) {
-    try {
-      return new URL(`./ui/craftpix/${clean}`, window.location.href).href;
-    } catch {
-      /* fall through */
-    }
-  }
-  return `${CDN}/${clean}`;
-}
-
 /** @type {Record<string, string>} */
 export const CRAFTPIX = {
-  // Unit frames
   avatarBg: 'unit/avatar_bg.png',
   avatarBorder: 'unit/avatar_border.png',
   avatarOverlay: 'unit/avatar_overlay.png',
@@ -41,44 +24,35 @@ export const CRAFTPIX = {
   levelBg: 'unit/level_bg.png',
   levelBorder: 'unit/level_border.png',
   skull: 'unit/skull.png',
-  // Hotbar
   slotBg: 'hotbar/slot_bg.png',
   slotBorder: 'hotbar/slot_border.png',
   slotCd: 'hotbar/slot_cd.png',
   slotPress: 'hotbar/slot_press.png',
-  // Fill bars (thin tracks)
   trackBg: 'fill/track_bg.png',
   trackFill: 'fill/track_fill.png',
-  // Panel
   panelBg: 'panel/bg.png',
-  // Cast bar (under crosshair)
   castBg: 'cast/bg.png',
   castFill: 'cast/fill.png',
-  castIconFrame: 'cast/icon_frame.png'
+  castIconFrame: 'cast/icon_frame.png',
 };
 
 /**
- * Resolve CraftPix texture URL (local first).
+ * Absolute CraftPix texture URL (CDN — CORS OK for img/css).
  * @param {string} rel path under ui/craftpix
- * @param {{ preferCdn?: boolean }} [opts]
+ * @param {{ preferCdn?: boolean, localOnly?: boolean }} [opts]
  */
 export function craftpixUrl(rel, opts = {}) {
   const clean = String(rel || '').replace(/^\/+/, '');
-  // Prefer CDN in production chrome so CSS/background never depends on deploy layout
-  if (opts.preferCdn !== false) {
-    // Try same-origin absolute first when files are shipped under public/ui
-    if (opts.preferCdn === true) return `${CDN}/${clean}`;
+  if (!clean) return CDN;
+  // Absolute CDN only — never ./ or /assets/ relative
+  if (opts.localOnly && typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin}/ui/craftpix/${clean}`;
   }
-  // Default: origin-absolute (not relative to /assets/*.css)
-  const localAbs = absoluteUiUrl(clean);
-  // If we know local is often missing on CDN-only deploys, still expose CDN as
-  // onerror fallback in preloadCraftpixUi — CSS vars use CDN when preferCdn true.
-  // Use CDN as primary for CSS vars (reliable on casting.grudge-studio.com).
-  return opts.localOnly ? localAbs : `${CDN}/${clean}`;
+  return `${CDN}/${clean}`;
 }
 
 /**
- * CSS custom properties for CraftPix chrome — set on :root / .hud
+ * CSS custom properties — full absolute url("https://...") only.
  * @param {HTMLElement} [el]
  */
 export function applyCraftpixCssVars(el = document.documentElement) {
@@ -103,16 +77,17 @@ export function applyCraftpixCssVars(el = document.documentElement) {
     '--cp-panel-bg': CRAFTPIX.panelBg,
     '--cp-cast-bg': CRAFTPIX.castBg,
     '--cp-cast-fill': CRAFTPIX.castFill,
-    '--cp-cast-icon': CRAFTPIX.castIconFrame
+    '--cp-cast-icon': CRAFTPIX.castIconFrame,
   };
   for (const [k, rel] of Object.entries(map)) {
-    el.style.setProperty(k, `url("${craftpixUrl(rel)}")`);
+    const abs = craftpixUrl(rel, { preferCdn: true });
+    el.style.setProperty(k, `url("${abs}")`);
   }
   el.classList.add('craftpix-ui');
 }
 
 /**
- * Race portrait CDN (Foundry / client fleet) — not CraftPix, but production chrome.
+ * Race portrait CDN (Foundry / client fleet).
  * @param {string} raceId WK|ELF|…
  */
 export function racePortraitUrl(raceId) {
@@ -128,14 +103,14 @@ export function racePortraitUrl(raceId) {
     barbarian: 'barbarian',
     orc: 'orc',
     undead: 'undead',
-    dwarf: 'dwarf'
+    dwarf: 'dwarf',
   };
   const key = map[String(raceId || 'WK')] || 'human';
   return `https://client.grudge-studio.com/images/portraits/${key}.png`;
 }
 
 /**
- * Preload unit-frame + hotbar sheets so first paint is not empty CSS boxes.
+ * Preload unit-frame + hotbar sheets.
  * @returns {Promise<void>}
  */
 export function preloadCraftpixUi() {
@@ -146,15 +121,10 @@ export function preloadCraftpixUi() {
         new Promise((resolve) => {
           const img = new Image();
           img.onload = () => resolve();
-          img.onerror = () => {
-            // CDN fallback once
-            const c = new Image();
-            c.onload = () => resolve();
-            c.onerror = () => resolve();
-            c.src = craftpixUrl(rel, { preferCdn: true });
-          };
-          img.src = craftpixUrl(rel);
-        })
-    )
+          img.onerror = () => resolve();
+          img.crossOrigin = 'anonymous';
+          img.src = craftpixUrl(rel, { preferCdn: true });
+        }),
+    ),
   ).then(() => undefined);
 }

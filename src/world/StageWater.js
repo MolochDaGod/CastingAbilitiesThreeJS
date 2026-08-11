@@ -173,18 +173,26 @@ export class StageWater {
   }
 
   _loadNormalMap() {
+    // NEVER hit assets.grudge-studio.com or water.grudge-studio.com — both return
+    // 403 without Access-Control-Allow-Origin (CORS noise + failed water look).
+    // Prefer same-origin public copy, then jsDelivr / three.js examples (CORS OK).
+    const origin =
+      typeof window !== 'undefined' && window.location?.origin
+        ? window.location.origin
+        : 'https://casting.grudge.studio';
     const candidates = [
-      // Known-good first (fleet waternormals 404 on assets/water hosts as of 2026-08)
-      'https://threejs.org/examples/textures/waternormals.jpg',
+      `${origin}/textures/waternormals.jpg`,
       'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r185/examples/textures/waternormals.jpg',
-      'https://assets.grudge-studio.com/textures/water/waternormals.jpg',
-      'https://water.grudge-studio.com/textures/waternormals.jpg',
+      'https://threejs.org/examples/textures/waternormals.jpg',
     ];
     const loader = new TextureLoader();
     loader.setCrossOrigin('anonymous');
     let i = 0;
     const tryNext = () => {
-      if (i >= candidates.length) return;
+      if (i >= candidates.length) {
+        console.warn('[StageWater] no water normal map — flat water');
+        return;
+      }
       const url = candidates[i++];
       loader.load(
         url,

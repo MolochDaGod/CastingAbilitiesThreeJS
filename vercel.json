@@ -65,11 +65,44 @@
       "destination": "https://grudge-api-production-0d46.up.railway.app/matchmake/:path*"
     },
     {
-      "source": "/((?!api/|models/|assets/|icons/|ui/|anims/|hdri/|skills/|maps/|hud/|devnode|favicon).*)",
+      "source": "/((?!api/|models/|assets/|icons/|ui/|anims/|hdri/|skills/|maps/|hud/|textures/|devnode|favicon).*)",
       "destination": "/index.html"
     }
   ],
   "headers": [
+    {
+      "source": "/index.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/textures/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400" },
+        { "key": "Access-Control-Allow-Origin", "value": "*" }
+      ]
+    },
+    {
+      "source": "/ui/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400" },
+        { "key": "Access-Control-Allow-Origin", "value": "*" }
+      ]
+    },
+    {
+      "source": "/hud/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400" },
+        { "key": "Access-Control-Allow-Origin", "value": "*" }
+      ]
+    },
     {
       "source": "/(.*)",
       "headers": [
