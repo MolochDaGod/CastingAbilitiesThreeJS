@@ -154,13 +154,14 @@ export class HoverboardRide {
       scene.name = 'RideMesh';
       // Fit package: keep author SI bake; ensure deck roughly at y=0 if needed
       this._normalizeMesh(scene, pack);
-      // Art yaw vs travel +Z. Package was 180° off at 90 — product wants 180° flip.
+      // Art yaw vs travel +Z (WalkController: +Z = cos(yaw), +X = sin(yaw)).
+      // 0 = package forward matches travel; 180 = stern-first (wrong freeride feel).
       const artYawDeg =
         Number.isFinite(pack.artYawDeg)
           ? pack.artYawDeg
           : Number.isFinite(settings.walk?.boardArtYawDeg)
             ? settings.walk.boardArtYawDeg
-            : 180;
+            : 0;
       scene.rotation.y = (artYawDeg * Math.PI) / 180;
       this.boardRoot.add(scene);
       this.mesh = scene;
@@ -285,8 +286,12 @@ export class HoverboardRide {
     return out;
   }
 
-  /** Puff the board into existence under the rider. */
-  spawn(position) {
+  /**
+   * Puff the board into existence under the rider.
+   * @param {Vector3|{x:number,y?:number,z:number}} position
+   * @param {number} [yaw] world heading so board points travel direction on spawn
+   */
+  spawn(position, yaw = 0) {
     const c = settings.walk;
     this._birth = 0;
     this._death = 0;
@@ -296,7 +301,9 @@ export class HoverboardRide {
     this.dustEmitter.reset();
 
     this.group.visible = true;
-    this.group.position.set(position.x, 0, position.z);
+    this.group.position.set(position.x, position.y || 0, position.z);
+    this._yaw = Number.isFinite(yaw) ? yaw : 0;
+    this.group.rotation.y = this._yaw;
     this.boardRoot.position.set(0, this.deckHeight, 0);
     this.boardRoot.scale.setScalar(0.01);
     this.light = this.light ?? this.ctx.lights.acquire();

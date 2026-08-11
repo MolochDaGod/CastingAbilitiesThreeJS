@@ -431,7 +431,14 @@ export const settings = {
     freerideJumpVy: 5.8, // Space hop off waves
     freerideGravity: 14,
     freerideWaterY: 0.0, // stage water base; bob adds
-    freerideWaveFollow: 0.85, // how hard board tracks sample height
+    freerideWaveFollow: 0.9, // how hard board tracks sample height
+    /** StageWater wave base amp (m); storm multiplies */
+    oceanWaveAmp: 0.16,
+    /**
+     * Open-sea weather 0..1 (null = auto cycle). Matches StageWater storm.
+     * water.grudge-studio.com-style open ocean read for freeride.
+     */
+    oceanStorm: null,
     /** Soft-body / ragdoll-lite: extra hip drop sway from wave + bank */
     softBody: true,
     softBodyHip: 0.06,
@@ -443,8 +450,11 @@ export const settings = {
      * Melee still uses combat focus/select when not casting path.
      */
     freerideRangedCast: true,
-    /** Mesh art yaw (deg) relative to travel +Z — 180 = reverse (was backwards at 90) */
-    boardArtYawDeg: 180,
+    /**
+     * Mesh art yaw (deg) relative to travel +Z (sin/cos world heading).
+     * 0 = package nose along travel; 180 = stern-first (felt “pointed wrong”).
+     */
+    boardArtYawDeg: 0,
     /**
      * Equip contract: windsurf is a **back-slot vehicle** (same family as glider).
      * Deploy → parent seat + RideIK · E get off → board removed · land loco.

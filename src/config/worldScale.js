@@ -48,8 +48,8 @@ export const WORLD = Object.freeze({
   /** Ground plane edge length (metres) — visible slab */
   groundSize: Math.max(ORIG.groundSize * 0.45, ORIG.floorPoolOuter * MAP_SCALE * 3),
 
-  /** Water plane under/around stage (metres) */
-  waterSize: ORIG.floorPoolOuter * MAP_SCALE * 4.5,
+  /** Water plane under/around stage (metres) — open-sea freeride ring */
+  waterSize: ORIG.floorPoolOuter * MAP_SCALE * 7.5,
   waterY: -0.04,
 
   /**

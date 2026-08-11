@@ -2,7 +2,7 @@
   "units": "m",
   "primary": "windsurf",
   "sourceImage": "./ik-reference.png",
-  "notes": "Travel frame: +Y up, +Z nose/forward (SI). Mesh artYawDeg 180 (board was backwards at 90). Feet staggered; hands on boom L/R ~1.05 m.",
+  "notes": "Travel frame: +Y up, +Z nose/forward (SI). Mesh artYawDeg 0 = package +Z is travel nose (180 pointed stern into wind). Feet staggered; hands on boom L/R ~1.05 m.",
   "hoverboard": {
     "file": "./hoverboard.glb",
     "lengthM": 1.15,
@@ -18,7 +18,7 @@
     "file": "./windsurf_package.glb",
     "size": [2.8, 0.684, 1.815],
     "deckY": 0.06,
-    "artYawDeg": 180,
+    "artYawDeg": 0,
     "sockets": {
       "footL": [-0.2, 0.08, -0.28],
       "footR": [0.16, 0.08, 0.12],

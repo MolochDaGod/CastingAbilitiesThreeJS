@@ -91,7 +91,8 @@ Sockets (manifest SI, **travel frame +Z forward**):
 | `sailRail` | optional primary · prefer BoomR for R hand |
 | `deckCenter` | Seat / hip pad |
 
-**Art yaw:** `artYawDeg: 180` on mesh only (board was backwards at 90°). Sockets stay travel-frame.
+**Art yaw:** `artYawDeg: 0` on mesh only (travel +Z = package nose). Sockets stay travel-frame.  
+**Spawn:** `HoverboardRide.spawn(pos, yaw)` sets `group.rotation.y` immediately so land is not stern-first.
 
 ### Back-slot equip (equipment pattern)
 

@@ -8,6 +8,7 @@ import { frame } from './FrameUniforms.js';
 import { Environment } from '../world/Environment.js';
 import { Ground } from '../world/Ground.js';
 import { StageWater } from '../world/StageWater.js';
+import { OpenSeaShells } from '../world/OpenSeaShells.js';
 import { DustMotes } from '../world/DustMotes.js';
 import { ContactShadows } from '../world/ContactShadows.js';
 import { WORLD } from '../config/worldScale.js';
@@ -1674,13 +1675,23 @@ export class App {
         `[App] DevIsland map · harvest=${this.worldHarvest.nodeCount} decor=${this.worldHarvest.decorCount} dummies=${this.worldHarvest.dummies?.length || 0} F≤${HARVEST_RANGE_M}m padR=${WORLD.islandRadius.toFixed(0)}`
       );
       this.hud.showToast?.(
-        `Dev Island · ${this.worldHarvest.nodeCount} nodes · dummies · Alt+Shift+Q/E/R/F/V/G skillshots`,
+        `Dev Island · ${this.worldHarvest.nodeCount} nodes · open sea · M→Space windsurf`,
         3200
       );
     } catch (err) {
       console.warn('[App] DevIsland harvest failed', err);
       this.worldHarvest = null;
       this.hud.showToast?.('Dev Island map failed — check /models/dev-island', 4000);
+    }
+
+    // Horizon islands (CDN) + open-sea water ring — freeride backdrop
+    this.loading.setProgress(0.76, 'Open sea shells…');
+    try {
+      this.openSea = new OpenSeaShells({ scene: this.scene, assets });
+      await this.openSea.init();
+    } catch (err) {
+      console.warn('[App] OpenSeaShells', err);
+      this.openSea = null;
     }
 
     this.generatedCatalog = null;

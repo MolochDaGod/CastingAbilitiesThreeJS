@@ -2,7 +2,7 @@
 
 Lab is **not** a full production sector heightfield. It is a **playable island pad** with SI rules that match fleet production-world habits, now **dressed with production-baked harvest content** for mastering Warlords systems.
 
-**Code:** `worldScale.js` · `Ground.js` · `StageWater.js` · `Environment.js` · `devIslandCatalog.js` · `DevIslandHarvest.js`  
+**Code:** `worldScale.js` · `Ground.js` · `StageWater.js` · `OpenSeaShells.js` · `Environment.js` · `devIslandCatalog.js` · `DevIslandHarvest.js`  
 **Fleet skill:** `grudge-production-world` · `grudge-world-scale` · `mine-loader-harvest-chests` (pattern)
 
 ---
@@ -45,10 +45,11 @@ Do **not** invent a second harvest engine or second AnimationMixer.
 
 1. **Pad** — dark polished stone + light pool (Ground shader).  
 2. **Shore** — sand/moss tint + light foam noise toward water.  
-3. **Ocean ring** — StageWater discard under island; fresnel + wave amp.  
-4. **Fog** — floor and fog share deep colour so horizon dissolves.  
-5. **Windsurf freeride** — board Y follows `sampleHeight` on water ring.  
-6. **Harvest meshes** — SI-fit boulders (~1.1–1.6 m); feet snap to y=0.
+3. **Ocean ring** — StageWater discard under pad; storm waves + optional normal map (open-sea).  
+4. **Horizon islands** — `OpenSeaShells` CDN `models/worlds/small_island.glb` (backdrop only).  
+5. **Fog** — floor and fog share deep colour so horizon dissolves.  
+6. **Windsurf freeride** — board Y follows `sampleHeight`; nose = travel +Z (`artYawDeg: 0`).  
+7. **Harvest nodes** — DevIslandHarvest on pad; SI boulders; feet y=0.
 
 Do **not** raise Ground mesh for cliffs — that breaks path cast and earth paving. Production islands use heightfield shells on CDN.
 

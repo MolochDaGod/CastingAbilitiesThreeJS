@@ -508,7 +508,8 @@ export class WalkController {
         this._from.z + (this._target.z - this._from.z) * t - Math.cos(this._yaw) * back
       );
       if (this.scooter.ready && !this.scooter.active) {
-        this.scooter.spawn(this._anchor);
+        // Point board along leap facing immediately (not default yaw 0)
+        this.scooter.spawn(this._anchor, this._yaw);
       }
     }
 
@@ -558,7 +559,11 @@ export class WalkController {
 
     // Land on deck — group at surface Y=0; force full board size; parent to unscaled seat
     this._anchor.set(this._target.x, 0, this._target.z);
-    if (!this.scooter.active) this.scooter.spawn(this._anchor);
+    if (!this.scooter.active) this.scooter.spawn(this._anchor, this._yaw);
+    else {
+      this.scooter.group.rotation.y = this._yaw;
+      this.scooter._yaw = this._yaw;
+    }
     this.scooter.forceFullSize?.();
     _side.set(Math.cos(this._yaw), 0, -Math.sin(this._yaw));
     this.scooter.update(0, this._anchor, _side, 0, 0, this._yaw, 0);
