@@ -174,6 +174,32 @@ export class SkillStatusSystem {
       ? 'player'
       : target?.id || target?.mesh?.uuid || 'aim';
 
+    /**
+     * Player defensive SSOT (P0):
+     * Spatial contact hits (point present) → invuln / weapon-volume parry cancel
+     * damage · status · knockback. Buffs (ward/heal) usually have no point — pass through.
+     * @see DrcCombatController.tryParryBlock · weaponVolumeBlocks
+     */
+    const isPlayerHit =
+      !!opts.applyToPlayer ||
+      target?.kind === 'self' ||
+      target?.kind === 'player' ||
+      target?.id === 'player';
+    const attackPoint = hit.point || target?.point || null;
+    if (isPlayerHit && attackPoint && opts.drc) {
+      const drc = opts.drc;
+      if (drc.isInvincible || (Number(drc.invuln) || 0) > 0) {
+        this.onToast('Invincible');
+        return { targetId: 'player', damage: 0, statuses: [], blocked: 'invuln' };
+      }
+      const attackR =
+        Number(hit.contactRadius ?? hit.radius ?? hit.hitRadius ?? 0.18) || 0.18;
+      if (typeof drc.tryParryBlock === 'function' && drc.tryParryBlock(attackPoint, attackR)) {
+        // tryParryBlock already toasts "Parried!" + VFX
+        return { targetId: 'player', damage: 0, statuses: [], blocked: 'parry', damageWas: dmg };
+      }
+    }
+
     if (target?.mesh) this._targets.set(tid, target);
     if (opts.applyToPlayer) this._targets.set('player', target || { id: 'player', kind: 'player' });
 

@@ -106,7 +106,9 @@ attack start → tipTrail.beginSwing
   · each frame: sample tip → ribbon (blur if fireTrail)
   · at apex: residual from tip+beyondBlade · fire path · physics proj (radius from mesh)
 combo step 2/3 / finisher → new beginSwing (apex per hit)
-parry (C) → tryParryBlock(attackPoint) vs weapon cylinder
+parry (C) → open _parryUntil · rebuild volume
+incoming player hit (point) → invuln? cancel · tryParryBlock(point)? cancel dmg/status/push
+  · wired: _onProjectileHit + SkillStatusSystem.applyHit
 ```
 | Staff normal | Hotbar **1** + **focus LMB** → shared stream orb |
 | Linear skillshots | ice / thunder / meteor / beam / snare / glacier (`elementalLinearCast`) |

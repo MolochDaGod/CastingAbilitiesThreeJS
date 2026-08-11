@@ -372,6 +372,20 @@ export class DrcCombatController {
       hit.target.id === 'player' ||
       hit.target.applyToPlayer;
 
+    // P0 defensive early-out (also enforced in SkillStatusSystem.applyHit):
+    // invuln / C-parry weapon cylinder vs incoming projectile contact on player.
+    if (applyToPlayer && hit.point) {
+      if (this.isInvincible || this.invuln > 0) {
+        this.onToast?.('Invincible');
+        return;
+      }
+      const attackR =
+        Number(hit.contactRadius ?? hit.radius ?? hit.hitRadius ?? 0.18) || 0.18;
+      if (this.tryParryBlock(hit.point, attackR)) {
+        return;
+      }
+    }
+
     this.statuses.applyHit({
       target: hit.target || { id: 'aim', point: hit.point, kind: 'aim' },
       skill: {
@@ -2865,12 +2879,15 @@ export class DrcCombatController {
 
   /**
    * Incoming attack vs weapon cylinder during parry window.
+   * Called from SkillStatusSystem.applyHit + _onProjectileHit (player contact).
+   * Success consumes the window (one clean block per C press).
    * @param {import('three').Vector3} attackPoint
    * @param {number} [attackRadius]
    */
   tryParryBlock(attackPoint, attackRadius = 0.18) {
     if (!this._parryUntil || this.elapsed > this._parryUntil) return false;
     if (!this.weaponVolumeBlocks(attackPoint, attackRadius)) return false;
+    this._parryUntil = 0;
     this.vfx?.deploy?.('arcane_swirl', {
       origin: attackPoint.clone?.() || this.character.position.clone(),
       forward: _fwd.set(0, 1, 0),

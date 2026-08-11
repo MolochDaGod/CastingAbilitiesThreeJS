@@ -57,8 +57,26 @@ character.weaponVolume.radiusM;  // cylinder radius incl. pad
 | **Physics projectile** | Spawn along axis, radius from volume |
 | **Fire blur path** | Fire Ability along residual curve |
 | **IK** | Grip marker for off-hand / reload reach |
-| **Parry** | `pointHitsWeaponVolume` during guard window (wire attack sphere) |
+| **Parry** | C → `_parryUntil` · `tryParryBlock(point)` on player contact · cancel dmg/status/push |
 | **SFX** | Tip velocity / impact at tip (use tip world) |
+
+### Parry hit path (P0)
+
+```
+incoming projectile / residual contact
+  → _onProjectileHit (applyToPlayer + point)
+      · isInvincible → toast + return
+      · tryParryBlock(point, contactRadius) → toast "Parried!" + return
+  → SkillStatusSystem.applyHit (same gate for any spatial player hit)
+      · no point (ward/heal buffs) → pass through
+```
+
+| API | Role |
+|-----|------|
+| `parry()` | Spend stamina · rebuild weapon volume · open window |
+| `weaponVolumeBlocks(pt, r)` | Cylinder test (mesh-fit + 0.02 m pad) |
+| `tryParryBlock(pt, r)` | Window + volume · consume on success · VFX |
+| `isInvincible` / `invuln` | Dodge i-frames also cancel player contact damage |
 
 ## Defaults
 
