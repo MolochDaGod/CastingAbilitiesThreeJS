@@ -3,6 +3,7 @@ import { settings } from '../config/settings.js';
 import { saturate, smoothstep, Easing } from '../utils/math.js';
 import { getColor } from '../utils/color.js';
 import { LAYER } from '../core/Layers.js';
+import { playForImpact } from '../audio/skillSfx.js';
 
 export const AbilityPhase = Object.freeze({
   IDLE: 'idle',
@@ -278,11 +279,18 @@ export class Ability {
         if (reachedEnd) {
           this.phase = AbilityPhase.IMPACT;
           this.impactTime = 0;
+          try {
+            playForImpact(this.element, { kind: this.element === 'fire' ? 'fire' : 'impact' });
+          } catch (_) {}
           this.onImpact();
         }
         // A path that outlives its element still has to end eventually.
         if (this.age > this.config.lifetime * settings.global.lifetime * 4) {
           this.phase = AbilityPhase.IMPACT;
+          this.impactTime = 0;
+          try {
+            playForImpact(this.element, { kind: this.element === 'fire' ? 'fire' : 'impact' });
+          } catch (_) {}
           this.onImpact();
         }
         break;

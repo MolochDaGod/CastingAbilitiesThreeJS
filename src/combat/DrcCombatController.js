@@ -44,6 +44,13 @@ import {
   pistolHitFrameSec
 } from '../config/pistolAnimSsot.js';
 import {
+  playForWeaponSkillCast,
+  playForImpact,
+  playParrySfx,
+  playHealSfx,
+  playBurnSfx
+} from '../audio/skillSfx.js';
+import {
   createFlintlockChamber,
   skillNeedsLoad,
   isFlintlockContext,
@@ -62,6 +69,7 @@ import {
   fireLinearFromPlan
 } from './elementalLinearCast.js';
 import { SkillStatusSystem } from './skillStatusSystem.js';
+import { WeaponTipTrailSystem } from '../vfx/weaponTipTrail.js';
 
 const _origin = new Vector3();
 const _tip = new Vector3();
@@ -100,6 +108,7 @@ export class DrcCombatController {
     this.vfx = opts.vfx || null;
     this.aim = opts.aim || null;
     /** Mesh projectiles + contact force (fire/ice summons) */
+    this.scene = opts.scene || null;
     this.projectiles =
       opts.projectiles ||
       (opts.scene
@@ -107,6 +116,21 @@ export class DrcCombatController {
             scene: opts.scene,
             vfx: this.vfx,
             onHit: (hit) => this._onProjectileHit(hit)
+          })
+        : null);
+    /**
+     * Weapon-tip trail + apex residual (blade ribbon · fire blur · physics past tip).
+     * @type {WeaponTipTrailSystem|null}
+     */
+    this.tipTrail =
+      opts.tipTrail ||
+      (opts.scene
+        ? new WeaponTipTrailSystem({
+            scene: opts.scene,
+            character: this.character,
+            projectiles: this.projectiles,
+            vfx: this.vfx,
+            abilities: this.abilities
           })
         : null);
     /** @type {import('./CombatFocus.js').CombatFocus|null} */
@@ -763,6 +787,7 @@ export class DrcCombatController {
   update(dt, keys) {
     this.elapsed += dt;
     this.projectiles?.update?.(dt);
+    this.tipTrail?.update?.(dt, this.elapsed);
     this.statuses?.update?.(this.elapsed);
     this.flintlock?.tick?.(this.elapsed);
     this._tickWeaponCharge(dt, keys);
@@ -1326,6 +1351,11 @@ export class DrcCombatController {
     this.character.playWeaponCombat?.('cast') ||
       this.character.playCastFlourish?.() ||
       this.character.requestOneShot?.('cast');
+    try {
+      playForWeaponSkillCast(opts.skill || { element: opts.element, label: opts.label }, {
+        duration
+      });
+    } catch (_) {}
     // Small elemental charge shell (kamehameha bake) at tip during cast
     if (this._cast.showCharge && this.projectiles?.spawnCharge) {
       this._chargeOrigin = this._chargeOrigin || new Vector3();
@@ -2038,6 +2068,9 @@ export class DrcCombatController {
         this.character.playParry?.() ||
           this.character.requestOneShot?.('block') ||
           this.character.requestOneShot?.('parry');
+        try {
+          playParrySfx();
+        } catch (_) {}
       } else if (animRole === 'dodgeB' || /evade/i.test(skill.id + skill.label)) {
         this.character.playDodge?.('back') || this.character.requestOneShot?.('dodgeB');
       } else if (/^attack[123]$/.test(animRole)) {
@@ -2140,40 +2173,94 @@ export class DrcCombatController {
   }
 
   /**
-   * Spawn residual after hit-frame delay: tip origin + short path + VfxDirector.
+   * Melee residual at attack apex + weapon-tip trail during the swing.
+   * Trail samples tip each frame; at hitFrameDelay (apex) fires:
+   *   getsuga_slash · fire-style blur path · physics residual past blade.
+   * Combo: each attack1/2/3 / finisher calls this again → apex per hit.
+   *
    * @param {import('./drcSkills.js').DrcWeaponSkill} skill
    * @param {{ origin: Vector3, forward: Vector3 }} pose
    * @param {{ rangeOverride?: number, hit?: { kind?: string, step?: number } }} [opts]
    */
   _fireMeleeResidual(skill, pose, opts = {}) {
     const prim = residualFromSettings();
-    const delayMs = Math.max(0, (prim.hitFrameDelay ?? 0.18) * 1000);
+    if (settings.residual?.enabled === false) return;
+
     const range = opts.rangeOverride ?? prim.range ?? skill.rangeM ?? 3.2;
+    const hitFrameDelay = prim.hitFrameDelay ?? settings.residual?.hitFrameDelay ?? 0.18;
+    const step = opts.hit?.step;
+    // Combo lights: slightly shorter trail; finishers longer + fire blur
+    const isFin =
+      opts.hit?.kind === 'finisher' ||
+      opts.hit?.kind === 'finisherAir' ||
+      skill.animRole === 'finisher';
+    const trailDur =
+      (settings.residual?.trailDuration ?? 0.34) *
+      (isFin ? 1.25 : step === 2 ? 1.1 : 1);
+    const fireBlur =
+      settings.residual?.fireTrail !== false &&
+      (isFin || settings.residual?.fireTrail === true);
+
+    let fwd = pose.forward?.clone?.() || new Vector3(0, 0, 1);
+    if (typeof this.character.getWeaponForward === 'function') {
+      this.character.getWeaponForward(_fwd);
+      if (_fwd.lengthSq() > 1e-8) fwd = _fwd.clone().normalize();
+    }
+
+    // Prefer tip-trail system (ribbon + apex projectile). Fallback to legacy timeout.
+    if (this.tipTrail?.beginSwing) {
+      this.tipTrail.beginSwing({
+        duration: trailDur,
+        hitFrameDelay,
+        forward: fwd,
+        skill,
+        hit: opts.hit || {
+          kind: isFin ? 'finisher' : 'light',
+          step: Number.isFinite(step) ? step : 0
+        },
+        rangeM: range,
+        fireBlur,
+        color: fireBlur
+          ? settings.residual?.trailColor || '#ff6a22'
+          : settings.residual?.color || '#7dd3fc',
+        beyondBladeM: settings.residual?.beyondBladeM ?? 0.38,
+        width:
+          (settings.residual?.trailWidth ?? 0.14) *
+          (isFin ? 1.35 : 1 + (Number(step) || 0) * 0.08)
+      });
+      return;
+    }
+
+    // Legacy fallback (no scene / tipTrail)
+    const delayMs = Math.max(0, hitFrameDelay * 1000);
     const intensity =
       (prim.intensity ?? 1) *
       (settings.effect?.intensity ?? 1) *
-      (opts.hit?.kind === 'finisher' || opts.hit?.kind === 'finisherAir' ? 1.25 : 1);
-
+      (isFin ? 1.25 : 1);
     const fire = () => {
       const tipOff = prim.tipOffset ?? settings.residual?.tipOffset ?? 0.55;
       if (typeof this.character.getWeaponTip === 'function') {
         this.character.getWeaponTip(_tip, tipOff);
       } else {
         this.character.getCastOrigin(_tip);
-        _tip.addScaledVector(pose.forward, tipOff);
+        _tip.addScaledVector(fwd, tipOff);
       }
-      // Short residual path along blade dir (Open: grip→tip travel 1–10 m)
+      const beyond = settings.residual?.beyondBladeM ?? 0.38;
+      _tip.addScaledVector(fwd, beyond);
       const pathRange = MathUtils.clamp(range, 1, 10);
-      _end.copy(_tip).addScaledVector(pose.forward, pathRange);
+      _end.copy(_tip).addScaledVector(fwd, pathRange);
       _end.y = Math.max(0.12, _tip.y * 0.4);
       _mid.lerpVectors(_tip, _end, 0.45);
       _mid.y = Math.max(_tip.y, _mid.y) + pathRange * 0.04;
-      const curve = new CatmullRomCurve3([_tip.clone(), _mid.clone(), _end.clone()], false, 'catmullrom', 0.5);
-
-      // Beauty residual (catalog getsuga) with live knobs — origin is weapon tip
+      const curve = new CatmullRomCurve3(
+        [_tip.clone(), _mid.clone(), _end.clone()],
+        false,
+        'catmullrom',
+        0.5
+      );
       this.vfx?.deploy?.('getsuga_slash', {
         origin: _tip.clone(),
-        forward: pose.forward.clone(),
+        forward: fwd.clone(),
         aim: _end.clone(),
         fromTip: true,
         intensity,
@@ -2182,14 +2269,17 @@ export class DrcCombatController {
         speed: prim.speed,
         color: prim.color
       });
-
-      // Short elemental ribbon as travel residual (shared trail primitive)
+      try {
+        playForImpact(fireBlur ? 'fire' : skill?.element, {
+          skill,
+          kind: fireBlur ? 'fire' : 'residual'
+        });
+      } catch (_) {}
       if (settings.residual?.enabled !== false) {
-        const el = this.abilities.selected || 'storm';
+        const el = fireBlur ? 'fire' : this.abilities.selected || 'storm';
         this.abilities.cast(curve, el);
       }
     };
-
     if (delayMs > 4) setTimeout(fire, delayMs);
     else fire();
   }
@@ -2346,6 +2436,9 @@ export class DrcCombatController {
         // E = block / guard (fleet SSOT). C = parry.
         return this._utilityAction('block', 0.4, settings.drc?.parryStamina ?? 4, () => {
           this.character.playParry?.() || this.character.requestOneShot?.('block');
+          try {
+            playParrySfx();
+          } catch (_) {}
           this.onToast('Block (E)');
         });
       case 'heavy':
@@ -2359,6 +2452,9 @@ export class DrcCombatController {
       case 'heal':
         return this._utilityAction('heal', 4.0, 0, () => {
           this.stamina = Math.min(this.maxStamina, this.stamina + 35);
+          try {
+            playHealSfx();
+          } catch (_) {}
           _fwd.set(Math.sin(this.character.facing), 0, Math.cos(this.character.facing));
           this.vfx?.deploy?.('moon_beam', {
             origin: this.character.position.clone(),
@@ -2371,6 +2467,9 @@ export class DrcCombatController {
         return this._utilityAction('bomb', 5.0, 10, () => {
           _fwd.set(Math.sin(this.character.facing), 0, Math.cos(this.character.facing));
           const origin = this.character.position.clone().addScaledVector(_fwd, 2.5);
+          try {
+            playBurnSfx();
+          } catch (_) {}
           this.vfx?.deploy?.('inferno', {
             origin,
             forward: _fwd.clone(),
@@ -2686,6 +2785,9 @@ export class DrcCombatController {
     const stam = settings.drc?.parryStamina ?? 8;
     return this._utilityAction('parry', 0.65, stam, () => {
       this.character.playParry?.() || this.character.requestOneShot?.('block');
+      try {
+        playParrySfx();
+      } catch (_) {}
       _fwd.set(Math.sin(this.character.facing), 0, Math.cos(this.character.facing));
       this.vfx?.deploy?.('arcane_swirl', {
         origin: this.character.position.clone(),

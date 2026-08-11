@@ -4,6 +4,7 @@ import { EarthAbility } from './EarthAbility.js';
 import { WindAbility } from './WindAbility.js';
 import { ELEMENTS, abilityKeyForElement } from '../config/settings.js';
 import { ObjectPool } from '../utils/ObjectPool.js';
+import { playForElementCast } from '../audio/skillSfx.js';
 
 /**
  * Ability pool keys (class implementations). Product ELEMENTS map via abilityKeyForElement:
@@ -78,6 +79,9 @@ export class AbilityManager {
     const ability = this.pools.get(key).acquire();
     ability.spawn(curve);
     this.active.push(ability);
+    try {
+      playForElementCast(element || this.selected || key);
+    } catch (_) {}
     return ability;
   }
 

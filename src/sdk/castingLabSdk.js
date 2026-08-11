@@ -77,6 +77,21 @@ export {
   enrichStaffSkill
 } from '../combat/staffWeaponSkillsBind.js';
 
+// Weapon skill + ability SFX (public/audio/sfx)
+export {
+  SkillSfx,
+  playSkillSfx,
+  playForWeaponSkillCast,
+  playForElementCast,
+  playForImpact,
+  playParrySfx,
+  playHealSfx,
+  playBurnSfx,
+  unlockSkillSfx,
+  installSkillSfxGestureUnlock,
+  SKILL_SFX_URLS
+} from '../audio/skillSfx.js';
+
 export {
   CASTING_ELEMENT_PHASE_VFX,
   normalizeElement,

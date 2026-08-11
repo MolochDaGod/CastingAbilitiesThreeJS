@@ -34,6 +34,7 @@ import { CameraShake } from '../effects/CameraShake.js';
 import { ScreenFlash } from '../effects/ScreenFlash.js';
 
 import { AbilityManager } from '../abilities/AbilityManager.js';
+import { installSkillSfxGestureUnlock, SkillSfx } from '../audio/skillSfx.js';
 import {
   LinearSkillBridge,
   LINEAR_HOTKEYS,
@@ -141,6 +142,13 @@ export class App {
 
     /** Session SSOT — mode, drc, ride, element, gates */
     this.session = new SessionState();
+
+    // Weapon skill / ability SFX (user WAVs under public/audio/sfx)
+    this.skillSfx = SkillSfx;
+    try {
+      installSkillSfxGestureUnlock();
+      if (typeof window !== 'undefined') window.SkillSfx = SkillSfx;
+    } catch (_) {}
 
     /* ---- core ---- */
     this.renderer = new Renderer(canvas);
