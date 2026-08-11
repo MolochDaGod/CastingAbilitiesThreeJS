@@ -246,6 +246,18 @@ export class CharacterController {
       );
     }
     this.equipment.hideUtility();
+    // Fail-closed: never leave hero fully invisible after exclusive equip
+    {
+      let vis = 0;
+      kit.traverse((o) => {
+        if ((o.isMesh || o.isSkinnedMesh) && o.visible) vis += 1;
+      });
+      if (vis < 1) {
+        console.warn('[CharacterController] equip left 0 meshes visible — default A armor rescue');
+        applyMeshIdsExclusive(kit, []);
+        this.equipment.hideUtility();
+      }
+    }
 
     kit.traverse((o) => {
       if (!o.isMesh && !o.isSkinnedMesh) return;

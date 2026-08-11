@@ -574,6 +574,11 @@ export class LoadingScreen {
 
   hide() {
     this.setProgress(1);
-    setTimeout(() => this.element.classList.add('is-hidden'), 220);
+    if (!this.element) return;
+    setTimeout(() => {
+      this.element.classList.add('is-hidden');
+      // Fully remove from layout after fade (opacity alone left a black veil)
+      this.element.style.display = 'none';
+    }, 220);
   }
 }
