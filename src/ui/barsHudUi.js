@@ -39,14 +39,14 @@ export const BARS_HUD_PICKS = Object.freeze({
  */
 export function barsHudUrl(rel) {
   const clean = String(rel || '').replace(/^\/+/, '');
-  // Prefer same-origin absolute when files are in public/hud/bars
+  // Origin-absolute (public/hud/bars is shipped). Do not use relative paths —
+  // CSS url() resolves against /assets/*.css → /assets/hud/bars → 404.
+  // assets.grudge-studio.com/hud/bars/* is not uploaded on fleet CDN (404).
   if (typeof window !== 'undefined' && window.location?.href) {
     try {
-      const local = new URL(`./hud/bars/${clean}`, window.location.href).href;
-      // Still use CDN primary for CSS reliability (local may 404 on partial deploys)
-      void local;
+      return new URL(`./hud/bars/${clean}`, window.location.href).href;
     } catch {
-      /* ignore */
+      /* fall through */
     }
   }
   return `${BARS_CDN}/${clean}`;

@@ -275,17 +275,11 @@ export class CharacterController {
     this.actions.clear();
     this._boundPacks.clear();
 
+    // Critical path: primary pack only (idle/walk/run/cast) so loader can finish.
+    // combat_mobility + longbow + reactions are large and 404-heavy — load async.
     await this._bindPack(this.animPackId);
     if (this.animPackId !== 'magic' && this.animPackId !== 'sword_shield') {
       await this._bindPack('magic');
-    }
-    // Shared longbow directional dodges + parry (Danger Room AA/DD/WW/X)
-    await this._bindPack('combat_mobility');
-    // Hit reactions (knocked-up) — catalog combat hits
-    await this._bindPack('reactions');
-    if (this.animPackId !== 'longbow') {
-      // Prefer longbow pack dodge roles when combat_mobility already set names
-      await this._bindPack('longbow');
     }
 
     if (this.actions.has('idle')) this.play('idle', 0);
@@ -298,6 +292,18 @@ export class CharacterController {
     this.height = kit.userData.deployHeightM || this.height;
     // Face camera +Z (Toon play) — never leave sideways bind
     kit.rotation.set(0, 0, 0);
+
+    // Secondary packs — do not block boot / loader hide
+    const secondary = [
+      this._bindPack('combat_mobility'),
+      this._bindPack('reactions'),
+    ];
+    if (this.animPackId !== 'longbow') secondary.push(this._bindPack('longbow'));
+    void Promise.all(secondary).then(() => {
+      console.info('[CharacterController] secondary anim packs ready');
+    }).catch((err) => {
+      console.warn('[CharacterController] secondary packs', err);
+    });
 
     if (this.rideIk) this.rideIk.rebind(kit);
     else this.rideIk = new RideIK(kit);
