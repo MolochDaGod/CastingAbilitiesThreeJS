@@ -1,8 +1,8 @@
 {
   "name": "casting-abilities",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
-  "description": "Grudge Studio casting + DRC combat — three@0.185, Rapier CCT, production weapon skills, three-layer terrain, shared glTF pipeline.",
+  "description": "Grudge Studio casting + DRC combat — three@0.185, Rapier CCT, production weapon skills, three-layer terrain, shared glTF pipeline. · casting master merge 1.2.0",
   "type": "module",
   "exports": {
     ".": "./src/sdk/castingLabSdk.js",
@@ -51,6 +51,8 @@
     "three": "^0.185.0"
   },
   "peerDependenciesMeta": {
-    "three": { "optional": false }
+    "three": {
+      "optional": false
+    }
   }
 }

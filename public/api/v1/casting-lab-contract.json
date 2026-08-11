@@ -1,6 +1,6 @@
 {
   "id": "casting-lab",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "productHost": "casting.grudge.studio",
   "vercelHost": "casting-abilities-threejs.vercel.app",
   "three": "^0.185",
@@ -21,7 +21,13 @@
     "staffNormal": "slot 1 + focus LMB"
   },
   "terrain": {
-    "layers": ["L0_height", "L1_surface", "L2_vegetation", "L3_detail", "water"],
+    "layers": [
+      "L0_height",
+      "L1_surface",
+      "L2_vegetation",
+      "L3_detail",
+      "water"
+    ],
     "sample": "IslandHeightfield.sample",
     "doc": "docs/THREE_LAYER_TERRAIN_SSOT.md"
   },
@@ -49,5 +55,6 @@
     "docs/SYSTEMS_HEALTH_AUDIT.md",
     "docs/THREE_LAYER_TERRAIN_SSOT.md",
     "docs/SSOT_INDEX.md"
-  ]
+  ],
+  "masterMerge": "1.2.0"
 }

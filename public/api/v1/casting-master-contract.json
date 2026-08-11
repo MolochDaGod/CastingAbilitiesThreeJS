@@ -1,0 +1,63 @@
+{
+  "id": "grudge-casting-master",
+  "version": "1.2.0",
+  "updated": "2026-08-11",
+  "sources": [
+    "https://github.com/MolochDaGod/LinearAbiltyCastingThreeJS",
+    "https://github.com/MolochDaGod/CastingAbilitiesThreeJS"
+  ],
+  "terrainRef": "https://simonstorlschulke.github.io/threejs-examples/?scene=0",
+  "description": "Mastered Linear skillshots + Casting path/VFX + three-layer islands for Grudge Builder / info.grudge-studio.com",
+  "linearSkillshots": {
+    "ice": { "name": "Frost Lance", "shape": "line", "hotkey": "Q" },
+    "thunder": { "name": "Storm Lance", "shape": "line", "hotkey": "E" },
+    "meteor": { "name": "Cinder Fall", "shape": "line", "hotkey": "R" },
+    "beam": { "name": "Nova Beam", "shape": "line", "hotkey": "F" },
+    "snare": { "name": "Voltaic Snare", "shape": "zone", "hotkey": "V" },
+    "glacier": { "name": "Glacier Wall", "shape": "zone", "hotkey": "G" }
+  },
+  "pathElements": ["fire", "water", "earth", "wind"],
+  "productToLinear": {
+    "ice": "ice",
+    "storm": "thunder",
+    "fire": "meteor",
+    "holy": "beam",
+    "arcane": "snare",
+    "nature": "glacier"
+  },
+  "terrainLayers": ["L0_height", "L1_surface", "L2_vegetation", "L3_detail", "water"],
+  "glsl": {
+    "common": "client/src/island3d/casting/shaders/lib/common.glsl.js",
+    "noise": "client/src/island3d/casting/shaders/lib/noise.glsl.js",
+    "materials": [
+      "IceMaterial",
+      "LightningMaterial",
+      "MeteorMaterial",
+      "BeamMaterial",
+      "SnareMaterial",
+      "GlacierMaterial",
+      "FrostFieldMaterial",
+      "VolumetricFireMaterial",
+      "TrailMaterial",
+      "WindMaterial",
+      "OceanWaterMaterial"
+    ]
+  },
+  "runtime": {
+    "CastingMaster": "client/src/island3d/casting/CastingMaster.ts",
+    "WorldFxBus": "client/src/island3d/vfx/WorldFxBus.ts",
+    "SpellFxSystem": "client/src/island3d/vfx/SpellFxSystem.ts",
+    "catalog": "shared/casting/masterCatalog.ts"
+  },
+  "hosts": {
+    "castingLab": "https://casting.grudge.studio",
+    "info": "https://info.grudge-studio.com",
+    "builder": "https://client.grudge-studio.com",
+    "weaponSkills": "https://weapon-skills.grudge-studio.com",
+    "animAi": "https://anim-ai-worker.grudge.workers.dev"
+  },
+  "endpoints": {
+    "contract": "/api/v1/casting-master-contract.json",
+    "labContract": "/api/v1/casting-lab-contract.json"
+  }
+}
