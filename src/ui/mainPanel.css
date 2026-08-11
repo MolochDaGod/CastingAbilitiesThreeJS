@@ -7,8 +7,11 @@
 .inv-panel--main {
   width: min(920px, 96vw);
   max-height: min(88vh, 820px);
-  background: linear-gradient(165deg, #0c1520 0%, #0a1018 50%, #0d1622 100%);
-  border: 1px solid #1e3a55;
+  background:
+    linear-gradient(165deg, rgba(12, 21, 32, 0.94) 0%, rgba(10, 16, 24, 0.96) 50%, rgba(13, 22, 34, 0.95) 100%),
+    var(--mp-panel-bg, none);
+  background-size: cover, auto;
+  border: 1px solid rgba(201, 149, 10, 0.28);
   box-shadow: 0 0 0 1px #0a2035, 0 24px 64px rgba(0, 0, 0, 0.65),
     inset 0 0 80px rgba(20, 80, 140, 0.08);
 }

@@ -76,10 +76,24 @@ import {
   saveSlotAdminOverrides,
   ensureDemoBag,
   bagAdd,
+  bagRemoveAt,
   itemFitsSlot,
   ALL_PAPERDOLL_SLOTS
 } from './mainPanelSlots.js';
 import './mainPanel.css';
+import './itemContextMenu.css';
+import {
+  bindItemContextMenu,
+  openItemContextMenu,
+  unequipPaperdollSlot,
+  closeItemContextMenu
+} from './itemContextMenu.js';
+import {
+  applyMainPanelUiVars,
+  MAIN_PANEL_PROD,
+  UI_ASSET_CATALOG
+} from './uiAssetCatalog.js';
+import { fleetDeploySnapshot } from '../config/fleetEnv.js';
 
 /**
  * Main Panel — Warlords / TI equipment look · inventory slots · production tester.
@@ -100,7 +114,9 @@ export class InventoryPanel {
    *   onRace?: (raceId: string) => void|Promise<void>,
    *   onMountToggle?: (wantRide: boolean) => void,
    *   onMode?: (mode: 'casting'|'walk') => void,
-   *   getDrc?: () => import('../combat/DrcCombatController.js').DrcCombatController|null
+   *   getDrc?: () => import('../combat/DrcCombatController.js').DrcCombatController|null,
+   *   onDropWorld?: (item: object, cx: number, cy: number) => void,
+   *   onDepositItem?: (item: object) => void|Promise<void>
    * }} opts
    */
   constructor(opts) {
@@ -111,6 +127,9 @@ export class InventoryPanel {
     this.onMountToggle = opts.onMountToggle || null;
     this.onMode = opts.onMode || null;
     this.getDrc = opts.getDrc || (() => null);
+    this.onDropWorld = opts.onDropWorld || null;
+    this.onDepositItem = opts.onDepositItem || null;
+    applyMainPanelUiVars();
     this.open = false;
     this._tab = 'character';
     this._busy = false;
@@ -160,7 +179,7 @@ export class InventoryPanel {
       <header class="inv-panel__head">
         <div>
           <h2>Main Panel</h2>
-          <p class="inv-panel__sub">Character · Equipment · Inventory · Professions · production lab</p>
+          <p class="inv-panel__sub">MMO equipment · bag · RMB item menus · API · production lab</p>
         </div>
         <button type="button" class="inv-panel__close" data-close aria-label="Close">×</button>
       </header>
@@ -190,9 +209,9 @@ export class InventoryPanel {
         </div>
       </div>
       <footer class="inv-panel__foot">
-        <kbd>I</kbd> panel · <kbd>LMB</kbd> slot → inventory · mesh_ids ·
+        <kbd>I</kbd> panel · <kbd>LMB</kbd> pick/equip · <kbd>RMB</kbd> item menu ·
         <a href="${CRAFT_SSOT_URL}" target="_blank" rel="noopener">Craft SSOT ↗</a> ·
-        <a href="${MAIN_PANEL_URL}" target="_blank" rel="noopener">ui Main Panel ↗</a>
+        <a href="${MAIN_PANEL_PROD.equipment}" target="_blank" rel="noopener">ui Equipment ↗</a>
       </footer>
     `;
 
@@ -202,6 +221,59 @@ export class InventoryPanel {
     });
     this.el.addEventListener('pointerdown', (e) => e.stopPropagation());
     this.el.addEventListener('wheel', (e) => e.stopPropagation());
+    // Allow native context menu only on our item menu (we open custom)
+    this.el.addEventListener('contextmenu', (e) => {
+      // Let slot handlers preventDefault; don't block bubbling to them
+      if (!e.target?.closest?.('[data-bag-i],[data-pd-slot]')) {
+        e.preventDefault();
+      }
+    });
+  }
+
+  /** Shared handlers for bag + paperdoll RMB */
+  _itemCtxHandlers() {
+    return {
+      onToast: this.onToast,
+      onEquip: (item, slotDef, bagIndex) => this._equipItemToSlot(item, slotDef, bagIndex),
+      onUnequip: async (slotId) => {
+        const it = unequipPaperdollSlot(slotId);
+        if (it) {
+          try {
+            if (slotId === 'mainHand' || slotId === 'offHand') {
+              await unequipWeapon({ character: this.character, onToast: this.onToast });
+            }
+          } catch {
+            /* ok */
+          }
+          this.onToast(`Unequipped ${it.name || it.id}`);
+          this.onEquip();
+        }
+      },
+      onUse: (item) => {
+        this.onToast(`Use ${item.name || item.id} (lab — wire consumable later)`);
+      },
+      onDropWorld: this.onDropWorld
+        ? (item, cx, cy) => this.onDropWorld(item, cx, cy)
+        : null,
+      onDeposit: this.onDepositItem
+        ? async (item) => {
+            await this.onDepositItem(item);
+            this.onToast(`Deposit requested · ${item.name || item.id}`);
+          }
+        : async () => {
+            window.open(MAIN_PANEL_PROD.craft, '_blank', 'noopener');
+            this.onToast('Account bag · open Craft SSOT (Railway)');
+          },
+      onRefresh: () => this.refresh(),
+      onOpenSlotPicker: (slotId) => {
+        this._setTab('character');
+        // After refresh, open picker
+        requestAnimationFrame(() => {
+          const host = this.el.querySelector('[data-panel="character"]');
+          if (host) this._onPaperdollSlotClick(slotId, host);
+        });
+      }
+    };
   }
 
   _setTab(tab) {
@@ -275,7 +347,8 @@ export class InventoryPanel {
     const isTarget = this._equipTarget === slot.id;
     return `
       <button type="button" class="mp-slot ${item ? 'is-filled' : ''} ${isTarget ? 'is-target' : ''}"
-        data-pd-slot="${slot.id}" title="${slot.label} · LMB open inventory">
+        data-pd-slot="${slot.id}"
+        title="${slot.label} · LMB bag options · RMB equip menu">
         ${
           item?.icon
             ? `<img class="mp-slot__icon" src="${item.icon}" alt="" referrerpolicy="no-referrer" />`
@@ -308,20 +381,35 @@ export class InventoryPanel {
         </div>
         <div class="mp-picker" data-picker hidden></div>
       </div>
-      <p class="inv-hint">LMB equipment slot → inventory options (Player-Inventory-System). Drag pattern: pick bag item then LMB target slot.</p>
+      <p class="inv-hint">LMB slot → bag options · <b>RMB</b> Unequip / Replace · pick bag item then LMB slot to equip. Production: <a href="${MAIN_PANEL_PROD.equipment}" target="_blank" rel="noopener">ui equipment ↗</a></p>
       <div class="inv-btn-row">
         <button type="button" class="inv-btn" data-open-inv>Open Inventory</button>
         <button type="button" class="inv-btn inv-btn--ghost" data-unequip-all>Clear paperdoll</button>
+        <a class="inv-btn inv-btn--ghost" href="${MAIN_PANEL_PROD.full}" target="_blank" rel="noopener">Fleet Main Panel ↗</a>
         <a class="inv-btn inv-btn--ghost" href="${CRAFT_SSOT_URL}" target="_blank" rel="noopener">Craft bag ↗</a>
       </div>
     `;
 
+    const h = this._itemCtxHandlers();
     host.querySelectorAll('[data-pd-slot]').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
         this._onPaperdollSlotClick(btn.dataset.pdSlot, host);
       });
+      bindItemContextMenu(
+        btn,
+        () => {
+          const slotId = btn.dataset.pdSlot;
+          const equipMap = loadEquipMap();
+          return {
+            source: 'paperdoll',
+            slotId,
+            item: equipMap[slotId] || null
+          };
+        },
+        h
+      );
     });
     host.querySelector('[data-open-inv]')?.addEventListener('click', () => this._setTab('inventory'));
     host.querySelector('[data-unequip-all]')?.addEventListener('click', () => {
@@ -530,7 +618,7 @@ export class InventoryPanel {
 
     const cell = (item, i) => `
       <button type="button" class="mp-bag-slot ${this._pickedBagIndex === i ? 'is-pick' : ''}" data-bag-i="${i}"
-        title="${item ? item.name : 'Empty'}">
+        title="${item ? `${item.name} · LMB pick · RMB menu` : 'Empty'}">
         ${
           item
             ? `<img class="mp-slot__icon" src="${item.icon || ''}" alt="" referrerpolicy="no-referrer" />
@@ -552,14 +640,16 @@ export class InventoryPanel {
         </div>
         <div class="mp-bag__grid">${mainSlots.map((it, i) => cell(it, i)).join('')}</div>
         <div class="mp-bag__util">${utilSlots.map((it, j) => cell(it, mainN + j)).join('')}</div>
-        <p class="inv-hint">LMB pick item · LMB paperdoll slot to equip (Character tab). Pattern: Player-Inventory-System.</p>
+        <p class="inv-hint"><b>LMB</b> pick · <b>RMB</b> Equip / Split / Drop / Deposit / Inspect · then Character paperdoll.</p>
         <div class="inv-btn-row">
           <button type="button" class="inv-btn inv-btn--ghost" data-seed-bag>Reset demo bag</button>
-          <a class="mp-link-craft" href="${CRAFT_SSOT_URL}" target="_blank" rel="noopener">Open Warlords Craft bag ↗</a>
+          <a class="mp-link-craft" href="${CRAFT_SSOT_URL}" target="_blank" rel="noopener">Warlords Craft bag ↗</a>
+          <a class="mp-link-craft" href="${MAIN_PANEL_PROD.inventory}" target="_blank" rel="noopener">ui Inventory ↗</a>
         </div>
       </div>
     `;
 
+    const h = this._itemCtxHandlers();
     host.querySelectorAll('[data-bag-i]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const i = Number(btn.dataset.bagI);
@@ -568,17 +658,31 @@ export class InventoryPanel {
         } else {
           this._pickedBagIndex = bag.slots[i] ? i : null;
           if (this._pickedBagIndex != null) {
-            this.onToast(`Picked ${bag.slots[i].name} — open Character and LMB a slot`);
+            this.onToast(`Picked ${bag.slots[i].name} — Character tab + LMB slot, or RMB → Equip`);
           }
         }
         this._fillInventory();
       });
+      bindItemContextMenu(
+        btn,
+        () => {
+          const i = Number(btn.dataset.bagI);
+          const bag2 = loadBag();
+          return {
+            source: 'bag',
+            bagIndex: i,
+            item: bag2.slots[i] || null
+          };
+        },
+        h
+      );
     });
     host.querySelector('[data-bag-skin]')?.addEventListener('change', (e) => {
       saveBagSkin(e.target.value);
       this.onToast(`Bag skin · ${e.target.value}`);
     });
     host.querySelector('[data-seed-bag]')?.addEventListener('click', () => {
+      localStorage.removeItem('casting.mainPanel.bag.v2');
       localStorage.removeItem('casting.mainPanel.bag.v1');
       ensureDemoBag();
       this.refresh();
@@ -1423,23 +1527,49 @@ export class InventoryPanel {
     if (!host || this._tab !== 'api') return;
 
     const health = this.api.lastHealth;
+    const fleet = fleetDeploySnapshot();
+    const assets = UI_ASSET_CATALOG.map(
+      (a) =>
+        `<div class="inv-card__row"><span>${a.id}</span><b title="${a.system}">${a.role}</b></div>`
+    ).join('');
+
     host.innerHTML = `
-      <p class="inv-hint">Railway player API — real account roster (Warlords era). Not fake local heroes.</p>
+      <p class="inv-hint"><b>Dev + production</b> — Casting Main Panel mirrors fleet UI. Player bag SSOT = Railway; chrome = CraftPix + Warlords packs; production panel = ui.grudge-studio.com.</p>
       <div class="inv-card">
-        <div class="inv-card__row"><span>Base</span><b class="inv-code">${FLEET_API_DEFAULT.replace('https://', '')}</b></div>
+        <div class="inv-card__row"><span>API base</span><b class="inv-code">${(FLEET_API_DEFAULT || 'same-origin').replace('https://', '')}</b></div>
         <div class="inv-card__row"><span>Health</span><b data-health>${health ? (health.ok ? `OK ${health.latencyMs}ms` : health.message) : 'not checked'}</b></div>
+        <div class="inv-card__row"><span>Player</span><b>${fleet.authority.player}</b></div>
+        <div class="inv-card__row"><span>Binaries</span><b>${fleet.authority.binaries}</b></div>
+        <div class="inv-card__row"><span>Index</span><b>${fleet.authority.index}</b></div>
       </div>
       <div class="inv-btn-row">
-        <button type="button" class="inv-btn" data-ping>Ping health</button>
+        <button type="button" class="inv-btn" data-ping>Ping Railway health</button>
         <button type="button" class="inv-btn inv-btn--ghost" data-chars>List characters</button>
+        <button type="button" class="inv-btn inv-btn--ghost" data-open-equip>Open Equipment tab</button>
       </div>
+      <div class="inv-btn-row">
+        <a class="inv-btn" href="${MAIN_PANEL_PROD.equipment}" target="_blank" rel="noopener">Production equipment ↗</a>
+        <a class="inv-btn inv-btn--ghost" href="${MAIN_PANEL_PROD.full}" target="_blank" rel="noopener">Fleet Main Panel ↗</a>
+        <a class="inv-btn inv-btn--ghost" href="${MAIN_PANEL_PROD.craft}" target="_blank" rel="noopener">Craft bag ↗</a>
+      </div>
+      <div class="mp-embed-wrap" style="margin:10px 0;border:1px solid #1e4a6e;border-radius:8px;overflow:hidden;min-height:280px;background:#0a1018">
+        <iframe
+          title="Main Panel equipment (embed)"
+          src="${MAIN_PANEL_PROD.equipment}"
+          style="width:100%;height:320px;border:0;background:#0a1018"
+          loading="lazy"
+          referrerpolicy="no-referrer-when-downgrade"
+        ></iframe>
+      </div>
+      <p class="inv-hint">UI assets in this deploy (${UI_ASSET_CATALOG.length})</p>
+      <div class="inv-card inv-card--scroll" style="max-height:160px;overflow:auto">${assets}</div>
       <pre class="inv-pre" data-api-out>—</pre>
       <div class="inv-btn-row">
         <a class="inv-btn inv-btn--ghost" href="${GRUDGE_ID_URL}" target="_blank" rel="noopener">Grudge ID ↗</a>
         <a class="inv-btn inv-btn--ghost" href="${OPEN_LIBRARY_URL}" target="_blank" rel="noopener">Open ↗</a>
-        <a class="inv-btn inv-btn--ghost" href="${MAIN_PANEL_URL}" target="_blank" rel="noopener">Main Panel ↗</a>
+        <a class="inv-btn inv-btn--ghost" href="${CHARACTER_FOUNDRY_URL}" target="_blank" rel="noopener">Foundry ↗</a>
       </div>
-      <p class="inv-hint">Auth: localStorage <code>grudge_token</code> (or grudge_jwt). CORS from this Vercel origin may block Railway — sign-in on Open/client is the production path. No invented auth here.</p>
+      <p class="inv-hint">Auth: <code>grudge_token</code> / JWT. RMB on bag/slots = MMO item menu. Lab bag = localStorage; account deposit → Craft/Railway.</p>
     `;
 
     const out = host.querySelector('[data-api-out]');
@@ -1449,7 +1579,7 @@ export class InventoryPanel {
       host.querySelector('[data-health]').textContent = st.ok
         ? `OK ${st.latencyMs}ms`
         : st.message;
-      out.textContent = JSON.stringify(st, null, 2);
+      out.textContent = JSON.stringify({ health: st, fleet: fleet.authority }, null, 2);
       this.onToast(st.ok ? 'API healthy' : 'API unreachable');
     });
 
@@ -1472,9 +1602,15 @@ export class InventoryPanel {
       );
       this.onToast(r.message);
     });
+
+    host.querySelector('[data-open-equip]')?.addEventListener('click', () => {
+      this.openTab('character');
+      this.onToast('Character paperdoll · RMB slots for equip menu');
+    });
   }
 
   dispose() {
+    closeItemContextMenu();
     this.el.remove();
   }
 }

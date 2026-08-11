@@ -8,6 +8,10 @@
 import { MINI_INV } from './warlordsUiSkin.js';
 import './dropBag.css';
 import './warlords-dev-ui.css';
+import './itemContextMenu.css';
+import { bindItemContextMenu } from './itemContextMenu.js';
+import { bagAdd } from './mainPanelSlots.js';
+import { MAIN_PANEL_PROD } from './uiAssetCatalog.js';
 
 const STORAGE = 'casting.lab.dropBag.v1';
 
@@ -119,7 +123,7 @@ export class DropBag {
         <h3>Bag · harvest loot</h3>
         <button type="button" class="drop-bag__close" data-close aria-label="Close">×</button>
       </header>
-      <p class="drop-bag__hint">Drag onto world to throw · F pickup · harvest fills bag · 9×4 miniinventory</p>
+      <p class="drop-bag__hint">Drag → world throw · <b>RMB</b> Equip/Drop menu · F pickup · harvest loot</p>
       <div class="drop-bag__grid" data-grid>
         ${cells.join('') || '<p class="drop-bag__empty">Empty — harvest nodes or spawn loot (L)</p>'}
       </div>
@@ -130,6 +134,9 @@ export class DropBag {
 
     this.el.querySelector('[data-close]')?.addEventListener('click', () => this.setOpen(false));
     this.el.addEventListener('pointerdown', (e) => e.stopPropagation());
+    this.el.addEventListener('contextmenu', (e) => {
+      if (!e.target?.closest?.('[data-id]')) e.preventDefault();
+    });
 
     this.el.querySelectorAll('.drop-bag__slot[draggable="true"]').forEach((slot) => {
       slot.addEventListener('dragstart', (e) => {
@@ -138,6 +145,46 @@ export class DropBag {
         slot.classList.add('is-dragging');
       });
       slot.addEventListener('dragend', () => slot.classList.remove('is-dragging'));
+
+      bindItemContextMenu(
+        slot,
+        () => {
+          const id = slot.dataset.id;
+          const item = this.items.find((x) => x.id === id) || null;
+          return { source: 'dropbag', dropId: id, item };
+        },
+        {
+          onToast: this.onToast,
+          onEquip: (item) => {
+            // Move one into Main Panel bag for paperdoll equip
+            const taken = this.takeOne(item.id);
+            if (!taken) return;
+            const r = bagAdd({
+              id: taken.id,
+              name: taken.name,
+              icon: taken.iconUrl || taken.icon,
+              kind: taken.kind || taken.category || 'mat',
+              qty: 1,
+              tier: taken.tier,
+              slotHint: taken.slotHint
+            });
+            this.onToast(
+              r.ok
+                ? `→ Main bag · I → Inventory · RMB Equip (${taken.name})`
+                : 'Main bag full'
+            );
+          },
+          onDropWorld: (item, cx, cy) => {
+            const taken = this.takeOne(item.id);
+            if (taken) this.onThrow?.(taken, cx, cy);
+          },
+          onDeposit: async () => {
+            window.open(MAIN_PANEL_PROD.craft, '_blank', 'noopener');
+            this.onToast('Account bag · Craft SSOT');
+          },
+          onRefresh: () => this._render()
+        }
+      );
     });
   }
 

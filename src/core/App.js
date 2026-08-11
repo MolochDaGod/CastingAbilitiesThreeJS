@@ -369,7 +369,13 @@ export class App {
       },
       onMode: (mode) => this.setMode(mode),
       onMountToggle: () => {},
-      getDrc: () => this.drc
+      getDrc: () => this.drc,
+      onDropWorld: (item, cx, cy) => this._throwBagItem?.(item, cx, cy),
+      onDepositItem: async (item) => {
+        // Production path: open craft / account bag (Railway) — no invent local deposit
+        window.open('https://grudgewarlords.com/craft/', '_blank', 'noopener');
+        this.hud.showToast?.(`Deposit ${item?.name || item?.id || 'item'} → Craft bag SSOT`);
+      }
     });
     // Admin F1 + deep links open Main Panel tabs
     if (typeof window !== 'undefined') {

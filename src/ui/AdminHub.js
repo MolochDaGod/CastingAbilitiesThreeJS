@@ -264,7 +264,7 @@ export class AdminHub {
           <select data-race>${raceOpts || '<option value="WK">WK</option>'}</select>
         </label>
         <div class="admin-btn-row">
-          <button type="button" class="admin-btn admin-btn--primary" data-act="open-lab">Main Panel (I)</button>
+          <button type="button" class="admin-btn admin-btn--primary" data-act="open-lab">Main Panel · Character</button>
           <button type="button" class="admin-btn" data-act="mode-combat">Combat</button>
           <button type="button" class="admin-btn" data-act="mode-harvest">Harvest</button>
         </div>
@@ -277,11 +277,14 @@ export class AdminHub {
       </div>
       <div class="admin-card">
         <h3>Main Panel · inventory / equipment</h3>
-        <p class="admin-hint">Paperdoll L: head/body/arms/legs · R: main/off/back/relic · Bag grid · warlords-dev inventory shell · mini bag (B).</p>
+        <p class="admin-hint">LMB pick · <b>RMB item menu</b> (Equip/Unequip/Split/Drop) · paperdoll slots · bag · mini bag (B) · API tab = fleet panel + Railway.</p>
         <div class="admin-btn-row">
-          <button type="button" class="admin-btn" data-act="open-inventory">Inventory tab</button>
+          <button type="button" class="admin-btn" data-act="open-character">Paperdoll</button>
+          <button type="button" class="admin-btn" data-act="open-inventory">Inventory · RMB</button>
+          <button type="button" class="admin-btn" data-act="open-api">API / production UI</button>
           <button type="button" class="admin-btn" data-act="open-professions">Professions</button>
           <button type="button" class="admin-btn" data-act="open-bag">Mini bag (B)</button>
+          <a class="admin-btn admin-btn--ghost" href="https://ui.grudge-studio.com/main-panel.html?era=warlords&amp;embed=1&amp;tab=equipment" target="_blank" rel="noopener">ui Equipment ↗</a>
           <a class="admin-btn admin-btn--ghost" href="https://grudgewarlords.com/craft/" target="_blank" rel="noopener">Craft ↗</a>
         </div>
       </div>
@@ -306,7 +309,15 @@ export class AdminHub {
   _bindPlayer(body) {
     body.querySelector('[data-act="open-lab"]')?.addEventListener('click', () => {
       this.setOpen(false);
-      this.onOpenInventoryPrefabs?.();
+      window.__castingInventory?.openTab?.('character');
+    });
+    body.querySelector('[data-act="open-character"]')?.addEventListener('click', () => {
+      this.setOpen(false);
+      window.__castingInventory?.openTab?.('character');
+    });
+    body.querySelector('[data-act="open-api"]')?.addEventListener('click', () => {
+      this.setOpen(false);
+      window.__castingInventory?.openTab?.('api');
     });
     body.querySelector('[data-act="open-slots"]')?.addEventListener('click', () => {
       this.setOpen(false);
