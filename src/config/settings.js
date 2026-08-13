@@ -656,6 +656,12 @@ export const settings = {
      * false = hold RMB to stay in focus (release = off)
      */
     focusToggle: true,
+    /**
+     * Conan Exiles scheme: combat mode lives in mouse-look. Focus (crosshair +
+     * LMB attack) auto-engages on entering combat mode and on the first canvas
+     * click; RMB still toggles out to the free cursor for UI / select.
+     */
+    combatMouseLook: true,
     /** Show on-screen hotkey chips under tight bar (off — clutter; help uses ?) */
     showHotkeyChips: false,
     /** Invert look Y in focus/TPS */

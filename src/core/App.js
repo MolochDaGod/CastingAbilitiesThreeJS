@@ -766,6 +766,32 @@ export class App {
         this.fishing.beginProfession();
       }
     });
+    // Conan scheme: first canvas click in combat mode enters mouse-look
+    // (swallowed — it should not also select/cast); later clicks re-acquire
+    // pointer lock if the browser dropped it (Esc), keeping look alive.
+    this.canvas?.addEventListener?.(
+      'pointerdown',
+      (e) => {
+        if (settings.controls?.combatMouseLook === false) return;
+        if (e.button !== 0 || this.activityMode !== 'combat') return;
+        if (this.fishing?.active) return;
+        if (!this.combatFocus?.focusEnabled) {
+          this.combatFocus?.toggleFocus?.();
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        if (document.pointerLockElement !== this.canvas) {
+          try {
+            this.canvas.requestPointerLock?.();
+          } catch {
+            /* policy — delta-look fallback still works */
+          }
+        }
+      },
+      { capture: true }
+    );
+
     // LMB/RMB during fishing fight / cast (capture before path when active)
     this.canvas?.addEventListener?.('pointerdown', (e) => {
       if (!this.fishing?.active && this.fishing?.phase === 'idle') return;
@@ -1353,6 +1379,11 @@ export class App {
       await this._applyHandForCombat();
       if (this.drc?.session === 'equip') {
         this.drc.setSession?.('combat');
+      }
+      // Conan scheme: combat lives in mouse-look — engage focus with the mode
+      // (mode switches come from key presses, so pointer lock has its gesture)
+      if (settings.controls?.combatMouseLook !== false && !this.combatFocus?.focusEnabled) {
+        this.combatFocus?.toggleFocus?.();
       }
     }
 
@@ -2140,6 +2171,17 @@ export class App {
       3800
     );
 
+    // Conan scheme boot: combat starts in mouse-look so the first click
+    // attacks. No user gesture yet → pointer lock waits for the first click
+    // (delta-look fallback covers the gap); RMB toggles out for UI.
+    if (
+      settings.controls?.combatMouseLook !== false &&
+      this.activityMode === 'combat' &&
+      !this.combatFocus?.focusEnabled
+    ) {
+      this.combatFocus?.toggleFocus?.();
+    }
+
     // Fishing profession (main-hand pole · Palworld bar · SCUM snag)
     try {
       this.fishing = new FishingController({
@@ -2435,6 +2477,32 @@ export class App {
       if (this.aimMarker) this.aimMarker.visible = false;
       this.hud.setCrosshairVisible?.(false);
       this.hud.root?.classList.remove('hud--focus', 'hud--softlock');
+    }
+
+    // Conan scheme UI guard: any open panel frees the cursor (drop mouse-look),
+    // and closing the last panel resumes it in combat. Reconciled here so every
+    // open/close path (key, HUD button, session gate, Esc) behaves the same.
+    if (settings.controls?.combatMouseLook !== false) {
+      const uiOpen =
+        !!this.inventory?.open ||
+        !!this.showcase?.open ||
+        !!this.adminHub?.open ||
+        !!this.editor?.isOpen ||
+        !!this._qHold?.open ||
+        !!this._rHold?.open;
+      if (uiOpen && this.combatFocus?.focusEnabled) {
+        this.combatFocus.focusEnabled = false;
+        this.combatFocus.emit?.('focus', false);
+        this._resumeMouseLook = true;
+      } else if (
+        !uiOpen &&
+        this._resumeMouseLook &&
+        this.activityMode === 'combat' &&
+        !this.combatFocus?.focusEnabled
+      ) {
+        this._resumeMouseLook = false;
+        this.combatFocus?.toggleFocus?.();
+      }
     }
 
     // Editor may flip settings.mode / settings.drc.session — pull into session
