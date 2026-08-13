@@ -34,11 +34,11 @@ export function mToMm(m) {
  */
 export const DODGE_MM = Object.freeze({
   /** AA / DD escape */
-  lateral: 720,
+  lateral: 840,
   /** WW forward */
-  forward: 240,
+  forward: 340,
   /** X / S back */
-  back: 240
+  back: 300
 });
 
 /**

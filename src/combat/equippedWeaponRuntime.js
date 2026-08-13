@@ -289,7 +289,11 @@ export async function equipWeapon(weapon, ctx) {
                       : 1.2;
     _attach = await attachWeaponModel(hand, weapon.modelUrl, {
       profile,
-      maxLengthM
+      maxLengthM,
+      kind: normalizeHoldKind(weapon.weaponType || weapon.kind || weapon.id || profile),
+      // Authored grip transform from the weapon prefab (ObjectStore → D1).
+      // Absent today on most items — auto-fit covers those; lab QA promotes.
+      grip: weapon.grip || weapon.prefab?.grip || null
     });
     // Character keeps pointer for getWeaponTip / reload pose
     if (character) {

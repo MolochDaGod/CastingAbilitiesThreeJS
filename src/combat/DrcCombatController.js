@@ -2800,6 +2800,12 @@ export class DrcCombatController {
     this._dodgeVel.set(wx * speed, 0, wz * speed);
     this._dodgeT = dur;
     this._dodgeDur = dur;
+
+    // MM dash bounce — grounded hop so the dash clears terrain lips
+    const bounceVy = settings.drc?.dashBounceVy ?? 0;
+    if (bounceVy > 0 && this.physics?.ready && this._usePhysics && this._grounded) {
+      this.physics.jump(bounceVy);
+    }
   }
 
   /**

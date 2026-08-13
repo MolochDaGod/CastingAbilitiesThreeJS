@@ -78,10 +78,16 @@ export const settings = {
      * @see combat/motionMath.js DODGE_MM
      */
     dodgeMm: {
-      lateral: 720,
-      forward: 240,
-      back: 240
+      lateral: 840,
+      forward: 340,
+      back: 300
     },
+    /**
+     * MM dash bounce — grounded vertical pop (m/s) when a dodge/roll impulse
+     * fires. Reads as a hop over the terrain instead of a floor-skate.
+     * Slide stays flat on purpose.
+     */
+    dashBounceVy: 2.3,
     /** Dodge duration (s) — also one-shot lock + invuln window */
     dodgeDuration: 0.42,
     /** Stamina cost per dodge */
@@ -98,10 +104,10 @@ export const settings = {
      *  - Shift+Ctrl while sprint: slide
      *  - AA/DD double-tap: MM escape dodge + wind afterimage + invuln
      */
-    rollDistance: 3.0,
+    rollDistance: 3.6,
     rollDuration: 0.55,
     rollStamina: 12,
-    slideDistance: 4.2,
+    slideDistance: 5.2,
     slideDuration: 0.72,
     slideStamina: 14,
     /**
@@ -709,7 +715,7 @@ export const settings = {
      * Builder uses orbit only in equip; combat always TPS.
      */
     distance: 6.0,
-    focusDistance: 5.5,
+    focusDistance: 4.6,
     minDistance: 2.5,
     maxDistance: 12,
     zoomSpeed: 0.55,
@@ -718,6 +724,8 @@ export const settings = {
     maxPolar: 1.4,
     fov: 70,
     sprintFov: 78,
+    /** Focus (soft lock) FOV — tighter, Conan Exiles lock-on framing */
+    focusFov: 62,
     actionFov: 70,
     fovDamping: 0.14,
     /** Chest look height (m) — ~human 1.8 m band */
@@ -728,8 +736,8 @@ export const settings = {
     tpsDistanceScale: 1.0,
     /** Free shoulder (m) */
     shoulderOffset: 0.72,
-    /** Focus over-the-shoulder (Fortnite) */
-    focusShoulderOffset: 0.8,
+    /** Focus over-the-shoulder — Conan lock-on ride: character left of centre */
+    focusShoulderOffset: 1.0,
     tpsDefaultPitch: 0.4,
     minPitch: 0.12,
     maxPitch: 1.35,
@@ -740,7 +748,8 @@ export const settings = {
     /** Mild free soft-look; stronger in focus for GRUDOX framing (not hard snap) */
     /** Mild soft-look only — never auto yaw/pitch (shoulder rider owns orbit) */
     softLockLook: 0.18,
-    softLockLookFocus: 0.28,
+    /** Strong enough to frame the lock target, weak enough that the player never leaves frame */
+    softLockLookFocus: 0.32,
     /** Purged: auto camera yaw toward target (was action-angle fight) */
     softLockYawAssist: 0,
     softLockYawConeDeg: 48,

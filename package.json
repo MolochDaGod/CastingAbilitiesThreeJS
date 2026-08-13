@@ -48,9 +48,6 @@
   "devDependencies": {
     "vite": "^8.1.5"
   },
-  "peerDependencies": {
-    "three": "^0.185.0"
-  },
   "peerDependenciesMeta": {
     "three": {
       "optional": false

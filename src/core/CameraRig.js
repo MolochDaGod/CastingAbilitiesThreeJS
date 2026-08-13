@@ -326,9 +326,12 @@ export class CameraRig {
     const cam = settings.camera;
 
     // GRUDOX animator: base FOV + sprint FOV ease (not action zoom).
+    // Focus (soft lock) narrows to focusFov — Conan lock-on framing. Sprint
+    // widening still wins while actually sprinting so the speed read survives.
+    const focusOn = !!this.combatFocus?.focusEnabled;
     if (this.viewMode === 'tps') {
-      const base = cam.fov ?? 70;
-      const sprintFov = cam.sprintFov ?? base + 8;
+      const base = focusOn ? (cam.focusFov ?? cam.fov ?? 70) : (cam.fov ?? 70);
+      const sprintFov = cam.sprintFov ?? (cam.fov ?? 70) + 8;
       const wantFov =
         (this._sprinting ? sprintFov : base) + (this._externalFovKick || 0);
       this._fov = damp(this._fov, wantFov, cam.fovDamping ?? 0.14, dt);
@@ -338,8 +341,7 @@ export class CameraRig {
       }
     }
 
-    // Focus pulls distance + shoulder tighter (Fortnite 5.5 / 0.8)
-    const focusOn = !!this.combatFocus?.focusEnabled;
+    // Focus pulls distance + shoulder tighter (Conan 4.6 / 1.15)
     const wantDist = focusOn
       ? (cam.focusDistance ?? cam.distance ?? 5.5)
       : (cam.distance ?? 6);
@@ -401,9 +403,12 @@ export class CameraRig {
     _desiredTarget.copy(this.anchor);
     _desiredTarget.y += cam.targetHeight;
 
-    // Over-the-shoulder pivot (side from settings.camera.shoulderSide)
+    // Over-the-shoulder pivot (side from settings.camera.shoulderSide).
+    // True right vector is forward×up = (-cos yaw, 0, sin yaw); the previous
+    // (cos, 0, -sin) was up×forward = LEFT, so "+1 right" rode the left
+    // shoulder and the character sat right of centre — backwards.
     const side = Math.sign(cam.shoulderSide ?? 1) || 1;
-    _shoulder.set(Math.cos(yaw) * shoulder * side, 0, -Math.sin(yaw) * shoulder * side);
+    _shoulder.set(-Math.cos(yaw) * shoulder * side, 0, Math.sin(yaw) * shoulder * side);
     _desiredTarget.add(_shoulder);
 
     if (this.focusWeight > 0.05) {
