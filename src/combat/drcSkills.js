@@ -29,6 +29,7 @@ import {
 } from '../api/t0WeaponCatalog.js';
 import { getSkillBinding } from './skillBindings.js';
 import { bindFromCatalogSkill, staffBindFor } from './staffWeaponSkillsBind.js';
+import { cachedItemGrantedSkills } from './itemGrantedSkills.js';
 
 /** @typedef {'melee'|'spell'|'ranged'} SkillStyle */
 
@@ -263,7 +264,10 @@ export function getActiveSkills() {
   }
   if (_activeTree === 'equipped') {
     const bar = equippedWeaponHotbar();
-    if (bar.length) return bar;
+    // Gear / relic granted skills ride after the weapon slots (same compile
+    // pipeline — see itemGrantedSkills.js). Empty until items carry grants.
+    const grants = cachedItemGrantedSkills();
+    if (bar.length || grants.length) return [...bar, ...grants];
     return _kitBar;
   }
   return _kitBar;
