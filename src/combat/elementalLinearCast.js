@@ -20,6 +20,7 @@ import { PRODUCT_TO_LINEAR, CastShape, castShapeOf } from '../skillshot/LinearSk
 import { CASTING_ELEMENT_PHASE_VFX, normalizeElement } from './elementWeaponSkills.js';
 import { inferElementAttackKind } from '../vfx/elementAttackVfx.js';
 import { isStaffNormalAttack } from '../vfx/staffOrbVfx.js';
+import { linearAttackEffectForElement } from '../api/linearAttackEffects.js';
 
 /**
  * Product element → linear skillshot id (from LinearAbilityCasting learning).
@@ -45,6 +46,7 @@ export { PRODUCT_TO_LINEAR };
  * @property {string|null} variantHint effectVariants id
  * @property {number} intensity        0.25..2
  * @property {object|null} meshKind    from inferElementAttackKind
+ * @property {object|null} beautyEffect beautiful linear attack spec (speed, mesh url, FX ids)
  * @property {string} learn            short agent note
  */
 
@@ -199,6 +201,7 @@ export function planElementalLinearCast(skill, ctx = {}) {
   // Dedup layers
   const uniq = [...new Set(layers)];
   const useLinear = uniq.some((l) => l === 'linear_line' || l === 'linear_zone');
+  const beautyEffect = linearAttackEffectForElement(el);
 
   return pack(el, linearId, linearShape, uniq, {
     useLinear,
@@ -211,6 +214,7 @@ export function planElementalLinearCast(skill, ctx = {}) {
     variantHint: variantForElement(el, pathMode),
     intensity,
     meshKind,
+    beautyEffect,
     learn: `Element ${el} → linear ${linearId || '—'} (${linearShape || 'none'}) + path Ability + mesh; phase VFX ${phase.cast}/${phase.travel}/${phase.impact}`
   });
 }
@@ -229,11 +233,13 @@ function variantForElement(el, pathMode) {
 }
 
 function pack(el, linearId, linearShape, layers, rest) {
+  const beautyEffect = rest.beautyEffect ?? linearAttackEffectForElement(el);
   return {
     element: el,
     linearId,
     linearShape,
     layers,
+    beautyEffect,
     ...rest
   };
 }

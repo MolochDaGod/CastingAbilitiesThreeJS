@@ -113,6 +113,87 @@ export const VFX_CATALOG = Object.freeze([
     color: 0xa8e8ff,
     description: 'Single narrow electric projectile — core white, cyan glow, wind trail.',
     tags: ['lightning', 'bolt', 'electric', 'projectile', 'narrow', 'fast']
+  },
+  // Beautiful linear attack travel effects
+  {
+    id: 'ice_lance_trail',
+    name: 'Ice Lance Trail',
+    category: 'ice',
+    color: 0x9fdcff,
+    description: 'Trailing crystalline shards along lance path.',
+    tags: ['ice', 'lance', 'travel', 'trail', 'crystal']
+  },
+  {
+    id: 'ice_lance_shatter',
+    name: 'Ice Lance Shatter',
+    category: 'ice',
+    color: 0x7dd3fc,
+    description: 'Crystal shatters on impact with freeze nova.',
+    tags: ['ice', 'lance', 'impact', 'shatter', 'freeze']
+  },
+  {
+    id: 'lightning_bolt_arc',
+    name: 'Lightning Arc',
+    category: 'lightning',
+    color: 0xffff00,
+    description: 'Branching electric arcs along projectile path.',
+    tags: ['lightning', 'bolt', 'travel', 'arc', 'chain']
+  },
+  {
+    id: 'lightning_chain',
+    name: 'Lightning Chain',
+    category: 'lightning',
+    color: 0x7ec8ff,
+    description: 'Chain arcs connect to nearby targets on impact.',
+    tags: ['lightning', 'impact', 'chain', 'aoe']
+  },
+  {
+    id: 'fire_slash_trail',
+    name: 'Fire Slash Trail',
+    category: 'fire',
+    color: 0xff6a1e,
+    description: 'Ember scatter trail along melee weapon arc.',
+    tags: ['fire', 'slash', 'melee', 'trail']
+  },
+  {
+    id: 'fire_slash_burn',
+    name: 'Fire Slash Burn',
+    category: 'fire',
+    color: 0xff5510,
+    description: 'Ground fire lingers after melee strike.',
+    tags: ['fire', 'slash', 'residual', 'burn']
+  },
+  {
+    id: 'earth_spike_trail',
+    name: 'Earth Spike Trail',
+    category: 'earth',
+    color: 0xc4a574,
+    description: 'Dust cloud around projectile path.',
+    tags: ['earth', 'spike', 'travel', 'dust']
+  },
+  {
+    id: 'earth_spike_erupt',
+    name: 'Earth Spike Erupt',
+    category: 'earth',
+    color: 0xa0825d,
+    description: 'Ground eruption and cracks on landing.',
+    tags: ['earth', 'spike', 'impact', 'erupt']
+  },
+  {
+    id: 'water_stream_flow',
+    name: 'Water Stream Flow',
+    category: 'ice',
+    color: 0x6ec8ff,
+    description: 'Bubble trail flows smoothly along path.',
+    tags: ['water', 'stream', 'travel', 'bubble']
+  },
+  {
+    id: 'water_splash',
+    name: 'Water Splash',
+    category: 'ice',
+    color: 0x9fdcff,
+    description: 'Radial splash AOE on water impact.',
+    tags: ['water', 'impact', 'splash', 'aoe']
   }
 ]);
 
