@@ -1658,10 +1658,10 @@ export class App {
       this.hud.setCrosshairVisible?.(false);
       return;
     }
-    // Hide cursor + tip; screen-center crosshair is the reticle
+    // Hide cursor + tip; screen-center crosshair is the reticle.
+    // setCursorIntent('none') already writes the canvas cursor — one writer.
     setCursorIntent('none', { force: true, tooltip: false });
     if (this.canvas) {
-      this.canvas.style.cursor = 'none';
       // Pointer lock (RMB toggle is a user gesture). Fallback: free mouse delta look.
       const tryLock = () => {
         try {

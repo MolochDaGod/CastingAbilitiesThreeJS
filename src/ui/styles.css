@@ -38,7 +38,9 @@ body {
   height: 100%;
   display: block;
   touch-action: none;
-  cursor: crosshair;
+  /* Cursor is owned by warlordsCursors.js (pirate intent pack) — no static
+     theme here; `default` only covers the frame before the pack bakes. */
+  cursor: default;
 }
 
 /* Focus mode: OS cursor removed — screen crosshair is the only reticle */

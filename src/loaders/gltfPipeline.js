@@ -15,11 +15,16 @@
  * @see gameopen artifacts/animator/src/three/loaders/gltf.ts (fleet twin)
  */
 
-import { LoadingManager, REVISION } from 'three';
+import { Cache, LoadingManager, REVISION } from 'three';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
+
+// Byte-level cache for every loader on the shared manager — without this each
+// equip re-downloads the same R2 GLB over the network.
+Cache.enabled = true;
 
 /**
  * Google versioned Draco (recommended). Matches three r185 examples.
@@ -137,6 +142,54 @@ export function makeGltfLoader(opts = {}) {
 /** @returns {GLTFLoader} */
 export function sharedGltfLoader() {
   return makeGltfLoader({ shared: true });
+}
+
+/** @type {Map<string, Promise<import('three/addons/loaders/GLTFLoader.js').GLTF>>} */
+const _glbCache = new Map();
+
+/**
+ * Load a GLB through the shared pipeline with a parse cache + one retry.
+ *
+ * The parsed GLTF is cached per URL; every call returns a FRESH clone of the
+ * scene (SkeletonUtils.clone — correct for skinned and static). Clones share
+ * geometry/materials with the cached original, so consumers must NOT dispose
+ * them — check `scene.userData.sharedAsset` before any dispose.
+ *
+ * @param {string} url
+ * @param {{ retries?: number }} [opts]
+ * @returns {Promise<{ scene: import('three').Object3D, gltf: object }|null>}
+ */
+export async function loadSharedGlbScene(url, opts = {}) {
+  if (!url) return null;
+  const retries = opts.retries ?? 1;
+  let p = _glbCache.get(url);
+  if (!p) {
+    const attempt = (left) =>
+      sharedGltfLoader()
+        .loadAsync(url)
+        .catch((e) => {
+          if (left > 0) {
+            console.warn(`[gltfPipeline] retry (${left} left)`, url);
+            return attempt(left - 1);
+          }
+          _glbCache.delete(url); // never cache a failure
+          throw e;
+        });
+    p = attempt(retries);
+    _glbCache.set(url, p);
+  }
+  const gltf = await p;
+  const source = gltf.scene || gltf.scenes?.[0];
+  if (!source) return null;
+  const scene = cloneSkinned(source);
+  scene.userData.sharedAsset = true;
+  scene.userData.sourceUrl = url;
+  return { scene, gltf };
+}
+
+/** Cached-model count (diagnostics). */
+export function glbCacheSize() {
+  return _glbCache.size;
 }
 
 /**

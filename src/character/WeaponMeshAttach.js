@@ -7,7 +7,7 @@
  */
 
 import { Group, Box3, Vector3, Quaternion, Matrix4, MathUtils, Object3D } from 'three';
-import { sharedGltfLoader } from '../loaders/gltfPipeline.js';
+import { loadSharedGlbScene } from '../loaders/gltfPipeline.js';
 import { FLINTLOCK_FIRE } from '../config/pistolAnimSsot.js';
 
 const _box = new Box3();
@@ -201,9 +201,10 @@ export async function attachWeaponModel(handBone, modelUrl, opts = {}) {
         : 0.4);
 
   try {
-    // Shared Draco/Meshopt/KTX2 — do not new bare GLTFLoader (compressed CDN weapons)
-    const gltf = await sharedGltfLoader().loadAsync(modelUrl);
-    const root = gltf.scene || gltf.scenes?.[0];
+    // Shared Draco/Meshopt/KTX2 + parse cache — re-equips clone instead of
+    // re-downloading the R2 GLB. Clone shares GPU resources: never dispose it.
+    const loaded = await loadSharedGlbScene(modelUrl);
+    const root = loaded?.scene;
     if (!root) return null;
 
     // Separate mesh nodes stay named (do not merge) — useful for slot tint later
@@ -446,6 +447,11 @@ export function clearWeaponAttach(handBone) {
   for (const o of [...handBone.children]) {
     if (o.userData?.weaponAttach || o.name === 'WeaponAttach') {
       handBone.remove(o);
+      // Cache-shared scenes (gltfPipeline loadSharedGlbScene) share
+      // geometry/materials with the cached original — disposing them here
+      // would corrupt every other clone and the cache itself.
+      const shared = o.children.some((c) => c.userData?.sharedAsset);
+      if (shared) continue;
       o.traverse((c) => {
         if (c.geometry) c.geometry.dispose?.();
         if (c.material) {
