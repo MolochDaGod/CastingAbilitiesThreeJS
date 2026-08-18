@@ -1,5 +1,21 @@
 # Casting deploy + env + data SSOT
 
+## Deploy practice (one path — do not fork)
+
+1. **Name the system** you are shipping (`DevIslandHarvest`, `SessionState.play`, clips). Do not mix unrelated dirty-tree WIP into a “fix X” deploy.
+2. **Extend existing files.** No `*2` harvest / terrain / controller.
+3. **Same-origin only** in the browser: `/api/assets`, `/api/open`, `/anims/baked`. Never fetch `assets.*` or `open.*` (CORS → `getTransfer` crash).
+4. **Terrain:** ship L0–L3 stylized (`IslandHeightfield` vertex colors + `StylizedGrassLayer`). Do not depend on `dl.polyhaven.org` at runtime.
+5. From repo `C:\Users\nugye\Documents\CastingAbilitiesThreeJS`:
+   ```text
+   vercel --prod --yes
+   ```
+   Project: `grudgenexus/casting-abilities-threejs`. Alias: **https://casting.grudge.studio**
+6. **Smoke the live host** before claiming done: HTML 200, new JS hash, one clip URL, one harvest mesh (`/models/dev-island/…`).
+7. `--force` only when cache is the bug. Prefer a normal prod deploy.
+
+---
+
 **Hosts**
 
 | Host | Role |
@@ -30,6 +46,20 @@
 | Training Room map layout | Same-origin `maps/training_room/` → info/objectstore/R2 promote | `docs/TRAINING_ROOM_DEPLOY_SSOT.md` · R2 prefix `lab/casting/training-room` |
 
 **SPA never holds `DATABASE_URL`.** Player data only through `/api/*`.
+
+### Production clip + texture path (browser)
+
+Never fetch `assets.grudge-studio.com` or `open.grudge-studio.com` from the page (R2/Open lack CORS → `getTransfer` crash).
+
+| Kind | Browser URL |
+|------|-------------|
+| Prod baked clips | `/api/assets/prod/anims/{pack}/{clip}.json` |
+| Open baked (ghost rider / longbow dodge) | `/api/open/anims/baked/…` |
+| Lab-shipped clips | `/anims/baked/…` (Vercel `public/`) |
+| Fall FBX | `/anim/locomotion/fall/*.fbx` |
+| Sand / R2 binaries | `/api/assets/…` |
+
+Resolver: `bakedClipUrls` — 5733a06 first-URL-that-loads lists, every remote URL wrapped in `sameOriginFleetUrl` (`/api/assets` · `/api/open`). Prefixes `prod:` · `open:` · `local:` plus unprefixed Open/prod/local fan-out. Do not fetch assets.* / open.* from the page.
 
 ---
 
@@ -123,3 +153,65 @@ curl.exe -sI https://casting.grudge.studio/   # control plane
 ```
 
 Training Room promote (optional fleet handoff): DevNode Export → `*-promote-*.json` → R2 + D1 + info layout upload.
+
+---
+
+## Data-plane audit (2026-08-18) — one player DB
+
+**Worry:** “accounts, characters, Warlords each have their own database.”  
+**Fact:** Casting does **not** own a player database. Every live host rewrites player `/api/*` to the **same** Railway Postgres (`grudge-api-production-0d46`).
+
+| Store | What it is | Owns | Not |
+|-------|------------|------|-----|
+| **Railway Postgres** | One physical DB | `grudge_id` account · bag · wallet · `characters.id` UUID (`era=warlords`) | — |
+| **id.grudge-studio.com** | SSO | JWT / session | Roster / bag |
+| **ObjectStore / info** | JSON catalogs | Recipes, master-weapon-prefabs, skills | Ownership |
+| **R2 + D1** | Binaries + **index** | GLB / icons | Bag / heroes |
+| **Weapon-skill DO** | CF Durable Object | Lab skill *drafts* + equip catalog mirror | Player SSOT |
+| **localStorage** | Browser | JWT cache, prefab drafts, mesh appearance | Production bag |
+| **Colyseus** | Same Railway | Room session | Saves |
+| **cNFT `/api/nfts`** | Chain **mirror** | Display ownership | Second bag |
+
+### Deployments (all same player API)
+
+| Host | Status 2026-08-18 | Player data |
+|------|-------------------|-------------|
+| **casting.grudge.studio** | Live 200 (primary) | `/api/*` → Railway |
+| casting.grudge-studio.com | Live 200 (legacy alias) | same |
+| casting-abilities-threejs.vercel.app | Live 200 | same |
+| weapon-skills.grudge-studio.com | Live 200 `/api/health` | drafts only |
+| Vercel Preview | branch | same rewrites |
+
+### Duplicate confusions (do not treat as extra DBs)
+
+| Looks like a second DB | What it actually is | Rule |
+|------------------------|---------------------|------|
+| `listInventory` probing `/api/account/bag` + `/materials` | Dead paths | Use `/api/account/inventory` |
+| 10+ `localStorage` token keys | Fleet JWT aliases (`authConnect`) | One token, many key names |
+| `playerIdentity` vs `fleetApi.listCharacters` | Handoff cache vs Railway roster | UUID from Foundry/`?characterId=` |
+| Admin Hub F1–F5 drafts | localStorage authoring | Export JSON → ObjectStore; never a roster |
+| D1 `weapon_prefabs` | Asset index | JSON catalog is authority |
+| `WARLORDS_ENGINE_URL` (ThreeFlow) | Map/prefab deploy to R2 | Not player DB |
+| Casting `worker/` Durable Object | Skill drafts | Not accounts |
+| Untracked `tmp/` · `_qa_*` · extra `public/models/fish/*.glb` | Disk dumps | Not deployed SSOT |
+
+### Macro goal (do not grow Casting into Warlords)
+
+Lab = **UX + Toon play proof + editable effects** before ship.  
+Not: second MMO shell, second bag, second character table.
+
+Create heroes on **character.grudge-studio.com**. Bag/craft on **grudgewarlords.com/craft/**. Play body = `loadRaceKit` / `toonKitPlay` only.
+
+### Blob audit (admin)
+
+| Location | Size | Git? | Action |
+|----------|------|------|--------|
+| `public/models/fish/species/rare/*.glb` | 59+24+22 MB | yes | Convert → R2, then stop shipping in Vercel |
+| `public/models/vfx/summons/*` | 16+8 MB | yes | Prefer CDN `/api/assets` |
+| `public/models/ride/windsurf*` | ~23 MB | yes | CDN when ride is not the boot path |
+| `public/models/fish/` loose GLBs | ~hundreds MB | **no** | Local extract only — gitignored intent |
+| `tmp/` | ~247 MB | no | Local only (now gitignored) |
+| `_qa_*.png` · `deploy-out*.txt` | ~4 MB | no | Deleted / gitignored |
+| `worker/node_modules` | ~181 MB | no | Already ignored |
+
+Player data law: **`grudge-production-wiring`** → `references/account-game-uuid-law.md`.

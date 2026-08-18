@@ -49,6 +49,76 @@ export function resolveFleetApiBase() {
 
 export const FLEET_API_DEFAULT = resolveFleetApiBase();
 
+/** Same keys as GrudgeBuilder shared/fleet/authConnect.ts — do not invent a second store. */
+export const FLEET_AUTH_TOKEN_KEYS = [
+  'grudge.open.token',
+  'grudge_auth_token',
+  'grudge_session_token',
+  'grudge.token',
+  'sso_token',
+  'grudge_token',
+  'grudge_jwt',
+  'grudgeIdToken',
+  'grudge_id_token',
+  'grudge.sessionToken',
+  'token'
+];
+
+export function readFleetToken() {
+  try {
+    for (const k of FLEET_AUTH_TOKEN_KEYS) {
+      const v = localStorage.getItem(k) || sessionStorage.getItem(k);
+      if (v) return v;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+export function storeFleetToken(token) {
+  if (!token) return;
+  try {
+    localStorage.setItem('grudge.open.token', token);
+    localStorage.setItem('grudge_token', token);
+    localStorage.setItem('sso_token', token);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Pull ?grudge_token= / #sso_token= from Grudge ID return and persist. */
+export function consumeFleetAuthReturn() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const url = new URL(window.location.href);
+    const hash = new URLSearchParams(String(url.hash || '').replace(/^#/, ''));
+    const token =
+      url.searchParams.get('grudge_token') ||
+      url.searchParams.get('sso_token') ||
+      url.searchParams.get('token') ||
+      hash.get('grudge_token') ||
+      hash.get('sso_token') ||
+      hash.get('token');
+    if (token) {
+      storeFleetToken(token);
+      url.searchParams.delete('grudge_token');
+      url.searchParams.delete('sso_token');
+      url.searchParams.delete('token');
+      const clean = url.pathname + (url.searchParams.toString() ? `?${url.searchParams}` : '') + url.hash;
+      window.history.replaceState({}, '', clean);
+    }
+    const characterId =
+      url.searchParams.get('characterId') || url.searchParams.get('char');
+    if (characterId) {
+      localStorage.setItem('grudge_active_character', characterId);
+    }
+    return token || readFleetToken();
+  } catch {
+    return readFleetToken();
+  }
+}
+
 /** Production Main Panel / Open (do not fork UI here). */
 export const MAIN_PANEL_URL =
   'https://ui.grudge-studio.com/main-panel.html?era=warlords';
@@ -57,6 +127,16 @@ export const CHARACTER_FOUNDRY_URL = 'https://character.grudge-studio.com/foundr
 export const GRUDGE_ID_URL = 'https://id.grudge-studio.com';
 /** Inventory / crafting / char select product SSOT (Warlords craft suite) */
 export const CRAFT_SSOT_URL = 'https://grudgewarlords.com/craft/';
+export const WARLORDS_ENGINE_URL = 'https://threeflow-grudgenexus.vercel.app';
+
+export function fleetLoginUrl(returnTo) {
+  const dest =
+    returnTo ||
+    (typeof window !== 'undefined'
+      ? window.location.href.split('#')[0]
+      : 'https://casting-abilities-threejs.vercel.app/');
+  return `${GRUDGE_ID_URL}/login?redirect_uri=${encodeURIComponent(dest)}`;
+}
 
 /**
  * @typedef {object} FleetApiStatus
@@ -74,23 +154,7 @@ export class FleetApi {
     const base = opts.baseUrl !== undefined ? opts.baseUrl : resolveFleetApiBase();
     // '' = same-origin (vercel /api rewrites)
     this.baseUrl = String(base ?? '').replace(/\/+$/, '');
-    this.getToken = opts.getToken || (() => {
-      try {
-        // Fleet JWT keys used across Open / Foundry / client
-        return (
-          localStorage.getItem('grudge_token') ||
-          localStorage.getItem('grudge_jwt') ||
-          localStorage.getItem('grudgeIdToken') ||
-          localStorage.getItem('grudge_id_token') ||
-          localStorage.getItem('grudge.sessionToken') ||
-          localStorage.getItem('token') ||
-          sessionStorage.getItem('grudge_token') ||
-          null
-        );
-      } catch {
-        return null;
-      }
-    });
+    this.getToken = opts.getToken || readFleetToken;
     /** @type {FleetApiStatus|null} */
     this.lastHealth = null;
     /** @type {object[]|null} */
@@ -244,12 +308,11 @@ export class FleetApi {
    * @returns {Promise<{ ok: boolean, items: object[], message: string, path?: string }>}
    */
   async listInventory() {
+    // UUID law: account bag is /api/account/inventory (same Railway Postgres).
+    // Do not invent /bag /materials forks — those 404 and look like a second DB.
     const paths = [
-      '/api/inventory',
-      '/api/inventory/bag',
       '/api/account/inventory',
-      '/api/account/bag',
-      '/api/account/materials'
+      '/api/inventory'
     ];
     for (const p of paths) {
       try {
@@ -310,10 +373,8 @@ export class FleetApi {
       source: 'casting-main-panel'
     };
     const tries = [
-      { path: '/api/inventory/deposit', method: 'POST' },
-      { path: '/api/account/materials', method: 'POST' },
-      { path: '/api/account/bag', method: 'POST' },
-      { path: '/api/inventory', method: 'POST' }
+      { path: '/api/account/inventory', method: 'POST' },
+      { path: '/api/inventory/deposit', method: 'POST' }
     ];
     for (const t of tries) {
       try {
@@ -349,23 +410,113 @@ export class FleetApi {
     };
   }
 
+  async authMe() {
+    try {
+      const { res, body } = await this.fetch('/api/auth/me');
+      if (!res.ok) {
+        return { ok: false, status: res.status, message: `auth/me ${res.status}`, body };
+      }
+      return { ok: true, message: 'signed in', body };
+    } catch (err) {
+      return { ok: false, message: err?.message || 'auth/me fail', body: null };
+    }
+  }
+
+  /** On-chain mirror of ownership (cNFT). Railway remains game truth. */
+  async listNfts() {
+    try {
+      const { res, body } = await this.fetch('/api/nfts');
+      if (res.status === 401 || res.status === 403) {
+        return { ok: false, nfts: [], message: 'Not signed in — cannot list cNFTs' };
+      }
+      if (!res.ok) return { ok: false, nfts: [], message: `HTTP ${res.status}` };
+      const nfts = body?.nfts || body?.items || (Array.isArray(body) ? body : []);
+      return {
+        ok: true,
+        nfts: Array.isArray(nfts) ? nfts : [],
+        message: `${(nfts || []).length} cNFT row(s) (chain mirrors Railway)`
+      };
+    } catch (err) {
+      return { ok: false, nfts: [], message: err?.message || 'nfts fail' };
+    }
+  }
+
+  async getCharacter(characterId) {
+    if (!characterId) return { ok: false, character: null, message: 'No characterId' };
+    try {
+      const { res, body } = await this.fetch(`/api/characters/${encodeURIComponent(characterId)}`);
+      if (!res.ok) return { ok: false, character: null, message: `HTTP ${res.status}`, body };
+      return { ok: true, character: body, message: 'character ok' };
+    } catch (err) {
+      return { ok: false, character: null, message: err?.message || 'fail' };
+    }
+  }
+
   /**
-   * Parallel health + characters + inventory snapshot for Main Panel API tab.
+   * POST /api/characters/:id/progress — character-scoped save only.
+   * Never send bag/inventory here.
+   */
+  async saveCharacterProgress(characterId, payload) {
+    if (!characterId) return { ok: false, message: 'No character UUID — open Foundry' };
+    try {
+      const { res, body } = await this.fetch(
+        `/api/characters/${encodeURIComponent(characterId)}/progress`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload || {})
+        }
+      );
+      if (res.status === 401 || res.status === 403) {
+        return { ok: false, message: 'Not signed in — cannot save progress', authRequired: true };
+      }
+      if (!res.ok) {
+        return {
+          ok: false,
+          message: body?.error || `HTTP ${res.status}`,
+          body
+        };
+      }
+      return {
+        ok: true,
+        message: `Saved progress r${body?.progressRevision ?? '?'}`,
+        body
+      };
+    } catch (err) {
+      return { ok: false, message: err?.message || 'progress save fail' };
+    }
+  }
+
+  /**
+   * Parallel health + roster + bag + cNFT ownership.
    */
   async fleetStatusBundle() {
-    const [health, chars, inv, account] = await Promise.all([
+    const [health, me, chars, inv, account, nfts] = await Promise.all([
       this.health(),
+      this.authMe(),
       this.listCharacters(),
       this.listInventory(),
-      this.accountBag()
+      this.accountBag(),
+      this.listNfts()
     ]);
+    const grudgeId = me.body?.grudgeId || me.body?.grudge_id || me.body?.user?.grudge_id;
     return {
       health,
+      me,
       characters: chars,
       inventory: inv,
       account,
+      nfts,
       hasToken: !!this.getToken(),
-      baseUrl: this.baseUrl || '(same-origin)'
+      grudgeId: grudgeId || null,
+      engine: WARLORDS_ENGINE_URL,
+      baseUrl: this.baseUrl || '(same-origin)',
+      law: {
+        player: 'Railway Postgres',
+        chain: 'cNFT mirrors via /api/nfts — not a second bag',
+        saves: 'POST /api/characters/:id/progress',
+        deploy: 'Warlords Engine (ThreeFlow) → R2 sector keys'
+      }
     };
   }
 }

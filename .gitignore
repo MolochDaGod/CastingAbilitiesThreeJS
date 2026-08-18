@@ -148,6 +148,12 @@ public/models/vfx/**/*_src.gltf
 public/models/weapons/t0-flintlock.glb
 
 
-# >100MB — keep local / CDN later
+# >100MB â€” keep local / CDN later
 public/models/fish/species/rare/ocean_creature.glb
+
+# Local QA dumps (never ship)
+_qa_*
+deploy-out*.txt
+tmp/
+.tmp/
 
