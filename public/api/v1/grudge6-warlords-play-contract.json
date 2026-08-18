@@ -1,0 +1,50 @@
+{
+  "id": "grudge6-warlords-play",
+  "version": "2026-08-18.play-kit.1",
+  "stamp": "root.userData.warlordsPlayContract",
+  "proof": "https://casting.grudge.studio/",
+  "health": "/api/play-kit-health",
+  "loader": "loadRaceKit | deployToonPlayKit",
+  "mixer": 1,
+  "siHumanM": 1.8,
+  "playMesh": {
+    "cdnDir": "asset-packs/toon-rts-characters/glb/characters",
+    "races": ["human", "barbarian", "elf", "dwarf", "orc", "undead"],
+    "ban": ["races-bake", "fbx-play", "metaverse", "meshy", "capsule-hero"]
+  },
+  "clips": {
+    "root": "prod/anims",
+    "required": [
+      "magic/standing-idle",
+      "magic/standing-walk-forward",
+      "magic/standing-1h-cast-spell-01",
+      "sword_shield/sword-and-shield-idle",
+      "sword_shield/sword-and-shield-attack"
+    ]
+  },
+  "ground": {
+    "method": "bone-structural-box-min-y",
+    "not": ["pelvis-as-feet", "unskinned-aabb"],
+    "feetTolM": 0.12,
+    "heightM": [1.55, 2.15]
+  },
+  "locomotion": {
+    "controller": "one",
+    "mapOpen": "rebind-surface-only",
+    "terrainSample": "same-as-feet"
+  },
+  "equip": {
+    "method": "mesh_ids + SLOT_DEFS",
+    "hands": ["R_hand_container", "Bip001 R Hand"],
+    "ban": "swap-whole-body-glb"
+  },
+  "weapons": {
+    "packs": ["magic", "sword_shield", "longbow"],
+    "skills": "weapon-catalog-not-class",
+    "anim": "bip001-rotation-only-rematch"
+  },
+  "face": {
+    "toonPlayYaw": 0,
+    "fbxAuthorYaw": 1.57079632679
+  }
+}

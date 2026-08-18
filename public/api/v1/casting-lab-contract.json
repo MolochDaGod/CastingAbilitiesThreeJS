@@ -34,7 +34,10 @@
   "character": {
     "playKit": "toonKitPlay / loadRaceKit",
     "mixer": 1,
-    "siHumanM": 1.8
+    "siHumanM": 1.8,
+    "playContract": "/api/v1/grudge6-warlords-play-contract.json",
+    "health": "/api/play-kit-health",
+    "contractVersion": "2026-08-18.play-kit.1"
   },
   "export": {
     "module": "src/sdk/castingLabSdk.js",

@@ -11,6 +11,9 @@
     "api/cdn-proxy.js": {
       "maxDuration": 30,
       "memory": 1024
+    },
+    "api/play-kit-health.js": {
+      "maxDuration": 20
     }
   },
   "rewrites": [
@@ -29,6 +32,14 @@
     {
       "source": "/api/info/:path*",
       "destination": "https://info.grudge-studio.com/api/:path*"
+    },
+    {
+      "source": "/api/play-kit-health",
+      "destination": "/api/play-kit-health"
+    },
+    {
+      "source": "/api/v1/:path*",
+      "destination": "/api/v1/:path*"
     },
     {
       "source": "/api/health",

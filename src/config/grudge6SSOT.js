@@ -13,7 +13,7 @@ import { sameOriginFleetUrl } from './fleetEnv.js';
 
 export const GRUDGE6_SSOT_VERSION = '2026-08-13.thirty-original';
 /** Must match ObjectStore WARLORDS_PLAY_CONTRACT_VERSION */
-export const WARLORDS_PLAY_CONTRACT_VERSION = '2026-08-07.harden.1';
+export const WARLORDS_PLAY_CONTRACT_VERSION = '2026-08-18.play-kit.1';
 
 /** Live lab that owns Warlords character + ability UX proof */
 export const CASTING_LAB_LIVE = 'https://casting.grudge.studio/';
