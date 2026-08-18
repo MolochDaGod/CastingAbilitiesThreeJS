@@ -158,7 +158,7 @@ export function sameOriginFleetUrl(url) {
     if (u.hostname === 'open.grudge-studio.com') {
       return `/api/open${u.pathname}${u.search}`;
     }
-    if (u.hostname === 'objectstore.grudge-studio.com') {
+    if (u.hostname === 'objectstore.grudge-studio.com' || u.hostname === 'grudge-objectstore.pages.dev') {
       const path = u.pathname.replace(/^\/api(?=\/)/, '');
       return `/api/objectstore${path}${u.search}`;
     }

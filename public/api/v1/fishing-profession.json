@@ -4,7 +4,7 @@
   "profession": "fishing",
   "kind": "gathering",
   "fleetAlign": {
-    "objectStore": "https://objectstore.grudge-studio.com/api/v1/professions.json",
+    "objectStore": "https://info.grudge-studio.com/api/v1/professions.json",
     "gatheringKey": "gathering.Fishing",
     "feedsInto": ["Chef", "Mystic"],
     "chefFoodSystem": "ONE meal each Red / Green / Blue (SWG-style)"

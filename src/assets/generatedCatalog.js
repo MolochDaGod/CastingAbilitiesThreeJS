@@ -3,8 +3,11 @@
  * @see MolochDaGod/three-generator shared/fleetAssetClient.ts
  */
 
-export const GENERATED_CATALOG_CDN =
-  'https://assets.grudge-studio.com/catalogs/three-generator/fleet-catalog.json';
+import { sameOriginFleetUrl } from '../config/fleetEnv.js';
+
+export const GENERATED_CATALOG_CDN = sameOriginFleetUrl(
+  'https://assets.grudge-studio.com/catalogs/three-generator/fleet-catalog.json'
+);
 
 export const GENERATED_CATALOG_LOCAL = './models/generated/catalog.json';
 

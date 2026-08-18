@@ -11,10 +11,10 @@
  * @see assets.grudge-studio.com/icons · public/icons/dev-island
  */
 
-import { ASSETS_URL, resolveLabAssetUrl } from '../config/fleetEnv.js';
+import { ASSETS_URL, resolveLabAssetUrl, sameOriginFleetUrl } from '../config/fleetEnv.js';
 import { cdnUrl } from '../loot/prefabAssets.js';
 
-const I496 = `${ASSETS_URL}/icons/496_rpg_icons`;
+const I496 = sameOriginFleetUrl(`${ASSETS_URL}/icons/496_rpg_icons`);
 
 /** Lab mineral / harvest icons (shipped in dist) */
 export const LAB_ICONS = Object.freeze({

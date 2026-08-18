@@ -14,6 +14,8 @@
  * @see docs/WARLORDS_DEV_UI_SSOT.md · docs/MAIN_PANEL_INVENTORY_SSOT.md
  */
 
+import { sameOriginFleetUrl } from '../config/fleetEnv.js';
+
 const LOCAL = './ui/warlords-dev';
 const CDN = 'https://assets.grudge-studio.com/ui/warlords-dev';
 
@@ -75,7 +77,7 @@ export function warlordsUiUrl(rel, opts = {}) {
   if (clean.startsWith('ui/') || clean.startsWith('/')) {
     return clean.startsWith('/') ? clean : `/${clean}`;
   }
-  if (opts.preferCdn) return `${CDN}/${clean}`;
+  if (opts.preferCdn) return sameOriginFleetUrl(`${CDN}/${clean}`);
   return `${LOCAL}/${clean}`;
 }
 

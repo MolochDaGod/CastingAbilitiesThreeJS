@@ -9,7 +9,9 @@
  * Do not add races bake / metaverse / FBX play loaders here.
  */
 
-export const GRUDGE6_SSOT_VERSION = '2026-08-07.5-casting-deploy-ssot';
+import { sameOriginFleetUrl } from './fleetEnv.js';
+
+export const GRUDGE6_SSOT_VERSION = '2026-08-13.thirty-original';
 /** Must match ObjectStore WARLORDS_PLAY_CONTRACT_VERSION */
 export const WARLORDS_PLAY_CONTRACT_VERSION = '2026-08-07.harden.1';
 
@@ -21,9 +23,11 @@ export const CASTING_LAB_VERCEL = 'https://casting-abilities-threejs.vercel.app/
 export const CDN = 'https://assets.grudge-studio.com';
 export const CDN_MIRROR_OPEN = 'https://open.grudge-studio.com';
 export const HUMAN_HEIGHT_M = 1.8;
-export const ANIMS_BAKED = `${CDN_MIRROR_OPEN}/anims/baked`;
-export const GEAR_PRESETS_URL = `${CDN}/api/v1/grudge6-gear-presets.json`;
-export const RACE_MODELS_URL = `${CDN}/asset-packs/toon-rts-characters/race-models.json`;
+export const ANIMS_BAKED = sameOriginFleetUrl(`${CDN_MIRROR_OPEN}/anims/baked`);
+export const GEAR_PRESETS_URL = sameOriginFleetUrl(`${CDN}/api/v1/grudge6-gear-presets.json`);
+export const RACE_MODELS_URL = sameOriginFleetUrl(
+  `${CDN}/asset-packs/toon-rts-characters/race-models.json`
+);
 /** Canonical Toon RTS kit directory (race-models.json) */
 export const TOON_RTS_GLB_DIR = `${CDN}/asset-packs/toon-rts-characters/glb/characters`;
 
@@ -111,7 +115,7 @@ export function validateBip001Bones(root) {
 /** ★ Toon RTS play URL — only play mesh family (human.glb not WK.glb) */
 export function toonRtsKitUrl(libraryId) {
   const id = String(libraryId || 'human').toLowerCase();
-  return `${TOON_RTS_GLB_DIR}/${id}.glb`;
+  return sameOriginFleetUrl(`${TOON_RTS_GLB_DIR}/${id}.glb`);
 }
 
 /**
@@ -134,7 +138,7 @@ export const RACES = {
     prefix: 'WK_',
     label: 'Western Kingdoms',
     kitGlb: toonRtsKitUrl('human'),
-    atlasUrl: `${CDN}/textures/grudge6/western-kingdoms/WK_Standard_Units.webp`,
+    atlasUrl: sameOriginFleetUrl(`${CDN}/textures/grudge6/western-kingdoms/WK_Standard_Units.webp`),
   },
   ELF: {
     id: 'ELF',
@@ -142,7 +146,7 @@ export const RACES = {
     prefix: 'ELF_',
     label: 'High Elves',
     kitGlb: toonRtsKitUrl('elf'),
-    atlasUrl: `${CDN}/textures/grudge6/elves/ELF_HighElves_Texture.webp`,
+    atlasUrl: sameOriginFleetUrl(`${CDN}/textures/grudge6/elves/ELF_HighElves_Texture.webp`),
   },
   BRB: {
     id: 'BRB',
@@ -150,7 +154,7 @@ export const RACES = {
     prefix: 'BRB_',
     label: 'Barbarians',
     kitGlb: toonRtsKitUrl('barbarian'),
-    atlasUrl: `${CDN}/textures/grudge6/barbarians/BRB_StandardUnits_texture.webp`,
+    atlasUrl: sameOriginFleetUrl(`${CDN}/textures/grudge6/barbarians/BRB_StandardUnits_texture.webp`),
   },
   ORC: {
     id: 'ORC',
@@ -158,7 +162,7 @@ export const RACES = {
     prefix: 'ORC_',
     label: 'Orcs',
     kitGlb: toonRtsKitUrl('orc'),
-    atlasUrl: `${CDN}/textures/grudge6/orcs/ORC_StandardUnits.webp`,
+    atlasUrl: sameOriginFleetUrl(`${CDN}/textures/grudge6/orcs/ORC_StandardUnits.webp`),
   },
   UD: {
     id: 'UD',
@@ -166,7 +170,7 @@ export const RACES = {
     prefix: 'UD_',
     label: 'Undead',
     kitGlb: toonRtsKitUrl('undead'),
-    atlasUrl: `${CDN}/textures/grudge6/undead/UD_Standard_Units.webp`,
+    atlasUrl: sameOriginFleetUrl(`${CDN}/textures/grudge6/undead/UD_Standard_Units.webp`),
   },
   DWF: {
     id: 'DWF',
@@ -174,7 +178,7 @@ export const RACES = {
     prefix: 'DWF_',
     label: 'Dwarves',
     kitGlb: toonRtsKitUrl('dwarf'),
-    atlasUrl: `${CDN}/textures/grudge6/dwarves/DWF_Standard_Units.webp`,
+    atlasUrl: sameOriginFleetUrl(`${CDN}/textures/grudge6/dwarves/DWF_Standard_Units.webp`),
   },
 };
 
@@ -267,10 +271,10 @@ export function loadoutToMeshIds(prefix, loadout = {}) {
     ids.push(`${p}Units_Shield_${L}`);
   }
 
-  // Utility only when carry
+  // Archer quiver is part of the original 30 look. Bag/wood stay carry-only.
+  if (loadout.quiver) ids.push(`${p}Xtra_quiver`);
   const allowUtility = loadout.carry === true || loadout.showUtility === true;
   if (allowUtility) {
-    if (loadout.quiver) ids.push(`${p}Xtra_quiver`);
     if (loadout.bag) ids.push(`${p}Xtra_bag`);
     if (loadout.wood) ids.push(`${p}Xtra_wood`);
   }

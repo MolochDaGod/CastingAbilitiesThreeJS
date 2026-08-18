@@ -4,7 +4,7 @@
 
 1. **Name the system** you are shipping (`DevIslandHarvest`, `SessionState.play`, clips). Do not mix unrelated dirty-tree WIP into a “fix X” deploy.
 2. **Extend existing files.** No `*2` harvest / terrain / controller.
-3. **Same-origin only** in the browser: `/api/assets`, `/api/open`, `/anims/baked`. Never fetch `assets.*` or `open.*` (CORS → `getTransfer` crash).
+3. **Same-origin only** in the browser: `/api/assets` (cdn-proxy), `/api/open`, `/anims/baked`. Never fetch `assets.*` or `open.*` (CORS / CF hotlink).
 4. **Terrain:** ship L0–L3 stylized (`IslandHeightfield` vertex colors + `StylizedGrassLayer`). Do not depend on `dl.polyhaven.org` at runtime.
 5. From repo `C:\Users\nugye\Documents\CastingAbilitiesThreeJS`:
    ```text
@@ -49,7 +49,9 @@
 
 ### Production clip + texture path (browser)
 
-Never fetch `assets.grudge-studio.com` or `open.grudge-studio.com` from the page (R2/Open lack CORS → `getTransfer` crash).
+Never fetch `assets.grudge-studio.com` or `open.grudge-studio.com` from the page (R2/Open lack CORS → `getTransfer` crash).  
+Live `/api/assets` goes through `api/cdn-proxy.js` (same-host Referer) so CF hotlink does not 403 images.  
+`/api/objectstore` rewrites to **grudge-objectstore.pages.dev** (custom-domain `/api/v1` is 404).
 
 | Kind | Browser URL |
 |------|-------------|

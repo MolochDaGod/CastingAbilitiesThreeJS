@@ -8,7 +8,7 @@
  *   drop   — optional loot VFX / dropPrefab key (may 404 → sprite+model fallback)
  */
 
-import { catalogJsonUrls } from '../config/fleetEnv.js';
+import { catalogJsonUrls, cdnUrl as fleetCdnUrl } from '../config/fleetEnv.js';
 
 export const PREFAB_CATALOG_URL =
   'https://info.grudge-studio.com/api/v1/master-weapon-prefabs.json';
@@ -43,10 +43,7 @@ export function tierPresent(tier) {
  * @param {string|null|undefined} path
  */
 export function cdnUrl(path) {
-  if (!path) return null;
-  if (/^https?:\/\//i.test(path)) return path;
-  const p = String(path).replace(/^\/+/, '');
-  return `${CDN}/${p}`;
+  return fleetCdnUrl(path);
 }
 
 /**

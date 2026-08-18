@@ -21,6 +21,7 @@ import {
   ITEMS_MANIFEST_URL,
   PREFAB_CATEGORIES
 } from './gameItemCatalog.js';
+import { catalogJsonUrls } from '../config/fleetEnv.js';
 import {
   GRUDGE_UUID_PREFIX,
   WEAPON_PREFAB_RUNTIME_JOBS,
@@ -54,10 +55,10 @@ export const SCAFFOLD_ENDPOINTS = Object.freeze({
   cdn: CDN,
   workerMirror: INFO_MIRROR,
   fetchOrder: [
+    'same-origin /api/info/v1/*',
     'info.grudge-studio.com/api/v1/*',
-    'objectstore.grudge-studio.com/api/v1/*',
-    'molochdagod.github.io/ObjectStore/api/v1/*',
-    'assets.grudge-studio.com (binaries only)'
+    'grudge-objectstore.pages.dev/api/v1/*',
+    'assets.grudge-studio.com via /api/assets (binaries only)'
   ]
 });
 
@@ -104,12 +105,9 @@ let _scaffoldCache = null;
 export async function loadPrefabScaffold() {
   if (_scaffoldCache) return _scaffoldCache;
   const [manifest, pattern, recipes] = await Promise.all([
-    fetchJson([SCAFFOLD_ENDPOINTS.manifest, `${INFO_MIRROR}/canonical-items-manifest.json`]),
-    fetchJson([
-      SCAFFOLD_ENDPOINTS.equipmentPattern,
-      `${INFO_MIRROR}/_meta/canonical-equipment-pattern.json`
-    ]),
-    fetchJson([SCAFFOLD_ENDPOINTS.recipes, `${INFO_MIRROR}/master-recipes.json`])
+    fetchJson(catalogJsonUrls('canonical-items-manifest.json')),
+    fetchJson(catalogJsonUrls('_meta/canonical-equipment-pattern.json')),
+    fetchJson(catalogJsonUrls('master-recipes.json'))
   ]);
 
   _scaffoldCache = {

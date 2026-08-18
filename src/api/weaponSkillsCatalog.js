@@ -10,7 +10,7 @@
  */
 
 import { enrichStaffSkill } from '../combat/staffWeaponSkillsBind.js';
-import { catalogJsonUrls } from '../config/fleetEnv.js';
+import { catalogJsonUrls, sameOriginFleetUrl } from '../config/fleetEnv.js';
 
 export const MASTER_WEAPON_SKILLS_URL =
   'https://info.grudge-studio.com/api/v1/master-weaponSkills.json';
@@ -71,9 +71,9 @@ export function normalizeWeaponTypeId(id) {
  */
 export function iconCdnUrl(iconPath) {
   if (!iconPath) return null;
-  if (/^https?:\/\//i.test(iconPath)) return iconPath;
+  if (/^https?:\/\//i.test(iconPath)) return sameOriginFleetUrl(iconPath);
   const p = iconPath.startsWith('/') ? iconPath : `/${iconPath}`;
-  return `${ICONS_CDN}${p}`;
+  return sameOriginFleetUrl(`${ICONS_CDN}${p}`);
 }
 
 /**

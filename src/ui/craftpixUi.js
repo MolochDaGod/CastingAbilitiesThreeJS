@@ -10,6 +10,8 @@
  * Always use absolute https:// URLs.
  */
 
+import { sameOriginFleetUrl } from '../config/fleetEnv.js';
+
 const CDN = 'https://assets.grudge-studio.com/ui/craftpix';
 
 /** @type {Record<string, string>} */
@@ -52,12 +54,12 @@ export function craftpixUrl(rel, opts = {}) {
       ? `${window.location.origin}/ui/craftpix`
       : CDN;
   }
-  if (opts.preferCdn) return `${CDN}/${clean}`;
+  if (opts.preferCdn) return sameOriginFleetUrl(`${CDN}/${clean}`);
   // Default: same-origin ship (public/ui/craftpix) — production lab / client handoff
   if (typeof window !== 'undefined' && window.location?.origin) {
     return `${window.location.origin}/ui/craftpix/${clean}`;
   }
-  return `${CDN}/${clean}`;
+  return sameOriginFleetUrl(`${CDN}/${clean}`);
 }
 
 /**

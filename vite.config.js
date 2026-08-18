@@ -30,12 +30,44 @@ function fixRapierInitDeprecation() {
  * @see grudge-3d-game-packages · grudge-rapier
  */
 export default defineConfig({
-  base: './',
+  // Absolute base for Vercel root host — relative `./` can break module graph on some redirects
+  base: '/',
   plugins: [fixRapierInitDeprecation()],
   server: {
     host: '127.0.0.1',
     port: 5173,
-    open: false
+    open: false,
+    proxy: {
+      '/api/assets': {
+        target: 'https://assets.grudge-studio.com',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api\/assets/, ''),
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq) => {
+            proxyReq.setHeader('Referer', 'https://assets.grudge-studio.com/');
+          });
+        }
+      },
+      '/api/open': {
+        target: 'https://open.grudge-studio.com',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api\/open/, '')
+      },
+      '/api/info': {
+        target: 'https://info.grudge-studio.com',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api\/info/, '/api')
+      },
+      '/api/objectstore': {
+        target: 'https://grudge-objectstore.pages.dev',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api\/objectstore/, '/api')
+      },
+      '/api': {
+        target: 'https://grudge-api-production-0d46.up.railway.app',
+        changeOrigin: true
+      }
+    }
   },
   build: {
     target: 'es2022',

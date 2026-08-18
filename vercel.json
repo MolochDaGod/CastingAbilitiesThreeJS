@@ -7,14 +7,24 @@
     "casting.grudge.studio",
     "casting.grudge-studio.com"
   ],
+  "functions": {
+    "api/cdn-proxy.js": {
+      "maxDuration": 30,
+      "memory": 1024
+    }
+  },
   "rewrites": [
     {
       "source": "/api/assets/:path*",
-      "destination": "https://assets.grudge-studio.com/:path*"
+      "destination": "/api/cdn-proxy?key=:path*"
+    },
+    {
+      "source": "/api/open/:path*",
+      "destination": "https://open.grudge-studio.com/:path*"
     },
     {
       "source": "/api/objectstore/:path*",
-      "destination": "https://objectstore.grudge-studio.com/api/:path*"
+      "destination": "https://grudge-objectstore.pages.dev/api/:path*"
     },
     {
       "source": "/api/info/:path*",
@@ -128,6 +138,13 @@
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=300" },
         { "key": "Access-Control-Allow-Origin", "value": "*" }
+      ]
+    },
+    {
+      "source": "/api/assets/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400" },
+        { "key": "Referrer-Policy", "value": "same-origin" }
       ]
     },
     {

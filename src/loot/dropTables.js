@@ -12,9 +12,12 @@
  *  - playerLevel + difficulty shape natural rates.
  */
 
+import { catalogJsonUrls } from '../config/fleetEnv.js';
+
 export const DROP_TABLES_URL = 'https://info.grudge-studio.com/api/v1/drop-tables.json';
+/** Live Pages — objectstore.grudge-studio.com/api/v1 is 404 */
 export const DROP_TABLES_MIRROR =
-  'https://objectstore.grudge-studio.com/api/v1/drop-tables.json';
+  'https://grudge-objectstore.pages.dev/api/v1/drop-tables.json';
 
 /** Absolute catalog max (prefabs / craft / special loot) */
 export const CATALOG_MAX_TIER = 8;
@@ -628,7 +631,7 @@ export function rollPlayerDeathDrops(heldItems, opts = {}) {
 }
 
 export async function loadDropTablesRemote() {
-  for (const url of [DROP_TABLES_URL, DROP_TABLES_MIRROR]) {
+  for (const url of catalogJsonUrls('drop-tables.json')) {
     try {
       const res = await fetch(url, { mode: 'cors' });
       if (!res.ok) continue;
