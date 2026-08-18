@@ -42,6 +42,26 @@ export const DODGE_MM = Object.freeze({
 });
 
 /**
+ * Ranged kite (staff / bow) — shorter than melee escape, camera-relative.
+ * Keep facing the aim so the next shot stays on target.
+ */
+export const KITE_MM = Object.freeze({
+  sidestep: 380,
+  backstep: 280,
+  fade: 200
+});
+
+/**
+ * @param {'left'|'right'|'forward'|'back'} dir
+ * @returns {number} metres
+ */
+export function kiteDistanceM(dir) {
+  if (dir === 'left' || dir === 'right') return mmToM(KITE_MM.sidestep);
+  if (dir === 'back') return mmToM(KITE_MM.backstep);
+  return mmToM(KITE_MM.fade);
+}
+
+/**
  * Resolve dodge travel distance (metres) for a direction.
  * @param {'left'|'right'|'forward'|'back'} dir
  * @param {{ dodgeDistance?: number, dodgeLateralMul?: number, dodgeMm?: { lateral?: number, forward?: number, back?: number } }} [cfg]

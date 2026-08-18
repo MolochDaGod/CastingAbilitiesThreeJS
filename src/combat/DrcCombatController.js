@@ -12,7 +12,7 @@ import { residualFromSettings } from '../vfx/effectPrefab.js';
 import { getSkillBinding } from './skillBindings.js';
 import { bindFromCatalogSkill, staffBindFor } from './staffWeaponSkillsBind.js';
 import { vfxIdForSkill, animRoleForSkill } from '../api/weaponSkillsCatalog.js';
-import { dodgeDistanceM, mmToM, mToMm } from './motionMath.js';
+import { dodgeDistanceM, kiteDistanceM, mmToM, mToMm } from './motionMath.js';
 import {
   skillCastCosts,
   pathCastCosts,
@@ -25,7 +25,6 @@ import {
   STAFF_CHARGE_MESH
 } from './skillDelivery.js';
 import { SkillProjectileSystem } from './SkillProjectileSystem.js';
-import { applyKnockback } from './hitReaction.js';
 import {
   isStaffNormalAttack,
   STAFF_NORMAL_ATTACK,
@@ -43,13 +42,6 @@ import {
   PISTOL_SOFT_LOCK,
   pistolHitFrameSec
 } from '../config/pistolAnimSsot.js';
-import {
-  playForWeaponSkillCast,
-  playForImpact,
-  playParrySfx,
-  playHealSfx,
-  setPlayerBurningSfx
-} from '../audio/skillSfx.js';
 import {
   createFlintlockChamber,
   skillNeedsLoad,
@@ -73,6 +65,12 @@ import { WeaponTipTrailSystem } from '../vfx/weaponTipTrail.js';
 import { pointHitsWeaponVolume } from '../character/weaponMeshCollider.js';
 import { getBackWaterBuffs } from '../config/backSlotMobilitySsot.js';
 import { WORLD } from '../config/worldScale.js';
+import { pickMoveOctant, RIFLE_HAND_IK } from '../config/rifleAnimSsot.js';
+import {
+  resolvePlayerClass,
+  compileClassSkill,
+  getClassLoadout
+} from './classAbilities.js';
 
 const _origin = new Vector3();
 const _tip = new Vector3();
@@ -133,7 +131,8 @@ export class DrcCombatController {
             character: this.character,
             projectiles: this.projectiles,
             vfx: this.vfx,
-            abilities: this.abilities
+            abilities: this.abilities,
+            getTargets: () => this._collectHitTargets()
           })
         : null);
     /** @type {import('./CombatFocus.js').CombatFocus|null} */
@@ -238,6 +237,8 @@ export class DrcCombatController {
      * Same intent as Multiverse mvAutoTraverse.
      */
     this._autoTraverse = false;
+    /** Harvest RMB walk-to — world XZ, cancelled by WASD */
+    this._approach = null;
     this._wasShiftDown = false;
     this._yaw = 0;
     this._usePhysics = true;
@@ -334,8 +335,26 @@ export class DrcCombatController {
     this.physics = physics;
   }
 
+  /**
+   * Same L0 height sample as Rapier / aim / FootIK.
+   * @param {(x:number,z:number)=>number|null} fn
+   */
+  setHeightSample(fn) {
+    this.heightSample = typeof fn === 'function' ? fn : null;
+    this.character?.setHeightSample?.(this.heightSample);
+    if (this.tipTrail) this.tipTrail.heightSample = this.heightSample;
+    this.vfx?.setHeightSample?.(this.heightSample);
+  }
+
+  _landY(x, z) {
+    const y = this.heightSample?.(x, z);
+    return Number.isFinite(y) ? y : 0;
+  }
+
   setVfx(vfx) {
     this.vfx = vfx;
+    this.vfx?.setHeightSample?.(this.heightSample);
+    if (this.tipTrail) this.tipTrail.vfx = vfx;
   }
 
   setAim(aim) {
@@ -419,12 +438,12 @@ export class DrcCombatController {
       knockupVy: hit.knockupVy
     };
 
-    const isHostile = hit.target?.kind === 'hostile';
+    const isHostile = hit.target?.kind === 'hostile' || hit.target?.mesh?.userData?.trainingDummy;
     const applyToPlayer =
-      !hit.target ||
-      hit.target.kind === 'self' ||
-      hit.target.id === 'player' ||
-      hit.target.applyToPlayer;
+      hit.target?.kind === 'self' ||
+      hit.target?.kind === 'player' ||
+      hit.target?.id === 'player' ||
+      !!hit.target?.applyToPlayer;
 
     // P0 defensive early-out (also enforced in SkillStatusSystem.applyHit):
     // invuln / C-parry weapon cylinder vs incoming projectile contact on player.
@@ -465,6 +484,48 @@ export class DrcCombatController {
       drc: this,
       applyToPlayer: applyToPlayer && !hit.freeze
     });
+  }
+
+  /**
+   * Living hostiles in range + optional aim point (projectile contact list).
+   * @param {Vector3} [aimPoint]
+   */
+  _collectHitTargets(aimPoint) {
+    const targets = [];
+    const seen = new Set();
+    const feet = this.character?.position;
+    const list =
+      feet && this.combatFocus?.listTargetsInRange
+        ? this.combatFocus.listTargetsInRange(feet)
+        : [];
+    for (const t of list) {
+      if (!t?.point) continue;
+      const id = t.id || t.mesh?.uuid;
+      if (id) seen.add(id);
+      targets.push({
+        id: id || 'hostile',
+        point: t.point.clone ? t.point.clone() : t.point,
+        mesh: t.mesh,
+        kind: t.kind || 'hostile'
+      });
+    }
+    const sel = this.combatFocus?.selectedTarget;
+    if (sel?.point && !seen.has(sel.id)) {
+      targets.push({
+        id: sel.id,
+        point: sel.point.clone ? sel.point.clone() : sel.point,
+        mesh: sel.mesh,
+        kind: sel.kind || 'hostile'
+      });
+    }
+    if (aimPoint) {
+      targets.push({
+        id: 'aim',
+        point: aimPoint.clone ? aimPoint.clone() : aimPoint,
+        kind: 'aim'
+      });
+    }
+    return targets;
   }
 
   /**
@@ -544,22 +605,8 @@ export class DrcCombatController {
       groundY: 0.05
     });
 
-    // Hostiles as projectile contact targets (soft-lock)
-    const targets = [];
-    if (this.combatFocus?.selectedTarget?.point) {
-      targets.push({
-        id: this.combatFocus.selectedTarget.id,
-        point: this.combatFocus.selectedTarget.point.clone(),
-        mesh: this.combatFocus.selectedTarget.mesh,
-        kind: this.combatFocus.selectedTarget.kind || 'hostile'
-      });
-    }
-    // Aim point as soft target for lab (always)
-    targets.push({
-      id: 'aim',
-      point: resolved.target.clone(),
-      kind: 'aim'
-    });
+    // Hostiles as projectile contact targets (all in range + aim)
+    const targets = this._collectHitTargets(resolved.target);
 
     // Cast tell VFX
     if (enriched.castEffectId) {
@@ -811,8 +858,13 @@ export class DrcCombatController {
         });
         return enriched;
       }
-      // Ice stream soft bolts: bubbles + orb
-      if ((el === 'ice' || el === 'frost' || el === 'water') && this.projectiles.spawnBubbleStream) {
+      // Ice/water: staff normal = one orb. Bubbles only when that is the mesh kind.
+      if (
+        (el === 'ice' || el === 'frost' || el === 'water') &&
+        this.projectiles.spawnBubbleStream &&
+        !isStaffNormalAttack(enriched) &&
+        inferElementAttackKind(enriched)?.kind === 'water_bubbles'
+      ) {
         this.projectiles.spawnBubbleStream({
           origin: resolved.origin,
           target: resolved.target,
@@ -821,6 +873,8 @@ export class DrcCombatController {
           speed: phys.speed ?? 12,
           targets
         });
+        enriched._deliveryLabel = 'Water Bubbles';
+        return enriched;
       }
       const meshUrl =
         enriched.projectileMeshUrl ||
@@ -858,10 +912,6 @@ export class DrcCombatController {
     this.projectiles?.update?.(dt);
     this.tipTrail?.update?.(dt, this.elapsed);
     this.statuses?.update?.(this.elapsed);
-    // Soft burn crackle only while player has burn status (not on fire impacts)
-    try {
-      setPlayerBurningSfx(!!this.statuses?.hasStatus?.('player', 'burn'), { volume: 0.22 });
-    } catch (_) {}
     this.flintlock?.tick?.(this.elapsed);
     this._tickWeaponCharge(dt, keys);
     // Dual resource regen (settings.drc)
@@ -919,9 +969,12 @@ export class DrcCombatController {
         const pose = this.physics.movePlayer(vx, vz, dt);
         this.character.root.position.set(pose.x, pose.y, pose.z);
         this._grounded = !!pose.grounded;
+        this.character.setFootGrounded?.(this._grounded);
       } else {
         this.character.root.position.x += vx * dt;
         this.character.root.position.z += vz * dt;
+        // Knock-up / jump Y still integrates during horizontal push
+        this._integrateKinematicJump(dt, keys);
       }
       // Continuous model afterimage trail while MM dodge / invuln runs
       const src = this.character.model || this.character.root;
@@ -951,6 +1004,17 @@ export class DrcCombatController {
     const focusOn = !!this.combatFocus?.focusEnabled;
     let ix = 0;
     let iz = 0;
+    const wasd =
+      keys.has('KeyW') ||
+      keys.has('KeyA') ||
+      keys.has('KeyS') ||
+      keys.has('KeyD') ||
+      keys.has('ArrowUp') ||
+      keys.has('ArrowLeft') ||
+      keys.has('ArrowDown') ||
+      keys.has('ArrowRight');
+    if (wasd && this._approach) this.clearApproach();
+
     if (keys.has('KeyW') || keys.has('ArrowUp') || this._autoTraverse) iz -= 1;
     if ((keys.has('KeyS') || keys.has('ArrowDown')) && !this._autoTraverse) iz += 1;
 
@@ -1007,6 +1071,27 @@ export class DrcCombatController {
       _move.z = fz * -iz;
     }
     if (_move.lengthSq() > 1e-6) _move.normalize();
+
+    // Harvest RMB: walk in world XZ to node (same loco, not a second controller)
+    if (this._approach && !wasd) {
+      const pos = this.character?.root?.position || this.character?.position;
+      if (pos) {
+        const dx = this._approach.x - pos.x;
+        const dz = this._approach.z - pos.z;
+        const d = Math.hypot(dx, dz);
+        const stop = this._approach.stopM ?? 1.6;
+        if (d <= stop) {
+          const arrived = this._approach.onArrive;
+          this.clearApproach();
+          arrived?.();
+        } else {
+          _move.set(dx, 0, dz).normalize();
+          const yaw = Math.atan2(dx, dz);
+          this._yaw = yaw;
+          this.character.setFacing?.(yaw);
+        }
+      }
+    }
 
     // Water surface / submerge (shark fin back-slot buffs)
     const waterY = WORLD.waterY ?? settings.walk?.freerideWaterY ?? -0.04;
@@ -1104,6 +1189,7 @@ export class DrcCombatController {
 
       const wasGrounded = this._grounded;
       this._grounded = !!pose.grounded;
+      this.character.setFootGrounded?.(this._grounded);
       if (this._grounded) {
         if (!wasGrounded && this._airborne) {
           // Deterministic land: impact vy + horizontal speed
@@ -1166,30 +1252,71 @@ export class DrcCombatController {
     }
 
     // Gait: lock during jump/flip one-shots
-    // Focus: intelligent strafe — world move vs camera right/forward (not pure A/D only)
+    // Rifle: full 8-way octant. Other packs: L/R strafe when lateral wins.
     if (!this.character._gaitLocked && this._grounded) {
-      if (!moving) {
-        this.character.setGait?.(0, false);
-      } else {
-        let strafe = null;
-        if (focusOn && moving) {
-          // lateral = move · cameraRight ; fwd = move · cameraFwd
-          const lat = _move.x * rx + _move.z * rz;
-          const fwd = _move.x * fx + _move.z * fz;
-          const absLat = Math.abs(lat);
-          const absFwd = Math.abs(fwd);
-          // Prefer side gait when lateral dominates or strong side component
-          if (absLat > 0.28 && absLat >= absFwd * 0.55) {
-            // KeyA → ix +1 maps to camera-left; lat sign matches move vs right
-            strafe = lat > 0 ? 'right' : 'left';
-          }
+      const lat = _move.x * rx + _move.z * rz;
+      const fwd = _move.x * fx + _move.z * fz;
+      const octant = moving ? pickMoveOctant(fwd, lat) : null;
+      let strafe = null;
+      if (moving && (focusOn || this.character.animPackId === 'rifle')) {
+        const absLat = Math.abs(lat);
+        const absFwd = Math.abs(fwd);
+        if (absLat > 0.28 && absLat >= absFwd * 0.55) {
+          strafe = lat > 0 ? 'right' : 'left';
         }
-        this.character.setGait?.(this._sprinting ? 2 : 1, this._sprinting, { strafe });
+      }
+      if (!moving) {
+        this.character.setGait?.(0, false, { aiming: focusOn });
+      } else {
+        this.character.setGait?.(this._sprinting ? 2 : 1, this._sprinting, {
+          strafe,
+          octant,
+          aiming: focusOn
+        });
       }
     } else if (!this._grounded && !this.character._gaitLocked) {
       // Air: keep last gait weight low — jump clip owns pose when present
-      this.character.setGait?.(0, false);
+      this.character.setGait?.(0, false, { aiming: focusOn });
     }
+
+    this._syncRifleHandAim(focusOn);
+  }
+
+  /**
+   * Rifle both-hand IK toward aim hit / camera forward. Other packs clear.
+   * @param {boolean} focusOn
+   */
+  _syncRifleHandAim(focusOn) {
+    const ch = this.character;
+    if (!ch?.setHandAim) return;
+    if (ch.animPackId !== 'rifle') {
+      ch.setHandAim(null, 0);
+      return;
+    }
+    const pt =
+      (this.aim?.valid && this.aim.hitPoint) ||
+      (this.aim?.valid && this.aim.point) ||
+      null;
+    const w = focusOn ? RIFLE_HAND_IK.aimWeight : RIFLE_HAND_IK.restWeight;
+    if (pt) {
+      ch.setHandAim(pt, w);
+      return;
+    }
+    if (this.aim?.forward3d || this.aim?.forward) {
+      const origin = ch.position || ch.root?.position;
+      const dir = this.aim.forward3d || this.aim.forward;
+      if (origin && dir) {
+        _origin.copy(origin).addScaledVector(dir, 12);
+        if (Number.isFinite(this.aim.forward3d?.y)) {
+          /* keep 3d */
+        } else {
+          _origin.y += 1.35;
+        }
+        ch.setHandAim(_origin, w);
+        return;
+      }
+    }
+    ch.setHandAim(null, 0);
   }
 
   /**
@@ -1281,8 +1408,28 @@ export class DrcCombatController {
   toggleAutoTraverse() {
     this._autoTraverse = !this._autoTraverse;
     if (this._autoTraverse) this._sprintLatched = true;
+    if (this._autoTraverse) this.clearApproach();
     this.onToast?.(this._autoTraverse ? 'Auto RUN/SAIL ON (`)' : 'Auto OFF (`)');
     return this._autoTraverse;
+  }
+
+  /**
+   * Walk in a straight line to world XZ (harvest RMB). WASD cancels.
+   * @param {number} x
+   * @param {number} z
+   * @param {{ stopM?: number, onArrive?: () => void }} [opts]
+   */
+  setApproachTarget(x, z, opts = {}) {
+    this._approach = {
+      x,
+      z,
+      stopM: opts.stopM ?? 1.6,
+      onArrive: typeof opts.onArrive === 'function' ? opts.onArrive : null
+    };
+  }
+
+  clearApproach() {
+    this._approach = null;
   }
 
   isAutoTraverse() {
@@ -1386,18 +1533,21 @@ export class DrcCombatController {
     if (this._kinVy === undefined) this._kinVy = 0;
     if (this._kinGravityScale === undefined) this._kinGravityScale = 1;
     const g = -9.81 * this._kinGravityScale;
+    const feet = this.character.root.position;
+    const landY = this._landY(feet.x, feet.z);
     if (this._grounded && this._kinVy <= 0) {
-      this.character.root.position.y = 0;
+      this.character.root.position.y = landY;
       this._kinVy = 0;
       this._jumpsLeft = settings.drc?.maxJumps ?? 2;
       this._kinGravityScale = 1;
+      this.character.setFootGrounded?.(true);
       return;
     }
     this._kinVy += g * dt;
     this.character.root.position.y += this._kinVy * dt;
-    if (this.character.root.position.y <= 0) {
+    if (this.character.root.position.y <= landY) {
       const impactVy = this._kinVy;
-      this.character.root.position.y = 0;
+      this.character.root.position.y = landY;
       this._kinVy = 0;
       this._grounded = true;
       this._jumpsLeft = settings.drc?.maxJumps ?? 2;
@@ -1463,16 +1613,15 @@ export class DrcCombatController {
       skill: opts.skill || null
     };
     this.character.setCasting?.(true, opts.aim || null);
-    this.character.playWeaponCombat?.('cast') ||
-      this.character.playCastFlourish?.() ||
-      this.character.requestOneShot?.('cast');
-    try {
-      playForWeaponSkillCast(opts.skill || { element: opts.element, label: opts.label }, {
-        duration
-      });
-    } catch (_) {}
-    // Small elemental charge shell (kamehameha bake) at tip during cast
-    if (this._cast.showCharge && this.projectiles?.spawnCharge) {
+    if (!opts.skill?._castPlan?.useLinear) {
+      this.character.playWeaponCombat?.('cast') ||
+        this.character.playCastFlourish?.() ||
+        this.character.requestOneShot?.('cast');
+    }
+    // Linear owns its own muzzle. Charge orb is the ugly particle-bolt look.
+    const showCharge =
+      this._cast.showCharge && !opts.skill?._castPlan?.useLinear;
+    if (showCharge && this.projectiles?.spawnCharge) {
       this._chargeOrigin = this._chargeOrigin || new Vector3();
       this._getChargeOrigin(this._chargeOrigin);
       void this.projectiles.spawnCharge({
@@ -1552,6 +1701,69 @@ export class DrcCombatController {
     this.projectiles?.clearCharge?.();
     this._cast = null;
     this.character.setCasting?.(false);
+  }
+
+  /**
+   * Tap F — class starter. Pickup / harvest handled in App before this.
+   * @returns {boolean}
+   */
+  useClassStarter() {
+    return this.useClassAbility('f');
+  }
+
+  /**
+   * Shift+1–5 or F starter. Plays ObjectStore class tree node via existing mixer / status.
+   * @param {number|'f'} slot
+   */
+  useClassAbility(slot) {
+    if (!this.inCombat) {
+      this.onToast('Enter combat (Q) for class skills');
+      return false;
+    }
+    if (this._cast) {
+      this.onToast('Already casting');
+      return false;
+    }
+    const classId = resolvePlayerClass(this.character);
+    const load = getClassLoadout(classId);
+    const skillId = slot === 'f' || slot === -1 ? load.f : load.slots[Number(slot)];
+    const skill = compileClassSkill(classId, skillId);
+    if (!skill) {
+      this.onToast('No class skill — I → Class');
+      return false;
+    }
+    if (skill.passive) {
+      this.onToast(`${skill.label} · passive`);
+      return false;
+    }
+    const key = slot === 'f' || slot === -1 ? 'f' : `s${slot}`;
+    const until = this._classCdUntil || (this._classCdUntil = {});
+    if (this.elapsed < (until[key] || 0)) {
+      this.onToast(`${skill.label} CD`);
+      return false;
+    }
+    until[key] = this.elapsed + (Number(skill.cooldown) || 4);
+
+    const self = skill.target === 'self' || skill.style === 'buff' || skill.style === 'heal';
+    if (self) {
+      this.statuses?.applyHit?.({
+        skill,
+        applyToPlayer: true,
+        character: this.character,
+        drc: this,
+        hit: { damage: skill.style === 'heal' ? -(skill.granted?.healPercent || 0.1) * 40 : 0 }
+      });
+      this.character.playWeaponCombat?.('cast') || this.character.requestOneShot?.('cast');
+      this.onToast(`${skill.label} · class`);
+      if (skill.castEffectId) {
+        this.vfx?.deploy?.(skill.castEffectId, {
+          origin: this.character?.position,
+          intensity: 0.85
+        });
+      }
+      return true;
+    }
+    return this.useSkill(-1, { skill, skipCharge: true });
   }
 
   /**
@@ -1748,6 +1960,8 @@ export class DrcCombatController {
 
     let skill = opts.skill || (slot === 'f' || slot === -1 ? skillForFKey() : skillBySlot(slot));
     if (!skill) return false;
+    // Barrel must be in the hand — never fire from spine/hip stow
+    this.character.weaponSheath?.unsheath?.('combat');
 
     // Route chargeable → hold UX (unless release/tap already set skipCharge)
     if (!opts.skipCharge) {
@@ -1917,21 +2131,35 @@ export class DrcCombatController {
     if (use3d) _fwd.copy(this.aim.forward3d).normalize();
     else if (this.aim?.valid) _fwd.copy(this.aim.forward);
     else _fwd.set(Math.sin(yaw), 0, Math.cos(yaw));
-    this.character.getCastOrigin(_origin);
-    // Prefer MouseAim.computeLaunch origin when available (hand offset + chest)
+    // Wand / barrel tip — never snow-brawl chest + alternating L/R (that + a
+    // leftover mesh AABB is what put Practice Bolt ~10 m left of the wand).
+    if (typeof this.character.getWeaponTip === 'function') {
+      this.character.getWeaponTip(_origin, settings.residual?.tipOffset ?? 0.55);
+    } else {
+      this.character.getCastOrigin(_origin);
+    }
     let spawnOrigin = _origin.clone();
+    {
+      const feetW = this.character.getWorldPosition?.() || this.character.position;
+      const dx = spawnOrigin.x - feetW.x;
+      const dz = spawnOrigin.z - feetW.z;
+      const horiz = Math.hypot(dx, dz);
+      if (horiz > 1.8) {
+        const s = 1.8 / horiz;
+        spawnOrigin.x = feetW.x + dx * s;
+        spawnOrigin.z = feetW.z + dz * s;
+      }
+    }
     let aimTarget = this.aim?.hitPoint?.clone?.() || null;
     if (this.aim?.computeLaunch && this.character?.position) {
       try {
         const launch = this.aim.computeLaunch(this.character.position, {
-          hand: this._throwHand === 'left' ? 'left' : 'right'
+          hand: 'right'
         });
-        if (launch?.origin) spawnOrigin.copy(launch.origin);
         if (launch?.direction) _fwd.copy(launch.direction);
         if (launch?.target) aimTarget = launch.target.clone();
-        this._throwHand = this._throwHand === 'left' ? 'right' : 'left';
       } catch {
-        /* keep cast origin */
+        /* keep tip origin */
       }
     }
     const rangeM = skill.rangeM || 8;
@@ -1949,18 +2177,26 @@ export class DrcCombatController {
         : Math.max(0, Number(skill.castDuration ?? skill.castTime ?? 0.55));
 
     const releaseSpell = () => {
-    // Catalog VFX when bound; else DRC skill beauty
-    if (bound) {
-      const vfxId = vfxIdForSkill({
-        id: bound.skillId,
-        name: bound.name,
-        description: '',
-        damageType: bound.damageType,
-        labStyle: bound.labPack === 'magic' ? 'spell' : skill.style
-      });
-      this.vfx?.deploy?.(vfxId, { ...pose, intensity: 1.1 });
-    } else {
-      this.vfx?.deploySkill?.(skill.id, pose, 'cast');
+    const focusOnPre = this.elapsed < this._focusUntil;
+    const focusMulPre = focusOnPre ? this._focusMul || 1.35 : 1;
+    const castPlan = planElementalLinearCast(skill, {
+      focusCombat: !!this.combatFocus?.focusEnabled || this.inCombat,
+      pathDrawn: false,
+      intensity: focusMulPre
+    });
+    skill._castPlan = castPlan;
+    // Linear abilities own muzzle/flash. Do not stack swirl / chain_lightning tells.
+    const travelOwnsTell = !!(
+      castPlan.useLinear ||
+      castPlan.useMeshDelivery ||
+      castPlan.usePathAbility
+    );
+    if (!travelOwnsTell && !castPlan.layers?.includes('buff')) {
+      if (isStaffNormalAttack(skill)) {
+        this.vfx?.deploy?.(skill.castEffectId || 'arcane_swirl', { ...pose, intensity: 0.95 });
+      } else if (skill.castEffectId) {
+        this.vfx?.deploy?.(skill.castEffectId, { ...pose, intensity: 0.9 });
+      }
     }
 
     // Catalog buffs: Focus (next spell) · Take Cover / Nature Ward (self DR)
@@ -2014,16 +2250,6 @@ export class DrcCombatController {
       return;
     }
 
-    // ── Elemental × linear plan (learned LinearAbilityCasting + staff skills) ──
-    const focusOnPre = this.elapsed < this._focusUntil;
-    const focusMulPre = focusOnPre ? this._focusMul || 1.35 : 1;
-    const castPlan = planElementalLinearCast(skill, {
-      focusCombat: !!this.combatFocus?.focusEnabled || this.inCombat,
-      pathDrawn: false,
-      intensity: focusMulPre
-    });
-    skill._castPlan = castPlan;
-
     // Linear LINE/ZONE skillshot (castToward — no Alt+Shift arm required)
     if (castPlan.useLinear && this.linearSkills) {
       try {
@@ -2033,7 +2259,7 @@ export class DrcCombatController {
           feet.clone().addScaledVector(pose.forward, skill.rangeM || 12);
         const okLin = fireLinearFromPlan(this.linearSkills, castPlan, {
           origin: pose.origin,
-          feet,
+          feet: this.character.getWorldPosition?.() || feet,
           aim: aimPt3
         });
         if (okLin) skill._deliveryLabel = `Linear · ${castPlan.linearId}`;
@@ -2042,14 +2268,16 @@ export class DrcCombatController {
       }
     }
 
-    // Delivery pattern (over/under/around/projectile) + mesh force projectiles
-    try {
-      const deliv = this._deploySkillDelivery(skill, pose);
-      if (deliv?.deliveryLabel) {
-        skill._deliveryLabel = deliv.deliveryLabel;
+    // Mesh orb / rocks / bullets — only when this plan owns travel
+    if (castPlan.useMeshDelivery) {
+      try {
+        const deliv = this._deploySkillDelivery(skill, pose);
+        if (deliv?.deliveryLabel) {
+          skill._deliveryLabel = deliv.deliveryLabel;
+        }
+      } catch (e) {
+        console.warn('[DrcCombat] delivery', e);
       }
-    } catch (e) {
-      console.warn('[DrcCombat] delivery', e);
     }
 
     // VFX: spell → elemental ability + creative presentation (volley/meteor/vines/…)
@@ -2057,10 +2285,11 @@ export class DrcCombatController {
       // Product element (fire|storm|ice|nature|holy|arcane) or legacy — AbilityManager maps pool
       const el = skill.element || skill.abilityElement;
       const pathMode = skill.pathMode || 'stream';
-      // Path Ability beauty when plan says so (staffCast learning + presentation)
-      if (castPlan.usePathAbility !== false) {
+      // Stylized Ability ribbon (stream / wall / spikes / aoe) + orb travel
+      if (castPlan.usePathAbility) {
         const curve = this._curveForPathMode(pathMode, skill.rangeM);
         this.abilities.select(el);
+        this.abilities.clear?.();
         this.abilities.cast(curve, el);
       }
 
@@ -2068,38 +2297,22 @@ export class DrcCombatController {
       const focusMul = focusOn ? this._focusMul || 1.35 : 1;
       const intensity = focusOn ? 1.0 * focusMul : 1.0;
       if (focusOn) {
-        // Consume focus on first damaging spell
         this._focusUntil = 0;
       }
-      // Push intensity into linear global knobs (live sample mid-cast)
       this.linearSkills?.applyIntensity?.(intensity);
 
-      const isMeteor =
-        /meteor|inferno/i.test(skill.id + skill.label + (skill.catalogSkillId || '')) ||
-        skill.presentation === 'meteor';
-      const isVolley =
-        /volley|spark|practice/i.test(skill.id + skill.label) ||
-        skill.presentation === 'volley' ||
-        ((el === 'fire' || el === 'arcane') && !/meteor/i.test(skill.id + skill.label));
-      const isLightning =
-        el === 'storm' ||
-        /lightning|chain.?lightning|tempest|storm/i.test(skill.id + skill.label) ||
-        skill.presentation === 'lightning';
-      const isShield =
-        /shield|ward|guard/i.test(skill.id + skill.label) || skill.presentation === 'shield';
-      // Catalog presentation only (staff school style — no invented skill systems)
-      const pathFromBind = skill.pathMode || pathMode;
       const presStyle = skill.presentation || skill.prefab?.presentation || null;
-
-      this.vfx?.deployPresentation?.(el, { ...pose, intensity }, {
-        pathKind: pathFromBind,
-        presentation: presStyle,
-        meteor: isMeteor || presStyle === 'meteor',
-        volley: (isVolley && !isLightning) || presStyle === 'volley',
-        lightning: (isLightning && !isShield) || presStyle === 'lightning',
-        chain: isLightning,
-        shield: isShield || presStyle === 'shield' || pathFromBind === 'wall'
-      });
+      // Presentation is beauty-only when NOTHING else is travelling (no orb/linear/ribbon)
+      if (
+        !castPlan.useLinear &&
+        !castPlan.useMeshDelivery &&
+        !castPlan.usePathAbility
+      ) {
+        this.vfx?.deployPresentation?.(el, { ...pose, intensity }, {
+          pathKind: skill.pathMode || pathMode,
+          presentation: presStyle
+        });
+      }
 
       const dmg = skill.damage ? ` · ${Math.round(skill.damage * focusMul)} dmg` : '';
       const cat = skill.catalogSkillId ? ` → ${skill.catalogSkillId}` : '';
@@ -2160,6 +2373,19 @@ export class DrcCombatController {
     }
     };
 
+    // LinearAbility source: instant throw (no charge orb / cast bar).
+    // Body clip + ice/thunder/meteor/beam/snare/glacier fire on click.
+    const linearPlan = planElementalLinearCast(skill, {
+      focusCombat: !!this.combatFocus?.focusEnabled || this.inCombat,
+      pathDrawn: false,
+      intensity: 1
+    });
+    if (linearPlan.useLinear && this.linearSkills) {
+      skill._castPlan = linearPlan;
+      releaseSpell();
+      return true;
+    }
+
     // Instant melee / ranged / near-zero castDuration
     if (skill.style === 'melee' || skill.style === 'ranged' || castDur < 0.08) {
       const animRole =
@@ -2183,19 +2409,18 @@ export class DrcCombatController {
         this.character.playParry?.() ||
           this.character.requestOneShot?.('block') ||
           this.character.requestOneShot?.('parry');
-        try {
-          // Wards / magic kits → lightning wizard parry; else metal
-          const magic =
-            skill.isWard ||
-            skill.style === 'spell' ||
-            this._isMagicParryContext() ||
-            /ward|barrier|shield|arcane|magic|holy/.test(
-              String(skill.id || '') + String(skill.label || '')
-            );
-          playParrySfx({ magic });
-        } catch (_) {}
       } else if (animRole === 'dodgeB' || /evade/i.test(skill.id + skill.label)) {
         this.character.playDodge?.('back') || this.character.requestOneShot?.('dodgeB');
+      } else if (
+        /^skill[1-5]$/.test(animRole) ||
+        animRole === 'gunplay' ||
+        animRole === 'draw' ||
+        animRole === 'reload' ||
+        animRole === 'spin'
+      ) {
+        this.character.requestOneShot?.(animRole) ||
+          this.character.playWeaponCombat?.('attack') ||
+          this.character.playWeaponAttack?.();
       } else if (/^attack[123]$/.test(animRole)) {
         this.character.requestOneShot?.(animRole) ||
           this.character.playMeleeComboLight?.() ||
@@ -2392,16 +2617,7 @@ export class DrcCombatController {
         speed: prim.speed,
         color: prim.color
       });
-      try {
-        playForImpact(fireBlur ? 'fire' : skill?.element, {
-          skill,
-          kind: fireBlur ? 'fire' : 'residual'
-        });
-      } catch (_) {}
-      if (settings.residual?.enabled !== false) {
-        const el = fireBlur ? 'fire' : this.abilities.selected || 'storm';
-        this.abilities.cast(curve, el);
-      }
+      // Residual slash is the travel. Do not also spawn an Ability ribbon.
     };
     if (delayMs > 4) setTimeout(fire, delayMs);
     else fire();
@@ -2421,7 +2637,11 @@ export class DrcCombatController {
 
   /** Build CatmullRom from hand → aim point for Ability.spawn */
   _aimCurve(rangeM) {
-    this.character.getCastOrigin(_origin);
+    if (typeof this.character.getWeaponTip === 'function') {
+      this.character.getWeaponTip(_origin, 0.12);
+    } else {
+      this.character.getCastOrigin(_origin);
+    }
     // Prefer 3D focus launch, else horizontal mouse aim
     if (
       settings.aim?.use3dLaunch !== false &&
@@ -2460,7 +2680,8 @@ export class DrcCombatController {
     const mode = pathMode || 'stream';
     if (mode === 'aoe') {
       // Short hop into aim point — FireAbility / impact place
-      this.character.getCastOrigin(_origin);
+      if (typeof this.character.getWeaponTip === 'function') this.character.getWeaponTip(_origin, 0.12);
+      else this.character.getCastOrigin(_origin);
       if (this.aim?.valid) _fwd.copy(this.aim.forward);
       else _fwd.set(Math.sin(this.character.facing), 0, Math.cos(this.character.facing));
       _end.copy(_origin).addScaledVector(_fwd, Math.min(rangeM, 4.5));
@@ -2471,7 +2692,8 @@ export class DrcCombatController {
     }
     if (mode === 'wall') {
       // Wider lateral stroke for barrier feel
-      this.character.getCastOrigin(_origin);
+      if (typeof this.character.getWeaponTip === 'function') this.character.getWeaponTip(_origin, 0.12);
+      else this.character.getCastOrigin(_origin);
       if (this.aim?.valid) _fwd.copy(this.aim.forward);
       else _fwd.set(Math.sin(this.character.facing), 0, Math.cos(this.character.facing));
       const right = new Vector3(-_fwd.z, 0, _fwd.x);
@@ -2559,9 +2781,6 @@ export class DrcCombatController {
         // E = block / guard (fleet SSOT). C = parry.
         return this._utilityAction('block', 0.4, settings.drc?.parryStamina ?? 4, () => {
           this.character.playParry?.() || this.character.requestOneShot?.('block');
-          try {
-            playParrySfx({ magic: this._isMagicParryContext() });
-          } catch (_) {}
           this.onToast('Block (E)');
         });
       case 'heavy':
@@ -2569,15 +2788,12 @@ export class DrcCombatController {
         return this.useWeaponSkillF();
       case 'kick':
         return this._utilityAction('kick', 0.9, 6, () => {
-          this.character.playWeaponAttack?.();
+          this.character.playUnarmedKick?.() || this.character.playWeaponAttack?.();
           this.onToast('Kick (V)');
         });
       case 'heal':
         return this._utilityAction('heal', 4.0, 0, () => {
           this.stamina = Math.min(this.maxStamina, this.stamina + 35);
-          try {
-            playHealSfx();
-          } catch (_) {}
           _fwd.set(Math.sin(this.character.facing), 0, Math.cos(this.character.facing));
           this.vfx?.deploy?.('moon_beam', {
             origin: this.character.position.clone(),
@@ -2672,6 +2888,7 @@ export class DrcCombatController {
       ['KeyD', 'right'],
       ['KeyW', 'forward']
     ];
+    if (this._isRangedKite()) pairs.push(['KeyS', 'back']);
     for (const [code, dir] of pairs) {
       const down = keys.has(code);
       const was = this._keyWasDown.has(code);
@@ -2802,22 +3019,30 @@ export class DrcCombatController {
     this._dodgeDur = dur;
   }
 
+  /** Staff / bow / wand — kite sidestep instead of 7.2 m melee escape. */
+  _isRangedKite() {
+    const w = getEquippedWeapon();
+    const pack = String(w?.animPack || w?.id || w?.holdKind || '');
+    return /magic|longbow|bow|staff|wand|tome|rifle|pistol/i.test(pack);
+  }
+
   /**
-   * Directional dodge (AA/DD/WW double-tap · X back).
-   * Uses motion-math (MM) distance profiles: AA/DD lateral = 3× baseline (7.2 m).
-   * Spawns wind-style mesh afterimages + full invuln for the dodge window.
+   * Directional dodge (AA/DD/WW · X back). Ranged uses shorter kite MM.
    * @param {'left'|'right'|'forward'|'back'} dir
    */
   dodge(dir) {
     const d = dir === 'left' || dir === 'right' || dir === 'forward' || dir === 'back' ? dir : 'back';
     const stam = settings.drc?.dodgeStamina ?? 10;
-    const cd = 0.75;
+    const kite = this._isRangedKite() && d !== 'forward';
+    const cd = kite ? 0.42 : 0.75;
     return this._utilityAction(`dodge_${d}`, cd, stam, () => {
       this._cdUntil.set('dodge', this.elapsed + cd);
       this._cdMax.set('dodge', cd);
 
-      const dist = dodgeDistanceM(d, settings.drc || {});
-      const dur = settings.drc?.dodgeDuration ?? 0.42;
+      const dist = kite ? kiteDistanceM(d) : dodgeDistanceM(d, settings.drc || {});
+      const dur = kite
+        ? Math.min(settings.drc?.dodgeDuration ?? 0.42, 0.32)
+        : settings.drc?.dodgeDuration ?? 0.42;
       this._startMobilityImpulse(d, dist, dur);
 
       // I-frames for entire MM dodge + afterimage window
@@ -2839,8 +3064,8 @@ export class DrcCombatController {
       const lat = d === 'left' || d === 'right';
       const labels = { left: 'AA left', right: 'DD right', forward: 'WW forward', back: 'X back' };
       this.onToast(
-        `${labels[d] || d} dodge · ${dist.toFixed(1)}m MM` +
-          `${lat ? ' ×3' : ''}` +
+        `${kite ? 'kite ' : ''}${labels[d] || d} · ${dist.toFixed(1)}m` +
+          `${!kite && lat ? ' ×3' : ''}` +
           `${played ? '' : ' (no clip)'}` +
           ' · invuln'
       );
@@ -2947,11 +3172,8 @@ export class DrcCombatController {
     return pointHitsWeaponVolume(vol, attackPoint, attackRadius);
   }
 
-  /** Parry with block/parry clip. SFX fires on **attempt** (key press), not only success. */
+  /** Parry with block/parry clip. */
   parry() {
-    try {
-      playParrySfx({ magic: this._isMagicParryContext() });
-    } catch (_) {}
     const stam = settings.drc?.parryStamina ?? 8;
     return this._utilityAction('parry', 0.65, stam, () => {
       // Ensure mesh cylinder is fresh for defensive tests this window
@@ -3034,6 +3256,7 @@ export class DrcCombatController {
       const costs = pathCastCosts(holdSec, length, 'stream', this.abilities.selected);
       if (!this._spendResources(costs.mana, costs.stamina, 'Cast')) return null;
       this.lastCastIntensity = costs.intensity;
+      this.abilities.clear?.();
       this.abilities.cast(curve);
       return { kind: 'stream', element: this.abilities.selected, intensity: costs.intensity };
     }
@@ -3086,20 +3309,12 @@ export class DrcCombatController {
         const start = end.clone().add(new Vector3(0.01, 0.8, 0.01));
         const short = new CatmullRomCurve3([start, mid, end], false, 'catmullrom', 0.5);
         this.abilities.select(element);
+        this.abilities.clear?.();
         this.abilities.cast(short, element);
-        this.vfx?.deployPresentation?.(element, { ...pathPose, aim: end.clone() }, {
-          pathKind: 'aoe',
-          meteor: element === 'fire' && intensity >= 2.2
-        });
       } else {
         this.abilities.select(element);
+        this.abilities.clear?.();
         this.abilities.cast(curve, element);
-        this.vfx?.deployPresentation?.(element, pathPose, {
-          pathKind: kind,
-          meteor: kind === 'stream' && element === 'fire' && intensity >= 2.4,
-          volley: kind === 'stream' && (element === 'fire' || element === 'arcane'),
-          shield: kind === 'wall' && element === 'storm'
-        });
       }
       const sigName = intensity >= 2.4 && sig ? ` · ${sig.label}` : '';
       this.onToast(
