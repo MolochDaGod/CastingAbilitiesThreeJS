@@ -4,9 +4,8 @@ import { MathUtils, Quaternion, Vector3 } from 'three';
  * Post-mixer ride IK for Toon RTS Bip001 on the windsurf / hoverboard.
  *
  * Sockets from public/models/ride/ride.manifest.json:
- *  - footL / footR → plant on deck
- *  - sailRail → primary hand (R) on boom metal bar
- *  - sailBoomL → secondary hand (L) on boom
+ *  - Author sockets are mirrored vs Toon Bip001:
+ *    L foot → footR · R foot → footL · R hand → sailBoomL · L hand → sailBoomR
  *
  * Gated by CharacterController.setRideActive — never runs during combat gait.
  * Not a second AnimationMixer: soft two-bone aim after mixer.update only.
@@ -47,7 +46,7 @@ function orientBone(bone, child, targetDir) {
  * Two-bone IK: place end effector at world target; mid joint toward poleHint.
  * @returns {boolean}
  */
-function solveTwoBone(upper, mid, end, target, poleHint) {
+export function solveTwoBone(upper, mid, end, target, poleHint) {
   if (!upper || !mid || !end) return false;
 
   upper.getWorldPosition(_root);
@@ -85,7 +84,7 @@ function solveTwoBone(upper, mid, end, target, poleHint) {
   return true;
 }
 
-function pickBone(map, ...names) {
+export function pickBone(map, ...names) {
   for (const n of names) {
     if (map.has(n)) return map.get(n);
   }
@@ -266,49 +265,48 @@ export class RideIK {
     // Board left (windward); default +X if caller did not pass heading
     const leftDir = opts.boardLeft || new Vector3(1, 0, 0);
 
-    // Legs: knees bend forward + slightly out
-    if (this.targets.footL && this.chains.leftLeg.upper) {
+    // Author sockets are mirrored vs Toon Bip001: swap L/R feet and L/R hands.
+    if (this.targets.footR && this.chains.leftLeg.upper) {
       _pole
         .copy(forward)
-        .multiplyScalar(0.55)
-        .addScaledVector(leftDir, 0.4)
-        .addScaledVector(_up, 0.2);
-      this._blendSolve(this.chains.leftLeg, this.targets.footL, _pole, fw);
+        .multiplyScalar(0.32)
+        .addScaledVector(leftDir, -0.62)
+        .addScaledVector(_up, 0.18);
+      this._blendSolve(this.chains.leftLeg, this.targets.footR, _pole, fw);
     }
-    if (this.targets.footR && this.chains.rightLeg.upper) {
+    if (this.targets.footL && this.chains.rightLeg.upper) {
       _pole
         .copy(forward)
-        .multiplyScalar(0.55)
-        .addScaledVector(leftDir, -0.4)
-        .addScaledVector(_up, 0.2);
-      this._blendSolve(this.chains.rightLeg, this.targets.footR, _pole, fw);
+        .multiplyScalar(0.32)
+        .addScaledVector(leftDir, 0.62)
+        .addScaledVector(_up, 0.18);
+      this._blendSolve(this.chains.rightLeg, this.targets.footL, _pole, fw);
     }
 
-    // Hands: R → starboard boom, L → port boom (never same point — prevents arm cross)
-    const handRTarget =
-      this.targets.sailBoomR || this.targets.sailRail || this.targets.sailBoomL;
+    // Hands: R → port boom, L → starboard boom (sockets are mirrored)
+    const handRTarget = this.targets.sailBoomL || this.targets.sailRail;
     const handLTarget =
-      this.targets.sailBoomL || this.targets.sailRail || this.targets.sailBoomR;
+      this.targets.sailBoomR ||
+      (handRTarget && this.targets.sailRail !== handRTarget ? this.targets.sailRail : null);
 
-    // Elbows out + slightly down so grip looks natural (boom at ~chest/shoulder)
     if (handRTarget && this.chains.rightArm.upper) {
       _pole
         .copy(leftDir)
-        .multiplyScalar(-1.1)
-        .addScaledVector(_up, -0.35)
-        .addScaledVector(forward, 0.25);
+        .multiplyScalar(-1.25)
+        .addScaledVector(_up, -0.28)
+        .addScaledVector(forward, 0.12);
       this._blendSolve(this.chains.rightArm, handRTarget, _pole, hw);
     }
     if (
       handLTarget &&
       this.chains.leftArm.upper &&
-      (!handRTarget || handLTarget.distanceToSquared(handRTarget) > 0.01)
+      (!handRTarget || handLTarget.distanceToSquared(handRTarget) > 0.04)
     ) {
       _pole
         .copy(leftDir)
-        .multiplyScalar(1.1)
-        .addScaledVector(_up, -0.35)
-        .addScaledVector(forward, 0.25);
+        .multiplyScalar(1.25)
+        .addScaledVector(_up, -0.28)
+        .addScaledVector(forward, 0.12);
       this._blendSolve(this.chains.leftArm, handLTarget, _pole, hw * 0.95);
     }
   }

@@ -57,10 +57,12 @@
       }
     },
     "ik": {
-      "feet": ["footL", "footR"],
-      "hands": ["sailBoomR", "sailBoomL"],
-      "primaryHand": "sailBoomR",
-      "secondaryHand": "sailBoomL",
+      "feet": ["footR", "footL"],
+      "hands": ["sailBoomL", "sailBoomR"],
+      "primaryHand": "sailBoomL",
+      "secondaryHand": "sailBoomR",
+      "swapLr": true,
+      "note": "Toon Bip001 vs author sockets — L foot→footR, R hand→sailBoomL",
       "rigidBody": "deckCenter"
     },
     "motion": {
