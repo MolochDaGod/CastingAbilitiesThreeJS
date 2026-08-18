@@ -8,10 +8,13 @@
  *   drop   — optional loot VFX / dropPrefab key (may 404 → sprite+model fallback)
  */
 
+import { catalogJsonUrls } from '../config/fleetEnv.js';
+
 export const PREFAB_CATALOG_URL =
   'https://info.grudge-studio.com/api/v1/master-weapon-prefabs.json';
+/** Live Pages — objectstore.grudge-studio.com/api/v1 is 404 */
 export const PREFAB_CATALOG_MIRROR =
-  'https://objectstore.grudge-studio.com/api/v1/master-weapon-prefabs.json';
+  'https://grudge-objectstore.pages.dev/api/v1/master-weapon-prefabs.json';
 export const CDN = 'https://assets.grudge-studio.com';
 
 /**
@@ -152,7 +155,7 @@ export async function loadPrefabCatalog() {
   if (_loading) return _loading;
   _loading = (async () => {
     let data = null;
-    for (const url of [PREFAB_CATALOG_URL, PREFAB_CATALOG_MIRROR]) {
+    for (const url of catalogJsonUrls('master-weapon-prefabs.json')) {
       try {
         const res = await fetch(url, { mode: 'cors' });
         if (!res.ok) continue;

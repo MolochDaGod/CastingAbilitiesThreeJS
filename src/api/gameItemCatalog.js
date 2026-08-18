@@ -13,9 +13,11 @@
 import { CDN, presentPrefab, loadPrefabCatalog, cdnUrl, tierPresent } from '../loot/prefabAssets.js';
 import { loadEquippableWeapons, T0_STARTER_WEAPON_IDS } from './t0WeaponCatalog.js';
 import { BACK_MOBILITY_CATALOG } from '../config/backSlotMobilitySsot.js';
+import { catalogJsonUrls } from '../config/fleetEnv.js';
 
 export const INFO_API = 'https://info.grudge-studio.com/api/v1';
-export const INFO_MIRROR = 'https://objectstore.grudge-studio.com/api/v1';
+/** Live Pages — objectstore.grudge-studio.com/api/v1 catalogs 404 */
+export const INFO_MIRROR = 'https://grudge-objectstore.pages.dev/api/v1';
 /** Prefer manifest — game-library.json is currently 404 on info/objectstore (2026-08). */
 export const GAME_LIBRARY_URL = `${INFO_API}/game-library.json`;
 export const ITEMS_MANIFEST_URL = `${INFO_API}/canonical-items-manifest.json`;
@@ -173,13 +175,13 @@ export async function loadGameItemCatalog() {
       classRelics,
       equippable
     ] = await Promise.all([
-      fetchJson([GAME_LIBRARY_URL, `${INFO_MIRROR}/game-library.json`]),
-      fetchJson([ITEMS_MANIFEST_URL, `${INFO_MIRROR}/canonical-items-manifest.json`]),
+      fetchJson(catalogJsonUrls('game-library.json')),
+      fetchJson(catalogJsonUrls('canonical-items-manifest.json')),
       loadPrefabCatalog().catch(() => null),
-      fetchJson([`${INFO_API}/master-armor.json`, `${INFO_MIRROR}/master-armor.json`]),
-      fetchJson([`${INFO_API}/master-relics.json`, `${INFO_MIRROR}/master-relics.json`]),
-      fetchJson([`${INFO_API}/master-mounts.json`, `${INFO_MIRROR}/master-mounts.json`]),
-      fetchJson([`${INFO_API}/master-classRelics.json`, `${INFO_MIRROR}/master-classRelics.json`]),
+      fetchJson(catalogJsonUrls('master-armor.json')),
+      fetchJson(catalogJsonUrls('master-relics.json')),
+      fetchJson(catalogJsonUrls('master-mounts.json')),
+      fetchJson(catalogJsonUrls('master-classRelics.json')),
       loadEquippableWeapons().catch(() => null)
     ]);
 

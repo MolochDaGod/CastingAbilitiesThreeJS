@@ -157,3 +157,11 @@ deploy-out*.txt
 tmp/
 .tmp/
 
+# Loose fish extracts (tracked SSOT lives in poles/lures/docks/species)
+public/models/fish/*.glb
+public/models/fish/_bundle/
+
+# WIP scenery / class-form dumps until convert + R2
+public/models/class-forms/
+public/models/island-scenery/
+

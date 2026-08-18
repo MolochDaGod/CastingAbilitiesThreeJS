@@ -15,6 +15,7 @@ import {
   cdnUrl,
   CDN
 } from '../loot/prefabAssets.js';
+import { catalogJsonUrls } from '../config/fleetEnv.js';
 import {
   loadWeaponSkillsCatalog,
   labMapForWeaponType,
@@ -36,8 +37,9 @@ import { labMaxTier, isLabAdmin } from '../config/labAdmin.js';
 export { warmProductionOverrides };
 
 export const T0_WEAPONS_URL = 'https://info.grudge-studio.com/api/v1/t0-weapons.json';
+/** Live ObjectStore Pages — objectstore.grudge-studio.com/api/v1 is 404 */
 export const T0_WEAPONS_MIRROR =
-  'https://objectstore.grudge-studio.com/api/v1/t0-weapons.json';
+  'https://grudge-objectstore.pages.dev/api/v1/t0-weapons.json';
 /** Product browse (same skills as JSON) */
 export const WEAPON_SKILLS_HTML = 'https://info.grudge-studio.com/WEAPON_SKILLS.html';
 
@@ -460,7 +462,7 @@ export async function loadEquippableWeapons() {
     const [prefabCat, skillsCat, t0Data] = await Promise.all([
       loadPrefabCatalog().catch(() => null),
       loadWeaponSkillsCatalog().catch(() => null),
-      fetchJson([T0_WEAPONS_URL, T0_WEAPONS_MIRROR])
+      fetchJson(catalogJsonUrls('t0-weapons.json'))
     ]);
 
     const t0List = t0Data?.weapons || [];

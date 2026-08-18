@@ -10,11 +10,13 @@
  */
 
 import { enrichStaffSkill } from '../combat/staffWeaponSkillsBind.js';
+import { catalogJsonUrls } from '../config/fleetEnv.js';
 
 export const MASTER_WEAPON_SKILLS_URL =
   'https://info.grudge-studio.com/api/v1/master-weaponSkills.json';
+/** Live Pages — objectstore.grudge-studio.com/api/v1 is 404 */
 export const MASTER_WEAPON_SKILLS_MIRROR =
-  'https://objectstore.grudge-studio.com/api/v1/master-weaponSkills.json';
+  'https://grudge-objectstore.pages.dev/api/v1/master-weaponSkills.json';
 export const WEAPON_SKILLS_HTML = 'https://info.grudge-studio.com/WEAPON_SKILLS.html';
 export const INFO_DOCS_URL = 'https://info.grudge-studio.com/docs';
 export const ICONS_CDN = 'https://assets.grudge-studio.com';
@@ -166,7 +168,7 @@ export async function loadWeaponSkillsCatalog() {
 
   _loading = (async () => {
     let data = null;
-    for (const url of [MASTER_WEAPON_SKILLS_URL, MASTER_WEAPON_SKILLS_MIRROR]) {
+    for (const url of catalogJsonUrls('master-weaponSkills.json')) {
       try {
         const res = await fetch(url, { mode: 'cors' });
         if (!res.ok) continue;

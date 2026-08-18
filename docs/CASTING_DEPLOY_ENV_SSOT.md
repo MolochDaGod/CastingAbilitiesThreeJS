@@ -40,7 +40,7 @@
 | Auth SSO | Grudge ID | `https://id.grudge-studio.com` |
 | Realtime rooms | Colyseus on same Railway | `wss://grudge-api-production-0d46.up.railway.app` |
 | Binary meshes / icons | R2 CDN | `https://assets.grudge-studio.com` |
-| JSON catalogs / gamedata | ObjectStore + info | `objectstore` / `info.grudge-studio.com` |
+| JSON catalogs / gamedata | **info** (live) + ObjectStore **Pages** | `info.grudge-studio.com/api/v1` · `grudge-objectstore.pages.dev/api/v1` |
 | Asset **index** | Cloudflare D1 | not player SSOT |
 | Weapon skill drafts + equip mirror | **CF Durable Object** `WeaponSkillDrafts` | `https://weapon-skills.grudge-studio.com` · control plane `casting.grudge.studio` · see `WEAPON_SKILL_DO_SSOT.md` |
 | Training Room map layout | Same-origin `maps/training_room/` → info/objectstore/R2 promote | `docs/TRAINING_ROOM_DEPLOY_SSOT.md` · R2 prefix `lab/casting/training-room` |
@@ -115,7 +115,9 @@ Copy `.env.example` → `.env.local` (absolute Railway for vite).
 
 ## DNS (casting.grudge-studio.com)
 
-Zone NS: Cloudflare. Record **missing** → NXDOMAIN.
+Live **200** as of 2026-08-18 (legacy alias). Primary control plane is **casting.grudge.studio**.
+
+If the alias ever NXDOMAINs again:
 
 | Type | Name | Content | Proxy |
 |------|------|---------|-------|
@@ -194,6 +196,9 @@ Training Room promote (optional fleet handoff): DevNode Export → `*-promote-*.
 | `WARLORDS_ENGINE_URL` (ThreeFlow) | Map/prefab deploy to R2 | Not player DB |
 | Casting `worker/` Durable Object | Skill drafts | Not accounts |
 | Untracked `tmp/` · `_qa_*` · extra `public/models/fish/*.glb` | Disk dumps | Not deployed SSOT |
+| `objectstore.grudge-studio.com/api/v1/*.json` | Dead custom-domain path (404) | Use info + `grudge-objectstore.pages.dev` |
+| `game-library.json` on info **and** Pages | 404 both | Use `canonical-items-manifest.json` |
+| `/api/characters` · `/api/account/inventory` unauthed | **401** from **same** Railway | JWT required — not a missing second DB |
 
 ### Macro goal (do not grow Casting into Warlords)
 
@@ -206,12 +211,18 @@ Create heroes on **character.grudge-studio.com**. Bag/craft on **grudgewarlords.
 
 | Location | Size | Git? | Action |
 |----------|------|------|--------|
-| `public/models/fish/species/rare/*.glb` | 59+24+22 MB | yes | Convert → R2, then stop shipping in Vercel |
-| `public/models/vfx/summons/*` | 16+8 MB | yes | Prefer CDN `/api/assets` |
-| `public/models/ride/windsurf*` | ~23 MB | yes | CDN when ride is not the boot path |
-| `public/models/fish/` loose GLBs | ~hundreds MB | **no** | Local extract only — gitignored intent |
+| `public/models/fish/species/rare/*.glb` | 59+24+22 MB | yes | Still Vercel — wrangler put >20 MB flakes |
+| `public/models/vfx/summons/*` | 16+8 MB | yes | **On R2** `lab/casting/models/vfx/summons/*` (HEAD 200) |
+| `public/models/ride/windsurf*` | ~23 MB | yes | **On R2** `lab/casting/models/ride/*` (HEAD 200) |
+| `public/models/fish/` loose GLBs | ~335 MB | **no** | **gitignored** (`fish/*.glb` + `_bundle/`) |
+| `public/models/class-forms/` · `island-scenery/` | ~74 MB | **no** | **gitignored** until convert + R2 |
 | `tmp/` | ~247 MB | no | Local only (now gitignored) |
 | `_qa_*.png` · `deploy-out*.txt` | ~4 MB | no | Deleted / gitignored |
 | `worker/node_modules` | ~181 MB | no | Already ignored |
+
+R2 prefix: `lab/casting/models/{fish|ride|vfx}/…`  
+Ride + summons **HEAD 200** on assets.* (2026-08-18). Rare fish still Vercel-only (22–59 MB wrangler put failed).  
+Resolver exists: `resolveLabAssetUrl(path, { preferCdn: true })` — **do not flip preferCdn** on loaders until fish keys are 200.  
+CF Hotlink still 403s **images** on `/api/assets` with a foreign Referer; JS + Vercel-shipped GLBs are 200.
 
 Player data law: **`grudge-production-wiring`** → `references/account-game-uuid-law.md`.
