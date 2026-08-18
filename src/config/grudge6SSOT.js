@@ -23,7 +23,7 @@ export const CASTING_LAB_VERCEL = 'https://casting-abilities-threejs.vercel.app/
 export const CDN = 'https://assets.grudge-studio.com';
 export const CDN_MIRROR_OPEN = 'https://open.grudge-studio.com';
 export const HUMAN_HEIGHT_M = 1.8;
-export const ANIMS_BAKED = sameOriginFleetUrl(`${CDN_MIRROR_OPEN}/anims/baked`);
+export const ANIMS_BAKED = sameOriginFleetUrl(`${CDN}/prod/anims`);
 export const GEAR_PRESETS_URL = sameOriginFleetUrl(`${CDN}/api/v1/grudge6-gear-presets.json`);
 export const RACE_MODELS_URL = sameOriginFleetUrl(
   `${CDN}/asset-packs/toon-rts-characters/race-models.json`

@@ -3,7 +3,7 @@
  *
  * Race kits / atlases: `grudge6SSOT.js` (Multiverse stone SSOT).
  * Mesh load: GLTFLoader + DRACO + Meshopt (AssetLoader).
- * Baked Bip001 clips: open.grudge-studio.com/anims/baked/…
+ * Baked Bip001 clips: assets.grudge-studio.com/prod/anims/… (same-origin /api/assets)
  */
 
 import {
@@ -16,6 +16,7 @@ import {
   kitUrlCandidates,
   kitUrlForRace
 } from './grudge6SSOT.js';
+import { sameOriginFleetUrl } from './fleetEnv.js';
 
 export const ASSETS_CDN = CDN;
 export const OPEN_HOST = 'https://open.grudge-studio.com';
@@ -429,9 +430,10 @@ export function bakedClipUrl(rel) {
 }
 
 /**
- * Absolute URL candidates for a baked clip.
- * - `prod:magic/standing-idle` → assets…/prod/anims/magic/standing-idle.json
- * - `magic/standing idle` → open…/anims/baked/magic/standing%20idle.json (+ assets mirror)
+ * Absolute URL candidates for a baked Bip001 clip.
+ * Browser never hits assets.* / open.* directly (no CORS → fetch crash).
+ * Live game clips: /prod/anims/{pack}/{hyphen}.json (idle + cast + loco).
+ * /anims/baked is a partial mirror; Open /anims/baked is 404.
  * @param {string} rel
  * @returns {string[]}
  */
@@ -439,32 +441,38 @@ export function bakedClipUrls(rel) {
   const raw = String(rel || '').replace(/^\/+/, '').replace(/\.json$/i, '');
   if (!raw) return [];
 
-  if (raw.startsWith('prod:')) {
-    const path = raw.slice(5).replace(/^\/+/, '');
-    const enc = path
+  const encPath = (p) =>
+    p
+      .replace(/^\/+/, '')
       .split('/')
       .map((s) => encodeURIComponent(s))
       .join('/');
-    // CDN prod first — same-origin ./anims/baked often 404 for prod: paths and
-    // serial 404s delayed boot / left loader stuck on "Loading … kit".
-    return [
-      `${ASSETS_CDN}/prod/anims/${enc}.json`,
-      `${OPEN_HOST}/anims/baked/${enc.replace(/-/g, '%20')}.json`,
-      `./anims/baked/${enc}.json`,
-    ];
+
+  const wrap = (url) => sameOriginFleetUrl(url);
+  const strip = (prefix) => raw.slice(prefix.length).replace(/^\/+/, '');
+
+  if (raw.startsWith('local:')) {
+    return [`./anims/baked/${encPath(strip('local:'))}.json`];
   }
 
-  const enc = raw
-    .split('/')
-    .map((s) => encodeURIComponent(s))
-    .join('/');
-  // Open + assets CDN before same-origin (many roles only exist on Open).
-  return [
-    `${OPEN_HOST}/anims/baked/${enc}.json`,
-    `${ASSETS_CDN}/anims/baked/${enc}.json`,
-    `${ASSETS_CDN}/prod/anims/${enc}.json`,
+  const bare = raw.startsWith('prod:')
+    ? strip('prod:')
+    : raw.startsWith('open:')
+      ? strip('open:')
+      : raw;
+  const hyphen = encPath(bare.replace(/ /g, '-'));
+  const enc = encPath(bare);
+
+  const urls = [
+    wrap(`${CDN}/prod/anims/${hyphen}.json`),
+    wrap(`${CDN}/anims/baked/${hyphen}.json`),
+    wrap(`${CDN}/anims/baked/${enc}.json`),
+    `./anims/baked/${hyphen}.json`,
     `./anims/baked/${enc}.json`,
+    wrap(`${OPEN_HOST}/anims/baked/${enc}.json`)
   ];
+  const seen = new Set();
+  return urls.filter((u) => u && !seen.has(u) && seen.add(u));
 }
 
 /**
