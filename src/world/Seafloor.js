@@ -16,6 +16,7 @@ import {
 } from 'three';
 import { WORLD } from '../config/worldScale.js';
 import { LAYER } from '../core/Layers.js';
+import { sameOriginFleetUrl } from '../config/fleetEnv.js';
 
 function makeSandTexture() {
   const c = document.createElement('canvas');
@@ -68,8 +69,8 @@ export class Seafloor {
     this.group = this.mesh;
 
     this._tryLoadMap([
-      'https://assets.grudge-studio.com/textures/terrain/sand_albedo.jpg',
-      'https://assets.grudge-studio.com/textures/ground/sand.jpg'
+      sameOriginFleetUrl('https://assets.grudge-studio.com/textures/terrain/sand_albedo.jpg'),
+      sameOriginFleetUrl('https://assets.grudge-studio.com/textures/ground/sand.jpg')
     ]);
   }
 

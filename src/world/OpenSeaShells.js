@@ -2,14 +2,17 @@ import { Box3, Group, Vector3, MeshStandardMaterial, Color } from 'three';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { WORLD } from '../config/worldScale.js';
 import { LAYER } from '../core/Layers.js';
+import { sameOriginFleetUrl } from '../config/fleetEnv.js';
 
 /**
  * Horizon island shells around the lab pad.
  * Weld mesh bottoms to WORLD.seafloorY shelf (−5 m); deep ocean is −50 m.
  * Water surface stays at waterY (0). Fix white/snow materials → sand/rock.
  */
-const ISLAND_CDN =
-  'https://assets.grudge-studio.com/models/worlds/small_island.glb';
+
+const ISLAND_CDN = sameOriginFleetUrl(
+  'https://assets.grudge-studio.com/models/worlds/small_island.glb'
+);
 
 const SAND = new Color(WORLD.sandColor || '#c2a86a');
 const ROCK = new Color('#6a655c');
