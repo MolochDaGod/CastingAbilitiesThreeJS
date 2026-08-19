@@ -46,11 +46,16 @@ import {
   PISTOL_BULLET,
   isLivingTarget
 } from '../vfx/pistolBulletVfx.js';
+import {
+  applyProjectileTint,
+  projectileFamily,
+  projectileMeshUrl,
+  projectileTrailPaint
+} from '../vfx/projectileSaves.js';
 
 const _v = new Vector3();
 const _box = new Box3();
 const _bubbleGeo = new SphereGeometry(0.5, 10, 10);
-const _trailGeo = new SphereGeometry(0.5, 6, 6);
 
 /**
  * @typedef {object} ProjectileHit
@@ -79,6 +84,8 @@ export class SkillProjectileSystem {
     this.scene = opts.scene;
     this.vfx = opts.vfx || null;
     this.onHit = opts.onHit || (() => {});
+    /** Learned PathTrail paint — set by DRC after both systems exist. */
+    this.tipTrail = opts.tipTrail || null;
     /** @type {object[]} */
     this._live = [];
     /** @type {Map<string, Group>} */
@@ -263,7 +270,30 @@ export class SkillProjectileSystem {
       hit: false
     };
     this._live.push(proj);
+    this._attachTail(proj, opts);
     return proj;
+  }
+
+  /**
+   * Projectile tail = learned LMB PathTrail, lasts as long as the mesh lives.
+   * @param {object} proj
+   * @param {object} [opts]
+   */
+  _attachTail(proj, opts = {}) {
+    if (!this.tipTrail?.beginFollow || !proj?.mesh) return;
+    const paint =
+      opts.trail ||
+      opts.paint ||
+      projectileTrailPaint(proj.kind === 'bullet' ? 'bullet' : proj.kind || 'magic', proj.element || 'fire');
+    if (paint && paint.followProjectile === false) return;
+    this.tipTrail.beginFollow(proj.mesh, {
+      skill: opts.skill || { element: proj.element || 'fire' },
+      paint,
+      duration: opts.life ?? paint?.life ?? proj.life,
+      color: opts.trailColor || paint?.color,
+      width: paint?.width,
+      forward: opts.forward
+    });
   }
 
   /**
@@ -495,7 +525,7 @@ export class SkillProjectileSystem {
         .clone()
         .multiplyScalar((opts.speed ?? 11) * (0.85 + Math.random() * 0.3))
         .add(jitter);
-      this._live.push({
+      const bubble = {
         mesh,
         vel,
         gravity: -1.5,
@@ -511,7 +541,9 @@ export class SkillProjectileSystem {
         targets: opts.targets || [],
         hit: false,
         kind: 'bubble'
-      });
+      };
+      this._live.push(bubble);
+      this._attachTail(bubble, { ...opts, life: bubble.life });
     }
     this.vfx?.deploy?.('moon_beam', { origin, intensity: 0.7 });
   }
@@ -585,31 +617,10 @@ export class SkillProjectileSystem {
     mesh.lookAt(origin.clone().add(forward));
     this.scene.add(mesh);
 
-    // Short trail ribbon (20% default magic trail feel) — additive sparks
-    const trail = new Group();
-    trail.name = 'bulletTrail';
-    const trailMat = new MeshBasicMaterial({
-      color: PISTOL_BULLET.trailColor,
-      transparent: true,
-      opacity: 0.55,
-      depthWrite: false,
-      blending: AdditiveBlending,
-      side: DoubleSide
-    });
-    const segs = 5;
-    for (let i = 0; i < segs; i++) {
-      const s = new Mesh(_trailGeo, trailMat.clone());
-      const t = (i + 1) / segs;
-      // Trail length ≈ 20% of 1 m default → 0.2 m total
-      const back = t * 0.2 * (PISTOL_BULLET.trailLengthFrac / 0.2);
-      s.scale.setScalar(PISTOL_BULLET.trailWidthM * (1.1 - t * 0.7));
-      s.position.copy(forward).multiplyScalar(-back * 0.2);
-      trail.add(s);
-    }
-    mesh.add(trail);
-
     const vel = forward.clone().multiplyScalar(speed);
-    this._live.push({
+    const colorId = opts.color || opts.element || 'fire';
+    const paint = projectileTrailPaint('bullet', colorId);
+    const proj = {
       mesh,
       vel,
       gravity: PISTOL_BULLET.gravity,
@@ -620,14 +631,116 @@ export class SkillProjectileSystem {
       knockbackMm: PISTOL_BULLET.knockbackMm,
       knockupVy: PISTOL_BULLET.knockupVy,
       aoe: PISTOL_BULLET.aoe,
-      element: 'physical',
+      element: colorId,
       explodeOnHit: true,
       targets: opts.targets || [],
       hit: false,
-      kind: 'bullet',
-      trail
+      kind: 'bullet'
+    };
+    this._live.push(proj);
+    this._attachTail(proj, { ...opts, paint, life: PISTOL_BULLET.life });
+    return proj;
+  }
+
+  /**
+   * 5-family × 5-color projectile save (SI mesh + learn_bending_path_trail).
+   * Magic uses a short spline + mist/sphering on hit — not a tornado.
+   * @param {{
+   *   family: 'arrow'|'bolt'|'bullet'|'cannon'|'magic',
+   *   color?: string,
+   *   origin: Vector3,
+   *   target: Vector3,
+   *   forward?: Vector3,
+   *   targets?: object[]
+   * }} opts
+   */
+  async spawnProjectileSave(opts) {
+    const fam = projectileFamily(opts.family);
+    const colorId = opts.color || opts.element || 'fire';
+    const origin = opts.origin.clone();
+    const target = opts.target.clone();
+    let forward = opts.forward?.clone?.();
+    if (!forward || forward.lengthSq() < 1e-8) {
+      forward = target.clone().sub(origin);
+      if (forward.lengthSq() < 1e-8) forward.set(0, 0, 1);
+      else forward.normalize();
+    } else forward.normalize();
+
+    if (fam.id === 'bullet') {
+      return this.spawnBullet({
+        ...opts,
+        meshUrl: projectileMeshUrl('bullet', colorId),
+        origin,
+        target,
+        forward
+      });
+    }
+
+    const url = projectileMeshUrl(fam.id, colorId);
+    let mesh = null;
+    try {
+      const tpl = await this._loadTemplate(url);
+      if (tpl) {
+        mesh = tpl.clone(true);
+        applyProjectileTint(mesh, colorId);
+        _box.setFromObject(mesh);
+        const size = new Vector3();
+        _box.getSize(size);
+        const maxDim = Math.max(size.x, size.y, size.z, 1e-4);
+        mesh.scale.multiplyScalar(fam.lengthM / maxDim);
+      }
+    } catch (e) {
+      console.warn('[SkillProjectile] save mesh', url, e);
+    }
+    if (!mesh) {
+      mesh = new Mesh(
+        this._placeholderGeo,
+        new MeshStandardMaterial({
+          color: projectileTrailPaint(fam.id, colorId).color,
+          emissive: 0x331100,
+          emissiveIntensity: 0.4
+        })
+      );
+      mesh.scale.setScalar(fam.lengthM / 0.55);
+    }
+    mesh.position.copy(origin);
+    mesh.lookAt(origin.clone().add(forward));
+    this.scene.add(mesh);
+
+    const vel = forward.clone().multiplyScalar(fam.speed);
+    if (fam.spline) {
+      vel.y += 3.2;
+    }
+    const dist = origin.distanceTo(target);
+    const life = Math.max(0.25, dist / Math.max(6, fam.speed) + 0.15);
+    const paint = projectileTrailPaint(fam.id, colorId);
+    const proj = {
+      mesh,
+      vel,
+      gravity: fam.gravity,
+      contactRadius: fam.contactRadius,
+      life,
+      age: 0,
+      force: fam.id === 'cannon' ? 16 : 8,
+      knockbackMm: fam.id === 'cannon' ? 280 : 140,
+      knockupVy: fam.id === 'cannon' ? 2.4 : 1.4,
+      aoe: fam.mist ? 1.6 : fam.id === 'cannon' ? 1.1 : 0.7,
+      element: colorId,
+      explodeOnHit: true,
+      targets: opts.targets || [],
+      hit: false,
+      kind: fam.kind,
+      mist: !!fam.mist,
+      impactMesh: fam.impactMesh || null
+    };
+    this._live.push(proj);
+    this._attachTail(proj, {
+      ...opts,
+      paint,
+      trailColor: paint.color,
+      life
     });
-    return true;
+    return proj;
   }
 
   /**
@@ -839,7 +952,7 @@ export class SkillProjectileSystem {
               .addScaledVector(side, lateral * 0.5)
               .setY(caster.y + 1.0);
 
-      this._live.push({
+      const rock = {
         mesh,
         vel: new Vector3(),
         gravity: 0,
@@ -862,7 +975,9 @@ export class SkillProjectileSystem {
         flyTarget: dest,
         flySpeed: speed * (0.92 + Math.random() * 0.16),
         aimMode
-      });
+      };
+      this._live.push(rock);
+      this._attachTail(rock, { ...opts, life: rock.life });
     }
   }
 
@@ -936,7 +1051,7 @@ export class SkillProjectileSystem {
       vel.y += Math.abs(def.gravity || 12) * travelT * 0.45 * (def.loft || 0.4);
     }
 
-    this._live.push({
+    const proj = {
       mesh,
       vel,
       gravity: def.gravity ?? 0,
@@ -957,7 +1072,9 @@ export class SkillProjectileSystem {
       endPoint: target.clone(),
       distanceM: dist,
       endFired: false
-    });
+    };
+    this._live.push(proj);
+    this._attachTail(proj, { ...opts, life: proj.life });
   }
 
   /**
@@ -1210,6 +1327,25 @@ export class SkillProjectileSystem {
   }
 
   _explode(p) {
+    const at = p.mesh.position.clone();
+    const fwd = p.vel.lengthSq() > 1e-4 ? p.vel.clone().normalize() : new Vector3(0, 0, 1);
+    if (p.mist || p.kind === 'magic') {
+      const id =
+        p.element === 'fire'
+          ? 'inferno'
+          : p.element === 'nature'
+            ? 'earth_surge'
+            : p.element === 'holy'
+              ? 'moon_beam'
+              : 'frost_wave';
+      this.vfx?.deploy?.(id, { origin: at, intensity: 0.85, aoe: 0.55, forward: fwd });
+      this.vfx?._smokeBlast?.(at, 0.55, 0.65, false);
+      return;
+    }
+    if (p.kind === 'cannon') {
+      this.vfx?.deploy?.('earth_surge', { origin: at, intensity: 0.45, aoe: 1.1, forward: fwd });
+      return;
+    }
     const id =
       p.element === 'ice' || p.element === 'frost' || p.element === 'water'
         ? 'frost_wave'
@@ -1217,9 +1353,9 @@ export class SkillProjectileSystem {
           ? 'moon_beam'
           : 'inferno';
     this.vfx?.deploy?.(id, {
-      origin: p.mesh.position.clone(),
+      origin: at,
       intensity: 1.15,
-      forward: p.vel.clone().normalize()
+      forward: fwd
     });
   }
 

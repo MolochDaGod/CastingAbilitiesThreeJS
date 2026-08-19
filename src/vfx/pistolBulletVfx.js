@@ -5,7 +5,7 @@
  * Weapon: flintlock.glb → public/models/weapons/t0-flintlock.glb for t0-gun
  * Anims: grudgepistolzio (loco/kneel author) + Open baked pistol combat
  *
- * Trail: 20% of default magic-trail length
+ * Trail: fire-bending PathTrail (`settings.fire` + learn_bending_path_trail)
  * Speed: game-bullet (~90 m/s lab — true 300+ m/s is unreadable)
  * Impact:
  *  - living (hostile/npc/player/boss) → red liquid blood splatter
@@ -31,8 +31,8 @@ export const PISTOL_BULLET = Object.freeze({
   aoe: 0.35,
   /** Trail length as fraction of default staff trail (~1.0 → 0.2) */
   trailLengthFrac: 0.2,
-  trailWidthM: 0.018,
-  trailColor: 0xffcc88,
+  trailWidthM: 0.042,
+  trailColor: 0xfff6d8,
   muzzleFlashColor: 0xffaa44,
   muzzleFlashLife: 0.08
 });
@@ -105,7 +105,11 @@ export function isPistolBulletSkill(skill) {
     .join(' ')
     .toLowerCase();
   // Catalog ids t0_gun_* match t0_gun
-  if (/flint|pistol|handgun|t0-gun|t0_gun|gunplay|musket|revolver/.test(blob)) {
+  if (
+    /flint|pistol|handgun|t0-gun|t0_gun|t0-rifle|t0_rifle|t0-poppy|t0_poppy|rifle|poppy|shotgun|buckshot|slug|gunplay|musket|revolver/.test(
+      blob
+    )
+  ) {
     // Exclude pure utility names without shot/fire language when damage is 0
     if (Number(skill.damage) <= 0) return false;
     return true;
@@ -123,7 +127,11 @@ export function isPistolBulletSkill(skill) {
       skill.isWeaponPrimary ||
       skill.animPack === 'pistol'
     ) {
-      return /gun|pistol|flint|burst|suppress|shot/i.test(blob) || skill.animPack === 'pistol';
+      return (
+        /gun|pistol|flint|rifle|burst|suppress|shot/i.test(blob) ||
+        skill.animPack === 'pistol' ||
+        skill.animPack === 'rifle'
+      );
     }
   }
   return false;
