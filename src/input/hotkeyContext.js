@@ -171,6 +171,15 @@ export const HOTKEY_BINDINGS = Object.freeze([
   }
 ]);
 
+/** Mouse middle — not a KeyboardEvent; App listens to InputManager `mmb`. */
+export const MMB_ACTION = Object.freeze({
+  id: 'mmbHeavy',
+  button: 1,
+  ctx: ['combat', 'harvest', 'ride'],
+  channel: 'mmb',
+  note: 'Context pick: finisher / caster melee / ranger hop-shot / harvest stomp'
+});
+
 /**
  * @param {KeyboardEvent} event
  * @param {HotkeyCtx} ctx

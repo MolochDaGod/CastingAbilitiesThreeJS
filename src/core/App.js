@@ -83,6 +83,8 @@ import {
   harvestToolIdForNodeDef
 } from '../combat/playerActivity.js';
 import { resolveHotkeyContext, applyHotkeyCss } from '../input/hotkeyContext.js';
+import { WorgeFormPlay, WORGE_FORM_SKILLS, FORM_SWAP_SLOT, isWorgeClass } from '../combat/worgeForm.js';
+import { CLAW_FORM_BINDS } from '../api/clawFormEnchant.js';
 import {
   CLASS_ITEMS,
   CLASS_R_PROFILE,
@@ -652,6 +654,10 @@ export class App {
     // Elemental skills ↔ linear skillshot bridge (learned LinearAbilityCasting)
     this.drc.bindClassAttributes?.(resolvePlayerClass(this.character));
     this.drc.setLinearSkills?.(this.linearSkills);
+    this.worgeForm = new WorgeFormPlay({
+      scene: this.scene,
+      character: this.character
+    });
     // Warm fire/ice summon projectiles (extracted SI meshes)
     this.drc.projectiles?.warm?.().catch?.(() => {});
 
@@ -806,7 +812,14 @@ export class App {
     this.input.on('skillHold:start', (slot) => {
       if (!(this.session.gates.combatSkills || this.drc.inCombat)) return;
       if (slot === 'f') {
-        // F still runs best-action first via combatAction; charge only if no pickup
+        return;
+      }
+      if (this.worgeForm?.isActive() && typeof slot === 'number') {
+        if (slot === FORM_SWAP_SLOT) {
+          void this._exitWorgeForm();
+          return;
+        }
+        this._useWorgeFormSkill(slot);
         return;
       }
       this.drc.beginWeaponCharge?.(slot);
@@ -919,8 +932,21 @@ export class App {
     this.hud.onMode = (mode) => this.setMode(mode);
 
     // Combat: F = class skill 0 · harvest F = swing. E block · C parry.
+    this.input.on('mmb', () => {
+      if (this.input.hotkeyCtx === 'inventory' || this.input.hotkeyCtx === 'equip') return;
+      this.drc.useMmbHeavy?.({
+        hotkeyCtx: this.input.hotkeyCtx,
+        classId: resolvePlayerClass(this.character),
+        formId: this.worgeForm?.formId,
+        formPlay: this.worgeForm
+      });
+    });
     this.input.on('classSkill', (slot) => {
       if (this.activityMode === 'harvest') return;
+      if (this.worgeForm?.isActive()) {
+        this._useWorgeFormSkill('f');
+        return;
+      }
       this.drc.useClassAbility?.(slot);
     });
     this.input.on('combatAction', (actionId) => {
@@ -1459,6 +1485,8 @@ export class App {
       if (result?.ok) {
         this._combatWeaponId = result.weapon?.id || this._combatWeaponId;
         this._syncPlayerFrame?.();
+        const fid = result.weapon?.formId || getEquippedWeapon()?.formId;
+        if (fid && CLAW_FORM_BINDS[fid]) void this._enterWorgeForm(fid);
       }
     } catch (err) {
       console.warn('[App] weapon loadout swap', err);
@@ -1467,6 +1495,10 @@ export class App {
   }
 
   _beginRHold() {
+    if (this.worgeForm?.isActive()) {
+      this._rHold = { armed: true, t: 0, open: false, form: true };
+      return;
+    }
     const harvest = this.activityMode === 'harvest';
     const combat = this.activityMode === 'combat' && this.drc?.inCombat;
     if (!harvest && !combat) return;
@@ -1475,6 +1507,12 @@ export class App {
 
   _endRHold() {
     if (!this._rHold?.armed && !this._rHold?.open) return;
+    if (this._rHold.form) {
+      this._useWorgeFormSkill('r');
+      this.modeRadial?.hide?.();
+      this._rHold = { armed: false, t: 0, open: false };
+      return;
+    }
     const harvest = this._rHold.harvest || this.activityMode === 'harvest';
     if (this._rHold.open) {
       if (harvest) {
@@ -1484,7 +1522,9 @@ export class App {
         /* Main Panel skills stays open */
       } else {
         const aim = this.modeRadial?.getAimId?.();
-        if (aim === 'f' || aim === 'class_f') this.drc.useClassAbility?.('f');
+        if (String(aim || '').startsWith('form:')) {
+          void this._enterWorgeForm(String(aim).slice(5));
+        } else if (aim === 'f' || aim === 'class_f') this.drc.useClassAbility?.('f');
         else if (aim != null && aim !== '') this.drc.useClassAbility?.(Number(aim));
       }
       this.modeRadial?.hide?.();
@@ -1685,7 +1725,63 @@ export class App {
         glyph: String(i + 1)
       });
     });
+    if (isWorgeClass(classId)) {
+      for (const id of Object.keys(CLAW_FORM_BINDS)) {
+        wedges.push({ id: `form:${id}`, label: id, glyph: id.slice(0, 2) });
+      }
+    }
     return wedges;
+  }
+
+  async _enterWorgeForm(formId) {
+    if (!this.worgeForm) return;
+    const worge = isWorgeClass(resolvePlayerClass(this.character));
+    const r = await this.worgeForm.enter(formId, { worgeExtras: worge });
+    if (!r.ok) {
+      this.hud.showToast(r.reason || 'Form failed');
+      return;
+    }
+    this.hud.showToast(
+      worge
+        ? `${formId} form · 1–3 skills · 4 swap back · F/R/MMB extras`
+        : `${formId} form · 1–3 skills · 4 swap back (claw)`
+    );
+    this.hud.refreshSkillLabels?.();
+  }
+
+  async _exitWorgeForm() {
+    this.worgeForm?.exit();
+    this.hud.showToast('Humanoid');
+    this.hud.refreshSkillLabels?.();
+  }
+
+  _useWorgeFormSkill(slot) {
+    const skills = this.worgeForm?.skills();
+    if (!skills) return;
+    if (slot === FORM_SWAP_SLOT || slot === 'back') {
+      void this._exitWorgeForm();
+      return;
+    }
+    this.worgeForm.playAttack();
+    if (slot === 'f' || slot === 'r') {
+      if (slot === 'r' && skills.r === 'charge') {
+        this.drc._startMobilityImpulse?.('forward', 7, 0.4);
+      }
+      if (skills.f === 'stun' && slot === 'f') {
+        this.drc.useMmbHeavy?.({
+          hotkeyCtx: 'combat',
+          classId: 'worge',
+          formId: this.worgeForm.formId,
+          formPlay: this.worgeForm
+        });
+        return;
+      }
+    }
+    if (typeof slot === 'number') {
+      this.hud.showToast(`Form · ${skills.slots[slot] || slot}`);
+    } else {
+      this.hud.showToast(`Form · ${skills[slot] || slot}`);
+    }
   }
 
   async _useClassItem() {
@@ -2815,6 +2911,13 @@ export class App {
     // SSOT order: walk.update → character.update (mixer) → walk.applyRiderIk
     if (this.session.mode === INTERACTION_MODE.WALK || this.walk.active) this.walk.update(dt);
     if (this.horseMount?.active) this.horseMount.update(dt, this.input.keys);
+    this.worgeForm?.update?.(
+      dt,
+      this.input.keys.has('KeyW') ||
+        this.input.keys.has('KeyA') ||
+        this.input.keys.has('KeyS') ||
+        this.input.keys.has('KeyD')
+    );
     this.drc.update(dt, this.input.keys);
     this.character.update(dt);
     if (this.session.mode === INTERACTION_MODE.WALK || this.walk.active) {

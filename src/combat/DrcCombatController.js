@@ -21,6 +21,9 @@ import { getSkillBinding } from './skillBindings.js';
 import { bindFromCatalogSkill, staffBindFor } from './staffWeaponSkillsBind.js';
 import { vfxIdForSkill, animRoleForSkill } from '../api/weaponSkillsCatalog.js';
 import { dodgeDistanceM, kiteDistanceM, mmToM, mToMm } from './motionMath.js';
+import { pickMmbMove, firstBoundMmbRole } from './mmbHeavy.js';
+import { applyTyphoonCone } from './worgeForm.js';
+import { applyKnockback } from './hitReaction.js';
 import {
   skillCastCosts,
   pathCastCosts,
@@ -1152,6 +1155,16 @@ export class DrcCombatController {
     this.vfx?.updateDodgeTrail?.(dt, false, null, null);
     this.vfx?.update?.(dt);
     this._updateAirDiveTilt(dt);
+    if (this._mmbFollowAt && this.elapsed >= this._mmbFollowAt) {
+      const r = this._mmbFollowRole;
+      this._mmbFollowAt = 0;
+      this._mmbFollowRole = null;
+      if (r) {
+        this.character.playLibraryClip?.(r) ||
+          this.character.requestOneShot?.(String(r).split(':').pop()) ||
+          this.character.playWeaponAttack?.();
+      }
+    }
 
     // ── WASD locomotion (combat SaberGame) ───────────────────────────
     // Always camera-relative unless aim.tankWhenUnfocused.
@@ -2857,6 +2870,131 @@ export class DrcCombatController {
     return this.character.playMeleeAttack?.({}) || this.useWeaponSkillF();
   }
 
+  /**
+   * Middle mouse — library-picked heavy / kite hop / caster melee / harvest stomp.
+   * @param {{ hotkeyCtx?: string, classId?: string }} [opts]
+   */
+  useMmbHeavy(opts = {}) {
+    if (this._cast) return false;
+    const pack = this.character?.animPackId || '';
+    const sel = this.combatFocus?.selectedTarget;
+    const feet = this.character?.position || this.character?.root?.position;
+    let distM = 3;
+    if (feet && sel?.point) distM = feet.distanceTo(sel.point);
+    const pick = pickMmbMove({
+      hotkeyCtx: opts.hotkeyCtx || 'combat',
+      pack,
+      classId: opts.classId || resolvePlayerClass(this.character),
+      formId: opts.formId || this.character?.userData?.worgeFormId,
+      airborne: this._isJumpAttackWindow(),
+      comboStep: this.character?._meleeComboStep ?? -1,
+      lastRole: this.character?._lastMmbRole || this.character?.animState,
+      distM
+    });
+    if (pick.kind === 'none') return false;
+
+    const stam = pick.kind === 'kiteHopShot' ? 8 : 14;
+    return this._utilityAction('mmb_heavy', 0.85, stam, () => {
+      const from =
+        this.character?.position?.clone?.() ||
+        this.character?.root?.position?.clone?.() ||
+        new Vector3();
+      const aim = this._softLockAimPoint(this.aim?.hitPoint) || from.clone().add(new Vector3(0, 0, 3));
+      const forward = aim.clone().sub(from);
+      forward.y = 0;
+      if (forward.lengthSq() < 1e-6) {
+        forward.set(Math.sin(this.character?.facing || 0), 0, Math.cos(this.character?.facing || 0));
+      } else forward.normalize();
+      const pose = { origin: from, forward, aim };
+
+      if (pick.dodge) this.dodge(pick.dodge);
+
+      const role = firstBoundMmbRole(this.character, pick.roles);
+      let played = false;
+      if (pick.kind === 'kiteHopShot') {
+        this._mmbFollowAt = this.elapsed + 0.16;
+        this._mmbFollowRole = role || 'attack';
+        played = true;
+      } else if (role) {
+        played =
+          this.character.playLibraryClip?.(role) ||
+          this.character.requestOneShot?.(role.split(':').pop()) ||
+          this.character.playUnarmedKick?.();
+        this.character._lastMmbRole = role.split(':').pop();
+      } else {
+        played = !!(
+          this.character.playUnarmedKick?.() ||
+          this.character.playMeleeFinisher?.({ airborne: this._isJumpAttackWindow() }) ||
+          this.character.playWeaponAttack?.()
+        );
+      }
+
+      if (pick.dash && this._startMobilityImpulse) {
+        this._startMobilityImpulse('forward', pick.dashM || 3.2, 0.32);
+      }
+      opts.formPlay?.playAttack?.();
+
+      if (pick.typhoon) {
+        const n = applyTyphoonCone(
+          this._collectHitTargets(aim),
+          from,
+          forward,
+          pick.typhoon
+        );
+        this.vfx?.deploy?.('earth_surge', { origin: from, forward, aim, intensity: 1.1 });
+        this.onToast(`MMB · Typhoon · 7m out · 2m up · ${n} shoved`);
+        return;
+      }
+
+      if (!pick.noDamage) {
+        const skill = {
+          style: 'melee',
+          animRole: role || 'finisher',
+          label: pick.label,
+          damage: (this.derivedStats?.damage || 12) * (pick.kind === 'spinFinisher' ? 1.45 : 1.25)
+        };
+        this._fireMeleeResidual(skill, pose, {
+          hit: { kind: pick.kind, step: this.character?._meleeComboStep ?? 0 },
+          rangeOverride: pick.kind === 'lunge' ? 5.5 : 3.6
+        });
+      } else {
+        this.vfx?.deploy?.('earth_surge', {
+          origin: from,
+          forward,
+          aim,
+          intensity: 0.7
+        });
+      }
+
+      const kb = pick.knockbackMm || 0;
+      const list = this._collectHitTargets(aim) || [];
+      if (kb > 0) {
+        const push = mmToM(kb) * 0.45;
+        for (const t of list) {
+          if (!t?.mesh || t.kind === 'aim' || t.kind === 'ally') continue;
+          t.mesh.position.x += forward.x * push;
+          t.mesh.position.z += forward.z * push;
+        }
+      }
+      if (pick.stun || pick.root) {
+        const until = this.elapsed + (pick.stun ? 1.6 : 1.8);
+        for (const t of list) {
+          if (!t?.mesh || t.kind === 'aim') continue;
+          t.mesh.userData = t.mesh.userData || {};
+          if (pick.stun) {
+            t.mesh.userData.stunnedUntil = until;
+            t.mesh.userData.statusLocked = true;
+          }
+          if (pick.root) {
+            t.mesh.userData.rootedUntil = until;
+            t.mesh.userData.statusLocked = true;
+          }
+        }
+      }
+      this.onToast(`MMB · ${pick.label}${role ? ` · ${role}` : ''}${played ? '' : ' (clip fallback)'}`);
+    });
+  }
+
   /** Air or just-landed window for greatsword jump attack. */
   _isJumpAttackWindow() {
     if (this._airborne || !this._grounded) return true;
@@ -3335,8 +3473,7 @@ export class DrcCombatController {
           this.onToast('Block (E)');
         });
       case 'heavy':
-        // Heavy = same weapon skill path for now (class ability later)
-        return this.useWeaponSkillF();
+        return this.useMmbHeavy();
       case 'kick':
         return this._utilityAction('kick', 0.9, 6, () => {
           this.character.playUnarmedKick?.() || this.character.playWeaponAttack?.();

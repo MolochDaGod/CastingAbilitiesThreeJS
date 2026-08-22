@@ -56,6 +56,7 @@ export class InputManager extends EventEmitter {
 
   _bind() {
     this.dom.addEventListener('pointerdown', this._onPointerDown);
+    this.dom.addEventListener('auxclick', this._onAuxClick);
     window.addEventListener('pointermove', this._onPointerMove);
     window.addEventListener('pointerup', this._onPointerUp);
     window.addEventListener('pointercancel', this._onPointerUp);
@@ -73,10 +74,20 @@ export class InputManager extends EventEmitter {
     );
   }
 
+  _onAuxClick = (event) => {
+    if (event.button === 1) event.preventDefault();
+  };
+
   _onPointerDown = (event) => {
     if (!this.enabled) return;
-    if (event.button !== 0) return;
     if (event.target !== this.dom) return;
+    if (event.button === 1) {
+      event.preventDefault();
+      this._updatePointer(event);
+      this.emit('mmb', this.pointer.clone());
+      return;
+    }
+    if (event.button !== 0) return;
 
     this._updatePointer(event);
     const mode = this.getLmbMode?.() || 'select';
@@ -308,6 +319,7 @@ export class InputManager extends EventEmitter {
 
   dispose() {
     this.dom.removeEventListener('pointerdown', this._onPointerDown);
+    this.dom.removeEventListener('auxclick', this._onAuxClick);
     window.removeEventListener('pointermove', this._onPointerMove);
     window.removeEventListener('pointerup', this._onPointerUp);
     window.removeEventListener('pointercancel', this._onPointerUp);

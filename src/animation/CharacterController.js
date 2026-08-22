@@ -703,6 +703,16 @@ export class CharacterController {
     return roleBlurb(roleName);
   }
 
+  /** Unarmed kick / hurricane / uppercut — library roles only. */
+  playUnarmedKick() {
+    return (
+      this.playLibraryClip('kick') ||
+      this.playLibraryClip('hurricane') ||
+      this.playLibraryClip('uppercut') ||
+      this.requestOneShot('kick')
+    );
+  }
+
   /** Play a library clip by role name (one-shot for attack/block/jump). */
   playLibraryClip(role) {
     if (!role) return false;
