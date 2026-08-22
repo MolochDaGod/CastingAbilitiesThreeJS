@@ -1,0 +1,249 @@
+/**
+ * Production combat chrome (CraftPix MMO) — one #hud layer.
+ * Player/target plates stay in bars-hud.css. This file: XP, minimap, chat, quests, card.
+ */
+
+/* XP — HYDRA bottom center */
+.hud-xp {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  transform: translateX(-50%);
+  width: min(280px, 40vw);
+  height: 14px;
+  z-index: 22;
+  pointer-events: none;
+}
+.hud-xp__track {
+  position: absolute;
+  inset: 0;
+  background-image: var(--cp-xp-bg);
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+}
+.hud__modes {
+  display: none;
+}
+
+.hud-xp__fill {
+  position: absolute;
+  left: 2%;
+  top: 18%;
+  bottom: 22%;
+  width: var(--xp, 12%);
+  background-image: var(--cp-xp-fill);
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+}
+.hud-xp__lab {
+  position: absolute;
+  left: 50%;
+  top: -14px;
+  transform: translateX(-50%);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: #d4c48a;
+  text-shadow: 0 1px 2px #000;
+}
+
+/* Minimap — HYDRA TR */
+.hud-minimap {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 168px;
+  height: 168px;
+  z-index: 21;
+  pointer-events: none;
+}
+.hud-minimap__shadow {
+  position: absolute;
+  inset: -8px;
+  background-image: var(--cp-minimap-shadow);
+  background-size: 100% 100%;
+  opacity: 0.85;
+}
+.hud-minimap__frame {
+  position: absolute;
+  inset: 0;
+  background-image: var(--cp-minimap-border);
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+}
+.hud-minimap__inner {
+  position: absolute;
+  inset: 14px;
+  background: radial-gradient(circle at 40% 40%, #2a3a28 0%, #10180f 70%);
+  overflow: hidden;
+}
+.hud-minimap__pip {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  background: #7dff8a;
+  box-shadow: 0 0 6px #5cff70;
+  transform: rotate(45deg);
+}
+.hud-minimap__lab {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 16px;
+  text-align: center;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #d8e8c8;
+  text-shadow: 0 1px 2px #000;
+}
+
+.hud-frame--target {
+  top: 188px;
+}
+
+/* Quest tracker under minimap */
+.hud-quests {
+  position: absolute;
+  top: 280px;
+  right: 12px;
+  width: 200px;
+  z-index: 21;
+  pointer-events: none;
+  padding: 10px 12px 12px;
+  background-image: var(--cp-quest-shadow);
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+}
+.hud-quests h3 {
+  margin: 0 0 6px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #e8d9a0;
+}
+.hud-quests li {
+  list-style: none;
+  margin: 0 0 4px;
+  padding-left: 18px;
+  font-size: 11px;
+  color: #dce8d4;
+  background: left 1px center / 14px 14px no-repeat;
+  background-image: url("/ui/craftpix/quest/check.png");
+}
+.hud-quests {
+  margin: 0;
+  padding-left: 0;
+}
+.hud-quests ul {
+  margin: 0;
+  padding: 0;
+}
+
+/* Chat combat log — BL */
+.hud-chat {
+  position: absolute;
+  left: 16px;
+  bottom: 26px;
+  width: min(280px, 36vw);
+  z-index: 22;
+  pointer-events: auto;
+}
+.hud-chat__log {
+  height: 110px;
+  overflow: hidden;
+  padding: 10px 12px 8px;
+  background-image: var(--cp-chat-bg);
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+  font-size: 11px;
+  color: #d4deea;
+  line-height: 1.45;
+}
+.hud-chat__log p {
+  margin: 0 0 2px;
+  text-shadow: 0 1px 2px #000;
+}
+.hud-chat__in {
+  width: 100%;
+  height: 28px;
+  margin-top: 2px;
+  border: 0;
+  padding: 0 10px;
+  background: transparent;
+  background-image: var(--cp-chat-input);
+  background-size: 100% 100%;
+  color: #eef4ff;
+  font: 12px/28px var(--ui-font, system-ui);
+}
+.hud-chat.is-collapsed .hud-chat__log {
+  height: 36px;
+}
+
+/* Menu pip */
+.hud-menu-btn {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 23;
+  min-width: 72px;
+  height: 28px;
+  pointer-events: auto;
+  border: 0;
+  background: transparent;
+  background-image: var(--cp-btn-bg);
+  background-size: 100% 100%;
+  color: #f0e8c8;
+  font: 600 10px/1 var(--ui-font, system-ui);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  image-rendering: pixelated;
+}
+
+/* Character card popover */
+.hud-card {
+  position: absolute;
+  left: 18px;
+  top: 148px;
+  width: 240px;
+  z-index: 24;
+  pointer-events: auto;
+  padding: 12px 14px 14px;
+  background-image: var(--cp-card-bg);
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+  color: #e8eef8;
+}
+.hud-card.is-hidden {
+  display: none;
+}
+.hud-card h4 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+.hud-card dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 2px 8px;
+  font-size: 11px;
+}
+.hud-card dt {
+  color: rgba(200, 214, 230, 0.55);
+}
+.hud-card dd {
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .hud-minimap,
+  .hud-quests,
+  .hud-chat {
+    display: none;
+  }
+}

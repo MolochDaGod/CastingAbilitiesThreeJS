@@ -1,0 +1,125 @@
+/**
+ * Grudge Studio / Warlords production chrome.
+ * Tokens from ObjectStore brand.html + main-panel fonts SSOT.
+ * Do not use Google Fonts. Do not use emoji as chrome.
+ */
+@font-face {
+  font-family: "Cinzel Decorative";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url("https://cdn.jsdelivr.net/fontsource/fonts/cinzel-decorative@5.2.5/latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Cinzel Decorative";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url("https://cdn.jsdelivr.net/fontsource/fonts/cinzel-decorative@5.2.5/latin-700-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Cinzel";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url("https://cdn.jsdelivr.net/fontsource/fonts/cinzel@5.2.5/latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Cinzel";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url("https://cdn.jsdelivr.net/fontsource/fonts/cinzel@5.2.5/latin-600-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Cinzel";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url("https://cdn.jsdelivr.net/fontsource/fonts/cinzel@5.2.5/latin-700-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Crimson Text";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url("https://cdn.jsdelivr.net/fontsource/fonts/crimson-text@5.2.5/latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Crimson Text";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url("https://cdn.jsdelivr.net/fontsource/fonts/crimson-text@5.2.5/latin-600-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url("https://cdn.jsdelivr.net/fontsource/fonts/jetbrains-mono@5.2.5/latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url("https://cdn.jsdelivr.net/fontsource/fonts/jetbrains-mono@5.2.5/latin-600-normal.woff2") format("woff2");
+}
+
+:root {
+  --bg: #0a0a0f;
+  --bg-panel: #12121a;
+  --bg-card: #1a1a25;
+  --gold: #d4af37;
+  --gold-light: #f4d03f;
+  --gold-dim: #8b7355;
+  --gold-border: rgba(212, 175, 55, 0.32);
+  --text: #e8dfc8;
+  --text-dim: #9a9078;
+  --border: #2a2a3a;
+  --red: #cc3333;
+  --font-brand: "Cinzel Decorative", "Cinzel", serif;
+  --font-heading: "Cinzel", serif;
+  --font-body: "Crimson Text", "Cinzel", serif;
+  --font-ui: "Cinzel", serif;
+  --font-code: "JetBrains Mono", ui-monospace, Consolas, monospace;
+
+  --ui-bg: rgba(10, 10, 15, 0.72);
+  --ui-bg-solid: rgba(18, 18, 26, 0.94);
+  --ui-border: var(--gold-border);
+  --ui-text: var(--text);
+  --ui-text-dim: var(--text-dim);
+  --ui-accent: var(--gold);
+  --ui-radius: 10px;
+  --ui-shadow: 0 16px 48px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(212, 175, 55, 0.12);
+  --ui-font: var(--font-body);
+}
+
+.brand-mark {
+  display: block;
+  width: 72px;
+  height: 72px;
+  margin: 0 auto;
+  background: url("https://assets.grudge-studio.com/branding/favicons/grudge-icon-192x192.png")
+    center / contain no-repeat;
+  filter: drop-shadow(0 0 18px rgba(212, 175, 55, 0.35));
+}
+
+.brand-mark--sm {
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  flex: none;
+}
+
+.ui-mark {
+  display: inline-block;
+  min-width: 1.1em;
+  text-align: center;
+  font-family: var(--font-heading);
+  font-size: 0.72em;
+  letter-spacing: 0.08em;
+  color: var(--gold);
+  font-weight: 700;
+}
