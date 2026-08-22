@@ -20,6 +20,7 @@ import { PRODUCT_TO_LINEAR, CastShape, castShapeOf } from '../skillshot/LinearSk
 import { CASTING_ELEMENT_PHASE_VFX, normalizeElement } from './elementWeaponSkills.js';
 import { inferElementAttackKind } from '../vfx/elementAttackVfx.js';
 import { isStaffNormalAttack } from '../vfx/staffOrbVfx.js';
+import { variantHintForElement } from '../vfx/effectVariants.js';
 
 /**
  * Product element → linear skillshot id (from LinearAbilityCasting learning).
@@ -75,8 +76,15 @@ export function planElementalLinearCast(skill, ctx = {}) {
 
   const layers = /** @type {CastLayer[]} */ ([]);
 
-  // Buffs never fire travel systems
-  if (skill?.isFocus || skill?.isWard || skill?.skillKind === 'buff') {
+  // Buffs / heals / wards never fire travel systems
+  if (
+    skill?.isFocus ||
+    skill?.isWard ||
+    skill?.skillKind === 'buff' ||
+    skill?.style === 'heal' ||
+    skill?.style === 'buff' ||
+    skill?.style === 'debuff'
+  ) {
     return {
       element: el,
       linearId: null,
@@ -138,29 +146,37 @@ export function planElementalLinearCast(skill, ctx = {}) {
     layers.push('water_bubbles');
   }
 
-  // Drawn path stroke → path Ability is primary (staffCast learning)
+  // Drawn path stroke → AbilityManager only (never also orbs + linear)
   if (ctx.pathDrawn) {
     layers.push('path_ability');
-    if (isStaffNormalAttack(skill) || pathMode === 'stream') layers.push('mesh_projectile');
     return pack(el, linearId, linearShape, layers, {
       useLinear: false,
       usePathAbility: true,
-      useMeshDelivery: true,
+      useMeshDelivery: false,
       variantHint: null,
       intensity,
       meshKind,
-      learn: 'Path stroke → Fire/Water/Earth/Wind Ability + mesh travel'
+      learn: 'Path stroke → one AbilityManager ribbon (no stacked orbs/linear)'
     });
   }
 
+  const travelMode = String(skill?.travelMode || '').toLowerCase();
+  const wantBend =
+    travelMode === 'bend' ||
+    (pathMode === 'stream' && /mist|vine|entangle|curve|bend|jade/.test(blob));
+
   // Focus combat / digit skills: linear skillshot for stream/line elements
   const wantLinear =
-    ctx.focusCombat !== false &&
-    (pathMode === 'stream' ||
-      skill?.slotType === 'primary' ||
-      skill?.isWeaponPrimary ||
-      isStaffNormalAttack(skill) ||
-      /bolt|spark|ping|practice|beam|chain|tempest|inferno|meteor/.test(blob));
+    !wantBend &&
+    travelMode !== 'melee' &&
+    travelMode !== 'bullet' &&
+    (travelMode === 'linear' ||
+      (ctx.focusCombat !== false &&
+        (pathMode === 'stream' ||
+          skill?.slotType === 'primary' ||
+          skill?.isWeaponPrimary ||
+          isStaffNormalAttack(skill) ||
+          /bolt|spark|ping|practice|beam|chain|tempest|inferno|meteor|smite/.test(blob))));
 
   // Zone elements (snare/glacier) for aoe pathMode
   const wantZone =
@@ -172,60 +188,63 @@ export function planElementalLinearCast(skill, ctx = {}) {
   } else if (wantLinear && linearId && linearShape === 'line') {
     layers.push('linear_line');
   } else if (wantLinear && linearId && linearShape === 'zone' && pathMode === 'stream') {
-    // nature primary: rocks mesh + optional light glacier
-    layers.push('mesh_projectile');
+    layers.push('linear_zone');
   }
 
-  // Always keep path Ability beauty for elemental presentation (volley/flood/…)
-  // except pure mesh-only arrows
-  if (pathMode === 'wall' || pathMode === 'spikes' || pathMode === 'aoe') {
-    layers.push('path_ability');
-  } else if (!layers.includes('linear_line') && !layers.includes('linear_zone')) {
-    layers.push('path_ability');
-  } else {
-    // Linear primary + soft path curve for continuity with staff presentation
+  // Wall / spikes / aoe / class bend → path Ability (spline travel)
+  if (wantBend || pathMode === 'wall' || pathMode === 'spikes' || pathMode === 'aoe') {
     layers.push('path_ability');
   }
 
-  // Staff normal / stream → mesh orbs (or rocks/bubbles already queued)
-  if (
-    !layers.includes('earth_rocks') &&
-    !layers.includes('freeze_nova') &&
-    (isStaffNormalAttack(skill) || pathMode === 'stream' || layers.includes('water_bubbles'))
-  ) {
-    layers.push('mesh_projectile');
+  // Bubbles / rocks / freeze / arrows only when inferred — never colored staff orbs
+  if (layers.includes('water_bubbles')) {
+    /* keep */
   }
 
-  // Dedup layers
   const uniq = [...new Set(layers)];
-  const useLinear = uniq.some((l) => l === 'linear_line' || l === 'linear_zone');
+  const usePathAbility = uniq.includes('path_ability');
+  const explicitMesh =
+    uniq.includes('water_bubbles') ||
+    uniq.includes('earth_rocks') ||
+    uniq.includes('freeze_nova') ||
+    uniq.includes('arrow_path') ||
+    uniq.includes('arrow_loft');
+  const useLinear =
+    !usePathAbility &&
+    !explicitMesh &&
+    uniq.some((l) => l === 'linear_line' || l === 'linear_zone');
+  const useMeshDelivery = !usePathAbility && !useLinear && explicitMesh;
 
+  const travel = useLinear ? 'linear' : useMeshDelivery ? 'mesh' : usePathAbility ? 'path' : 'none';
+  const aoe = pathMode === 'aoe' || pathMode === 'spikes' || !!skill?.isAoE;
   return pack(el, linearId, linearShape, uniq, {
     useLinear,
-    usePathAbility: uniq.includes('path_ability'),
-    useMeshDelivery:
-      uniq.includes('mesh_projectile') ||
-      uniq.includes('water_bubbles') ||
-      uniq.includes('earth_rocks') ||
-      uniq.includes('freeze_nova'),
-    variantHint: variantForElement(el, pathMode),
+    usePathAbility,
+    useMeshDelivery,
+    variantHint:
+      skill?.variantHint ||
+      variantHintForElement(el, { aoe, bend: usePathAbility && !useLinear }),
     intensity,
     meshKind,
-    learn: `Element ${el} → linear ${linearId || '—'} (${linearShape || 'none'}) + path Ability + mesh; phase VFX ${phase.cast}/${phase.travel}/${phase.impact}`
+    learn: `Element ${el} → exclusive travel ${travel} (linear ${linearId || '—'})`
   });
 }
 
 /**
- * @param {string} el
- * @param {string} pathMode
+ * Apex of the one-shot clip — travel/impact wait for this, not click.
+ * Physical ~0.18s (residual SSOT); spells ~45% of castDuration.
+ * @param {object} skill
+ * @param {number} [fallbackCast]
  */
-function variantForElement(el, pathMode) {
-  if (el === 'storm') return pathMode === 'aoe' ? 'arc_storm' : 'arc_bolt';
-  if (el === 'fire') return pathMode === 'aoe' || pathMode === 'stream' ? null : null;
-  if (el === 'ice') return pathMode === 'aoe' ? 'aoe_frost' : null;
-  if (el === 'arcane') return pathMode === 'aoe' ? 'aoe_snare' : null;
-  if (el === 'nature') return pathMode === 'aoe' ? 'aoe_glacier' : null;
-  return null;
+export function hitFrameDelaySec(skill, fallbackCast = 0.4) {
+  const authored = Number(skill?.hitFrameDelay);
+  if (Number.isFinite(authored) && authored >= 0) return authored;
+  const physical =
+    skill?.style === 'melee' || skill?.style === 'physical' || skill?.style === 'ranged';
+  if (physical) return 0.18;
+  const d = Number(skill?.castDuration ?? skill?.castTime ?? fallbackCast);
+  if (!Number.isFinite(d) || d <= 0) return 0.28;
+  return Math.max(0.12, Math.min(0.55, d * 0.45));
 }
 
 function pack(el, linearId, linearShape, layers, rest) {

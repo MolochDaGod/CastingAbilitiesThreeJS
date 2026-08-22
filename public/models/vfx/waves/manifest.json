@@ -1,0 +1,59 @@
+{
+  "source": "D:/Games/Models/waveanimation.glb",
+  "note": "Five isolated splash meshes. Never load the fused pack. Skip Icosphere. Shader fire = SlashWaveMaterial; shader lava = LavaWaveMaterial (three.js lava dual-UV on getFireSplineTexture). Bind to existing VfxDirector ids — not a second VFX engine.",
+  "skip": ["Icosphere"],
+  "cdnBase": "https://assets.grudge-studio.com",
+  "r2Prefix": "models/vfx/waves/",
+  "waves": [
+    {
+      "id": "fire-wave-attack",
+      "sourceMesh": "splash",
+      "path": "models/vfx/waves/fire-wave-attack.glb",
+      "role": "attack",
+      "shader": "fire",
+      "sizeM": 2.2,
+      "use": ["getsuga_slash"],
+      "prefab": "t0-sword residual"
+    },
+    {
+      "id": "lava-wave-aoe",
+      "sourceMesh": "water",
+      "path": "models/vfx/waves/lava-wave-aoe.glb",
+      "role": "aoe",
+      "shader": "lava",
+      "sizeM": 3.2,
+      "use": ["inferno", "earth_surge", "hammer_shockwave"],
+      "prefab": "t0-hammer / t0-wand AOE"
+    },
+    {
+      "id": "fire-wave-aoe",
+      "sourceMesh": "splash2",
+      "path": "models/vfx/waves/fire-wave-aoe.glb",
+      "role": "aoe",
+      "shader": "fire",
+      "sizeM": 2.4,
+      "use": ["inferno", "frost_wave"],
+      "prefab": "t0-wand inferno / ice nova"
+    },
+    {
+      "id": "fire-wave-impact",
+      "sourceMesh": "splash3",
+      "path": "models/vfx/waves/fire-wave-impact.glb",
+      "role": "impact",
+      "shader": "fire",
+      "sizeM": 1.6,
+      "use": ["inferno"],
+      "prefab": "staff / projectile explode"
+    },
+    {
+      "id": "fire-wave-drop",
+      "sourceMesh": "Drop",
+      "path": "models/vfx/waves/fire-wave-drop.glb",
+      "role": "impact",
+      "shader": "fire",
+      "sizeM": 0.8,
+      "use": ["inferno"],
+      "prefab": "impact droplet"
+    }
+  ]
+}

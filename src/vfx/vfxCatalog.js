@@ -133,20 +133,66 @@ export function vfxCatalogById(id) {
   return BY_ID.get(id) || null;
 }
 
+/** Primitive each catalog id uses — PathTrail / residual / VfxDirector / Ability. */
+const PRIMITIVE_FOR_TAGS = {
+  burst: 'impact',
+  impact: 'impact',
+  beam: 'travel',
+  wave: 'impact',
+  aura: 'aura',
+  projectile: 'travel',
+  bolt: 'travel',
+  slash: 'residual',
+  hand: 'cast',
+  swirl: 'cast',
+  channel: 'cast'
+};
+
+/**
+ * Review: every VFX_CATALOG id → primitive + existing runtime (no second engine).
+ */
+export function reviewWiredEffects() {
+  return VFX_CATALOG.map((e) => {
+    const tag = (e.tags || []).find((t) => PRIMITIVE_FOR_TAGS[t]);
+    const primitive = PRIMITIVE_FOR_TAGS[tag] || 'impact';
+    return {
+      id: e.id,
+      name: e.name,
+      primitive,
+      runtime:
+        primitive === 'residual'
+          ? 'WeaponTipTrail + getsuga'
+          : primitive === 'travel'
+            ? 'SkillProjectileSystem + PathTrail tail'
+            : primitive === 'cast'
+              ? 'VfxDirector attach'
+              : primitive === 'aura'
+                ? 'VfxDirector ring'
+                : 'VfxDirector deploy',
+      sandbox: VFX_SANDBOX_SHORTCUTS.find((s) => s.effectId === e.id)?.key || null
+    };
+  });
+}
+
 /** Map elemental ability → primary beauty effectId for layered deploy. */
 export const ELEMENT_EFFECT_MAP = Object.freeze({
-  fire: { cast: 'fire_hand', impact: 'inferno', path: 'fireball' },
+  fire: { cast: 'fire_hand', impact: 'inferno', path: 'fireball', aura: 'fire_aura' },
   water: { cast: 'arcane_swirl', impact: 'frost_wave', path: 'moon_beam' },
+  ice: { cast: 'arcane_swirl', impact: 'frost_wave', path: 'moon_beam' },
   earth: { cast: 'earth_surge', impact: 'earth_surge', path: 'earth_surge' },
-  wind: { cast: 'arcane_swirl', impact: 'ice_lightning_burst', path: 'chain_lightning' }
+  nature: { cast: 'earth_surge', impact: 'earth_surge', path: 'earth_surge' },
+  wind: { cast: 'arcane_swirl', impact: 'ice_lightning_burst', path: 'lightning_bolt' },
+  storm: { cast: 'arcane_swirl', impact: 'ice_lightning_burst', path: 'chain_lightning' },
+  holy: { cast: 'moon_beam', impact: 'moon_beam', path: 'moon_beam' },
+  arcane: { cast: 'arcane_swirl', impact: 'arcane_swirl', path: 'chain_lightning' }
 });
 
 /** DRC skill id → layered sandbox effectIds */
 export const SKILL_VFX_BIND = Object.freeze({
-  drc_fire_bolt: { cast: 'fire_hand', travel: 'fireball', impact: 'inferno' },
+  drc_fire_bolt: { cast: 'fire_hand', travel: 'fireball', impact: 'inferno', aura: 'fire_aura' },
   drc_water_lash: { cast: 'arcane_swirl', travel: 'moon_beam', impact: 'frost_wave' },
   drc_earth_spike: { cast: 'earth_surge', travel: 'earth_surge', impact: 'earth_surge' },
-  drc_wind_tempest: { cast: 'arcane_swirl', travel: 'chain_lightning', impact: 'ice_lightning_burst' },
+  drc_wind_tempest: { cast: 'arcane_swirl', travel: 'lightning_bolt', impact: 'ice_lightning_burst' },
   drc_melee_strike: { cast: 'getsuga_slash', travel: null, impact: 'getsuga_slash' },
   // Arcane tree (optional)
   arcane_bolt: { cast: 'arcane_swirl', travel: 'chain_lightning', impact: 'arcane_swirl' },

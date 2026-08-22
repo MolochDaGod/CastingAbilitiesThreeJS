@@ -1,6 +1,7 @@
 import { CatmullRomCurve3, MathUtils, Vector3 } from 'three';
 import {
   getActiveSkills,
+  getActiveSkillTree,
   getMeleeStrikeSkill,
   setActiveSkillTree,
   setSkillKitPage,
@@ -31,6 +32,8 @@ import {
   staffProjectileMeshUrl
 } from '../vfx/staffOrbVfx.js';
 import { inferElementAttackKind } from '../vfx/elementAttackVfx.js';
+import { inferProjectileFamily } from '../vfx/projectileSaves.js';
+import { forEachVolleyShot, applyYawToForward, compileProjectileLearn } from '../vfx/projectileLearn.js';
 import {
   isPistolBulletSkill,
   pistolBulletCount,
@@ -40,6 +43,7 @@ import {
   FLINTLOCK_FIRE,
   FLINTLOCK_RELOAD,
   PISTOL_SOFT_LOCK,
+  PISTOL_HAND_IK,
   pistolHitFrameSec
 } from '../config/pistolAnimSsot.js';
 import {
@@ -58,7 +62,8 @@ import {
 } from './weaponChargeSystem.js';
 import {
   planElementalLinearCast,
-  fireLinearFromPlan
+  fireLinearFromPlan,
+  hitFrameDelaySec
 } from './elementalLinearCast.js';
 import { SkillStatusSystem } from './skillStatusSystem.js';
 import { WeaponTipTrailSystem } from '../vfx/weaponTipTrail.js';
@@ -66,6 +71,13 @@ import { pointHitsWeaponVolume } from '../character/weaponMeshCollider.js';
 import { getBackWaterBuffs } from '../config/backSlotMobilitySsot.js';
 import { WORLD } from '../config/worldScale.js';
 import { pickMoveOctant, RIFLE_HAND_IK } from '../config/rifleAnimSsot.js';
+import {
+  classifyBendingPattern,
+  resolveSkillSpline,
+  shockwaveElementOf
+} from '../vfx/bendingSkillAttach.js';
+import { getEffectVariant } from '../vfx/effectVariants.js';
+import { applyPullToward } from './hitReaction.js';
 import {
   resolvePlayerClass,
   compileClassSkill,
@@ -121,6 +133,7 @@ export class DrcCombatController {
         : null);
     /**
      * Weapon-tip trail + apex residual (blade ribbon · fire blur · physics past tip).
+     * Learned paint = LMB PathTrail (tail / slash / special).
      * @type {WeaponTipTrailSystem|null}
      */
     this.tipTrail =
@@ -135,6 +148,7 @@ export class DrcCombatController {
             getTargets: () => this._collectHitTargets()
           })
         : null);
+    if (this.projectiles && this.tipTrail) this.projectiles.tipTrail = this.tipTrail;
     /** @type {import('./CombatFocus.js').CombatFocus|null} */
     this.combatFocus = opts.combatFocus || null;
     /** @type {import('../core/SessionState.js').SessionState|null} */
@@ -225,10 +239,13 @@ export class DrcCombatController {
     /** @type {((state: object|null) => void)|null} */
     this.onCastBar = opts.onCastBar || null;
 
-    this.moveSpeed = settings.drc?.moveSpeed ?? 3.6;
-    this.sprintMul = settings.drc?.sprintMul ?? 1.65;
+    this.moveSpeed = settings.drc?.moveSpeed ?? 7.2;
+    this.sprintMul = settings.drc?.sprintMul ?? 1.9;
     this._moveX = 0;
     this._moveZ = 0;
+    /** Combat-style XZ momentum (accel 18 / 14) */
+    this._vx = 0;
+    this._vz = 0;
     this._sprinting = false;
     /** Toggle-sprint latch (when settings.controls.sprintToggle) */
     this._sprintLatched = false;
@@ -248,6 +265,9 @@ export class DrcCombatController {
     this._wasJumpDown = false;
     this._grounded = true;
     this._airborne = false;
+    /** After landing, LMB still uses jump-attack for a short window */
+    this._justLandedUntil = 0;
+    this._jumpDashUntil = 0;
     /** After backflip, reverse dash + hang window */
     this._backflipBoostT = 0;
     this._backflipDir = new Vector3();
@@ -294,7 +314,19 @@ export class DrcCombatController {
 
   /** Shark / fauna AI: true = do not aggro player */
   get sharkAggroImmune() {
-    return !!this.getBackWaterBuffs().sharkAggroImmune;
+    return !!this.getBackWaterBuffs().sharkAggroImmune || this.isStealthed;
+  }
+
+  /** Ranger invis — hidden from players, monsters, bosses. */
+  get isStealthed() {
+    return (
+      !!this.character?.userData?.hiddenFromSight ||
+      !!this.statuses?.hasStatus?.('player', 'stealth')
+    );
+  }
+
+  get hiddenFromSight() {
+    return this.isStealthed;
   }
 
   /** True while dodge MM + afterimage invuln window is active. */
@@ -333,6 +365,19 @@ export class DrcCombatController {
 
   setPhysics(physics) {
     this.physics = physics;
+    this.character.physics = physics;
+    if (typeof physics?.landHeightAt === 'function') {
+      this.setHeightSample(physics.landHeightAt);
+    }
+  }
+
+  /**
+   * Apply CCT pose as feet plant (Vector3 + Matrix4) — never root.y = pose.y.
+   * pose.y from PhysicsWorld.movePlayer is already capsule feet.
+   */
+  _applyFeetPose(pose) {
+    if (!pose || !this.character) return;
+    this.character.placeAt(pose.x, pose.y, pose.z);
   }
 
   /**
@@ -416,9 +461,9 @@ export class DrcCombatController {
    */
   _onProjectileHit(hit) {
     if (hit.endEvent === 'blink' && hit.point) {
-      const p = this.character.position;
-      p.x = hit.point.x;
-      p.z = hit.point.z;
+      const ly = this._landY(hit.point.x, hit.point.z);
+      this.character.placeAt(hit.point.x, ly, hit.point.z);
+      this.physics?.setPlayerFeet?.(hit.point.x, ly, hit.point.z);
       this.vfx?.deploy?.('arcane_swirl', { origin: hit.point.clone(), intensity: 1 });
       this.onToast?.(`Blink · ${hit.endEvent}`);
       return;
@@ -448,6 +493,10 @@ export class DrcCombatController {
     // P0 defensive early-out (also enforced in SkillStatusSystem.applyHit):
     // invuln / C-parry weapon cylinder vs incoming projectile contact on player.
     if (applyToPlayer && hit.point) {
+      if (this.isStealthed) {
+        this.onToast?.('Unseen');
+        return;
+      }
       if (this.isInvincible || this.invuln > 0) {
         this.onToast?.('Invincible');
         return;
@@ -469,9 +518,11 @@ export class DrcCombatController {
         statuses:
           skill.statuses?.length
             ? skill.statuses
-            : hit.freeze
-              ? [{ id: 'freeze', durationSec: hit.freezeSec || 2.5, magnitude: 1 }]
-              : undefined
+            : skill.procs?.length
+              ? skill.procs.filter((p) => (p.chance ?? 1) >= 1 || Math.random() < (p.chance ?? 1))
+              : hit.freeze
+                ? [{ id: 'freeze', durationSec: hit.freezeSec || 2.5, magnitude: 1 }]
+                : undefined
       },
       hit: {
         ...hit,
@@ -542,10 +593,12 @@ export class DrcCombatController {
     // Prefer snow-brawl launch origin from pose (chest + hand) when provided
     if (pose?.origin) _origin.copy(pose.origin);
     else this.character.getCastOrigin(_origin);
-    // Barrel muzzle for pistol; melee tip otherwise
-    if (typeof this.character.getWeaponTip === 'function') {
+    // Spine location (barrel / cast / tip) — skill.spinePoint when compiled
+    if (typeof this.character.getWeaponSpinePoint === 'function' && skill?.spinePoint) {
+      this.character.getWeaponSpinePoint(skill.spinePoint, _tip);
+    } else if (typeof this.character.getWeaponTip === 'function') {
       const tipOff =
-        this.character.animPackId === 'pistol'
+        this.character.animPackId === 'pistol' || this.character.animPackId === 'rifle'
           ? FLINTLOCK_FIRE.muzzleFallbackM
           : settings.residual?.tipOffset ?? 0.55;
       this.character.getWeaponTip(_tip, tipOff);
@@ -639,7 +692,9 @@ export class DrcCombatController {
           rockCount: atk.rockCount ?? 1,
           aimMode: atk.aimMode || 'linear',
           targets,
-          speed: phys.speed ?? 13
+          speed: phys.speed ?? 13,
+          trail: enriched.trail,
+          skill: enriched
         });
         enriched._deliveryLabel =
           atk.aimMode === 'aimed' ? 'Earth Rocks · aimed' : 'Earth Rocks · linear';
@@ -651,7 +706,9 @@ export class DrcCombatController {
           target: resolved.target,
           forward: resolved.forward,
           speed: phys.speed ?? 11,
-          targets
+          targets,
+          trail: enriched.trail,
+          skill: enriched
         });
         enriched._deliveryLabel = 'Water Bubbles';
         return enriched;
@@ -664,7 +721,9 @@ export class DrcCombatController {
           system: atk.kind === 'arrow_loft' ? 'loft' : 'path',
           endEvent: atk.endEvent,
           distanceM: dist,
-          targets
+          targets,
+          trail: enriched.trail,
+          skill: enriched
         });
         enriched._deliveryLabel = `Arrow · ${atk.endEvent || atk.kind}`;
         return enriched;
@@ -718,16 +777,17 @@ export class DrcCombatController {
       const el = enriched.element || enriched.abilityElement || 'arcane';
       // Flintlock / handgun — muzzle origin · hit-frame delay · burst · reload
       if (isPistolBulletSkill(enriched) && this.projectiles.spawnBullet) {
-        const count = pistolBulletCount(enriched);
-        const speed = enriched.projectileSpeed || PISTOL_BULLET.speed;
+        const volley = enriched.projectileLearn?.volley;
+        const count = Math.max(pistolBulletCount(enriched), volley?.count || 1);
+        const speed = enriched.projectileSpeed || enriched.projectileLearn?.bolt?.speed || PISTOL_BULLET.speed;
         const meshUrl = enriched.projectileMeshUrl || PISTOL_BULLET.meshUrl;
         // Charged Shot: slightly longer hit-frame (wind-up already played)
         const chargeMul = Number(enriched._chargeMul) || 1;
         const hitSec =
           pistolHitFrameSec(enriched) *
           (chargeMul > 1.01 ? (settings.drc?.weaponCharge?.hitFrameMul ?? 1.15) : 1);
-        const gapSec = FLINTLOCK_FIRE.burstGapSec;
-        const spreadRad = FLINTLOCK_FIRE.burstSpreadRad;
+        const gapSec = volley?.gapSec ?? FLINTLOCK_FIRE.burstGapSec;
+        const spreadRad = volley?.spreadRad ?? FLINTLOCK_FIRE.burstSpreadRad;
         const fireOne = (spreadYaw = 0) => {
           // Live barrel tip at fire frame (hand moved with gunplay)
           if (typeof this.character.getWeaponTip === 'function') {
@@ -762,7 +822,9 @@ export class DrcCombatController {
             forward: f,
             targets,
             speed,
-            meshUrl
+            meshUrl,
+            trail: enriched.trail,
+            skill: enriched
           });
         };
 
@@ -854,7 +916,9 @@ export class DrcCombatController {
           rockCount: 1,
           aimMode: 'linear',
           targets,
-          speed: phys.speed ?? 14
+          speed: phys.speed ?? 14,
+          trail: enriched.trail,
+          skill: enriched
         });
         return enriched;
       }
@@ -871,9 +935,25 @@ export class DrcCombatController {
           forward: resolved.forward,
           count: 4,
           speed: phys.speed ?? 12,
-          targets
+          targets,
+          trail: enriched.trail,
+          skill: enriched
         });
         enriched._deliveryLabel = 'Water Bubbles';
+        return enriched;
+      }
+      const saveFam = inferProjectileFamily(enriched);
+      if (saveFam && this.projectiles.spawnProjectileSave) {
+        void this.projectiles.spawnProjectileSave({
+          family: saveFam,
+          color: el,
+          origin: resolved.origin,
+          target: resolved.target,
+          forward: resolved.forward,
+          targets,
+          skill: enriched
+        });
+        enriched._deliveryLabel = `${saveFam} · ${el} trail`;
         return enriched;
       }
       const meshUrl =
@@ -884,34 +964,63 @@ export class DrcCombatController {
         enriched.useOrbProjectile || isStaffNormalAttack(enriched)
           ? STAFF_NORMAL_ATTACK.projectileDiameterM
           : phys.size;
-      void this.projectiles.spawn({
-        origin: resolved.origin,
-        target: resolved.target,
-        forward: resolved.forward,
-        element: el,
-        meshUrl,
-        speed: phys.speed ?? 16,
-        gravity: phys.gravity,
-        contactRadius: phys.contactRadius ?? 0.4,
-        life: phys.life,
-        force: phys.force,
-        knockbackMm: phys.knockbackMm,
-        knockupVy: phys.knockupVy,
-        aoe: phys.aoe,
-        size: orbSize,
-        targets,
-        explodeOnHit: phys.explodeOnHit !== false,
-        useOrbMaterials: true
-      });
+      const volley = enriched.projectileLearn?.volley;
+      const bolt = enriched.projectileLearn?.bolt;
+      const fireMesh = (fwd) => {
+        void this.projectiles.spawn({
+          origin: resolved.origin.clone(),
+          target: resolved.target.clone(),
+          forward: fwd,
+          element: el,
+          meshUrl,
+          speed: phys.speed ?? bolt?.speed ?? 16,
+          gravity: phys.gravity ?? bolt?.gravity,
+          contactRadius: phys.contactRadius ?? 0.4,
+          life: phys.life,
+          force: phys.force,
+          knockbackMm: phys.knockbackMm,
+          knockupVy: phys.knockupVy,
+          aoe: phys.aoe ?? bolt?.explosionSize,
+          size: orbSize,
+          targets,
+          explodeOnHit: phys.explodeOnHit !== false,
+          useOrbMaterials: true,
+          trail: enriched.trail,
+          skill: enriched
+        });
+      };
+      if (volley?.count > 1) {
+        forEachVolleyShot(volley, ({ yaw, delay }) => {
+          const f = resolved.forward.clone();
+          applyYawToForward(f, yaw);
+          if (delay <= 0) fireMesh(f);
+          else {
+            setTimeout(() => {
+              try {
+                fireMesh(f);
+              } catch {
+                /* disposed */
+              }
+            }, Math.round(delay * 1000));
+          }
+        });
+        enriched._deliveryLabel = `Bolt · volley ×${volley.count}`;
+      } else {
+        fireMesh(resolved.forward);
+      }
     }
     return enriched;
   }
 
   update(dt, keys) {
     this.elapsed += dt;
+    this.physics?.syncFollowMeshes?.();
     this.projectiles?.update?.(dt);
     this.tipTrail?.update?.(dt, this.elapsed);
     this.statuses?.update?.(this.elapsed);
+    if (this.character?.userData?.hiddenFromSight && !this.statuses?.hasStatus?.('player', 'stealth')) {
+      this._breakStealth(null);
+    }
     this.flintlock?.tick?.(this.elapsed);
     this._tickWeaponCharge(dt, keys);
     // Dual resource regen (settings.drc)
@@ -963,11 +1072,13 @@ export class DrcCombatController {
     // Active dodge / roll / slide impulse overrides move
     if (this._dodgeT > 0) {
       this._dodgeT -= dt;
+      this._vx = 0;
+      this._vz = 0;
       const vx = this._dodgeVel.x;
       const vz = this._dodgeVel.z;
       if (this.physics?.ready && this._usePhysics) {
         const pose = this.physics.movePlayer(vx, vz, dt);
-        this.character.root.position.set(pose.x, pose.y, pose.z);
+        this._applyFeetPose(pose);
         this._grounded = !!pose.grounded;
         this.character.setFootGrounded?.(this._grounded);
       } else {
@@ -979,6 +1090,7 @@ export class DrcCombatController {
       // Continuous model afterimage trail while MM dodge / invuln runs
       const src = this.character.model || this.character.root;
       const pos = this.character.root?.position;
+      this.vfx?.update?.(dt);
       this.vfx?.updateDodgeTrail?.(
         dt,
         true,
@@ -996,12 +1108,14 @@ export class DrcCombatController {
 
     // Fade leftover afterimages when not dodging
     this.vfx?.updateDodgeTrail?.(dt, false, null, null);
+    this.vfx?.update?.(dt);
 
-    // ── WASD locomotion ──────────────────────────────────────────────
-    // Focus ON (RMB toggle): camera-relative move + character rotates WITH camera
-    // Focus OFF: tank turn with A/D, W/S along body facing (camera free)
-    // Ctrl held: A/D reserved for roll · Shift hold = sprint
+    // ── WASD locomotion (combat SaberGame) ───────────────────────────
+    // Always camera-relative unless aim.tankWhenUnfocused.
+    // Ctrl held: A/D reserved for roll · Shift = sprint
     const focusOn = !!this.combatFocus?.focusEnabled;
+    const tank =
+      !focusOn && settings.aim?.tankWhenUnfocused === true;
     let ix = 0;
     let iz = 0;
     const wasd =
@@ -1018,15 +1132,8 @@ export class DrcCombatController {
     if (keys.has('KeyW') || keys.has('ArrowUp') || this._autoTraverse) iz -= 1;
     if ((keys.has('KeyS') || keys.has('ArrowDown')) && !this._autoTraverse) iz += 1;
 
-    if (focusOn) {
-      // Strafe relative to camera (A/D don't turn body — camera yaw does)
-      if (!ctrlHeld) {
-        if (keys.has('KeyA') || keys.has('ArrowLeft')) ix += 1;
-        if (keys.has('KeyD') || keys.has('ArrowRight')) ix -= 1;
-      }
-    } else if (!ctrlHeld) {
-      // Free aim: A/D rotate character in place (tank turn)
-      const turnRate = settings.aim?.tankTurnSpeed ?? 2.6; // rad/s
+    if (tank && !ctrlHeld) {
+      const turnRate = settings.aim?.tankTurnSpeed ?? 2.6;
       let turn = 0;
       if (keys.has('KeyA') || keys.has('ArrowLeft')) turn += 1;
       if (keys.has('KeyD') || keys.has('ArrowRight')) turn -= 1;
@@ -1035,6 +1142,9 @@ export class DrcCombatController {
         this._yaw = yaw;
         this.character.setFacing(yaw);
       }
+    } else if (!ctrlHeld) {
+      if (keys.has('KeyA') || keys.has('ArrowLeft')) ix += 1;
+      if (keys.has('KeyD') || keys.has('ArrowRight')) ix -= 1;
     }
 
     const len = Math.hypot(ix, iz);
@@ -1043,17 +1153,14 @@ export class DrcCombatController {
       iz /= len;
     }
 
-    // Movement basis
-    if (focusOn) {
-      // Camera-relative
+    if (tank) {
+      const yaw = this.character.facing;
+      _fwd.set(Math.sin(yaw), 0, Math.cos(yaw));
+    } else {
       this.camera.getWorldDirection(_fwd);
       _fwd.y = 0;
       if (_fwd.lengthSq() < 1e-6) _fwd.set(0, 0, 1);
       else _fwd.normalize();
-    } else {
-      // Body-facing (W/S only after A/D turn)
-      const yaw = this.character.facing;
-      _fwd.set(Math.sin(yaw), 0, Math.cos(yaw));
     }
 
     const fx = _fwd.x;
@@ -1062,13 +1169,12 @@ export class DrcCombatController {
     const rz = -fx;
 
     _move.set(0, 0, 0);
-    if (focusOn) {
-      _move.x = fx * -iz + rx * ix;
-      _move.z = fz * -iz + rz * ix;
-    } else {
-      // Only W/S along body
+    if (tank) {
       _move.x = fx * -iz;
       _move.z = fz * -iz;
+    } else {
+      _move.x = fx * -iz + rx * ix;
+      _move.z = fz * -iz + rz * ix;
     }
     if (_move.lengthSq() > 1e-6) _move.normalize();
 
@@ -1124,8 +1230,18 @@ export class DrcCombatController {
       (settings.global?.animationSpeed || 1) *
       swimMul;
     const moving = _move.lengthSq() > 1e-6;
-    let vx = moving ? _move.x * speed : 0;
-    let vz = moving ? _move.z * speed : 0;
+    const wantX = moving ? _move.x * speed : 0;
+    const wantZ = moving ? _move.z * speed : 0;
+    const accel = moving ? 18 : 14;
+    const blend = Math.min(1, dt * accel);
+    this._vx += (wantX - this._vx) * blend;
+    this._vz += (wantZ - this._vz) * blend;
+    if (!moving && this._vx * this._vx + this._vz * this._vz < 0.04) {
+      this._vx = 0;
+      this._vz = 0;
+    }
+    let vx = this._vx;
+    let vz = this._vz;
 
     // Underwater vertical assist (kinematic vy sample — no dedicated swim API yet)
     if (this._submerged) {
@@ -1180,7 +1296,7 @@ export class DrcCombatController {
     let sampleVy = this._kinVy || 0;
     if (this.physics?.ready && this._usePhysics) {
       const pose = this.physics.movePlayer(vx, vz, dt);
-      this.character.root.position.set(pose.x, pose.y, pose.z);
+      this._applyFeetPose(pose);
       // Prefer physics vertical speed when available
       if (Number.isFinite(pose.vy)) sampleVy = pose.vy;
       else if (Number.isFinite(pose.velocityY)) sampleVy = pose.velocityY;
@@ -1206,6 +1322,8 @@ export class DrcCombatController {
             this.character.clearFlip?.();
             this.character.clearAirJumpHold?.();
           }
+          this._justLandedUntil =
+            this.elapsed + (settings.meleeCombo?.jumpAttack?.justLandedSec ?? 0.48);
         } else {
           this.character.clearFlip?.();
         }
@@ -1279,25 +1397,27 @@ export class DrcCombatController {
       this.character.setGait?.(0, false, { aiming: focusOn });
     }
 
-    this._syncRifleHandAim(focusOn);
+    this._syncGunHandAim(focusOn);
   }
 
   /**
-   * Rifle both-hand IK toward aim hit / camera forward. Other packs clear.
+   * Rifle two-hand / pistol one-hand IK toward aim. Other packs clear.
    * @param {boolean} focusOn
    */
-  _syncRifleHandAim(focusOn) {
+  _syncGunHandAim(focusOn) {
     const ch = this.character;
     if (!ch?.setHandAim) return;
-    if (ch.animPackId !== 'rifle') {
+    const pack = ch.animPackId;
+    if (pack !== 'rifle' && pack !== 'pistol') {
       ch.setHandAim(null, 0);
       return;
     }
+    const ik = pack === 'pistol' ? PISTOL_HAND_IK : RIFLE_HAND_IK;
     const pt =
       (this.aim?.valid && this.aim.hitPoint) ||
       (this.aim?.valid && this.aim.point) ||
       null;
-    const w = focusOn ? RIFLE_HAND_IK.aimWeight : RIFLE_HAND_IK.restWeight;
+    const w = focusOn ? ik.aimWeight : ik.restWeight;
     if (pt) {
       ch.setHandAim(pt, w);
       return;
@@ -1343,43 +1463,39 @@ export class DrcCombatController {
     const st = this.character.animState;
     if (locked && (st === 'dodge' || st === 'roll' || st === 'slide' || st === 'flip')) return;
 
-    const focusOn = !!this.combatFocus?.focusEnabled;
-    // Free aim: body yaw only from A/D tank turn in update() — do not follow camera/aim
-    if (!focusOn) {
+    if (settings.aim?.tankWhenUnfocused && !this.combatFocus?.focusEnabled) {
       this._yaw = this.character.facing;
       return;
     }
-
-    // Focus: lag-follow camera yaw — do NOT snap body to every mouse twitch
     if (settings.aim?.focusTurnOnlyWhenMoving && !moving) {
       this._yaw = this.character.facing;
       return;
     }
+
     this.camera.getWorldDirection(_fwd);
     _fwd.y = 0;
     if (_fwd.lengthSq() < 1e-6) return;
     _fwd.normalize();
-    const targetYaw = Math.atan2(_fwd.x, _fwd.z);
+
+    // Combat: RMB / focus → strafe-lock to camera heading; else face velocity
+    const rmb = !!this.combatFocus?.rmbHeld || !!this.combatFocus?.focusEnabled;
+    const spd2 = this._vx * this._vx + this._vz * this._vz;
+    let targetYaw;
+    if (rmb || !moving) {
+      targetYaw = Math.atan2(_fwd.x, _fwd.z);
+    } else if (spd2 > 0.25) {
+      targetYaw = Math.atan2(this._vx, this._vz);
+    } else {
+      targetYaw = Math.atan2(_fwd.x, _fwd.z);
+    }
 
     let cur = this.character.facing;
     let diff = targetYaw - cur;
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
 
-    // Deadzone: ignore small look offsets so camera pans without spinning body
-    const dead =
-      MathUtils.degToRad(settings.aim?.focusTurnDeadzoneDeg ?? 16);
-    if (Math.abs(diff) < dead) {
-      this._yaw = cur;
-      return;
-    }
-    // Pull only excess past deadzone (so we don't overshoot into twitchy center)
-    const sign = Math.sign(diff);
-    const excess = Math.abs(diff) - dead;
-    const turn = settings.aim?.focusTurnSpeed ?? 6.5;
-    const maxStep = turn * dt;
-    const step = Math.min(excess, maxStep);
-    cur += sign * step;
+    const turn = settings.aim?.focusTurnSpeed ?? 14;
+    cur += diff * Math.min(1, dt * turn);
     this._yaw = cur;
     this.character.setFacing(cur);
   }
@@ -1496,7 +1612,32 @@ export class DrcCombatController {
       this._jumpsLeft = 0;
       this._grounded = false;
       this._airborne = true;
-      this.onToast?.('Backflip · camera hold · air setup');
+      {
+        const feet = this.character.root?.position || this.character.position;
+        this._airTrailFrom(
+          feet,
+          this._backflipDir,
+          cfg.airTrail?.backflipLen ?? 3.6,
+          'backflip'
+        );
+      }
+      this.onToast?.('Backflip · hang · air trail');
+      return;
+    }
+
+    if (isSecond && moving) {
+      const yaw = this.character.facing;
+      this._frontflipDir.set(Math.sin(yaw), 0, Math.cos(yaw));
+      this._dodgeVel.set(this._frontflipDir.x * 8, 0, this._frontflipDir.z * 8);
+      this._dodgeT = 0.7;
+      this._dodgeDur = 0.7;
+      this._hangT = Math.max(this._hangT || 0, 0.4);
+      this.physics?.setGravityScale?.(0.5);
+      this.character.playAirDash?.('forward');
+      this._jumpsLeft -= 1;
+      this._grounded = false;
+      this._airborne = true;
+      this.onToast?.('Air dash');
       return;
     }
 
@@ -1514,7 +1655,13 @@ export class DrcCombatController {
       this._jumpsLeft = 0;
       this._grounded = false;
       this._airborne = true;
-      this.onToast?.('Frontflip');
+      {
+        const feet = this.character.root?.position || this.character.position;
+        const upFwd = this._frontflipDir.clone();
+        upFwd.y = 0.55;
+        this._airTrailFrom(feet, upFwd, cfg.airTrail?.jump2Len ?? 2.4, 'jump2');
+      }
+      this.onToast?.('Frontflip · 2nd jump air');
       return;
     }
 
@@ -1536,7 +1683,7 @@ export class DrcCombatController {
     const feet = this.character.root.position;
     const landY = this._landY(feet.x, feet.z);
     if (this._grounded && this._kinVy <= 0) {
-      this.character.root.position.y = landY;
+      this.character.placeAt(feet.x, landY, feet.z);
       this._kinVy = 0;
       this._jumpsLeft = settings.drc?.maxJumps ?? 2;
       this._kinGravityScale = 1;
@@ -1545,11 +1692,19 @@ export class DrcCombatController {
     }
     this._kinVy += g * dt;
     this.character.root.position.y += this._kinVy * dt;
-    if (this.character.root.position.y <= landY) {
+    const hip = Number.isFinite(this.character._hipAboveFeet) ? this.character._hipAboveFeet : 0;
+    const soleY = this.character.root.position.y - hip;
+    if (soleY <= landY) {
       const impactVy = this._kinVy;
-      this.character.root.position.y = landY;
+      const wasAir = !this._grounded || this._airborne;
+      this.character.placeAt(feet.x, landY, feet.z);
       this._kinVy = 0;
       this._grounded = true;
+      this._airborne = false;
+      if (wasAir) {
+        this._justLandedUntil =
+          this.elapsed + (settings.meleeCombo?.jumpAttack?.justLandedSec ?? 0.48);
+      }
       this._jumpsLeft = settings.drc?.maxJumps ?? 2;
       this._backflipBoostT = 0;
       this._backflipHardStopT = 0;
@@ -1567,6 +1722,7 @@ export class DrcCombatController {
       if (!land?.ok) this.character.clearAirJumpHold?.();
     } else {
       this._grounded = false;
+      this._airborne = true;
       // fall loop driven by outer updateAirLocomotion
     }
   }
@@ -1613,10 +1769,12 @@ export class DrcCombatController {
       skill: opts.skill || null
     };
     this.character.setCasting?.(true, opts.aim || null);
-    if (!opts.skill?._castPlan?.useLinear) {
-      this.character.playWeaponCombat?.('cast') ||
-        this.character.playCastFlourish?.() ||
-        this.character.requestOneShot?.('cast');
+    const skipAnim =
+      opts.skipAnim ||
+      opts.skill?._castPlan?.useLinear ||
+      opts.skill?._castPlan?.usePathAbility;
+    if (!skipAnim) {
+      this._playSkillAnim(opts.skill);
     }
     // Linear owns its own muzzle. Charge orb is the ugly particle-bolt look.
     const showCharge =
@@ -1633,6 +1791,69 @@ export class DrcCombatController {
     }
     this.onCastBar?.(this.getCastBarState());
     return true;
+  }
+
+  /**
+   * Catalog `animRole` (or animRoleForSkill) on the one mixer. No elemental flourish.
+   * @param {object|null} skill
+   */
+  _playSkillAnim(skill) {
+    if (!skill || !this.character) return;
+    const animRole =
+      skill.animRole ||
+      animRoleForSkill(skill) ||
+      (skill.style === 'ranged' ? 'attack' : skill.style === 'spell' ? 'cast' : 'attack');
+    if (animRole === 'block' || animRole === 'parry' || skill.isWard) {
+      this.character.playParry?.() ||
+        this.character.requestOneShot?.('block') ||
+        this.character.requestOneShot?.('parry');
+      return;
+    }
+    if (skill.style === 'melee' && this._isJumpAttackWindow?.() && animRole !== 'dodgeB') {
+      this.character.playMeleeFinisher?.({ airborne: true }) ||
+        this.character.requestOneShot?.('jumpAttack');
+      return;
+    }
+    if (animRole === 'dodgeB' || /evade/i.test(skill.id + skill.label)) {
+      this.character.playDodge?.('back') || this.character.requestOneShot?.('dodgeB');
+      return;
+    }
+    if (
+      /^skill[1-5]$/.test(animRole) ||
+      animRole === 'gunplay' ||
+      animRole === 'draw' ||
+      animRole === 'reload' ||
+      animRole === 'spin'
+    ) {
+      this.character.requestOneShot?.(animRole) || this.character.playWeaponAttack?.();
+      return;
+    }
+    if (/^attack[123]$/.test(animRole)) {
+      this.character.requestOneShot?.(animRole) || this.character.playMeleeComboLight?.();
+      return;
+    }
+    if (animRole === 'finisher' || animRole === 'finisherAir' || animRole === 'jumpAttack') {
+      this.character.playMeleeFinisher?.({
+        airborne: animRole !== 'finisher' || !!this._airborne
+      });
+      return;
+    }
+    if (skill.style === 'ranged' || animRole === 'attack') {
+      this.character.requestOneShot?.(animRole) ||
+        this.character.playWeaponCombat?.('attack') ||
+        this.character.playWeaponAttack?.();
+      return;
+    }
+    if (skill.style === 'melee') {
+      this.character.playMeleeAttack?.({
+        airborne: !!this._airborne || !this._grounded,
+        justLanded: this.elapsed < (this._justLandedUntil || 0)
+      }) || this.character.requestOneShot?.('attack');
+      return;
+    }
+    this.character.requestOneShot?.(animRole) ||
+      this.character.playWeaponCombat?.('cast') ||
+      this.character.requestOneShot?.('cast');
   }
 
   /** Staff tip / cast hand for charge shell. */
@@ -1744,7 +1965,18 @@ export class DrcCombatController {
     }
     until[key] = this.elapsed + (Number(skill.cooldown) || 4);
 
-    const self = skill.target === 'self' || skill.style === 'buff' || skill.style === 'heal';
+    const hasTravel =
+      skill.travelMode === 'linear' ||
+      skill.travelMode === 'bend' ||
+      skill.travelMode === 'bullet' ||
+      (skill.style === 'melee' && skill.skillKind !== 'buff');
+    const self =
+      !hasTravel &&
+      (skill.skillKind === 'buff' ||
+        skill.target === 'self' ||
+        skill.style === 'buff' ||
+        skill.style === 'heal' ||
+        skill.style === 'debuff');
     if (self) {
       this.statuses?.applyHit?.({
         skill,
@@ -2003,50 +2235,71 @@ export class DrcCombatController {
       }
     }
 
-    // Catalog binding (Showcase) — true master-weaponSkills id when set
+    // Tree owns hotkeys. Showcase localStorage binds are a HUD mirror only —
+    // they must not replace the equipped production skill (or force animRole cast).
+    const tree = getActiveSkillTree();
+    const treeOwns = tree === 'equipped' || tree === 'wand' || tree === 'sapling';
     const bound =
       opts.bound !== undefined
         ? opts.bound
-        : getSkillBinding(slot === -1 ? 'f' : slot);
-    const boundName = bound?.name || skill.label;
+        : treeOwns
+          ? null
+          : getSkillBinding(slot === -1 ? 'f' : slot);
+    const boundName = skill.label;
 
-    // Merge WEAPON_SKILLS STAFF row only — no invented skills
-    const staffId = bound?.skillId || skill.catalogSkillId || skill.id;
+    // Staff bind enriches *this* catalog id (same skill) — never swaps a sword for a bolt.
+    const staffId = skill.catalogSkillId || skill.id;
     const staffB =
-      bindFromCatalogSkill({
-        id: staffId,
-        name: bound?.name || skill.label,
-        description: skill.description || '',
-        damageType: bound?.damageType || skill.damageType,
-        effects: skill.effects,
-        cooldown: skill.cooldown,
-        castTime: skill.castDuration,
-        range: skill.rangeM,
-        damage: skill.damage,
-        slotType: skill.slotType
-      }) || staffBindFor(staffId);
-    if (staffB) {
+      skill.style === 'spell'
+        ? bindFromCatalogSkill({
+            id: staffId,
+            name: skill.label,
+            description: skill.description || '',
+            damageType: skill.damageType,
+            effects: skill.effects,
+            cooldown: skill.cooldown,
+            castTime: skill.castDuration,
+            range: skill.rangeM,
+            damage: skill.damage,
+            slotType: skill.slotType
+          }) || staffBindFor(staffId)
+        : null;
+    if (staffB && !treeOwns) {
       skill = {
         ...skill,
         element: staffB.element,
         abilityElement: staffB.element,
         pathMode: staffB.pathMode,
         presentation: staffB.presentation,
-        castEffectId: staffB.castEffectId,
-        travelEffectId: staffB.travelEffectId,
-        impactEffectId: staffB.impactEffectId,
+        castEffectId: staffB.castEffectId || skill.castEffectId,
+        travelEffectId: staffB.travelEffectId || skill.travelEffectId,
+        impactEffectId: staffB.impactEffectId || skill.impactEffectId,
         abilityClass: staffB.abilityClass,
-        animRole: 'cast',
+        animRole: skill.animRole || animRoleForSkill(skill) || 'cast',
         rangeM: staffB.rangeM || skill.rangeM,
         castDuration: staffB.castDuration || skill.castDuration,
         cooldown: staffB.cooldown || skill.cooldown,
         catalogSkillId: staffId,
         label: boundName || staffB.name || skill.label,
-        description: staffB.description,
-        effects: staffB.effects,
+        description: staffB.description || skill.description,
+        effects: staffB.effects || skill.effects,
         useOrbProjectile: staffB.useOrbProjectile ?? skill.useOrbProjectile,
         projectileMeshUrl: staffB.projectileMeshUrl || skill.projectileMeshUrl,
         chargeMeshUrl: staffB.chargeMeshUrl || skill.chargeMeshUrl
+      };
+    } else if (staffB && treeOwns && skill.style === 'spell') {
+      skill = {
+        ...skill,
+        element: skill.element || staffB.element,
+        abilityElement: skill.abilityElement || staffB.element,
+        pathMode: skill.pathMode || staffB.pathMode,
+        presentation: skill.presentation || staffB.presentation,
+        castEffectId: skill.castEffectId || staffB.castEffectId,
+        travelEffectId: skill.travelEffectId || staffB.travelEffectId,
+        impactEffectId: skill.impactEffectId || staffB.impactEffectId,
+        useOrbProjectile: skill.useOrbProjectile ?? staffB.useOrbProjectile,
+        projectileMeshUrl: skill.projectileMeshUrl || staffB.projectileMeshUrl,
+        chargeMeshUrl: skill.chargeMeshUrl || staffB.chargeMeshUrl
       };
     }
 
@@ -2081,6 +2334,12 @@ export class DrcCombatController {
     }
     // Production hit package for projectiles / melee residual
     this._lastSkill = skill;
+    const stealthCast =
+      classifyBendingPattern(skill) === 'ranger_invis' ||
+      /\binvis|stealth|smoke.?bomb/.test(`${skill.id} ${skill.label} ${(skill.effects || []).join(' ')}`);
+    if (!stealthCast && Number(skill.damage) > 0 && this.isStealthed) {
+      this._breakStealth('Invis broken');
+    }
     // Combat timer: short GCD + best rest after any weapon fire
     const cfgCh = weaponChargeConfig();
     this._weaponGcdUntil = this.elapsed + cfgCh.gcdSec;
@@ -2133,7 +2392,9 @@ export class DrcCombatController {
     else _fwd.set(Math.sin(yaw), 0, Math.cos(yaw));
     // Wand / barrel tip — never snow-brawl chest + alternating L/R (that + a
     // leftover mesh AABB is what put Practice Bolt ~10 m left of the wand).
-    if (typeof this.character.getWeaponTip === 'function') {
+    if (typeof this.character.getWeaponSpinePoint === 'function') {
+      this.character.getWeaponSpinePoint(skill?.spinePoint || skill?.startAnchor, _origin);
+    } else if (typeof this.character.getWeaponTip === 'function') {
       this.character.getWeaponTip(_origin, settings.residual?.tipOffset ?? 0.55);
     } else {
       this.character.getCastOrigin(_origin);
@@ -2170,6 +2431,11 @@ export class DrcCombatController {
         aimTarget ||
         _end.copy(spawnOrigin).addScaledVector(_fwd, rangeM * 0.65)
     };
+    {
+      const spline = resolveSkillSpline(this.character, skill, pose);
+      pose.origin.copy(spline.start);
+      pose.aim.copy(spline.end);
+    }
     const aimPt = { x: pose.aim.x, y: pose.aim.y, z: pose.aim.z };
     const castDur =
       skill.style === 'melee'
@@ -2268,6 +2534,32 @@ export class DrcCombatController {
       }
     }
 
+    // Bend / spline travel (verduror mist, vines) — same pose, after hit frame
+    if (castPlan.usePathAbility && !castPlan.useLinear) {
+      try {
+        this._deployBendingSkill(skill, pose);
+        if (castPlan.variantHint) skill._deliveryLabel = `Bend · ${castPlan.variantHint}`;
+        if (skill.impactEffectId) {
+          const v = getEffectVariant(castPlan.variantHint || skill.variantHint);
+          const dist = pose.origin.distanceTo(pose.aim);
+          const speed = v?.speed || 1;
+          const travelSec = Math.max(0.08, Math.min(0.42, dist / (14 * speed)));
+          const impactPose = {
+            origin: pose.aim.clone(),
+            aim: pose.aim.clone(),
+            forward: pose.forward,
+            intensity: 0.95,
+            color: v?.color || undefined
+          };
+          const fireImpact = () => this.vfx?.deploy?.(skill.impactEffectId, impactPose);
+          if (travelSec >= 0.1) setTimeout(fireImpact, Math.round(travelSec * 1000));
+          else fireImpact();
+        }
+      } catch (e) {
+        console.warn('[DrcCombat] bend cast', e);
+      }
+    }
+
     // Mesh orb / rocks / bullets — only when this plan owns travel
     if (castPlan.useMeshDelivery) {
       try {
@@ -2285,13 +2577,8 @@ export class DrcCombatController {
       // Product element (fire|storm|ice|nature|holy|arcane) or legacy — AbilityManager maps pool
       const el = skill.element || skill.abilityElement;
       const pathMode = skill.pathMode || 'stream';
-      // Stylized Ability ribbon (stream / wall / spikes / aoe) + orb travel
-      if (castPlan.usePathAbility) {
-        const curve = this._curveForPathMode(pathMode, skill.rangeM);
-        this.abilities.select(el);
-        this.abilities.clear?.();
-        this.abilities.cast(curve, el);
-      }
+      // Path AbilityManager is LMB stroke only (castPathAbility). Digit/F never
+      // also fire the elemental ribbon — weapon skill owns travel + anim.
 
       const focusOn = this.elapsed < this._focusUntil;
       const focusMul = focusOn ? this._focusMul || 1.35 : 1;
@@ -2332,11 +2619,18 @@ export class DrcCombatController {
     if (skill.style === 'melee') {
       // Guard / ward: no residual slash
       if (!(skill.isWard || skill.animRole === 'block' || skill.skillKind === 'buff')) {
+        if (this._isJumpAttackWindow()) this._commitJumpAttack(skill, pose);
         const aoe = skill.residualAoe;
         this._fireMeleeResidual(skill, pose, {
-          rangeOverride: skill.rangeM,
+          rangeOverride: this._isJumpAttackWindow()
+            ? settings.meleeCombo?.jumpAttack?.residualRange ?? 6.5
+            : skill.rangeM,
           hit: {
-            kind: skill.animRole === 'finisher' ? 'finisher' : 'light',
+            kind: this._isJumpAttackWindow()
+              ? 'jumpAttack'
+              : skill.animRole === 'finisher'
+                ? 'finisher'
+                : 'light',
             step: /^attack([123])$/.exec(skill.animRole || '')?.[1]
               ? Number(RegExp.$1) - 1
               : 0
@@ -2347,12 +2641,14 @@ export class DrcCombatController {
           /* residualFromSettings already used; rangeOverride covers reach */
         }
       }
+      this._deployBendingSkill(skill, pose);
       this.onToast(bound ? `${boundName} · ${bound.skillId}` : skill.label);
       return;
     }
 
     // Ranged (flintlock · bow · xbow) — delivery already fired bullets/arrows
     if (skill.style === 'ranged') {
+      this._deployBendingSkill(skill, pose);
       const n = pistolBulletCount(skill);
       const dmg = skill.damage ? ` · ${skill.damage} dmg` : '';
       const multi = n > 1 ? ` · ×${n}` : '';
@@ -2373,78 +2669,45 @@ export class DrcCombatController {
     }
     };
 
-    // LinearAbility source: instant throw (no charge orb / cast bar).
-    // Body clip + ice/thunder/meteor/beam/snare/glacier fire on click.
+    // Linear / bend: play clip first, fire travel at anim apex (not click).
     const linearPlan = planElementalLinearCast(skill, {
       focusCombat: !!this.combatFocus?.focusEnabled || this.inCombat,
       pathDrawn: false,
       intensity: 1
     });
-    if (linearPlan.useLinear && this.linearSkills) {
+    const timedTravel =
+      (linearPlan.useLinear && this.linearSkills) ||
+      (linearPlan.usePathAbility && !linearPlan.useLinear);
+    if (timedTravel) {
       skill._castPlan = linearPlan;
-      releaseSpell();
+      this._playSkillAnim(skill);
+      if (skill.castEffectId) {
+        this.vfx?.deploy?.(skill.castEffectId, { ...pose, intensity: 0.72 });
+      }
+      const hit = hitFrameDelaySec(skill, castDur);
+      if (hit >= 0.06) {
+        this._beginCast({
+          label: skill.label,
+          duration: hit,
+          element: skill.element || skill.abilityElement || 'arcane',
+          skill,
+          aim: aimPt,
+          showCharge: false,
+          interruptible: true,
+          skipAnim: true,
+          onComplete: releaseSpell
+        });
+      } else {
+        releaseSpell();
+      }
       return true;
     }
 
     // Instant melee / ranged / near-zero castDuration
     if (skill.style === 'melee' || skill.style === 'ranged' || castDur < 0.08) {
-      const animRole =
-        skill.animRole ||
-        (bound
-          ? animRoleForSkill({
-              labStyle:
-                bound.labPack === 'magic'
-                  ? 'spell'
-                  : bound.labPack === 'longbow'
-                    ? 'ranged'
-                    : skill.style,
-              animation: null,
-              id: bound.skillId,
-              name: bound.name,
-              slotType: 'ability'
-            })
-          : 'attack');
-      // T0 / catalog roles: attack1–3 light, block guard, attack ranged, cast buff
-      if (animRole === 'block' || animRole === 'parry' || skill.isWard) {
-        this.character.playParry?.() ||
-          this.character.requestOneShot?.('block') ||
-          this.character.requestOneShot?.('parry');
-      } else if (animRole === 'dodgeB' || /evade/i.test(skill.id + skill.label)) {
-        this.character.playDodge?.('back') || this.character.requestOneShot?.('dodgeB');
-      } else if (
-        /^skill[1-5]$/.test(animRole) ||
-        animRole === 'gunplay' ||
-        animRole === 'draw' ||
-        animRole === 'reload' ||
-        animRole === 'spin'
-      ) {
-        this.character.requestOneShot?.(animRole) ||
-          this.character.playWeaponCombat?.('attack') ||
-          this.character.playWeaponAttack?.();
-      } else if (/^attack[123]$/.test(animRole)) {
-        this.character.requestOneShot?.(animRole) ||
-          this.character.playMeleeComboLight?.() ||
-          this.character.playWeaponAttack?.();
-      } else if (animRole === 'finisher' || animRole === 'finisherAir') {
-        this.character.playMeleeFinisher?.({
-          airborne: animRole === 'finisherAir' || !!this._airborne
-        });
-      } else if (skill.style === 'ranged' || animRole === 'attack') {
-        this.character.playWeaponCombat?.('attack') ||
-          this.character.requestOneShot?.('attack') ||
-          this.character.playWeaponAttack?.();
-      } else if (skill.style === 'melee') {
-        this.character.playMeleeAttack?.({
-          airborne: !!this._airborne || !this._grounded,
-          largeMmTowardTarget: this._isLargeMmTowardTarget?.()
-        }) ||
-          this.character.playWeaponCombat?.('attack') ||
-          this.character.playWeaponAttack?.() ||
-          this.character.requestOneShot?.('attack');
-      } else {
-        this.character.playWeaponCombat?.('cast') ||
-          this.character.requestOneShot?.(animRole || skill.animRole) ||
-          this.character.playCastFlourish?.();
+      this._playSkillAnim(skill);
+      if (skill.style === 'melee' && this._isJumpAttackWindow?.()) {
+        this._commitJumpAttack(skill, pose);
       }
       releaseSpell();
       return true;
@@ -2479,11 +2742,178 @@ export class DrcCombatController {
   }
 
   /**
-   * @deprecated Use useWeaponSkillF — F is weapon skill, not residual-only strike.
-   * Kept for callers; routes to weapon skill path.
+   * LMB melee: air / just-landed → jumpAttack (soft-lock dash).
+   * Grounded → F weapon skill (existing).
    */
   useMeleeStrike() {
+    if (this._isJumpAttackWindow()) {
+      const ok = this._useJumpAttackLmb();
+      if (ok || (this._jumpDashUntil && this.elapsed < this._jumpDashUntil)) return true;
+      return false;
+    }
+    const pack = this.character?.animPackId || '';
+    if (pack === 'sword_shield' || pack === 'unarmed') {
+      const played =
+        this.character.playWeaponCombat?.('attack') ||
+        this.character.playMeleeComboLight?.() ||
+        this.character.playWeaponAttack?.();
+      if (played) return true;
+    }
     return this.useWeaponSkillF();
+  }
+
+  /** Air or just-landed window for greatsword jump attack. */
+  _isJumpAttackWindow() {
+    if (this._airborne || !this._grounded) return true;
+    return this.elapsed < (this._justLandedUntil || 0);
+  }
+
+  /**
+   * LMB jump attack — greatsword jumpAttack clip + soft-lock dash + blade slash + earth.
+   * Does not consume the F-slot skill CD.
+   */
+  _useJumpAttackLmb() {
+    if (!this.inCombat) {
+      this.onToast('Enter combat (Q) for jump attack');
+      return false;
+    }
+    if (this._cast) return false;
+    if (this._jumpDashUntil && this.elapsed < this._jumpDashUntil) return false;
+    const lock = this._softLockAimPoint(this.aim?.hitPoint);
+    const from =
+      this.character?.position?.clone?.() ||
+      this.character?.root?.position?.clone?.() ||
+      new Vector3();
+    const aim = lock || from.clone().add(new Vector3(
+      Math.sin(this.character?.facing || 0) * 4,
+      0,
+      Math.cos(this.character?.facing || 0) * 4
+    ));
+    const forward = aim.clone().sub(from);
+    forward.y = 0;
+    if (forward.lengthSq() < 1e-6) {
+      forward.set(Math.sin(this.character?.facing || 0), 0, Math.cos(this.character?.facing || 0));
+    } else {
+      forward.normalize();
+    }
+    const pose = { origin: from, forward, aim };
+    const skill = {
+      ...(getMeleeStrikeSkill() || {}),
+      style: 'melee',
+      animRole: 'jumpAttack',
+      label: 'Jump attack'
+    };
+    this.character.playMeleeFinisher?.({ airborne: true }) ||
+      this.character.requestOneShot?.('jumpAttack') ||
+      this.character.requestOneShot?.('finisherAir') ||
+      this.character.requestOneShot?.('attack');
+    this._commitJumpAttack(skill, pose);
+    const ja = settings.meleeCombo?.jumpAttack || {};
+    this._fireMeleeResidual(skill, pose, {
+      rangeOverride: ja.residualRange ?? 6.5,
+      hit: { kind: 'jumpAttack', step: -1 }
+    });
+    this.onToast('Jump attack · soft-lock dash');
+    return true;
+  }
+
+  /**
+   * Soft-lock point: selected target, else acquire best in cone, else aim.
+   * @param {import('three').Vector3} [fallback]
+   */
+  _softLockAimPoint(fallback) {
+    const sel = this.combatFocus?.selectedTarget;
+    if (sel?.mesh?.position) return sel.mesh.position.clone();
+    if (sel?.point) return sel.point.clone();
+    const feet = this.character?.position || this.character?.root?.position;
+    const fwd =
+      this.aim?.forward?.clone?.() ||
+      new Vector3(Math.sin(this.character?.facing || 0), 0, Math.cos(this.character?.facing || 0));
+    if (feet && this.combatFocus?.acquireBest) {
+      this.combatFocus.acquireBest(feet, fwd);
+      const t = this.combatFocus.selectedTarget;
+      if (t?.mesh?.position) return t.mesh.position.clone();
+      if (t?.point) return t.point.clone();
+    }
+    return fallback?.clone?.() || null;
+  }
+
+  /**
+   * Jump-attack: dash on soft-lock vector, slash residual at clip end, earth under feet.
+   */
+  _commitJumpAttack(skill, pose) {
+    if (this._jumpDashUntil && this.elapsed < this._jumpDashUntil) return;
+    const ja = settings.meleeCombo?.jumpAttack || {};
+    const from =
+      this.character?.position?.clone?.() ||
+      this.character?.root?.position?.clone?.() ||
+      pose?.origin?.clone?.();
+    if (!from) return;
+    const aim = this._softLockAimPoint(pose?.aim) || pose?.aim;
+    const to = aim?.clone?.() || from.clone().add(new Vector3(0, 0, 4));
+    const dir = to.clone().sub(from);
+    dir.y = 0;
+    const distM = dir.length();
+    if (distM > 0.08) dir.normalize();
+    else dir.set(Math.sin(this.character.facing || 0), 0, Math.cos(this.character.facing || 0));
+
+    this.character.facing = Math.atan2(dir.x, dir.z);
+    this.character.root.rotation.y = this.character.facing;
+
+    const dashM = (ja.dashMm ?? 480) / 100;
+    const stop = ja.stopShortM ?? 0.85;
+    const travel = Math.max(0.4, Math.min(dashM, Math.max(0.4, distM - stop)));
+    const dur = ja.dashDur ?? 0.44;
+    this._startVectorDash(dir.x, dir.z, travel, dur);
+    this._airTrailFrom(from, dir, settings.drc?.airTrail?.dashLen ?? travel, 'dash');
+    const hitDelay = ja.hitFrameDelay ?? 0.46;
+    this._jumpDashUntil = this.elapsed + Math.max(dur, hitDelay) + 0.05;
+
+    const earthDelay = Math.round(hitDelay * 1000);
+    window.setTimeout(() => {
+      const feet =
+        this.character?.position?.clone?.() ||
+        this.character?.root?.position?.clone?.() ||
+        from;
+      feet.y = 0.05;
+      this.vfx?.deploy?.('earth_surge', {
+        origin: feet,
+        forward: dir,
+        aim: feet,
+        intensity: ja.earthIntensity ?? 0.38,
+        aoe: ja.earthRadius ?? 1.15,
+        size: 0.28
+      });
+    }, earthDelay);
+  }
+
+  /**
+   * Air-bending silk trail along a mobility vector (dash / 2nd jump / backflip).
+   * @param {Vector3} from
+   * @param {Vector3} dir
+   * @param {number} len
+   * @param {string} source
+   */
+  _airTrailFrom(from, dir, len, source) {
+    if (!from || !dir) return;
+    this.vfx?.airTrail?.(from, dir, len, { source });
+  }
+
+  /**
+   * Dash along a world XZ vector (soft-lock jump attack). Reuses dodge impulse.
+   * @param {number} wx
+   * @param {number} wz
+   * @param {number} distM
+   * @param {number} dur
+   */
+  _startVectorDash(wx, wz, distM, dur) {
+    const len = Math.hypot(wx, wz) || 1;
+    const nx = wx / len;
+    const nz = wz / len;
+    const speed = distM / Math.max(0.12, dur);
+    this._dodgeVel.set(nx * speed, 0, nz * speed);
+    this._dodgeT = dur;
+    this._dodgeDur = dur;
   }
 
   /**
@@ -2535,19 +2965,41 @@ export class DrcCombatController {
     if (settings.residual?.enabled === false) return;
 
     const range = opts.rangeOverride ?? prim.range ?? skill.rangeM ?? 3.2;
-    const hitFrameDelay = prim.hitFrameDelay ?? settings.residual?.hitFrameDelay ?? 0.18;
+    const ja = settings.meleeCombo?.jumpAttack || {};
+    const isJumpAtk =
+      opts.hit?.kind === 'jumpAttack' ||
+      opts.hit?.kind === 'finisherAir' ||
+      skill.animRole === 'jumpAttack';
+    const hitFrameDelay = isJumpAtk
+      ? ja.hitFrameDelay ?? 0.46
+      : prim.hitFrameDelay ?? settings.residual?.hitFrameDelay ?? 0.18;
     const step = opts.hit?.step;
     // Combo lights: slightly shorter trail; finishers longer + fire blur
     const isFin =
       opts.hit?.kind === 'finisher' ||
       opts.hit?.kind === 'finisherAir' ||
-      skill.animRole === 'finisher';
+      opts.hit?.kind === 'jumpAttack' ||
+      skill.animRole === 'finisher' ||
+      skill.animRole === 'jumpAttack';
     const trailDur =
       (settings.residual?.trailDuration ?? 0.34) *
       (isFin ? 1.25 : step === 2 ? 1.1 : 1);
     const fireBlur =
       settings.residual?.fireTrail !== false &&
       (isFin || settings.residual?.fireTrail === true);
+
+    const mist = skill?.projectileLearn?.mist || compileProjectileLearn(skill || {}).mist;
+    if (mist?.enabled && this.vfx?.puffMist) {
+      const at = pose.origin?.clone?.() || this.character?.position?.clone?.();
+      if (at) {
+        at.y = (at.y || 0) + 0.9;
+        this.vfx.puffMist(at, {
+          ...mist,
+          intensity: isFin ? 1.15 : 0.7,
+          duration: Math.min(6, mist.duration)
+        });
+      }
+    }
 
     let fwd = pose.forward?.clone?.() || new Vector3(0, 0, 1);
     if (typeof this.character.getWeaponForward === 'function') {
@@ -2557,23 +3009,30 @@ export class DrcCombatController {
 
     // Prefer tip-trail system (ribbon + apex projectile). Fallback to legacy timeout.
     if (this.tipTrail?.beginSwing) {
+      const paint = skill?.trail || null;
+      const lockAim = isJumpAtk
+        ? this._softLockAimPoint(pose.aim) || pose.aim
+        : null;
       this.tipTrail.beginSwing({
         duration: trailDur,
         hitFrameDelay,
         forward: fwd,
         skill,
+        paint,
+        spineId: paint?.spine,
         hit: opts.hit || {
           kind: isFin ? 'finisher' : 'light',
           step: Number.isFinite(step) ? step : 0
         },
         rangeM: range,
         fireBlur,
+        aim: lockAim,
         color: fireBlur
           ? settings.residual?.trailColor || '#ff6a22'
-          : settings.residual?.color || '#7dd3fc',
+          : paint?.color || settings.residual?.color || '#7dd3fc',
         beyondBladeM: settings.residual?.beyondBladeM ?? 0.38,
         width:
-          (settings.residual?.trailWidth ?? 0.14) *
+          (paint?.width ?? settings.residual?.trailWidth ?? 0.14) *
           (isFin ? 1.35 : 1 + (Number(step) || 0) * 0.08)
       });
       return;
@@ -2598,14 +3057,6 @@ export class DrcCombatController {
       const pathRange = MathUtils.clamp(range, 1, 10);
       _end.copy(_tip).addScaledVector(fwd, pathRange);
       _end.y = Math.max(0.12, _tip.y * 0.4);
-      _mid.lerpVectors(_tip, _end, 0.45);
-      _mid.y = Math.max(_tip.y, _mid.y) + pathRange * 0.04;
-      const curve = new CatmullRomCurve3(
-        [_tip.clone(), _mid.clone(), _end.clone()],
-        false,
-        'catmullrom',
-        0.5
-      );
       this.vfx?.deploy?.('getsuga_slash', {
         origin: _tip.clone(),
         forward: fwd.clone(),
@@ -3039,11 +3490,23 @@ export class DrcCombatController {
       this._cdUntil.set('dodge', this.elapsed + cd);
       this._cdMax.set('dodge', cd);
 
-      const dist = kite ? kiteDistanceM(d) : dodgeDistanceM(d, settings.drc || {});
-      const dur = kite
-        ? Math.min(settings.drc?.dodgeDuration ?? 0.42, 0.32)
-        : settings.drc?.dodgeDuration ?? 0.42;
+      const air = !this._grounded;
+      const dist = air
+        ? settings.drc?.airDashDistance ?? 5.5
+        : kite
+          ? kiteDistanceM(d)
+          : dodgeDistanceM(d, settings.drc || {});
+      const dur = air
+        ? settings.drc?.airDashDuration ?? 0.72
+        : kite
+          ? Math.min(settings.drc?.dodgeDuration ?? 0.42, 0.32)
+          : settings.drc?.dodgeDuration ?? 0.42;
       this._startMobilityImpulse(d, dist, dur);
+      if (air) {
+        this._hangT = Math.max(this._hangT || 0, 0.38);
+        this.physics?.setGravityScale?.(0.45);
+        this._kinGravityScale = 0.45;
+      }
 
       // I-frames for entire MM dodge + afterimage window
       const inv = settings.drc?.dodgeInvuln;
@@ -3060,13 +3523,16 @@ export class DrcCombatController {
         });
       }
 
-      const played = this.character.playDodge?.(d);
+      const played = air
+        ? this.character.playAirDash?.(d)
+        : this.character.playDodge?.(d);
       const lat = d === 'left' || d === 'right';
       const labels = { left: 'AA left', right: 'DD right', forward: 'WW forward', back: 'X back' };
+      const ok = played === true || played?.ok;
       this.onToast(
-        `${kite ? 'kite ' : ''}${labels[d] || d} · ${dist.toFixed(1)}m` +
-          `${!kite && lat ? ' ×3' : ''}` +
-          `${played ? '' : ' (no clip)'}` +
+        `${air ? 'airdash ' : kite ? 'kite ' : ''}${labels[d] || d} · ${dist.toFixed(1)}m` +
+          `${!air && !kite && lat ? ' ×3' : ''}` +
+          `${ok ? '' : ' (no clip)'}` +
           ' · invuln'
       );
     });
@@ -3299,8 +3765,7 @@ export class DrcCombatController {
       const pathPose = {
         origin: this.character.position.clone(),
         forward: facing,
-        aim: curve.getPoint(1),
-        intensity
+        aim: curve.getPoint(1)
       };
       if (kind === 'aoe') {
         const end = curve.getPoint(1);
@@ -3323,14 +3788,194 @@ export class DrcCombatController {
     };
 
     if (this._cast) this._interruptCast('replaced', false);
+    const pathSkill = skillForFKey() || skillBySlot?.(0) || getActiveSkills()?.[0] || null;
     this._beginCast({
-      label: `${labels[kind]} · ${element}`,
+      label: `${labels[kind]} · ${pathSkill?.label || element}`,
       duration: pathCastTime,
       element,
       interruptible: true,
       aim: aimPt,
-      onComplete: releasePath
+      onComplete: releasePath,
+      skill: pathSkill
     });
     return { kind, element, intensity, mana: costs.mana, stamina: costs.stamina, castTime: pathCastTime };
+  }
+
+  /**
+   * Attach bending combat VFX to spine start → aim end.
+   * @param {object} skill
+   * @param {{ origin: import('three').Vector3, aim: import('three').Vector3, forward: import('three').Vector3 }} pose
+   */
+  _deployBendingSkill(skill, pose) {
+    const classified = classifyBendingPattern(skill);
+    const wantBend =
+      skill.travelMode === 'bend' ||
+      skill._castPlan?.usePathAbility ||
+      classified === 'jade_mist' ||
+      classified === 'nature_vine' ||
+      classified === 'elemental_curve';
+    const pattern = classified || (wantBend ? 'elemental_curve' : null);
+    if (!pattern) return;
+    const spline = resolveSkillSpline(this.character, skill, pose);
+    const src = this.character?.model || this.character?.root;
+    const behind = spline.end
+      .clone()
+      .addScaledVector(pose.forward || new Vector3(0, 0, 1), -(settings.presentation?.mobility?.pullBehindM ?? 1.65));
+    behind.y = spline.end.y;
+    const variant = getEffectVariant(skill._castPlan?.variantHint || skill.variantHint);
+    const el = skill.element || skill.abilityElement || 'nature';
+    if (wantBend && this.abilities?.cast && spline.start && spline.end) {
+      try {
+        const dist = spline.start.distanceTo(spline.end);
+        const ang = ((variant?.angleDeg || 18) * Math.PI) / 180;
+        const fwd = pose.forward || new Vector3(0, 0, 1);
+        const right = new Vector3(-fwd.z, 0, fwd.x);
+        if (right.lengthSq() < 1e-6) right.set(1, 0, 0);
+        else right.normalize();
+        const mid = spline.start.clone().lerp(spline.end, 0.45);
+        mid.addScaledVector(right, Math.sin(ang) * dist * 0.22);
+        mid.y += Math.min(2.4, dist * 0.12);
+        const curve = new CatmullRomCurve3(
+          [spline.start.clone(), mid, spline.end.clone()],
+          false,
+          'catmullrom',
+          0.5
+        );
+        this.abilities.select?.(el);
+        this.abilities.cast(curve, el);
+      } catch (e) {
+        console.warn('[DrcCombat] bend path', e);
+      }
+    }
+    if (!this.vfx?.deployBendingPattern) return;
+    this.vfx.deployBendingPattern(
+      pattern,
+      {
+        start: spline.start,
+        end: spline.end,
+        forward: pose.forward,
+        intensity: 1
+      },
+      {
+        source: src,
+        behind,
+        variant,
+        shockwaveElement: shockwaveElementOf(skill),
+        onTornado: (aim, spec) => this._applyTornadoPull(aim, spec),
+        onEarthStun: (aim, spec) => this._applyEarthStunAoe(aim, spec),
+        onHolyStun: (aim, spec) => this._applyEarthStunAoe(aim, spec),
+        onArrow: (system, pts) => {
+          this.projectiles?.spawnArrow?.({
+            origin: pts.start,
+            target: pts.end,
+            system,
+            targets: this._collectHitTargets?.() || []
+          });
+        },
+        onOutlineDash: (from, to, fwd, dist) => this._mobilityOutlineDash(fwd, dist),
+        onSmokeBlink: (from, dest) => this._mobilitySmokeBlink(from, dest),
+        onRangerInvis: () => this._applyRangerInvis(skill)
+      }
+    );
+  }
+
+  _applyTornadoPull(aim, spec = {}) {
+    const r = spec.pullRadius || settings.presentation?.tornado?.pullRadius || 3.5;
+    const mm = spec.pullMm || settings.presentation?.tornado?.pullMm || 220;
+    const list = this.combatFocus?.listTargetsInRange?.(aim, r) || [];
+    for (const t of list) {
+      if (t.mesh) applyPullToward(t.mesh, aim, mm);
+      this.statuses?.applyHit?.({
+        target: t,
+        skill: { effects: ['tornado', 'pull'], damage: 6 },
+        hit: { origin: aim, aim }
+      });
+    }
+  }
+
+  _applyEarthStunAoe(aim, spec = {}) {
+    const r =
+      spec.radius ||
+      settings.presentation?.holy?.radius ||
+      settings.presentation?.earthStun?.radius ||
+      2.8;
+    const list = this.combatFocus?.listTargetsInRange?.(aim, r) || [];
+    for (const t of list) {
+      this.statuses?.applyHit?.({
+        target: t,
+        skill: { effects: ['stun aoe', 'holy'], damage: 8 },
+        hit: { origin: aim }
+      });
+    }
+  }
+
+  /** Blur dash — play dodge anim + afterimage outline beam (no new hotkey). */
+  _mobilityOutlineDash(fwd, dist) {
+    const d = dist || settings.presentation?.mobility?.dashDist || 7.2;
+    const dir =
+      Math.abs(fwd?.z || 0) >= Math.abs(fwd?.x || 0)
+        ? fwd.z >= 0
+          ? 'forward'
+          : 'back'
+        : fwd.x >= 0
+          ? 'right'
+          : 'left';
+    this.dodge?.(dir);
+  }
+
+  /** Ranger invis: smoke bomb at feet + self outline; hidden from all sight. */
+  _applyRangerInvis(skill) {
+    const dur =
+      skill?.statuses?.find?.((s) => s.id === 'stealth')?.durationSec ||
+      settings.presentation?.stealth?.durationSec ||
+      6;
+    this.statuses?.applyHit?.({
+      target: { id: 'player', kind: 'player', mesh: this.character?.model || this.character?.root },
+      skill: {
+        ...skill,
+        effects: ['invis', 'stealth', 'smoke bomb'],
+        statuses: [{ id: 'stealth', durationSec: dur, magnitude: 1 }]
+      },
+      applyToPlayer: true,
+      character: this.character,
+      physics: this.physics,
+      drc: this
+    });
+    this.character?.setStealthLook?.(true);
+    if (this.character) {
+      this.character.userData = this.character.userData || {};
+      this.character.userData.hiddenFromSight = true;
+    }
+    this.onToast(`Invis · unseen ${dur.toFixed(0)}s`);
+  }
+
+  _breakStealth(reason) {
+    if (!this.isStealthed && !this.character?.userData?.hiddenFromSight) return;
+    this.character?.setStealthLook?.(false);
+    if (this.character?.userData) this.character.userData.hiddenFromSight = false;
+    const arr = this.statuses?._byTarget?.get?.('player');
+    if (arr) {
+      this.statuses._byTarget.set(
+        'player',
+        arr.filter((s) => s.id !== 'stealth')
+      );
+    }
+    if (reason) this.onToast(reason);
+  }
+
+  /** Jump → hide body → appear behind dest with smoke implode. */
+  _mobilitySmokeBlink(from, dest) {
+    const hideSec = settings.presentation?.mobility?.blinkHideSec ?? 0.22;
+    this.character?.playJump?.() || this.character?.requestOneShot?.('jump');
+    this.character?.setBodyHidden?.(true);
+    const land = dest?.clone?.() || from?.clone?.();
+    window.setTimeout(() => {
+      if (land && this.character?.root) {
+        const ly = Number.isFinite(land.y) ? land.y : this._landY(land.x, land.z);
+        this.character.placeAt(land.x, ly, land.z);
+        this.physics?.setPlayerFeet?.(land.x, ly, land.z);
+      }
+      this.character?.setBodyHidden?.(false);
+    }, Math.round(hideSec * 1000));
   }
 }
