@@ -83,7 +83,12 @@ import {
   harvestToolIdForNodeDef
 } from '../combat/playerActivity.js';
 import { resolveHotkeyContext, applyHotkeyCss } from '../input/hotkeyContext.js';
-import { WorgeFormPlay, WORGE_FORM_SKILLS, FORM_SWAP_SLOT, isWorgeClass } from '../combat/worgeForm.js';
+import {
+  WorgeFormPlay,
+  FORM_SWAP_SLOT,
+  isWorgeClass,
+  castWorgeFormSkill
+} from '../combat/worgeForm.js';
 import { CLAW_FORM_BINDS } from '../api/clawFormEnchant.js';
 import {
   CLASS_ITEMS,
@@ -926,6 +931,15 @@ export class App {
         this._tryBestAction();
         return;
       }
+      if (actionId === 'heavy' || actionId === 'mmb') {
+        this.drc.useMmbHeavy?.({
+          hotkeyCtx: this.input.hotkeyCtx,
+          classId: resolvePlayerClass(this.character),
+          formId: this.worgeForm?.formId,
+          formPlay: this.worgeForm
+        });
+        return;
+      }
       this.drc.performQuickAction?.(actionId);
     };
     this.hud.onMenu = (menuId) => this._handleHudMenu(menuId);
@@ -1013,12 +1027,7 @@ export class App {
   }
 
   /**
-   * F — context priority then weapon skill:
-   *  1. Pickup nearby world drop
-   *  2. Harvest nearest node within 5 m (tool in hand when required)
-   *  3. Equipped weapon skill (primary / Showcase F bind) — cast times + prefabs
-   * Class abilities deferred. Residual is not F.
-   * @returns {boolean}
+   * F — harvest swing in harvest; class skill 0 in combat. Pickup first.
    */
   _tryBestAction() {
     // 1) World loot pickup
@@ -1756,32 +1765,11 @@ export class App {
   }
 
   _useWorgeFormSkill(slot) {
-    const skills = this.worgeForm?.skills();
-    if (!skills) return;
     if (slot === FORM_SWAP_SLOT || slot === 'back') {
       void this._exitWorgeForm();
       return;
     }
-    this.worgeForm.playAttack();
-    if (slot === 'f' || slot === 'r') {
-      if (slot === 'r' && skills.r === 'charge') {
-        this.drc._startMobilityImpulse?.('forward', 7, 0.4);
-      }
-      if (skills.f === 'stun' && slot === 'f') {
-        this.drc.useMmbHeavy?.({
-          hotkeyCtx: 'combat',
-          classId: 'worge',
-          formId: this.worgeForm.formId,
-          formPlay: this.worgeForm
-        });
-        return;
-      }
-    }
-    if (typeof slot === 'number') {
-      this.hud.showToast(`Form · ${skills.slots[slot] || slot}`);
-    } else {
-      this.hud.showToast(`Form · ${skills[slot] || slot}`);
-    }
+    castWorgeFormSkill(this.drc, this.worgeForm, slot);
   }
 
   async _useClassItem() {
@@ -1929,18 +1917,11 @@ export class App {
 
   _onLmbAttack() {
     if (this._isRangedOrStaffEquipped?.()) {
-      const ok =
-        this.drc.useSkill?.(0) ||
-        this.drc.useWeaponSkillF?.() ||
-        this.drc.performQuickAction?.('primary');
-      if (!ok) this.hud.showToast('Ranged / staff slot 1');
+      const ok = this.drc.useSkill?.(0, { skipCharge: true });
+      if (!ok) this.hud.showToast('Ranged / staff 1');
       return;
     }
-    const ok =
-      this.drc.useMeleeStrike?.() ||
-      this.character.playWeaponCombat?.('attack') ||
-      this.character.playMeleeComboLight?.() ||
-      this.drc.performQuickAction?.('primary');
+    const ok = this.drc.useMeleeStrike?.();
     if (!ok) this.hud.showToast('Attack');
   }
 

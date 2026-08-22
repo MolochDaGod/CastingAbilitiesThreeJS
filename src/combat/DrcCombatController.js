@@ -2867,7 +2867,7 @@ export class DrcCombatController {
         this.character.playWeaponAttack?.();
       if (played) return true;
     }
-    return this.character.playMeleeAttack?.({}) || this.useWeaponSkillF();
+    return !!(this.character.playMeleeAttack?.({}) || false);
   }
 
   /**
@@ -2943,6 +2943,11 @@ export class DrcCombatController {
         );
         this.vfx?.deploy?.('earth_surge', { origin: from, forward, aim, intensity: 1.1 });
         this.onToast(`MMB · Typhoon · 7m out · 2m up · ${n} shoved`);
+        return;
+      }
+
+      if (pick.kind === 'kiteHopShot') {
+        this.onToast(`MMB · ${pick.label}`);
         return;
       }
 
@@ -3438,7 +3443,7 @@ export class DrcCombatController {
    */
   performQuickAction(actionId) {
     if (!this.inCombat && actionId !== 'mode') {
-      this.onToast('Combat session (Shift+Q) — tap Q swaps weapons');
+      this.onToast('Combat session (Shift+Q). Tap Q swaps weapons. Hold Q is harvest.');
       return false;
     }
     // Mobility utilities blocked on board; combat skills ok if ride skill allowed
@@ -3449,10 +3454,16 @@ export class DrcCombatController {
 
     switch (actionId) {
       case 'primary':
+        return this.useMeleeStrike() || this.useSkill(0, { skipCharge: true });
       case 'interact':
       case 'fskill':
-        // Weapon skill F (cast bar + prefab) — pickup/harvest handled in App before this
-        return this.useWeaponSkillF();
+        return this.useClassAbility('f');
+      case 'mmb':
+      case 'heavy':
+        return this.useMmbHeavy({
+          classId: resolvePlayerClass(this.character),
+          formId: this.character?.userData?.worgeFormId
+        });
       case 'sig1':
         return this.useSkill(0);
       case 'sig2':
@@ -3472,8 +3483,7 @@ export class DrcCombatController {
           this.character.playParry?.() || this.character.requestOneShot?.('block');
           this.onToast('Block (E)');
         });
-      case 'heavy':
-        return this.useMmbHeavy();
+
       case 'kick':
         return this._utilityAction('kick', 0.9, 6, () => {
           this.character.playUnarmedKick?.() || this.character.playWeaponAttack?.();
@@ -3755,11 +3765,17 @@ export class DrcCombatController {
   }
 
   bindClassAttributes(classId) {
-    this.attrAlloc = defaultAllocForClass(classId || resolvePlayerClass(this.character));
+    const id = classId || resolvePlayerClass(this.character);
+    this.attrAlloc = defaultAllocForClass(id);
     this.derivedStats = computeDerivedStats(this.attrAlloc);
     const hp = this.derivedStats.health || 100;
     this.maxHp = hp;
     this.hp = hp;
+    if (this.character) {
+      this.character.classId = id;
+      this.character.userData = this.character.userData || {};
+      this.character.userData.classId = id;
+    }
   }
 
   /**

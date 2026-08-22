@@ -234,4 +234,72 @@ export function applyTyphoonCone(targets, origin, forward, opts = {}) {
   return n;
 }
 
+/**
+ * Form F / R / 1–3 — not MMB. Slot 4 is swap-back (caller exits).
+ * @param {import('./DrcCombatController.js').DrcCombatController} drc
+ * @param {WorgeFormPlay} formPlay
+ * @param {number|'f'|'r'} slot
+ */
+export function castWorgeFormSkill(drc, formPlay, slot) {
+  if (!formPlay?.isActive() || !drc) return false;
+  const skills = formPlay.skills();
+  if (!skills) return false;
+  const id = slot === 'f' ? skills.f : slot === 'r' ? skills.r : skills.slots[Number(slot)];
+  if (!id) return false;
+  formPlay.playAttack();
+  const from =
+    drc.character?.position?.clone?.() ||
+    drc.character?.root?.position?.clone?.();
+  const fwd = new Vector3(Math.sin(drc.character?.facing || 0), 0, Math.cos(drc.character?.facing || 0));
+  const aim = from ? from.clone().addScaledVector(fwd, 4) : null;
+  const list = drc._collectHitTargets?.(aim) || [];
+
+  if (id === 'stun') {
+    const until = drc.elapsed + 1.6;
+    for (const t of list) {
+      if (!t?.mesh || t.kind === 'aim') continue;
+      t.mesh.userData = t.mesh.userData || {};
+      t.mesh.userData.stunnedUntil = until;
+      t.mesh.userData.statusLocked = true;
+    }
+    drc.onToast?.('Form F · stun');
+    return true;
+  }
+  if (id === 'charge') {
+    drc._startMobilityImpulse?.('forward', 7, 0.4);
+    const until = drc.elapsed + 1.2;
+    for (const t of list) {
+      if (!t?.mesh || t.kind === 'aim') continue;
+      t.mesh.userData = t.mesh.userData || {};
+      t.mesh.userData.stunnedUntil = until;
+    }
+    drc.onToast?.('Form R · charge');
+    return true;
+  }
+  if (id === 'web') {
+    const until = drc.elapsed + 1.8;
+    for (const t of list) {
+      if (!t?.mesh || t.kind === 'aim') continue;
+      t.mesh.userData = t.mesh.userData || {};
+      t.mesh.userData.rootedUntil = until;
+      t.mesh.userData.statusLocked = true;
+    }
+    drc.onToast?.('Form · web');
+    return true;
+  }
+  if (id === 'howl' || id === 'gust') {
+    const n = applyTyphoonCone(list, from, fwd, TYPHOON);
+    drc.vfx?.deploy?.('earth_surge', { origin: from, forward: fwd, aim, intensity: 0.9 });
+    drc.onToast?.(`Form · ${id} · ${n} shoved`);
+    return true;
+  }
+  if (id === 'sprint' || id === 'swoop') {
+    drc.dodge?.(id === 'swoop' ? 'forward' : 'forward');
+    drc.onToast?.(`Form · ${id}`);
+    return true;
+  }
+  drc.onToast?.(`Form · ${id}`);
+  return true;
+}
+
 export { CLAW_FORM_BINDS, TYPHOON };

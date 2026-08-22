@@ -81,7 +81,6 @@ export const CLASS_MMB = Object.freeze({
  */
 export function pickMmbMove(s = {}) {
   const ctx = s.hotkeyCtx || 'combat';
-  const pack = String(s.pack || '');
   const classId = String(s.classId || '');
   const air = !!s.airborne;
   const step = Number.isFinite(s.comboStep) ? s.comboStep : -1;
@@ -111,15 +110,20 @@ export function pickMmbMove(s = {}) {
   }
 
   if (s.formId) {
-    if (classId === 'worge') return pickWorgeFormMmb(s);
+    if (classIdFromSpec(classId) === 'worge') return pickWorgeFormMmb(s);
     return { kind: 'none', roles: [], knockbackMm: 0 };
   }
 
-  const spec = CLASS_MMB[classId] || CLASS_MMB.warrior;
-  if (!spec.pose) {
-    return { ...spec };
-  }
-  return refineMeleeMmb(spec, { air, step, last, dist, pack });
+  const spec = CLASS_MMB[classIdFromSpec(classId)] || CLASS_MMB.warrior;
+  if (!spec.pose) return { ...spec };
+  return refineMeleeMmb(spec, { air, step, last, dist });
+}
+
+function classIdFromSpec(id) {
+  const k = String(id || 'warrior').toLowerCase();
+  if (k === 'knight' || k === 'worg') return 'worge';
+  if (CLASS_MMB[k]) return k;
+  return 'warrior';
 }
 
 /** Warrior / raider: class identity + air / combo / range. */

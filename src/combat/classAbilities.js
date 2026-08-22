@@ -412,9 +412,14 @@ export function saveClassId(classId) {
  */
 export function resolvePlayerClass(character) {
   const saved = getSavedClassId();
-  if (saved) return saved;
-  if (character?.classId && CLASS_IDS.includes(character.classId)) return character.classId;
-  return classIdFromRole(character?.presetId || character?.roleId || 'warrior');
+  if (saved) return classIdFromRole(saved);
+  const raw =
+    character?.classId ||
+    character?.userData?.classId ||
+    character?.presetId ||
+    character?.roleId ||
+    'warrior';
+  return classIdFromRole(raw);
 }
 
 export function classItemFor(classId) {
