@@ -13,6 +13,20 @@ import { mmToM } from './motionMath.js';
 const _fwd = new Vector3();
 
 /**
+ * Pick locomotion reaction from MM / knockup — flinch overlays gait;
+ * knockback/blownAway exclusive one-shots.
+ * @param {{ knockbackMm?: number, knockupVy?: number, reaction?: string }} hit
+ */
+export function reactionKindFromHit(hit = {}) {
+  if (hit.reaction) return hit.reaction;
+  const mm = hit.knockbackMm ?? 0;
+  const vy = hit.knockupVy ?? 0;
+  if (vy >= 2.4 || mm >= 320) return 'blownAway';
+  if (mm >= 140 || vy >= 1.2) return 'knockback';
+  return 'flinch';
+}
+
+/**
  * Apply knockback to lab hero (or future NPC with same shape).
  *
  * @param {{
@@ -27,6 +41,25 @@ const _fwd = new Vector3();
  *   playAnim?: boolean
  * }} hit
  */
+/**
+ * Pull a mesh toward a world point (tornado / cyclone).
+ * @param {import('three').Object3D} mesh
+ * @param {import('three').Vector3} center
+ * @param {number} [mm]
+ */
+export function applyPullToward(mesh, center, mm = 220) {
+  if (!mesh?.position || !center) return false;
+  const dist = mmToM(mm);
+  _fwd.copy(center).sub(mesh.position);
+  _fwd.y = 0;
+  if (_fwd.lengthSq() < 1e-8) return false;
+  _fwd.normalize();
+  const step = Math.min(dist, mesh.position.distanceTo(center) * 0.85);
+  mesh.position.x += _fwd.x * step;
+  mesh.position.z += _fwd.z * step;
+  return true;
+}
+
 export function applyKnockback(ctx, hit) {
   if (!ctx?.character) return false;
   const mm = hit.knockbackMm ?? 180;
@@ -57,7 +90,10 @@ export function applyKnockback(ctx, hit) {
   }
 
   if (hit.playAnim !== false) {
-    ctx.character.playHitReaction?.() || ctx.character.requestOneShot?.('hitReact');
+    const kind = reactionKindFromHit(hit);
+    ctx.character.playReaction?.(kind) ||
+      ctx.character.playHitReaction?.() ||
+      ctx.character.requestOneShot?.('hitReact');
   }
   return true;
 }

@@ -16,7 +16,8 @@
  * Do not bind TPS clips onto grudge6 — skeleton is rigid Minecraft nodes
  * (Rightarm_14, Pistol_13, Slide_4…). Use for timing + prop motion only.
  *
- * Weapon mesh: flintlock.glb → public/models/weapons/t0-flintlock.glb for t0-gun
+ * Weapon mesh: TPS pistol → public/models/weapons/t0-tps-pistol.glb (hand bone)
+ * Flintlock fallback: public/models/weapons/t0-flintlock.glb
  * Bullet: Styloo bullet1.glb → public/models/vfx/projectiles/bullet1.glb
  */
 
@@ -163,6 +164,13 @@ export const FLINTLOCK_RELOAD = Object.freeze({
  * Soft-lock / crosshair assist when pistol pack is equipped.
  * Stronger magnetic pull than default melee — flintlock is loud not accurate.
  */
+/** One-hand aim IK — clip owns the grip; IK only points the barrel. */
+export const PISTOL_HAND_IK = Object.freeze({
+  aimWeight: 0.28,
+  restWeight: 0.1,
+  supportScale: 0
+});
+
 export const PISTOL_SOFT_LOCK = Object.freeze({
   softLockBlend: 0.82,
   softLockMaxAngleDeg: 34,
@@ -178,7 +186,7 @@ export const PISTOL_SOFT_LOCK = Object.freeze({
 });
 
 /** Lab reference GLB path (same-origin after copy). */
-export const TPS_PISTOL_REF_URL = './models/reference/minecraft_tps_pistol.glb';
+export const TPS_PISTOL_REF_URL = './models/weapons/t0-tps-pistol.glb';
 
 /**
  * Role to play for a weapon skill slot on pistol pack.
@@ -186,8 +194,8 @@ export const TPS_PISTOL_REF_URL = './models/reference/minecraft_tps_pistol.glb';
  * @param {number} [abilityIndex]
  */
 export function pistolRoleForSkillSlot(slotType, abilityIndex = 0) {
-  if (slotType === 'primary') return 'attack'; // gunplay spin
-  if (slotType === 'secondary') return 'draw';
+  if (slotType === 'primary') return 'attack'; // TPS fireaim on hand pistol + Bip001 gunplay
+  if (slotType === 'secondary') return 'draw'; // TPS draw on hand pistol
   if (slotType === 'reload') return 'reload';
   const skills = ['skill1', 'skill2', 'skill3', 'skill4', 'skill5'];
   return skills[abilityIndex % skills.length] || 'gunplay';
