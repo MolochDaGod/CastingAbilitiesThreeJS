@@ -1,0 +1,498 @@
+{
+  "version": "1.1.0",
+  "generated": "2026-07-24T17:07:04.518Z",
+  "description": "Saved game-ready HYDRA UI packs for Grudge Studio fleet games. Load in Studio or via game-ui-runtime.js.",
+  "studioUrl": "https://ui.grudge-studio.com/studio",
+  "gamesUrl": "https://ui.grudge-studio.com/games",
+  "runtime": "./game-ui-runtime.js",
+  "packs": [
+    {
+      "id": "grudge6",
+      "gameId": "grudge6",
+      "name": "Grudge6 — HUD + Spellbook + Panel",
+      "file": "./grudge6.json",
+      "url": "/game-ui-packs/grudge6.json",
+      "playUrl": "https://grudge6.grudge-studio.com",
+      "theme": "f",
+      "genre": "fantasy-mmo",
+      "features": [
+        "combat",
+        "spellbook",
+        "equipment",
+        "inventory",
+        "cast-bar",
+        "hotbar",
+        "quests"
+      ],
+      "usageStates": [
+        "explore",
+        "combat",
+        "casting",
+        "spellbook",
+        "panel",
+        "inventory",
+        "menu"
+      ],
+      "tags": [
+        "grudge6",
+        "flagship",
+        "toon-rts",
+        "craftpix"
+      ],
+      "componentCount": 9
+    },
+    {
+      "id": "warlords",
+      "gameId": "warlords",
+      "name": "Warlords — Combat + Bag + Craft",
+      "file": "./warlords.json",
+      "url": "/game-ui-packs/warlords.json",
+      "playUrl": "https://client.grudge-studio.com",
+      "theme": "f",
+      "genre": "fantasy-mmo",
+      "features": [
+        "inventory",
+        "equipment",
+        "crafting",
+        "quests",
+        "combat",
+        "chat",
+        "currency",
+        "boss-frame",
+        "target-of-target",
+        "cast-bar",
+        "weapon-skills",
+        "hud-settings",
+        "move-anything",
+        "advanced-hotkeys"
+      ],
+      "usageStates": [
+        "explore",
+        "combat",
+        "inventory",
+        "crafting",
+        "dialogue",
+        "dead",
+        "menu"
+      ],
+      "tags": [
+        "flagship",
+        "mmo",
+        "wcs",
+        "bars-hud"
+      ],
+      "componentCount": 22,
+      "runtime": {
+        "scripts": [
+          "./bars-hud-ssot.js",
+          "./hud-settings.js",
+          "./game-ui-runtime.js"
+        ]
+      }
+    },
+    {
+      "id": "open",
+      "gameId": "open",
+      "name": "Open Launcher — Lobby UI",
+      "file": "./open.json",
+      "url": "/game-ui-packs/open.json",
+      "playUrl": "https://open.grudge-studio.com",
+      "theme": "d",
+      "genre": "launcher",
+      "features": [
+        "character-select",
+        "game-list",
+        "account",
+        "news"
+      ],
+      "usageStates": [
+        "lobby",
+        "character-select",
+        "loading"
+      ],
+      "tags": [
+        "launcher",
+        "hub"
+      ],
+      "componentCount": 7
+    },
+    {
+      "id": "grudox",
+      "gameId": "grudox",
+      "name": "GRUDOX — Room Hub UI",
+      "file": "./grudox.json",
+      "url": "/game-ui-packs/grudox.json",
+      "playUrl": "https://grudox.grudge-studio.com",
+      "theme": "d",
+      "genre": "multiplayer-hub",
+      "features": [
+        "party",
+        "rooms",
+        "chat",
+        "matchmaking"
+      ],
+      "usageStates": [
+        "lobby",
+        "in-room",
+        "match",
+        "spectate"
+      ],
+      "tags": [
+        "pvp",
+        "hub",
+        "carrier"
+      ],
+      "componentCount": 9
+    },
+    {
+      "id": "player-grass",
+      "gameId": "player-grass",
+      "name": "Player & Grass — Danger Room TightBar",
+      "file": "./player-grass.json",
+      "url": "/game-ui-packs/player-grass.json",
+      "playUrl": "https://threejs-player-and-grass.vercel.app/play?char=human&lobby=1",
+      "theme": "f",
+      "genre": "open-world-action",
+      "features": [
+        "tightbar",
+        "combat",
+        "harvest",
+        "inventory",
+        "minimap"
+      ],
+      "usageStates": [
+        "combat",
+        "harvest",
+        "mount",
+        "inventory"
+      ],
+      "tags": [
+        "grass",
+        "si-scale",
+        "grudge6",
+        "danger-room",
+        "tightbar"
+      ],
+      "componentCount": 7
+    },
+    {
+      "id": "survival",
+      "gameId": "survival",
+      "name": "Survival — Craft + Needs",
+      "file": "./survival.json",
+      "url": "/game-ui-packs/survival.json",
+      "playUrl": "https://grudges.grudge-studio.com",
+      "theme": "f",
+      "genre": "survival",
+      "features": [
+        "inventory",
+        "crafting",
+        "building",
+        "needs",
+        "harvest"
+      ],
+      "usageStates": [
+        "explore",
+        "harvest",
+        "craft",
+        "build",
+        "combat",
+        "inventory"
+      ],
+      "tags": [
+        "survival",
+        "craft"
+      ],
+      "componentCount": 11
+    },
+    {
+      "id": "arena",
+      "gameId": "arena",
+      "name": "Arena — PvP FPS UI",
+      "file": "./arena.json",
+      "url": "/game-ui-packs/arena.json",
+      "playUrl": "https://grudge-arena.grudge-studio.com",
+      "theme": "q",
+      "genre": "pvp-arena",
+      "features": [
+        "scoreboard",
+        "killfeed",
+        "loadout",
+        "match-timer"
+      ],
+      "usageStates": [
+        "match",
+        "scoreboard",
+        "dead",
+        "victory",
+        "loadout"
+      ],
+      "tags": [
+        "pvp",
+        "fps"
+      ],
+      "componentCount": 11
+    },
+    {
+      "id": "mech",
+      "gameId": "mech",
+      "name": "Mech Forge — Hardpoint UI",
+      "file": "./mech.json",
+      "url": "/game-ui-packs/mech.json",
+      "playUrl": "https://mech-playground.vercel.app",
+      "theme": "c",
+      "genre": "mech-sim",
+      "features": [
+        "hardpoints",
+        "inventory",
+        "heat",
+        "garage",
+        "combat"
+      ],
+      "usageStates": [
+        "garage",
+        "combat",
+        "inventory",
+        "destroyed"
+      ],
+      "tags": [
+        "mech",
+        "cyber"
+      ],
+      "componentCount": 10
+    },
+    {
+      "id": "grim-armada",
+      "gameId": "grim-armada",
+      "name": "Grim Armada — Fleet HUD",
+      "file": "./grim-armada.json",
+      "url": "/game-ui-packs/grim-armada.json",
+      "playUrl": "https://grim-armada-web.vercel.app",
+      "theme": "c",
+      "genre": "space-fleet",
+      "features": [
+        "fleet",
+        "cargo",
+        "orders",
+        "sector-map",
+        "combat"
+      ],
+      "usageStates": [
+        "bridge",
+        "combat",
+        "cargo",
+        "fleet",
+        "jump"
+      ],
+      "tags": [
+        "space",
+        "rts-lite"
+      ],
+      "componentCount": 11
+    },
+    {
+      "id": "dcq",
+      "gameId": "dcq",
+      "name": "Dungeon Crawler Quest — Loot UI",
+      "file": "./dcq.json",
+      "url": "/game-ui-packs/dcq.json",
+      "playUrl": "https://dcq.grudge-studio.com",
+      "theme": "f",
+      "genre": "dungeon-crawler",
+      "features": [
+        "party",
+        "loot",
+        "map",
+        "potions",
+        "rest"
+      ],
+      "usageStates": [
+        "dungeon",
+        "loot",
+        "camp",
+        "combat",
+        "map"
+      ],
+      "tags": [
+        "dungeon",
+        "rpg"
+      ],
+      "componentCount": 10
+    },
+    {
+      "id": "space-rts",
+      "gameId": "space-rts",
+      "name": "Space RTS — Command UI",
+      "file": "./space-rts.json",
+      "url": "/game-ui-packs/space-rts.json",
+      "playUrl": "https://grudge-space-rts.vercel.app",
+      "theme": "c",
+      "genre": "rts",
+      "features": [
+        "resources",
+        "build-queue",
+        "selection",
+        "minimap",
+        "tech"
+      ],
+      "usageStates": [
+        "command",
+        "build",
+        "combat",
+        "tech"
+      ],
+      "tags": [
+        "rts",
+        "space"
+      ],
+      "componentCount": 10
+    },
+    {
+      "id": "drive",
+      "gameId": "drive",
+      "name": "Grudge Drive — Race HUD",
+      "file": "./drive.json",
+      "url": "/game-ui-packs/drive.json",
+      "playUrl": "https://drive.grudge-studio.com",
+      "theme": "q",
+      "genre": "racing",
+      "features": [
+        "speed",
+        "laps",
+        "nitro",
+        "minimap"
+      ],
+      "usageStates": [
+        "race",
+        "pause",
+        "finish",
+        "garage"
+      ],
+      "tags": [
+        "racing"
+      ],
+      "componentCount": 10
+    },
+    {
+      "id": "foundry",
+      "gameId": "foundry",
+      "name": "Character Foundry — Create UI",
+      "file": "./foundry.json",
+      "url": "/game-ui-packs/foundry.json",
+      "playUrl": "https://character.grudge-studio.com",
+      "theme": "f",
+      "genre": "character-creator",
+      "features": [
+        "slots",
+        "race",
+        "attributes",
+        "equip-preview",
+        "enter-play"
+      ],
+      "usageStates": [
+        "slots",
+        "create",
+        "preview",
+        "confirm"
+      ],
+      "tags": [
+        "foundry",
+        "create"
+      ],
+      "componentCount": 8
+    },
+    {
+      "id": "water-island",
+      "gameId": "water",
+      "name": "Water Island — Home Base UI",
+      "file": "./water-island.json",
+      "url": "/game-ui-packs/water-island.json",
+      "playUrl": "https://water.grudge-studio.com",
+      "theme": "f",
+      "genre": "home-island",
+      "features": [
+        "inventory",
+        "crafting",
+        "building",
+        "travel",
+        "boat"
+      ],
+      "usageStates": [
+        "island",
+        "build",
+        "craft",
+        "travel",
+        "boat"
+      ],
+      "tags": [
+        "island",
+        "warlords"
+      ],
+      "componentCount": 10
+    },
+    {
+      "id": "wcs",
+      "gameId": "wcs",
+      "name": "WCS — Crafting Suite UI",
+      "file": "./wcs.json",
+      "url": "/game-ui-packs/wcs.json",
+      "playUrl": "https://wcs.grudge-studio.com",
+      "theme": "f",
+      "genre": "crafting",
+      "features": [
+        "recipes",
+        "materials",
+        "stations",
+        "quality",
+        "inventory"
+      ],
+      "usageStates": [
+        "browse",
+        "craft",
+        "queue",
+        "result"
+      ],
+      "tags": [
+        "crafting",
+        "wcs"
+      ],
+      "componentCount": 9
+    },
+    {
+      "id": "forge",
+      "gameId": "forge",
+      "name": "Studio Forge — Editor Shell UI",
+      "file": "./forge.json",
+      "url": "/game-ui-packs/forge.json",
+      "playUrl": "https://forge.grudge-studio.com",
+      "theme": "d",
+      "genre": "editor",
+      "features": [
+        "assets",
+        "hierarchy",
+        "publish",
+        "inspect"
+      ],
+      "usageStates": [
+        "edit",
+        "preview",
+        "publish"
+      ],
+      "tags": [
+        "editor",
+        "tools"
+      ],
+      "componentCount": 7
+    }
+  ],
+  "updated": "2026-08-06",
+  "uiAssets": "https://ui.grudge-studio.com/ui-assets-ssot.js",
+  "fontsCss": "https://ui.grudge-studio.com/grudge-fonts.css",
+  "assetRoots": {
+    "craftpix": "/assets/craftpix/",
+    "craftpixRpgCss": "https://assets.grudge-studio.com/ui/craftpix-rpg/craftpix-rpg-ui.css",
+    "iconsCdn": "https://assets.grudge-studio.com/game-assets/icons/",
+    "professions": "https://assets.grudge-studio.com/game-assets/icons/professions/",
+    "professionBackgrounds": "https://grudgewarlords.com/assets/professions/"
+  }
+}

@@ -1,0 +1,624 @@
+{
+  "name": "Warlords — Combat + Bag + Craft",
+  "resolution": {
+    "w": 1920,
+    "h": 1080
+  },
+  "theme": "f",
+  "comps": [
+    {
+      "id": "pf1",
+      "type": "player-frame",
+      "x": 24,
+      "y": 880,
+      "w": 320,
+      "h": 120,
+      "rot": 0,
+      "op": 1,
+      "br": 6,
+      "shd": true,
+      "props": {
+        "name": "Hero",
+        "level": 42,
+        "hp": 780,
+        "hpMax": 1000,
+        "mp": 310,
+        "mpMax": 500
+      },
+      "groups": [
+        "hud",
+        "combat",
+        "explore"
+      ]
+    },
+    {
+      "id": "tf1",
+      "type": "target-frame",
+      "x": 760,
+      "y": 24,
+      "w": 400,
+      "h": 72,
+      "rot": 0,
+      "op": 1,
+      "br": 6,
+      "shd": true,
+      "props": {
+        "name": "Enemy",
+        "level": 40,
+        "hp": 620,
+        "hpMax": 900,
+        "hostile": true,
+        "frameSkin": "enemy-frames/enemy_frame_001.png"
+      },
+      "groups": [
+        "hud",
+        "combat"
+      ]
+    },
+    {
+      "id": "boss1",
+      "type": "boss-frame",
+      "x": 660,
+      "y": 16,
+      "w": 600,
+      "h": 88,
+      "rot": 0,
+      "op": 1,
+      "br": 6,
+      "shd": true,
+      "props": {
+        "name": "World Boss",
+        "level": 50,
+        "hp": 98000,
+        "hpMax": 120000,
+        "boss": true,
+        "elite": true,
+        "frameSkin": "boss-frames/boss_frame_002.png",
+        "frameSkinAlt": "boss-frames/boss_frame_004.png"
+      },
+      "groups": [
+        "hud",
+        "combat",
+        "boss"
+      ]
+    },
+    {
+      "id": "tot1",
+      "type": "target-of-target",
+      "x": 1080,
+      "y": 100,
+      "w": 200,
+      "h": 56,
+      "rot": 0,
+      "op": 1,
+      "br": 6,
+      "shd": true,
+      "props": {
+        "name": "ToT",
+        "level": 38,
+        "hp": 400,
+        "hpMax": 800,
+        "frameSkin": "ally-frames/ally_frame_001.png"
+      },
+      "groups": [
+        "hud",
+        "combat"
+      ]
+    },
+    {
+      "id": "cast1",
+      "type": "cast-bar",
+      "x": 700,
+      "y": 860,
+      "w": 520,
+      "h": 48,
+      "rot": 0,
+      "op": 1,
+      "br": 6,
+      "shd": true,
+      "props": {
+        "label": "Weapon skill",
+        "spell": "Casting…",
+        "progress": 0.45,
+        "iconUrl": ""
+      },
+      "groups": [
+        "hud",
+        "combat",
+        "cast"
+      ]
+    },
+    {
+      "id": "hb1",
+      "type": "hotbar-2row",
+      "x": 640,
+      "y": 920,
+      "w": 640,
+      "h": 120,
+      "rot": 0,
+      "op": 1,
+      "br": 6,
+      "shd": true,
+      "props": {
+        "slots": 10,
+        "slotSize": 52
+      },
+      "groups": [
+        "hud",
+        "combat",
+        "explore"
+      ]
+    },
+    {
+      "id": "mm1",
+      "type": "minimap",
+      "x": 1680,
+      "y": 24,
+      "w": 200,
+      "h": 200,
+      "rot": 0,
+      "op": 1,
+      "br": 6,
+      "shd": true,
+      "props": {
+        "shape": "circle"
+      },
+      "groups": [
+        "hud",
+        "explore",
+        "combat"
+      ]
+    },
+    {
+      "id": "obj1",
+      "type": "objectives",
+      "x": 1680,
+      "y": 240,
+      "w": 200,
+      "h": 180,
+      "rot": 0,
+      "op": 1,
+      "br": 6,
+      "shd": true,
+      "props": {
+        "label": "Quests"
+      },
+      "groups": [
+        "hud",
+        "explore"
+      ]
+    },
+    {
+      "id": "cl1",
+      "type": "combat-log",
+      "x": 24,
+      "y": 640,
+      "w": 280,
+      "h": 200,
+      "rot": 0,
+      "op": 1,
+      "br": 6,
+      "shd": true,
+      "props": {
+        "label": "Combat"
+      },
+      "groups": [
+        "hud",
+        "combat"
+      ]
+    },
+    {
+      "id": "md1",
+      "type": "menu-dock",
+      "x": 1720,
+      "y": 960,
+      "w": 160,
+      "h": 72,
+      "rot": 0,
+      "op": 1,
+      "br": 6,
+      "shd": true,
+      "props": {
+        "buttons": "Bag,Map,Skills,Menu"
+      },
+      "groups": [
+        "hud",
+        "explore",
+        "combat"
+      ]
+    },
+    {
+      "id": "ws1",
+      "type": "weapon-selector",
+      "x": 24,
+      "y": 820,
+      "w": 200,
+      "h": 40,
+      "rot": 0,
+      "op": 1,
+      "br": 6,
+      "shd": true,
+      "props": {
+        "label": "Main / 2nd"
+      },
+      "groups": [
+        "hud",
+        "combat"
+      ]
+    },
+    {
+      "id": "ip1",
+      "type": "interaction-prompt",
+      "x": 820,
+      "y": 700,
+      "w": 280,
+      "h": 48,
+      "rot": 0,
+      "op": 1,
+      "br": 6,
+      "shd": true,
+      "props": {
+        "key": "F",
+        "action": "Interact"
+      },
+      "groups": [
+        "prompt",
+        "explore"
+      ]
+    },
+    {
+      "id": "inv1",
+      "type": "inventory-grid",
+      "x": 560,
+      "y": 180,
+      "w": 420,
+      "h": 520,
+      "rot": 0,
+      "op": 1,
+      "br": 6,
+      "shd": true,
+      "props": {
+        "cols": 6,
+        "rows": 7,
+        "slotSize": 52,
+        "gap": 4,
+        "label": "Bag"
+      },
+      "groups": [
+        "inventory",
+        "crafting"
+      ]
+    },
+    {
+      "id": "eq1",
+      "type": "paperdoll-equipment",
+      "x": 160,
+      "y": 160,
+      "w": 420,
+      "h": 560,
+      "rot": 0,
+      "op": 1,
+      "br": 6,
+      "shd": true,
+      "props": {
+        "label": "GRUDGE WARLORD",
+        "title": "GRUDGE WARLORD",
+        "race": "Hero",
+        "portraitUrl": "https://client.grudge-studio.com/images/portraits/barbarian.png",
+        "layout": "tactical-paperdoll",
+        "mainPanel": "https://ui.grudge-studio.com/main-panel.html?era=warlords&tab=equipment"
+      },
+      "groups": [
+        "inventory",
+        "equipment"
+      ]
+    },
+    {
+      "id": "attr1",
+      "type": "attr-panel",
+      "x": 1020,
+      "y": 200,
+      "w": 280,
+      "h": 360,
+      "rot": 0,
+      "op": 1,
+      "br": 6,
+      "shd": true,
+      "props": {
+        "label": "Attributes"
+      },
+      "groups": [
+        "inventory",
+        "character"
+      ]
+    },
+    {
+      "id": "cur1",
+      "type": "currency-display",
+      "x": 1020,
+      "y": 580,
+      "w": 280,
+      "h": 56,
+      "rot": 0,
+      "op": 1,
+      "br": 6,
+      "shd": true,
+      "props": {
+        "amount": "12,480",
+        "label": "Gold"
+      },
+      "groups": [
+        "inventory",
+        "crafting",
+        "shop"
+      ]
+    },
+    {
+      "id": "shop1",
+      "type": "shop-panel",
+      "x": 1320,
+      "y": 200,
+      "w": 360,
+      "h": 520,
+      "rot": 0,
+      "op": 1,
+      "br": 6,
+      "shd": true,
+      "props": {
+        "label": "Craft / Trade"
+      },
+      "groups": [
+        "crafting",
+        "shop"
+      ]
+    },
+    {
+      "id": "chat1",
+      "type": "chat-window",
+      "x": 24,
+      "y": 420,
+      "w": 280,
+      "h": 200,
+      "rot": 0,
+      "op": 1,
+      "br": 6,
+      "shd": true,
+      "props": {
+        "label": "Chat"
+      },
+      "groups": [
+        "hud",
+        "explore",
+        "menu"
+      ]
+    },
+    {
+      "id": "qt1",
+      "type": "quest-tracker",
+      "x": 1480,
+      "y": 450,
+      "w": 220,
+      "h": 160,
+      "rot": 0,
+      "op": 1,
+      "br": 6,
+      "shd": true,
+      "props": {
+        "title": "Bloodfeud",
+        "objective": "Defeat 5 reavers",
+        "label": "Active"
+      },
+      "groups": [
+        "hud",
+        "explore"
+      ]
+    },
+    {
+      "id": "dlg1",
+      "type": "dialogue-box",
+      "x": 480,
+      "y": 760,
+      "w": 960,
+      "h": 160,
+      "rot": 0,
+      "op": 1,
+      "br": 6,
+      "shd": true,
+      "props": {
+        "speaker": "Harbor Master",
+        "text": "The island needs iron and courage. Will you help?"
+      },
+      "groups": [
+        "dialogue"
+      ]
+    },
+    {
+      "id": "alb1",
+      "type": "alert-banner",
+      "x": 560,
+      "y": 80,
+      "w": 800,
+      "h": 48,
+      "rot": 0,
+      "op": 1,
+      "br": 6,
+      "shd": true,
+      "props": {
+        "text": "YOU DIED — Return to shrine",
+        "type": "danger"
+      },
+      "groups": [
+        "dead"
+      ]
+    },
+    {
+      "id": "sk1",
+      "type": "skill-tree",
+      "x": 400,
+      "y": 160,
+      "w": 1120,
+      "h": 640,
+      "rot": 0,
+      "op": 1,
+      "br": 6,
+      "shd": true,
+      "props": {
+        "label": "Skills"
+      },
+      "groups": [
+        "menu",
+        "character"
+      ]
+    }
+  ],
+  "gameId": "warlords",
+  "gameReady": true,
+  "meta": {
+    "playUrl": "https://client.grudge-studio.com",
+    "genre": "fantasy-mmo",
+    "engine": "Three.js + Colyseus",
+    "description": "Full Warlords play HUD: player/target/boss frames (bars-hud 002/004), target-of-target, cast bar, hotbar weapon skills, bag, paperdoll, craft. HUD Settings: move anything, skins, size, advanced hotkeys.",
+    "mainPanelUrl": "https://ui.grudge-studio.com/main-panel.html?era=warlords",
+    "mainPanelEmbed": "https://ui.grudge-studio.com/main-panel.html?era=warlords&embed=1",
+    "equipmentLayout": "paperdoll-tactical",
+    "barsHud": {
+      "bossPrimary": "boss-frames/boss_frame_002.png",
+      "bossAlternate": "boss-frames/boss_frame_004.png",
+      "base": "/assets/bars-hud/"
+    },
+    "hudSettings": {
+      "moveAnything": true,
+      "modules": ["bars-hud-ssot.js", "hud-settings.js", "game-ui-runtime.js"]
+    },
+    "features": [
+      "inventory",
+      "equipment",
+      "paperdoll",
+      "main-panel",
+      "crafting",
+      "quests",
+      "combat",
+      "chat",
+      "currency",
+      "boss-frame",
+      "target-of-target",
+      "cast-bar",
+      "weapon-skills",
+      "hud-settings",
+      "move-anything",
+      "advanced-hotkeys"
+    ],
+    "usageStates": [
+      "explore",
+      "combat",
+      "inventory",
+      "crafting",
+      "dialogue",
+      "dead",
+      "menu"
+    ],
+    "dataBindings": {
+      "character": {
+        "path": "/api/characters/:id",
+        "fills": [
+          "pf1",
+          "attr1"
+        ]
+      },
+      "inventory": {
+        "path": "/api/characters/:id/inventory",
+        "fills": [
+          "inv1"
+        ]
+      },
+      "equipment": {
+        "path": "/api/characters/:id/equipment",
+        "fills": [
+          "eq1"
+        ]
+      },
+      "crafting": {
+        "path": "https://objectstore.grudge-studio.com/api/v1/recipes.json",
+        "fills": [
+          "shop1"
+        ]
+      }
+    },
+    "inputProfile": "warlords-combat",
+    "tags": [
+      "flagship",
+      "mmo",
+      "wcs"
+    ]
+  },
+  "states": {
+    "explore": {
+      "show": [
+        "hud",
+        "explore"
+      ],
+      "hide": [
+        "inventory",
+        "crafting",
+        "dialogue"
+      ]
+    },
+    "combat": {
+      "show": [
+        "hud",
+        "combat"
+      ],
+      "hide": [
+        "inventory",
+        "crafting"
+      ]
+    },
+    "inventory": {
+      "show": [
+        "inventory",
+        "equipment",
+        "character"
+      ],
+      "hide": [
+        "combat"
+      ]
+    },
+    "crafting": {
+      "show": [
+        "crafting",
+        "inventory"
+      ],
+      "hide": [
+        "combat"
+      ]
+    },
+    "dialogue": {
+      "show": [
+        "dialogue"
+      ],
+      "hide": [
+        "inventory",
+        "crafting"
+      ]
+    },
+    "dead": {
+      "show": [
+        "dead"
+      ],
+      "hide": [
+        "combat",
+        "inventory"
+      ]
+    },
+    "menu": {
+      "show": [
+        "menu"
+      ],
+      "hide": [
+        "combat"
+      ]
+    }
+  },
+  "id": "warlords",
+  "version": "1.2.0"
+}

@@ -86,9 +86,22 @@ npx vercel --prod --yes
 |---------|------|
 | `three` ^0.185.1 | Scene · GLTF · AnimationMixer · post addons |
 | `@dimforge/rapier3d-compat` ^0.19 | Heightfield + CCT |
-| `xstate` | Player activity machine |
-| `lil-gui` | Lab editor only |
+| `xstate` ^5.32 | **State:** `createMachine` + `createActor` — combat↔harvest only (`playerActivityMachine`) |
+| `lil-gui` ^0.21 | Lab editor knobs — **not** player HUD |
 | `vite` ^8 | Build / dev |
+
+**HUD is not an npm package.** Fleet HUD manager:
+
+| Source | Role |
+|--------|------|
+| `https://ui.grudge-studio.com/game-ui-runtime.js` | `GrudgeGameUI.load('warlords').mount(#hud).setState('combat')` |
+| `hud-settings.js` | Move/skin/hotkeys — **do not** apply default Q=block on Casting |
+| Local copy | `public/ui/grudge-game-ui/` (downloaded 2026-08) |
+| Play chrome in lab today | `src/ui/HUD.js` + CraftPix `public/ui/craftpix` |
+
+Docs: [XState v5](https://stately.ai/docs/quick-start) · [lil-gui](https://lil-gui.georgealways.com/) · [packs index](https://ui.grudge-studio.com/game-ui-packs/index.json)
+
+Do **not** add `zustand` here (R3F games only). Do not mount GrudgeGameUI *and* HUD.js as two player frames.
 
 No dual three, no second physics, no R3F dual renderer.
 
