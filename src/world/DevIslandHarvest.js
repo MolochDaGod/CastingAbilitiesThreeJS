@@ -9,24 +9,29 @@
  * - Training dummies register with CombatFocus as hostiles
  * - applyNodeLayout() consumes DevNode / Training Room JSON
  *
- * Extends App worldHarvest hook — does not fork combat or invent a second mixer.
+ * Extends App worldHarvest hook — animal clips use MeshMixer (vehicle law), not the hero mixer.
  * @see trainingRoomMap.js · docs/TRAINING_ROOM_SSOT.md
  */
 
 import {
   Box3,
   BoxGeometry,
+  BufferAttribute,
+  BufferGeometry,
+  CircleGeometry,
   Color,
   CylinderGeometry,
+  DoubleSide,
   Group,
+  LoopOnce,
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
   RingGeometry,
   SphereGeometry,
-  Vector3,
-  DoubleSide
+  Vector3
 } from 'three';
+import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { WORLD } from '../config/worldScale.js';
 import {
   DEFAULT_DECOR_LAYOUT,
@@ -50,9 +55,68 @@ import {
 import { resolveTrainingRoomMeshUrl } from './trainingRoomDeploy.js';
 import { bagAdd } from '../ui/mainPanelSlots.js';
 import { bagItemFromLoot } from '../ui/iconResolve.js';
+import { MeshMixer } from '../animation/meshMixer.js';
 
 const _v = new Vector3();
 const _box = new Box3();
+
+/** Author pack: Documents/free__dummy_monster.glb — lab test target. */
+export const DUMMY_MESH_URL = './models/training/free_dummy_monster.glb';
+/** Walk this far from the dummy home pad → drop combat focus. */
+export const DUMMY_LEASH_M = 20;
+const DUMMY_HEIGHT_M = 2.05;
+
+/** Trainable tells — same trio as Multiverse BossFight (cone / aoe / incoming). */
+const DUMMY_ATTACKS = Object.freeze([
+  { id: 'slash', telegraph: 'cone', radius: 3.6, angle: Math.PI * 0.65, windup: 0.7, recover: 0.65, color: 0xff6644 },
+  { id: 'slam', telegraph: 'circle', radius: 3.2, windup: 0.95, recover: 0.8, color: 0xffaa22 },
+  { id: 'incoming', telegraph: 'incoming', radius: 1.8, windup: 1.15, recover: 0.75, color: 0x66ccff }
+]);
+
+function makeDummyTelegraph(atk) {
+  const group = new Group();
+  group.name = 'dummy_telegraph';
+  const mat = new MeshBasicMaterial({
+    color: atk.color,
+    transparent: true,
+    opacity: 0.38,
+    side: DoubleSide,
+    depthWrite: false
+  });
+  const edge = new MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.7,
+    side: DoubleSide,
+    depthWrite: false
+  });
+  const kind = atk.telegraph === 'incoming' ? 'circle' : atk.telegraph;
+  const r = atk.radius;
+  if (kind === 'circle') {
+    const fill = new Mesh(new CircleGeometry(r, 40), mat);
+    fill.rotation.x = -Math.PI / 2;
+    const ring = new Mesh(new RingGeometry(Math.max(0.05, r - 0.1), r, 40), edge);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.02;
+    group.add(fill, ring);
+  } else if (kind === 'cone') {
+    const angle = atk.angle || Math.PI * 0.6;
+    const segs = 20;
+    const geo = new BufferGeometry();
+    const verts = [0, 0.02, 0];
+    for (let i = 0; i <= segs; i++) {
+      const a = -angle / 2 + (angle * i) / segs;
+      verts.push(Math.sin(a) * r, 0.02, Math.cos(a) * r);
+    }
+    geo.setAttribute('position', new BufferAttribute(new Float32Array(verts), 3));
+    const idx = [];
+    for (let i = 1; i <= segs; i++) idx.push(0, i, i + 1);
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    group.add(new Mesh(geo, mat));
+  }
+  return group;
+}
 
 /**
  * @typedef {object} HarvestNode
@@ -140,7 +204,7 @@ export class DevIslandHarvest {
     } else {
       await this.spawnDefaultLayout();
       await this.spawnDecor();
-      this.spawnTrainingDummies();
+      await this.spawnTrainingDummies();
       this.layoutSource = 'default';
     }
     this._ready = true;
@@ -183,13 +247,7 @@ export class DevIslandHarvest {
         continue;
       }
       if (pid === 'node.pve_dummy' || pid.includes('pve_dummy')) {
-        const dummy = this._makeDummy(n.label || 'Training dummy');
-        const y = this.heightSample(n.x, n.z) || 0;
-        dummy.position.set(n.x, y, n.z);
-        if (n.yaw != null) dummy.rotation.y = n.yaw;
-        this.dummyGroup.add(dummy);
-        this.dummies.push(dummy);
-        this.combatFocus?.addSelectable?.(dummy, 'hostile');
+        jobs.push(this._placeDummy(n.x, n.z, n.label || 'Training dummy', n.yaw));
         continue;
       }
       if (
@@ -204,8 +262,7 @@ export class DevIslandHarvest {
       // tree / flower / animal / hemp = play preview via forest/grass layers — skip mesh here
     }
     await Promise.all(jobs.filter(Boolean));
-    // If layout had no dummies, keep a minimal combat pad
-    if (!this.dummies.length) this.spawnTrainingDummies();
+    if (!this.dummies.length) await this.spawnTrainingDummies();
   }
 
   /**
@@ -217,7 +274,8 @@ export class DevIslandHarvest {
       DECOR_MESH_POOL[seed % DECOR_MESH_POOL.length] || DECOR_MESH_POOL[0];
     if (!url) return;
     try {
-      const model = await this._loadModel(url, n.scale ?? 1.2);
+      const loaded = await this._loadModel(url, n.scale ?? 1.2);
+      const model = loaded?.root || loaded;
       if (!model) return;
       const root = new Group();
       root.name = `decor_layout_${seed}`;
@@ -258,7 +316,8 @@ export class DevIslandHarvest {
       const url = DECOR_MESH_POOL[slot.mesh % DECOR_MESH_POOL.length];
       if (!url) return;
       try {
-        const model = await this._loadModel(url, slot.scale ?? 1.2);
+        const loaded = await this._loadModel(url, slot.scale ?? 1.2);
+        const model = loaded?.root || loaded;
         if (!model) return;
         const root = new Group();
         root.name = `decor_${i}`;
@@ -325,8 +384,14 @@ export class DevIslandHarvest {
     const url = pickMeshUrl(def, seed + def.id.length);
     if (url) {
       try {
-        model = await this._loadModel(url, def.scale ?? 1);
+        const loaded = await this._loadModel(url, def.scale ?? 1, def);
+        model = loaded?.root || loaded;
         if (model) root.add(model);
+        if (loaded?.mixer) {
+          // mixer attached after node object exists
+          root.userData.animalMixer = loaded.mixer;
+          root.userData.animalActions = loaded.actions;
+        }
       } catch (err) {
         console.warn('[DevIsland] mesh fail', url, err?.message || err);
       }
@@ -375,7 +440,9 @@ export class DevIslandHarvest {
       x,
       z,
       highlight: ring,
-      model
+      model,
+      mixer: root.userData.animalMixer || null,
+      actions: root.userData.animalActions || null
     };
     this.nodes.push(node);
     return node;
@@ -391,21 +458,44 @@ export class DevIslandHarvest {
   }
 
   /**
-   * Training dummies — simple SI targets for combat focus / Tab cycle.
+   * Training dummies — free__dummy_monster GLB on existing pads.
+   * Leash: walk > 20 m from home pad → CombatFocus.clearTarget (disengage).
    */
-  spawnTrainingDummies() {
+  async spawnTrainingDummies() {
     this.clearDummies();
-    for (const slot of DEFAULT_DUMMY_LAYOUT) {
+    const jobs = DEFAULT_DUMMY_LAYOUT.map((slot) => {
       const r = this.islandRadius * (slot.r ?? 0.32);
       const x = Math.cos(slot.angle) * r;
       const z = Math.sin(slot.angle) * r;
-      const dummy = this._makeDummy(slot.label || 'Training dummy');
-      const y = this.heightSample(x, z) || 0;
-      dummy.position.set(x, y, z);
-      this.dummyGroup.add(dummy);
-      this.dummies.push(dummy);
-      this.combatFocus?.addSelectable?.(dummy, 'hostile');
+      return this._placeDummy(x, z, slot.label || 'Training dummy');
+    });
+    await Promise.all(jobs);
+  }
+
+  /**
+   * @param {number} x
+   * @param {number} z
+   * @param {string} label
+   * @param {number} [yaw]
+   */
+  async _placeDummy(x, z, label, yaw = 0) {
+    const dummy = await this._makeDummy(label);
+    const y = this.heightSample(x, z) || 0;
+    dummy.position.set(x, y, z);
+    dummy.rotation.y = yaw || 0;
+    try {
+      dummy.updateMatrixWorld(true);
+      _box.setFromObject(dummy);
+      if (Number.isFinite(_box.min.y)) dummy.position.y += y - _box.min.y;
+    } catch {
+      dummy.position.y = y;
     }
+    dummy.userData.home = dummy.position.clone();
+    dummy.userData.leashM = DUMMY_LEASH_M;
+    this.dummyGroup.add(dummy);
+    this.dummies.push(dummy);
+    this.combatFocus?.addSelectable?.(dummy, 'hostile');
+    return dummy;
   }
 
   clearDummies() {
@@ -545,11 +635,12 @@ export class DevIslandHarvest {
     const now = performance.now() / 1000;
 
     for (const n of this.nodes) {
+      if (n.mixer) n.mixer.update(dt);
       if (!n.alive && n.respawnAt > 0 && now >= n.respawnAt) {
         this._respawnNode(n);
       }
-      // Subtle idle bob on live models
-      if (n.alive && n.model) {
+      // Subtle idle yaw only on unskinned props
+      if (n.alive && n.model && !n.mixer) {
         n.model.rotation.y += dt * 0.05;
       }
     }
@@ -570,7 +661,125 @@ export class DevIslandHarvest {
         const ok = toolMatches(getEquippedWeapon(), next.def);
         next.highlight.material.color.set(ok ? next.def.tint || '#88ccff' : '#ff6644');
       }
+      this._tickDummyLeash(playerPos);
+      this._tickDummyAttacks(dt, playerPos);
     }
+    for (const d of this.dummies) {
+      d.userData.mixer?.update(dt);
+    }
+  }
+
+  /**
+   * Training dummy attack cycle — cone / AoE / incoming (same tells as Multiverse BossFight).
+   * @param {number} dt
+   * @param {{x:number,y?:number,z:number}} playerPos
+   */
+  _tickDummyAttacks(dt, playerPos) {
+    const px = playerPos.x ?? 0;
+    const pz = playerPos.z ?? 0;
+    let locked = null;
+    const t = this.combatFocus?.selectedTarget?.mesh;
+    if (t) {
+      let n = t;
+      while (n && !n.userData?.trainingDummy) n = n.parent;
+      locked = n;
+    }
+    for (const d of this.dummies) {
+      const ud = d.userData;
+      if (!ud?.trainingDummy) continue;
+      const dist = Math.hypot(px - d.position.x, pz - d.position.z);
+      const active = locked ? d === locked : dist <= 8;
+      if (!active || dist > 12) {
+        if (ud.atkState !== 'idle') this._dummyClearTel(d);
+        ud.atkState = 'idle';
+        continue;
+      }
+      d.lookAt(px, d.position.y, pz);
+      ud.atkT = (ud.atkT || 0) + dt;
+      if (ud.atkState === 'idle' || !ud.atkState) {
+        if (ud.atkT < 1.1) continue;
+        const rot = DUMMY_ATTACKS[(ud.atkI || 0) % DUMMY_ATTACKS.length];
+        ud.atkI = (ud.atkI || 0) + 1;
+        ud.atk = rot;
+        ud.atkState = 'telegraph';
+        ud.atkT = 0;
+        ud.aimX = px;
+        ud.aimZ = pz;
+        this._dummyShowTel(d, rot, playerPos);
+        const atk = ud.actions?.get('attack');
+        if (atk) {
+          ud.actions.get('idle')?.fadeOut(0.08);
+          atk.reset().fadeIn(0.06).setLoop(LoopOnce, 1).play();
+        }
+        continue;
+      }
+      if (ud.atkState === 'telegraph') {
+        const wind = ud.atk?.windup ?? 0.8;
+        const t = Math.min(1, ud.atkT / wind);
+        ud.telegraph?.traverse((o) => {
+          if (o.material && o.material.opacity != null) {
+            o.material.opacity = 0.28 + 0.45 * t;
+          }
+        });
+        if (ud.atkT >= wind) {
+          ud.atkState = 'recover';
+          ud.atkT = 0;
+          this._dummyClearTel(d);
+          ud.actions?.get('idle')?.reset().fadeIn(0.12).play();
+        }
+      } else if (ud.atkState === 'recover') {
+        if (ud.atkT >= (ud.atk?.recover ?? 0.7)) {
+          ud.atkState = 'idle';
+          ud.atkT = 0;
+        }
+      }
+    }
+  }
+
+  _dummyShowTel(dummy, atk, playerPos) {
+    this._dummyClearTel(dummy);
+    const tel = makeDummyTelegraph(atk);
+    if (!tel) return;
+    if (atk.telegraph === 'incoming') {
+      tel.position.set(playerPos.x, (playerPos.y ?? dummy.position.y) + 0.04, playerPos.z);
+      this.scene.add(tel);
+      dummy.userData.telegraphWorld = true;
+    } else {
+      tel.position.y = 0.04;
+      dummy.add(tel);
+      dummy.userData.telegraphWorld = false;
+    }
+    dummy.userData.telegraph = tel;
+  }
+
+  _dummyClearTel(dummy) {
+    const tel = dummy.userData.telegraph;
+    if (!tel) return;
+    if (tel.parent) tel.parent.remove(tel);
+    tel.traverse((o) => {
+      o.geometry?.dispose?.();
+      o.material?.dispose?.();
+    });
+    dummy.userData.telegraph = null;
+    dummy.userData.telegraphWorld = false;
+  }
+
+  /**
+   * If the locked dummy's home pad is more than DUMMY_LEASH_M away, drop combat.
+   * @param {{x:number,z:number}} playerPos
+   */
+  _tickDummyLeash(playerPos) {
+    const t = this.combatFocus?.selectedTarget;
+    if (!t?.mesh) return;
+    let dummy = t.mesh;
+    while (dummy && !dummy.userData?.trainingDummy) dummy = dummy.parent;
+    if (!dummy?.userData?.home) return;
+    const home = dummy.userData.home;
+    const leash = dummy.userData.leashM ?? DUMMY_LEASH_M;
+    const d = Math.hypot((playerPos.x ?? 0) - home.x, (playerPos.z ?? 0) - home.z);
+    if (d <= leash) return;
+    this.combatFocus.clearTarget();
+    this.onToast?.(`Disengage · ${leash} m from dummy`);
   }
 
   /* ── internals ─────────────────────────────────────────────── */
@@ -579,17 +788,26 @@ export class DevIslandHarvest {
    * @param {string} url
    * @param {number} scale
    */
-  async _loadModel(url, scale = 1) {
+  async _loadModel(url, scale = 1, def = null) {
     // Same-origin public/ on casting deploy; optional CDN when preferCdn
     url = resolveTrainingRoomMeshUrl(url) || url;
-    let tpl = this._meshCache.get(url);
-    if (!tpl) {
+    let cached = this._meshCache.get(url);
+    if (!cached) {
       const gltf = await this.assets.loadGLTF(url);
-      tpl = gltf.scene || gltf.scenes?.[0];
-      if (!tpl) return null;
-      this._meshCache.set(url, tpl);
+      const scene = gltf.scene || gltf.scenes?.[0];
+      if (!scene) return null;
+      cached = { scene, animations: gltf.animations || [] };
+      this._meshCache.set(url, cached);
     }
-    const clone = tpl.clone(true);
+    const skinned = cached.scene.getObjectByProperty?.('isSkinnedMesh', true) ||
+      (() => {
+        let hit = null;
+        cached.scene.traverse((o) => {
+          if (!hit && o.isSkinnedMesh) hit = o;
+        });
+        return hit;
+      })();
+    const clone = skinned ? skeletonClone(cached.scene) : cached.scene.clone(true);
     clone.traverse((c) => {
       if (c.isMesh) {
         c.castShadow = true;
@@ -599,20 +817,47 @@ export class DevIslandHarvest {
         }
       }
     });
-    // Fit to SI prop height (~0.9–1.8 m) — author packs may be cm or unitless
     _box.setFromObject(clone);
     const size = new Vector3();
     _box.getSize(size);
     const maxDim = Math.max(size.x, size.y, size.z, 0.01);
-    // If mesh already ~1–2 m, only apply scale; if huge (cm), compress hard
-    let target = 1.35 * scale;
-    if (maxDim > 8) target = 1.5 * scale; // classic 100× / big export
-    else if (maxDim < 0.25) target = 1.1 * scale; // tiny author
-    const s = target / maxDim;
-    clone.scale.setScalar(s);
+    const alreadySi = size.y >= 0.35 && size.y <= 2.8 && maxDim < 8;
+    if (!alreadySi) {
+      let target = 1.35 * scale;
+      if (maxDim > 8) target = 1.5 * scale;
+      else if (maxDim < 0.25) target = 1.1 * scale;
+      clone.scale.setScalar(target / maxDim);
+    } else if (scale !== 1) {
+      clone.scale.multiplyScalar(scale);
+    }
     clone.position.set(0, 0, 0);
     clone.updateMatrixWorld(true);
-    return clone;
+
+    let mixer = null;
+    let actions = null;
+    let meshMixer = null;
+    if (cached.animations.length) {
+      meshMixer = new MeshMixer(clone);
+      mixer = meshMixer.mixer;
+      actions = meshMixer.actions;
+      for (const clip of cached.animations) {
+        const n = String(clip.name || '');
+        const idle =
+          /^idle$/i.test(n) ||
+          /Idle_AnimalArmature$/i.test(n) ||
+          n === (def?.idleClip || '');
+        const death =
+          /^death$/i.test(n) ||
+          /Death_AnimalArmature$/i.test(n) ||
+          n === (def?.deathClip || '');
+        const attack = /^attack$/i.test(n);
+        const role = idle ? 'idle' : death ? 'death' : attack ? 'attack' : null;
+        meshMixer.addClip(clip, role, { once: !!death });
+        if (n && n !== role) actions.set(n, meshMixer.actions.get(role) || meshMixer.actions.get(n));
+      }
+      meshMixer.play(def?.idleClip || 'idle', 0.08) || meshMixer.play([...actions.keys()][0], 0.08);
+    }
+    return { root: clone, mixer, actions, meshMixer };
   }
 
   /**
@@ -655,7 +900,7 @@ export class DevIslandHarvest {
   /**
    * @param {string} label
    */
-  _makeDummy(label) {
+  async _makeDummy(label) {
     const root = new Group();
     root.name = label;
     root.userData.displayName = label;
@@ -663,6 +908,30 @@ export class DevIslandHarvest {
     root.userData.hp01 = 1;
     root.userData.kind = 'hostile';
     root.userData.trainingDummy = true;
+    root.userData.leashM = DUMMY_LEASH_M;
+
+    try {
+      const loaded = await this._loadModel(DUMMY_MESH_URL, 1);
+      const model = loaded?.root || (loaded?.isObject3D ? loaded : null);
+      if (model) {
+        _box.setFromObject(model);
+        const size = new Vector3();
+        _box.getSize(size);
+        if (size.y > 0.05) model.scale.multiplyScalar(DUMMY_HEIGHT_M / size.y);
+        model.position.set(0, 0, 0);
+        root.add(model);
+        root.userData.mixer = loaded.mixer || null;
+        root.userData.actions = loaded.actions || null;
+        root.userData.atkI = 0;
+        root.userData.atkState = 'idle';
+        root.userData.atkT = 0;
+        root.userData.atk = null;
+        root.userData.telegraph = null;
+        return root;
+      }
+    } catch (err) {
+      console.warn('[TrainingRoom] dummy GLB miss', DUMMY_MESH_URL, err?.message || err);
+    }
 
     const body = new Mesh(
       new CylinderGeometry(0.28, 0.32, 1.5, 10),
@@ -670,19 +939,16 @@ export class DevIslandHarvest {
     );
     body.position.y = 0.9;
     body.castShadow = true;
-
     const head = new Mesh(
       new SphereGeometry(0.22, 10, 8),
       new MeshStandardMaterial({ color: 0xc4a574, roughness: 0.7 })
     );
     head.position.y = 1.85;
-
     const post = new Mesh(
       new CylinderGeometry(0.08, 0.1, 0.35, 6),
       new MeshStandardMaterial({ color: 0x5c4033, roughness: 0.9 })
     );
     post.position.y = 0.15;
-
     root.add(post, body, head);
     return root;
   }
@@ -693,9 +959,21 @@ export class DevIslandHarvest {
   _breakNode(node) {
     node.alive = false;
     node.hp = 0;
-    node.root.visible = false;
     const delay = node.def.respawnS ?? 30;
     node.respawnAt = performance.now() / 1000 + delay;
+    const death = node.actions?.get('death') || node.actions?.get(node.def.deathClip);
+    if (death && node.mixer) {
+      for (const a of node.actions.values()) {
+        if (a !== death && a.isRunning()) a.fadeOut(0.08);
+      }
+      death.reset().fadeIn(0.04).play();
+      const hideIn = Math.min(2.4, (death.getClip?.()?.duration || 1.2) + 0.05);
+      setTimeout(() => {
+        if (!node.alive) node.root.visible = false;
+      }, hideIn * 1000);
+    } else {
+      node.root.visible = false;
+    }
   }
 
   /**
@@ -707,6 +985,13 @@ export class DevIslandHarvest {
     node.respawnAt = 0;
     node.root.visible = true;
     if (node.highlight) node.highlight.material.opacity = 0;
+    const idle = node.actions?.get('idle') || node.actions?.get(node.def.idleClip);
+    if (idle) {
+      for (const a of node.actions.values()) {
+        if (a !== idle && a.isRunning()) a.stop();
+      }
+      idle.reset().play();
+    }
   }
 
   /**

@@ -3,7 +3,8 @@
  * Follows XZ of the target; Y = terrain + pad, never through the ground,
  * always below the ankles.
  */
-import { AnimationMixer, Group, LoopRepeat } from 'three';
+import { Group } from 'three';
+import { MeshMixer } from '../animation/meshMixer.js';
 
 export const HEAL_FIELD_URL = './models/vfx/heal/healing-field.glb';
 const PAD_M = 0.05;
@@ -92,15 +93,16 @@ export class HealFieldFollow {
     const root = proto.scene.clone(true);
     root.name = 'NatureHealField';
     this.scene.add(root);
-    let mixer = null;
+    let meshMixer = null;
     if (proto.clips[0]) {
-      mixer = new AnimationMixer(root);
-      const act = mixer.clipAction(proto.clips[0]);
-      act.setLoop(LoopRepeat, Infinity).play();
+      meshMixer = new MeshMixer(root);
+      meshMixer.addClip(proto.clips[0], 'idle');
+      meshMixer.play('idle', 0.06);
     }
     const rec = {
       root,
-      mixer,
+      mixer: meshMixer?.mixer || null,
+      meshMixer,
       target,
       until: (performance.now() / 1000) + (opts.duration ?? 8),
       heightSample: opts.heightSample || this.heightSample
@@ -113,7 +115,8 @@ export class HealFieldFollow {
     this._live = this._live.filter((r) => {
       if (r.target !== target) return true;
       this.scene.remove(r.root);
-      r.mixer?.stopAllAction?.();
+      if (r.meshMixer) r.meshMixer.dispose();
+      else r.mixer?.stopAllAction?.();
       return false;
     });
   }
@@ -142,10 +145,12 @@ export class HealFieldFollow {
     for (const rec of this._live) {
       if (now >= rec.until || !rec.target?.position) {
         this.scene.remove(rec.root);
-        rec.mixer?.stopAllAction?.();
+        if (rec.meshMixer) rec.meshMixer.dispose();
+        else rec.mixer?.stopAllAction?.();
         continue;
       }
-      rec.mixer?.update(dt);
+      if (rec.meshMixer) rec.meshMixer.update(dt);
+      else rec.mixer?.update(dt);
       this._place(rec);
       keep.push(rec);
     }

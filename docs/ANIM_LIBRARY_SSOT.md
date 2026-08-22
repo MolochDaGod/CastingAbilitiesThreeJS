@@ -29,11 +29,12 @@ Prefixed roles like `combat_mobility:rollL` mean “same role, non-primary pack 
 
 ## Bind order (hero load)
 
-1. **Weapon pack** from equip / preset (`magic` | `sword_shield` | `longbow`)
-2. **Magic fallback** if needed (hands-on idle)
-3. **`combat_mobility` always** — rolls, dodges, slide, parry/block
+1. **Weapon pack** from race T0 / catalog equip (`sword_shield` | `longbow` | `magic` | `pistol` | `rifle` | `unarmed`)
+2. **`combat_mobility` + `reactions`** overlays
+3. Other packs bind on `setAnimPack` — never stack every pack at boot (that overwrote gait)
 
-Weapon mesh swap → `animPackForLoadout` → `setAnimPack` → rebind mobility.
+Weapon mesh swap → `identifyPlayWeapon` → `setAnimPack` → rebind mobility.  
+Do **not** default every kit to `magic` / mage / kit staff.
 
 ---
 
@@ -42,8 +43,11 @@ Weapon mesh swap → `animPackForLoadout` → `setAnimPack` → rebind mobility.
 | Pack | Owns | Notes |
 |------|------|--------|
 | `magic` | idle, cast, walk, run, jump | Staff; prod idle has Hand tracks |
-| `sword_shield` | idle, **attack1–3**, **finisher**, **finisherAir**, attack (finisher alias), block, walk, run, jump | Melee combo + jump-dash finisher — `docs/MELEE_COMBO_SSOT.md` |
+| `sword_shield` | idle, **attack1–3**, **finisher**, **finisherAir**, **jumpAttack**, **cast**, block, walk, run, jump | Greatsword pack: air LMB + staff-usable cast |
 | `longbow` | idle, attack, walk, run, jump, dodge* | Dodges also in combat_mobility |
+| `pistol` | idle, attack, gunplay, draw, reload, skill1–5, strafe | Flintlock — barrel spawn |
+| `rifle` | idle, idleAim, walk 4-way, run 8-way, attack, reload | `public/anim/rifle` FBX (rifleAnimSsot) |
+| `unarmed` | fight-idle, attack1–3, kick, hurricane, stomp, uppercut | `public/anim/unarmed` (unarmedAnimSsot) |
 | `combat_mobility` | roll L/R/F/B, slide, dodge L/R/F/B, parry | Shared; Ghost Rider rolls first |
 | `locomotion_8way` | optional overlay | Bind only if CDN clips exist |
 
@@ -57,8 +61,35 @@ Clip URL candidates: `bakedClipUrlsForRole` — `prod:…` then open baked.
 |--------|-------|-----|
 | **gait** | idle, walk, run, jump | `setGait(0\|1\|2, sprinting)` · `playJump` |
 | **combat** | cast, attack1–3, finisher, finisherAir, attack, block, parry | `playMeleeAttack` · `playWeaponCombat` · `requestOneShot` · `playParry` |
-| **mobility** | dodge*, roll*, slide | `playDodge` · `playRoll` · `playSlide` + DRC input |
+| **mobility** | dodge*, roll*, slide, airDash*, mantle, grapple*, ride* | `playDodge` · `playRoll` · `playSlide` · `playAirDash` · `playMantle` · `playGrapple` · `playRide` |
+| **reaction** | hitReact, knockedUp, stun, blownAway, getup | `playReaction('flinch'\|'knockback'\|'stun'\|'blownAway'\|'getup')` |
 | **utility** | anything else | `playLibraryClip(role)` |
+
+### Reactions (one mixer — overlay vs exclusive)
+
+| Kind | Blend | When |
+|------|-------|------|
+| **flinch / hit** | Overlay weight `overlayBlend` (~0.62) on gait | Light hit (`knockbackMm` < 140) |
+| **knockback** | Exclusive one-shot `hitReact` | MM ≥ 140 or knockup vy ≥ 1.2 |
+| **blownAway / knockup** | Exclusive `knockedUp` | MM ≥ 320 or vy ≥ 2.4 |
+| **stun / freeze** | Overlay + gait lock | `skillStatusSystem` stun/freeze |
+| **getup** | Exclusive `slideGetup` | After knockdown |
+
+Same clip bake `reactions/knocked-up` until dedicated flinch/stun files exist. Do **not** add a second mixer.
+
+### Rig debug (identify breaking anims)
+
+Editor → **Character** → `skeleton + blend HUD` (`settings.character.rigDebug`).
+
+| Layer | Shows |
+|-------|--------|
+| **Graphical** | SkeletonHelper · laterality boxes (+X right / −X left / gut fail) · bone spheres |
+| **Math HUD** | clip weights + times · R/L hand local · pelvis/feet vs terrain · flags |
+| **Console** | `blendLog` dumps when laterality / hip-float / blend-fight changes |
+
+Flags: `hands-swapped` · `gut-collapse` · `hip-float` · `blend-fight` (weight Σ > 2.2) · look errors.
+
+Blend knobs (same folder): `gaitBlend` · `combatBlend` · `overlayBlend`.
 
 ### Mobility inputs (DRC combat)
 
@@ -85,6 +116,7 @@ Clip URL candidates: `bakedClipUrlsForRole` — `prod:…` then open baked.
 ### Hard bans
 
 - ❌ Second `AnimationMixer` on the same body  
+- ✅ Non-hero skeletons (horse, harvest animal, heal-field GLB, projectile aura, TPS pistol prop) use **`MeshMixer`** — vehicle law, clip states idle/run/death. Not XState (`playerActivityMachine` is combat↔harvest only).  
 - ❌ Inventing `rollLeft` when role is `rollL`  
 - ❌ Strafe-as-run without Shift freelook channel  
 - ❌ Binding residual to Space (jump only)  
@@ -100,6 +132,11 @@ character.getAnimLibrary()
 
 character.describeRole('rollL')
 // "Roll left (Ghost Rider) · Ctrl+A [mobility/mobility]"
+
+character.playReaction('flinch')   // overlay take-hit
+character.playReaction('stun')     // gait lock
+character.playAirDash('left')
+character.rigDebug.setEnabled(true)
 
 drc.isInvincible  // true during MM dodge window
 ```
