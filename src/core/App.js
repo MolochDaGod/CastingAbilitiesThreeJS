@@ -650,6 +650,7 @@ export class App {
       onSession: () => {}
     });
     // Elemental skills ↔ linear skillshot bridge (learned LinearAbilityCasting)
+    this.drc.bindClassAttributes?.(resolvePlayerClass(this.character));
     this.drc.setLinearSkills?.(this.linearSkills);
     // Warm fire/ice summon projectiles (extracted SI meshes)
     this.drc.projectiles?.warm?.().catch?.(() => {});

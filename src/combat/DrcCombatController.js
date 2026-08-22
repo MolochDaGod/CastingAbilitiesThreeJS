@@ -1,4 +1,11 @@
-import { CatmullRomCurve3, MathUtils, Vector3 } from 'three';
+import { CatmullRomCurve3, MathUtils, Quaternion, Vector3 } from 'three';
+import {
+  loadAttributeCatalog,
+  computeDerivedStats,
+  defaultAllocForClass,
+  resolveCombatDamage,
+  applyHpDamage
+} from './attributeStats.js';
 import {
   getActiveSkills,
   getActiveSkillTree,
@@ -90,6 +97,8 @@ import {
 const _origin = new Vector3();
 const _tip = new Vector3();
 const _fwd = new Vector3();
+const _tiltQ = new Quaternion();
+const _upZ = new Vector3(0, 0, 1);
 const _end = new Vector3();
 const _mid = new Vector3();
 const _move = new Vector3();
@@ -283,6 +292,23 @@ export class DrcCombatController {
     /** @type {Map<string, number>} utility action max CD for HUD */
     this._cdMax = new Map();
 
+    this.attrAlloc = defaultAllocForClass('warrior');
+    this.derivedStats = computeDerivedStats(this.attrAlloc);
+    void loadAttributeCatalog().then(() => {
+      this.derivedStats = computeDerivedStats(this.attrAlloc);
+      const hp = this.derivedStats.health || 100;
+      this.maxHp = hp;
+      if (this.hp == null) this.hp = hp;
+      if (this.derivedStats.stamina > 0) {
+        this.maxStamina = this.derivedStats.stamina;
+        this.stamina = Math.min(this.stamina ?? this.maxStamina, this.maxStamina);
+      }
+      if (this.derivedStats.mana > 0) {
+        this.maxMana = this.derivedStats.mana;
+        this.mana = Math.min(this.mana ?? this.maxMana, this.maxMana);
+      }
+    });
+    this._airTiltOn = false;
     /** Double-tap dodge: AA left · DD right · WW forward · X back */
     this._lastTap = { KeyA: 0, KeyD: 0, KeyW: 0, KeyS: 0 };
     this._keyWasDown = new Set();
@@ -1118,12 +1144,14 @@ export class DrcCombatController {
         // Keep fading residual ghosts after impulse ends
         this.vfx?.updateDodgeTrail?.(0, false, null, null);
       }
+      this._updateAirDiveTilt(dt);
       return;
     }
 
     // Fade leftover afterimages when not dodging
     this.vfx?.updateDodgeTrail?.(dt, false, null, null);
     this.vfx?.update?.(dt);
+    this._updateAirDiveTilt(dt);
 
     // ── WASD locomotion (combat SaberGame) ───────────────────────────
     // Always camera-relative unless aim.tankWhenUnfocused.
@@ -1963,7 +1991,7 @@ export class DrcCombatController {
    */
   useClassAbility(slot) {
     if (!this.inCombat) {
-      this.onToast('Enter combat (Q) for class skills');
+      this.onToast('Class skills need combat session (Shift+Q). Tap Q swaps weapons; hold Q is combat/harvest.');
       return false;
     }
     if (this._cast) {
@@ -2033,7 +2061,7 @@ export class DrcCombatController {
    */
   useWeaponSkillF() {
     if (!this.inCombat) {
-      this.onToast('Enter combat (Q) for weapon skills');
+      this.onToast('Combat session (Shift+Q) — tap Q swaps weapons for weapon skills');
       return false;
     }
     if (this._cast) {
@@ -2072,7 +2100,7 @@ export class DrcCombatController {
    */
   beginWeaponCharge(slot, opts = {}) {
     if (!this.inCombat) {
-      this.onToast('Enter combat (Q) to use weapon skills');
+      this.onToast('Combat session (Shift+Q) — tap Q swaps weapons to use weapon skills');
       return false;
     }
     if (this.weaponCharge?.active) return true;
@@ -2201,7 +2229,7 @@ export class DrcCombatController {
    */
   useSkill(slot, opts = {}) {
     if (!this.inCombat) {
-      this.onToast('Enter combat (Q) to use weapon skills');
+      this.onToast('Combat session (Shift+Q) — tap Q swaps weapons to use weapon skills');
       return false;
     }
     const g = this.gates;
@@ -2788,11 +2816,32 @@ export class DrcCombatController {
   }
 
   /**
-   * LMB melee: air / just-landed → jumpAttack (soft-lock dash).
-   * Grounded → F weapon skill (existing).
+   * LMB melee: air combo starters (dive then aerial 2/3) · ground light combo.
    */
   useMeleeStrike() {
     if (this._isJumpAttackWindow()) {
+      const air = this.character.playMeleeComboAir?.() || this.character.playMeleeAttack?.({ airborne: true });
+      if (air?.ok && (air.step === 0 || air.role === 'jumpAttack' || air.kind === 'air')) {
+        if (air.step === 0) this._useJumpAttackLmb({ skipAnim: true });
+        else {
+          const from =
+            this.character?.position?.clone?.() ||
+            this.character?.root?.position?.clone?.() ||
+            new Vector3();
+          const aim = this._softLockAimPoint(this.aim?.hitPoint) || from.clone().add(new Vector3(0, 0, 3));
+          const forward = aim.clone().sub(from);
+          forward.y = 0;
+          if (forward.lengthSq() < 1e-6) forward.set(0, 0, 1);
+          else forward.normalize();
+          this._fireMeleeResidual(
+            { style: 'melee', animRole: air.role, label: 'Air combo', damage: this.derivedStats?.damage },
+            { origin: from, forward, aim },
+            { hit: { kind: 'air', step: air.step } }
+          );
+          this.onToast(`Air combo ${air.step + 1} · ${air.role}`);
+        }
+        return true;
+      }
       const ok = this._useJumpAttackLmb();
       if (ok || (this._jumpDashUntil && this.elapsed < this._jumpDashUntil)) return true;
       return false;
@@ -2800,12 +2849,12 @@ export class DrcCombatController {
     const pack = this.character?.animPackId || '';
     if (pack === 'sword_shield' || pack === 'unarmed') {
       const played =
-        this.character.playWeaponCombat?.('attack') ||
         this.character.playMeleeComboLight?.() ||
+        this.character.playWeaponCombat?.('attack') ||
         this.character.playWeaponAttack?.();
       if (played) return true;
     }
-    return this.useWeaponSkillF();
+    return this.character.playMeleeAttack?.({}) || this.useWeaponSkillF();
   }
 
   /** Air or just-landed window for greatsword jump attack. */
@@ -2818,9 +2867,9 @@ export class DrcCombatController {
    * LMB jump attack — greatsword jumpAttack clip + soft-lock dash + blade slash + earth.
    * Does not consume the F-slot skill CD.
    */
-  _useJumpAttackLmb() {
+  _useJumpAttackLmb(opts = {}) {
     if (!this.inCombat) {
-      this.onToast('Enter combat (Q) for jump attack');
+      this.onToast('Combat session (Shift+Q) — tap Q swaps weapons for jump attack');
       return false;
     }
     if (this._cast) return false;
@@ -2849,11 +2898,14 @@ export class DrcCombatController {
       animRole: 'jumpAttack',
       label: 'Jump attack'
     };
-    this.character.playMeleeFinisher?.({ airborne: true }) ||
-      this.character.requestOneShot?.('jumpAttack') ||
-      this.character.requestOneShot?.('finisherAir') ||
-      this.character.requestOneShot?.('attack');
+    if (!opts.skipAnim) {
+      this.character.playMeleeFinisher?.({ airborne: true }) ||
+        this.character.requestOneShot?.('jumpAttack') ||
+        this.character.requestOneShot?.('finisherAir') ||
+        this.character.requestOneShot?.('attack');
+    }
     this._commitJumpAttack(skill, pose);
+    this._airTiltOn = true;
     const ja = settings.meleeCombo?.jumpAttack || {};
     this._fireMeleeResidual(skill, pose, {
       rangeOverride: ja.residualRange ?? 6.5,
@@ -3053,6 +3105,8 @@ export class DrcCombatController {
       if (_fwd.lengthSq() > 1e-8) fwd = _fwd.clone().normalize();
     }
 
+    this._applyCatalogHits(skill, pose);
+
     // Prefer tip-trail system (ribbon + apex projectile). Fallback to legacy timeout.
     if (this.tipTrail?.beginSwing) {
       const paint = skill?.trail || null;
@@ -3246,7 +3300,7 @@ export class DrcCombatController {
    */
   performQuickAction(actionId) {
     if (!this.inCombat && actionId !== 'mode') {
-      this.onToast('Enter combat (Q)');
+      this.onToast('Combat session (Shift+Q) — tap Q swaps weapons');
       return false;
     }
     // Mobility utilities blocked on board; combat skills ok if ride skill allowed
@@ -3523,6 +3577,54 @@ export class DrcCombatController {
     return /magic|longbow|bow|staff|wand|tome|rifle|pistol/i.test(pack);
   }
 
+  _updateAirDiveTilt(dt) {
+    const root = this.character?.root;
+    if (!root) return;
+    const air = !this._grounded;
+    const diving =
+      air &&
+      (this._dodgeT > 0 || (this._jumpDashUntil && this.elapsed < this._jumpDashUntil));
+    if (!diving) {
+      if (this._airTiltOn) {
+        this._airTiltOn = false;
+        this.character.setFacing?.(this.character.facing);
+      }
+      return;
+    }
+    this._airTiltOn = true;
+    const vx = this._dodgeVel.x;
+    const vz = this._dodgeVel.z;
+    const horiz = Math.hypot(vx, vz) || 1;
+    _fwd.set(vx / horiz, -0.85, vz / horiz).normalize();
+    _tiltQ.setFromUnitVectors(_upZ, _fwd);
+    root.quaternion.slerp(_tiltQ, 1 - Math.exp(-10 * dt));
+  }
+
+  /**
+   * info.* combatFormulas vs hostiles in range.
+   */
+  _applyCatalogHits(skill, pose) {
+    const incoming = Number(skill?.damage) > 0 ? Number(skill.damage) : this.derivedStats?.damage || 12;
+    const atk = this.derivedStats || {};
+    const list = this._collectHitTargets(pose?.aim) || [];
+    for (const t of list) {
+      if (!t?.mesh || t.kind === 'aim' || t.kind === 'ally') continue;
+      const def = t.mesh.userData?.derivedStats || t.mesh.userData?.stats || {};
+      const r = resolveCombatDamage({ incoming, attacker: atk, defender: def });
+      const hp01 = applyHpDamage(t.mesh, r.damage, t.mesh.userData?.maxHp || 100);
+      if (r.crit) this.onToast?.(`Crit ${Math.round(r.damage)}`);
+      if (hp01 <= 0) this.onToast?.(`${t.id || 'foe'} down`);
+    }
+  }
+
+  bindClassAttributes(classId) {
+    this.attrAlloc = defaultAllocForClass(classId || resolvePlayerClass(this.character));
+    this.derivedStats = computeDerivedStats(this.attrAlloc);
+    const hp = this.derivedStats.health || 100;
+    this.maxHp = hp;
+    this.hp = hp;
+  }
+
   /**
    * Directional dodge (AA/DD/WW · X back). Ranged uses shorter kite MM.
    * @param {'left'|'right'|'forward'|'back'} dir
@@ -3760,7 +3862,7 @@ export class DrcCombatController {
   castPathAbility(curve, length, holdSec = 0) {
     if (!curve) return null;
     if (!this.inCombat) {
-      this.onToast('Enter combat (Q) to cast');
+      this.onToast('Combat session (Shift+Q) — tap Q swaps weapons to cast');
       return null;
     }
     const sc = settings.staffCast || {};

@@ -1,16 +1,20 @@
 import {
   AnimationMixer,
   Box3,
-  ClampToEdgeWrapping,
+  Color,
+  EdgesGeometry,
   Euler,
   Group,
+  LineBasicMaterial,
+  LineSegments,
   LoopOnce,
   LoopRepeat,
   MathUtils,
+  Matrix4,
   Quaternion,
-  SRGBColorSpace,
   Vector3
 } from 'three';
+import { settings } from '../config/settings.js';
 // Box3 used by getWeaponTip mesh-tip measure
 import { applyWeaponHoldPose, normalizeHoldKind } from '../character/weaponHoldPose.js';
 import { WeaponSheathRuntime } from '../character/WeaponSheathRuntime.js';
@@ -29,11 +33,23 @@ import {
   GEAR_PRESETS_URL,
   bakedClipUrlsForRole
 } from '../config/assets.js';
-import { animPackForLoadout, activeWeaponSlot, packCombatBlurb } from '../config/weaponAnimPack.js';
+import { animPackForLoadout, activeWeaponSlot, packCombatBlurb, WEAPON_SLOT_TO_PACK } from '../config/weaponAnimPack.js';
 import { describeAnimLibrary, roleBlurb } from '../config/animLibrary.js';
 import { pistolTimeScale, FLINTLOCK_FIRE } from '../config/pistolAnimSsot.js';
+import { playTpsPistolClip, updateTpsPistolProp } from './tpsPistolProp.js';
+import { rifleGaitRoles } from '../config/rifleAnimSsot.js';
 import { PistolReloadPose, findWeaponAttach, getMuzzleWorld, getBarrelForward } from './pistolReloadPose.js';
-import { getWeaponAttachFromHand } from '../character/WeaponMeshAttach.js';
+import {
+  getWeaponAttachFromHand,
+  getSpineWorldFromAttach,
+  stampWeaponSpine
+} from '../character/WeaponMeshAttach.js';
+import {
+  familyFromAttachProfile,
+  familyFromWeaponType,
+  primaryCombatPointId,
+  spinePointForVfxAnchor
+} from '../character/weaponPrefabSpine.js';
 import {
   atlasUrlForRace,
   kitUrlForRace,
@@ -41,6 +57,8 @@ import {
   logSSOT,
   isToonRtsKitUrl,
   raceDef,
+  defaultRoleForRace,
+  defaultPackForRace,
   GRUDGE6_SSOT_VERSION
 } from '../config/grudge6SSOT.js';
 import { EquipmentManager } from '../character/EquipmentManager.js';
@@ -52,9 +70,13 @@ import {
   countSkeletons
 } from '../character/toonKitPlay.js';
 import { RideIK } from '../character/RideIK.js';
+import {
+  createFootGrounder,
+  placeRootFeetAt,
+  samplerFromHeightAt
+} from '../character/grudge6-foot-ik.js';
 import { BackSlotEquip } from '../character/BackSlotEquip.js';
 import { LAYER } from '../core/Layers.js';
-import { settings } from '../config/settings.js';
 import { disposeObject } from '../utils/dispose.js';
 import { loadBakedClipJson, rematchClipToSkeleton } from './bakeClip.js';
 import {
@@ -69,6 +91,7 @@ import {
   pickLandRole,
   shouldEnterFall
 } from '../config/fallAnimSsot.js';
+import { AnimRigDebug, diagnoseBreaking } from './animRigDebug.js';
 
 const _castOrigin = new Vector3();
 const _rideFwd = new Vector3();
@@ -112,8 +135,8 @@ export class CharacterController {
     /** @type {{ rHand?: object, lHand?: object, pelvis?: object }|null} */
     this.bones = null;
     this.raceId = DEFAULT_RACE;
-    this.animPackId = 'magic';
-    this.presetId = 'mage';
+    this.animPackId = defaultPackForRace(DEFAULT_RACE);
+    this.presetId = defaultRoleForRace(DEFAULT_RACE);
     this.presets = FALLBACK_PRESETS.slice();
 
     /** 'idle' | 'walk' | 'run' | 'cast_loop' | 'attack' */
@@ -126,12 +149,21 @@ export class CharacterController {
     this._gaitKey = '0:fwd';
     this._strafe = null;
     this._gaitLocked = false;
+    /** Overlay take-hit (weight on gait — not exclusive one-shot) */
+    this._overlayAct = null;
+    this._overlayTimer = 0;
+    this._overlayRole = null;
+    /** @type {AnimRigDebug|null} */
+    this.rigDebug = null;
     /** Hold jump clip until land (first jump) */
     this._airJumpHold = false;
     /** Melee combo index 0..2 after last light hit; -1 = idle */
     this._meleeComboStep = -1;
-    /** performance.now()/1000 deadline to continue combo */
+    this._airComboStep = -1;
+    this._airComboUntil = 0;
+    /** Sim-clock deadline to continue combo (not wall-clock — hitch-proof) */
     this._meleeComboUntil = 0;
+    this._simTime = 0;
 
     this.sitting = null;
     /** @type {import('../character/RideIK.js').RideIK|null} */
@@ -164,6 +196,10 @@ export class CharacterController {
     /** Cached world feet for position getter while parented */
     this._worldPos = new Vector3();
     this.ik = null;
+    /** Post-mixer two-bone plant — same height field as Rapier CCT. */
+    this.footGrounder = createFootGrounder({ Vector3, Quaternion, Matrix4 });
+    this._heightAt = null;
+    this._footGrounded = true;
 
     /** Procedural flip on tilt (backflip / frontflip deploy) */
     this._flipActive = false;
@@ -184,7 +220,7 @@ export class CharacterController {
   async load(assets, opts = {}) {
     this.assets = assets;
     this.raceId = opts.raceId || DEFAULT_RACE;
-    this.presetId = opts.presetId || 'mage';
+    this.presetId = opts.presetId || defaultRoleForRace(this.raceId);
     logSSOT();
 
     await this._loadPresets();
@@ -192,7 +228,6 @@ export class CharacterController {
     const race = raceDef(this.raceId);
     // PLAY: Toon RTS GLB only — no races-bake / metaverse / FBX fallback
     const kitUrl = kitUrlForRace(this.raceId);
-    const atlasUrl = atlasUrlForRace(this.raceId);
 
     let gltf = null;
     try {
@@ -206,22 +241,9 @@ export class CharacterController {
       throw new Error(`[CharacterController] refuse non-Toon play kit: ${kitUrl}`);
     }
 
-    // Atlas optional — Toon embeds usually enough; only for missing maps
-    const atlas = await assets.loadTexture(atlasUrl).catch((err) => {
-      console.warn('[CharacterController] atlas failed (ok if embeds)', err);
-      return null;
-    });
+    // Toon embeds only — never forceAtlas (yellow/grey sludge).
     await assets.settled();
-
-    if (atlas) {
-      atlas.colorSpace = SRGBColorSpace;
-      atlas.flipY = false;
-      atlas.wrapS = ClampToEdgeWrapping;
-      atlas.wrapT = ClampToEdgeWrapping;
-      atlas.anisotropy = 8;
-      atlas.needsUpdate = true;
-      this.atlas = atlas;
-    }
+    this.atlas = null;
 
     // Clear previous kit
     while (this.tilt.children.length) {
@@ -230,15 +252,23 @@ export class CharacterController {
       disposeObject(c);
     }
 
-    // Preset → mesh_ids (no bag/wood/quiver in combat showcase)
+    // Preset → body mesh_ids only. Kit staff/sword/bow stay hidden — catalog T0 is play weapon.
     const preset = this.presets.find((p) => p.id === this.presetId) || this.presets[0];
-    this.animPackId = this._packFromPreset(preset);
+    this.animPackId = defaultPackForRace(this.raceId) || this._packFromPreset(preset);
     const cleanLoadout = { ...(preset?.loadout || { body: 'A', arms: 'A', legs: 'A', head: 'A' }) };
     delete cleanLoadout.bag;
     delete cleanLoadout.wood;
     delete cleanLoadout.quiver;
     delete cleanLoadout.carry;
     delete cleanLoadout.showUtility;
+    delete cleanLoadout.staff;
+    delete cleanLoadout.sword;
+    delete cleanLoadout.bow;
+    delete cleanLoadout.axe;
+    delete cleanLoadout.hammer;
+    delete cleanLoadout.spear;
+    delete cleanLoadout.shield;
+    delete cleanLoadout.pistol;
     const meshIds = loadoutToMeshIds(race.prefix, cleanLoadout);
 
     // ★ ObjectStore loadRaceKit parity — no unify/pose, bone SI fit, yaw 0
@@ -267,6 +297,7 @@ export class CharacterController {
       );
     }
     this.equipment.hideUtility();
+    this.equipment.hideKitWeapons();
     // Fail-closed: never leave hero fully invisible after exclusive equip
     {
       let vis = 0;
@@ -277,6 +308,7 @@ export class CharacterController {
         console.warn('[CharacterController] equip left 0 meshes visible — default A armor rescue');
         applyMeshIdsExclusive(kit, []);
         this.equipment.hideUtility();
+        this.equipment.hideKitWeapons();
       }
     }
 
@@ -294,6 +326,7 @@ export class CharacterController {
     // root (world feet + yaw) → tilt → model
     this.tilt.add(kit);
     this.model = kit;
+    this._bodyHidden = false;
     this.root.position.set(0, 0, 0);
     this.root.rotation.set(0, 0, 0);
     this.tilt.position.set(0, 0, 0);
@@ -308,12 +341,8 @@ export class CharacterController {
     this.actions.clear();
     this._boundPacks.clear();
 
-    // Critical path: primary pack only (idle/walk/run/cast) so loader can finish.
-    // combat_mobility + longbow + reactions are large and 404-heavy — load async.
+    // One mixer · equipped pack only. Other weapon packs bind on setAnimPack.
     await this._bindPack(this.animPackId);
-    if (this.animPackId !== 'magic' && this.animPackId !== 'sword_shield') {
-      await this._bindPack('magic');
-    }
 
     if (this.actions.has('idle')) this.play('idle', 0);
     else if (this.actions.size) this.play([...this.actions.keys()][0], 0);
@@ -321,22 +350,20 @@ export class CharacterController {
     this.mixer.update(1 / 30);
     // Re-ground after idle sample + exclusive equip (visibility changes bbox)
     reGroundToonKit(kit, 0);
-    this.root.position.y = 0;
+    this.footGrounder.bind(this.root);
+    this._plantFeetAtTerrain(this._sampleHeight(this.root.position.x, this.root.position.z));
     this.height = kit.userData.deployHeightM || this.height;
     // Face camera +Z (Toon play) — never leave sideways bind
     kit.rotation.set(0, 0, 0);
 
-    // Secondary packs — do not block boot / loader hide
-    const secondary = [
-      this._bindPack('combat_mobility'),
-      this._bindPack('reactions'),
-    ];
-    if (this.animPackId !== 'longbow') secondary.push(this._bindPack('longbow'));
-    void Promise.all(secondary).then(() => {
-      console.info('[CharacterController] secondary anim packs ready');
-    }).catch((err) => {
-      console.warn('[CharacterController] secondary packs', err);
-    });
+    // Shared overlays only — not every weapon pack at once (was fighting gait).
+    void Promise.all([this._bindPack('combat_mobility'), this._bindPack('reactions')])
+      .then(() => {
+        console.info('[CharacterController] mobility + reactions ready');
+      })
+      .catch((err) => {
+        console.warn('[CharacterController] overlay packs', err);
+      });
 
     if (this.rideIk) this.rideIk.rebind(kit);
     else this.rideIk = new RideIK(kit);
@@ -350,6 +377,8 @@ export class CharacterController {
     if (backId && backId !== 'none') {
       this.backSlot.equip(backId).catch((err) => console.warn('[Character] back slot', err));
     }
+
+    this._bindRigDebug();
 
     const look = this.diagnoseLook();
     const vis = this._countVisibleSkinned();
@@ -397,10 +426,132 @@ export class CharacterController {
     return out;
   }
 
-  /** Snap root feet to world XZ (physics / spawn). No-op while parented to board. */
+  /**
+   * Snap root so bone-feet sit on terrainY (Vector3 + Matrix4).
+   * Never assign root.y = terrain — that is pelvis-as-feet (cut in half).
+   */
   placeAt(x, y, z) {
     if (this._rideParented || this._rideActive) return;
-    this.root.position.set(x, y ?? 0, z);
+    this.root.position.x = x;
+    this.root.position.z = z;
+    this._plantFeetAtTerrain(y);
+  }
+
+  /**
+   * Same L0 sample as Rapier CCT / grass / aim. Required for IK + kinematic land.
+   * @param {(x:number,z:number)=>number|null} fn
+   */
+  setTerrainHeightAt(fn) {
+    this._heightAt = typeof fn === 'function' ? fn : null;
+    this.footGrounder.setGroundSampler(
+      this._heightAt ? samplerFromHeightAt(this._heightAt) : null
+    );
+  }
+
+  setHeightSample(fn) {
+    this.setTerrainHeightAt(fn);
+  }
+
+  setFootGrounded(on) {
+    this._footGrounded = !!on;
+    this.footGrounder.setEnabled(!!on && !this._rideActive && !this._rideParented);
+  }
+
+  _sampleHeight(x, z) {
+    const y = this._heightAt?.(x, z);
+    return Number.isFinite(y) ? y : 0;
+  }
+
+  _plantFeetAtTerrain(terrainY) {
+    const y = Number.isFinite(terrainY) ? terrainY : this._sampleHeight(this.root.position.x, this.root.position.z);
+    placeRootFeetAt(this.root, y, { Vector3, Matrix4, Box3, Quaternion });
+    this._hipAboveFeet = this.root.position.y - y;
+  }
+
+  /** Hide body for smoke-blink / vanish (model only — mixer stays). */
+  setBodyHidden(hidden) {
+    this._bodyHidden = !!hidden;
+    if (this.model) this.model.visible = !this._bodyHidden;
+  }
+
+  /**
+   * Ranger stealth: others see nothing (hiddenFromSight).
+   * Local player keeps a light-green silhouette border only.
+   */
+  setStealthLook(on) {
+    this._stealthOn = !!on;
+    this.userData = this.userData || {};
+    this.userData.hiddenFromSight = !!on;
+    if (this.model?.userData) this.model.userData.hiddenFromSight = !!on;
+    if (this.root?.userData) this.root.userData.hiddenFromSight = !!on;
+    if (!this.model) return;
+    if (on) this._applyStealthLook();
+    else this._clearStealthLook();
+  }
+
+  _applyStealthLook() {
+    this._clearStealthLook();
+    const st = settings.presentation?.stealth || {};
+    const fill = st.fillOpacity ?? 0.07;
+    const edgeHex = st.outlineColor || '#8ed89a';
+    const edgeCol = new Color(edgeHex);
+    this._stealthEdges = [];
+    this.model.traverse((o) => {
+      if (!o.isMesh || !o.geometry) return;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      o.userData._preStealthMats = mats.map((m) => m);
+      const ghosts = mats.map((m) => {
+        if (!m) return m;
+        const g = m.clone();
+        g.transparent = true;
+        g.opacity = fill;
+        g.depthWrite = false;
+        if (g.color) g.color.lerp(new Color(0xb8efc4), 0.4);
+        if (g.emissive) {
+          g.emissive.copy(edgeCol);
+          g.emissiveIntensity = Math.min(0.22, (g.emissiveIntensity || 0) + 0.12);
+        }
+        return g;
+      });
+      o.material = ghosts.length === 1 ? ghosts[0] : ghosts;
+      try {
+        const edges = new LineSegments(
+          new EdgesGeometry(o.geometry, 28),
+          new LineBasicMaterial({
+            color: edgeCol,
+            transparent: true,
+            opacity: 0.88,
+            depthWrite: false,
+            toneMapped: false
+          })
+        );
+        edges.name = 'StealthOutline';
+        edges.userData.stealthOutline = true;
+        o.add(edges);
+        this._stealthEdges.push(edges);
+      } catch {
+        /* optional */
+      }
+    });
+  }
+
+  _clearStealthLook() {
+    if (this.model) {
+      this.model.traverse((o) => {
+        if (o.userData?._preStealthMats) {
+          const prev = o.userData._preStealthMats;
+          o.material = prev.length === 1 ? prev[0] : prev;
+          delete o.userData._preStealthMats;
+        }
+        const drop = (o.children || []).filter((c) => c.userData?.stealthOutline);
+        for (const c of drop) {
+          o.remove(c);
+          c.geometry?.dispose?.();
+          c.material?.dispose?.();
+        }
+      });
+    }
+    this._stealthEdges = [];
   }
 
   diagnoseLook() {
@@ -416,19 +567,50 @@ export class CharacterController {
     }
     const heightOk = (d.height ?? 0) >= 1.55 && (d.height ?? 0) <= 2.15;
     const feetOk = Math.abs((d.feetMinY ?? 99) - 0) < 0.12;
+    const mixamoTracks = this._countMixamoTracks();
+    const mixerOk = !!this.mixer && this.mixer.getRoot?.() === this.model;
+    const handOk = !!bones.rHand;
+    const errors = [...(d.errors || [])];
+    if (mixamoTracks > 0) errors.push(`${mixamoTracks} mixamorig tracks still on mixer`);
+    if (!mixerOk) errors.push('kit mixer missing or not on Toon root');
+    if (!handOk) errors.push('R_hand_container / Bip001 R Hand missing');
+    if (skelCount > 1) errors.push(`unifySkeletons needed (${skelCount} skeletons)`);
     return {
-      ok: heightOk && feetOk && !!(bones.pelvis || d.bip001?.count >= 18),
+      ok:
+        heightOk &&
+        feetOk &&
+        mixerOk &&
+        handOk &&
+        mixamoTracks === 0 &&
+        !!(bones.pelvis || d.bip001?.count >= 18) &&
+        errors.length === 0,
       heightM: +(d.height ?? 0).toFixed(3),
       feetMinY: +(d.feetMinY ?? 0).toFixed(3),
       heightOk,
       feetOk,
       pelvis: !!bones.pelvis,
-      rHand: !!bones.rHand,
-      errors: d.errors || [],
+      rHand: handOk,
+      mixamoTracks,
+      mixerOk,
+      errors,
       equipMatched: this.equipment?.loadout || {},
       skeletons: skelCount,
-      bip001: d.bip001?.count ?? 0
+      bip001: d.bip001?.count ?? 0,
+      clips: this.actions?.size || 0
     };
+  }
+
+  /** Leftover Mixamo tracks on the kit mixer = remesh leak. */
+  _countMixamoTracks() {
+    let n = 0;
+    if (!this.actions) return 0;
+    for (const act of this.actions.values()) {
+      const tracks = act?.getClip?.()?.tracks || [];
+      for (const t of tracks) {
+        if (/mixamorig/i.test(t.name || '')) n++;
+      }
+    }
+    return n;
   }
 
   async _loadPresets() {
@@ -445,12 +627,13 @@ export class CharacterController {
   }
 
   _packFromPreset(preset) {
-    const pack = preset?.pack || 'magic';
+    const pack = preset?.pack || 'sword_shield';
     if (pack === 'magic' || pack.startsWith('magic')) return 'magic';
     if (pack.includes('sword') || pack.includes('shield') || pack === '2h_melee') return 'sword_shield';
+    if (pack.includes('rifle')) return 'rifle';
     if (pack.includes('pistol') || pack.includes('handgun') || pack === 'gun') return 'pistol';
     if (pack.includes('bow') || pack === 'longbow') return 'longbow';
-    return ANIM_PACKS[pack] ? pack : 'magic';
+    return ANIM_PACKS[pack] ? pack : 'sword_shield';
   }
 
   /**
@@ -470,7 +653,9 @@ export class CharacterController {
    * @param {string} packId magic | sword_shield | longbow | locomotion_8way
    */
   async setAnimPack(packId) {
-    const id = ANIM_PACKS[packId] ? packId : 'magic';
+    const id = ANIM_PACKS[packId]
+      ? packId
+      : WEAPON_SLOT_TO_PACK[packId] || this.animPackId || 'sword_shield';
     this.animPackId = id;
     // Re-bind so primary role names (idle/walk/attack) match this pack
     this._boundPacks.delete(id);
@@ -508,6 +693,11 @@ export class CharacterController {
     return describeAnimLibrary(this);
   }
 
+  /** Math snapshot: laterality, blend weights, feet vs terrain. */
+  getRigReport() {
+    return diagnoseBreaking(this, this.root?.position?.y ?? 0);
+  }
+
   /** Human blurb for a bound role (toast / lab). */
   describeRole(roleName) {
     return roleBlurb(roleName);
@@ -515,9 +705,28 @@ export class CharacterController {
 
   /** Play a library clip by role name (one-shot for attack/block/jump). */
   playLibraryClip(role) {
-    if (!role || !this.actions.has(role)) return false;
+    if (!role) return false;
+    const base = String(role).split(':').pop();
+    if (/^(hitReact|knockedUp|stun|blownAway|getup)$/i.test(base)) {
+      return this.playReaction(base);
+    }
+    if (/^(airDash|mantle|grapple|ride|slideGetup|leap)/i.test(base)) {
+      if (/airDash/i.test(base)) {
+        const dir = /L$/.test(base) ? 'left' : /R$/.test(base) ? 'right' : /B$/.test(base) ? 'back' : 'forward';
+        const r = this.playAirDash(dir);
+        return !!(r && r.ok !== false);
+      }
+      if (/mantle/i.test(base)) return this.playMantle();
+      if (/getup|slideGetup/i.test(base)) return this.playGetup();
+      if (/grapple/i.test(base)) {
+        const phase = /Loop/.test(base) ? 'loop' : /Detach/.test(base) ? 'detach' : /Reel/.test(base) ? 'reel' : 'grab';
+        return this.playGrapple(phase);
+      }
+      if (/ride/i.test(base)) return this.playRide(/Run/i.test(base));
+    }
+    if (!this.actions.has(role)) return false;
     const once =
-      /attack|block|parry|jump|cast|dodge|roll|slide|gunplay|spin|draw|reload|skill\d/i.test(
+      /attack|block|parry|jump|cast|dodge|roll|slide|gunplay|spin|draw|reload|skill\d|mantle|airDash|hitReact|stun|blown/i.test(
         role
       );
     // Combat flourishes need weapon in hand before clip starts
@@ -534,6 +743,12 @@ export class CharacterController {
         else if (/attack|gunplay|spin/i.test(role)) act.timeScale = pistolTimeScale('fire');
         else if (/charged|skill2/i.test(role)) act.timeScale = pistolTimeScale('charged');
         else if (/whip|skill3/i.test(role)) act.timeScale = pistolTimeScale('whip');
+        const tpsRole = /draw|cast|block|reload/i.test(role)
+          ? 'draw'
+          : /attack|gunplay|spin/i.test(role)
+            ? 'fireaim'
+            : null;
+        if (tpsRole) playTpsPistolClip(this.weaponAttach, tpsRole);
       } else if (act && act.timeScale !== 1) {
         act.timeScale = 1;
       }
@@ -762,7 +977,7 @@ export class CharacterController {
    * @returns {boolean}
    */
   playSlide() {
-    for (const name of ['slide', 'combat_mobility:slide']) {
+    for (const name of ['slide', 'combat_mobility:slide', 'slide_kick', 'combat_mobility:slide_kick']) {
       if (!this.actions.has(name)) continue;
       this.play(name, 0.06);
       const act = this.actions.get(name);
@@ -774,6 +989,75 @@ export class CharacterController {
     }
     // Fallback: forward roll if slide bake missing
     return this.playRoll('forward');
+  }
+
+  /**
+   * Air dash one-shot (Deadlock priest airdash_*). Directional when airborne.
+   * @param {'left'|'right'|'forward'|'back'} [dir]
+   */
+  playAirDash(dir = 'forward') {
+    const role =
+      dir === 'left' ? 'airDashL' : dir === 'right' ? 'airDashR' : dir === 'back' ? 'airDashB' : 'airDash';
+    for (const name of [role, `combat_mobility:${role}`, 'airDash', 'combat_mobility:airDash', 'leap']) {
+      if (!this.actions.has(name)) continue;
+      this.play(name, 0.05, { exclusive: true });
+      const act = this.actions.get(name);
+      const dur = act?.getClip?.()?.duration ?? 0.7;
+      this._oneShotTimer = Math.max(this._oneShotTimer, dur * 0.95);
+      this._gaitLocked = true;
+      this.animState = 'airDash';
+      return { ok: true, duration: dur };
+    }
+    return this.playDodge(dir);
+  }
+
+  /** Grapple / zipline phases — grab · loop · reel · detach. */
+  playGrapple(phase = 'grab') {
+    const map = {
+      grab: 'grappleGrab',
+      loop: 'grappleLoop',
+      reel: 'grappleReel',
+      detach: 'grappleDetach',
+      wait: 'grappleGrab'
+    };
+    const role = map[phase] || 'grappleGrab';
+    for (const name of [role, `combat_mobility:${role}`]) {
+      if (!this.actions.has(name)) continue;
+      this.play(name, 0.08);
+      const act = this.actions.get(name);
+      const dur = act?.getClip?.()?.duration ?? 1;
+      this._oneShotTimer = Math.max(this._oneShotTimer, phase === 'loop' ? 0.2 : dur * 0.9);
+      this._gaitLocked = true;
+      this.animState = 'grapple';
+      return true;
+    }
+    return false;
+  }
+
+  /** Ride / skate loop (Deadlock skate + windsurf). */
+  playRide(moving = false) {
+    const role = moving ? 'rideRun' : 'ride';
+    for (const name of [role, `combat_mobility:${role}`, 'ride', 'combat_mobility:ride']) {
+      if (!this.actions.has(name)) continue;
+      this.play(name, 0.12);
+      this.animState = 'ride';
+      return true;
+    }
+    return false;
+  }
+
+  playMantle() {
+    for (const name of ['mantle', 'combat_mobility:mantle']) {
+      if (!this.actions.has(name)) continue;
+      this.play(name, 0.08, { exclusive: true });
+      const act = this.actions.get(name);
+      const dur = act?.getClip?.()?.duration ?? 1;
+      this._oneShotTimer = Math.max(this._oneShotTimer, dur * 0.95);
+      this._gaitLocked = true;
+      this.animState = 'mantle';
+      return true;
+    }
+    return false;
   }
 
   /** Parry / block one-shot (sword_shield block clip as longbow has no parry bake). */
@@ -830,8 +1114,27 @@ export class CharacterController {
       attack3: LoopOnce,
       finisher: LoopOnce,
       finisherAir: LoopOnce,
+      jumpAttack: LoopOnce,
+      blockHit: LoopOnce,
+      cast: LoopOnce,
       hitReact: LoopOnce,
       knockedUp: LoopOnce,
+      stun: LoopOnce,
+      blownAway: LoopOnce,
+      getup: LoopOnce,
+      airDash: LoopOnce,
+      airDashL: LoopOnce,
+      airDashR: LoopOnce,
+      airDashB: LoopOnce,
+      leap: LoopOnce,
+      mantle: LoopOnce,
+      slideGetup: LoopOnce,
+      grappleGrab: LoopOnce,
+      grappleLoop: LoopRepeat,
+      grappleDetach: LoopOnce,
+      grappleReel: LoopOnce,
+      ride: LoopRepeat,
+      rideRun: LoopRepeat,
       block: LoopOnce,
       parry: LoopOnce,
       walk: LoopRepeat,
@@ -856,7 +1159,27 @@ export class CharacterController {
       rollB: LoopOnce,
       slide: LoopOnce,
       frontflip: LoopOnce,
-      backflip: LoopOnce
+      backflip: LoopOnce,
+      gunplay: LoopOnce,
+      spin: LoopOnce,
+      draw: LoopOnce,
+      reload: LoopOnce,
+      skill1: LoopOnce,
+      skill2: LoopOnce,
+      skill3: LoopOnce,
+      skill4: LoopOnce,
+      skill5: LoopOnce,
+      idleAim: LoopRepeat,
+      walkB: LoopRepeat,
+      runB: LoopRepeat,
+      runFL: LoopRepeat,
+      runFR: LoopRepeat,
+      runBL: LoopRepeat,
+      runBR: LoopRepeat,
+      kick: LoopOnce,
+      hurricane: LoopOnce,
+      stomp: LoopOnce,
+      uppercut: LoopOnce
     };
 
     for (const [role, rel] of Object.entries(pack)) {
@@ -895,6 +1218,18 @@ export class CharacterController {
       for (const url of urls) {
         if (loaded) break;
         try {
+          if (/\.fbx$/i.test(url) && this.model) {
+            const clip = await loadFbxClipRematched(url, this.model, name);
+            if (clip?.tracks?.length) {
+              this._registerClip(name, clip, roleMap[role] ?? LoopOnce);
+              console.info(
+                `[CharacterController] clip ${name} ← FBX ${url} tracks=${clip.tracks.length}`
+              );
+              loaded = true;
+              break;
+            }
+            continue;
+          }
           const raw = await loadBakedClipJson(url);
           raw.name = name;
           const matched = rematchClipToSkeleton(this.model, raw, { stripPositions: true });
@@ -1054,7 +1389,7 @@ export class CharacterController {
    * @param {'attack'|'cast'|'block'|'finisher'|'finisherAir'} intent
    */
   playWeaponCombat(intent = 'attack') {
-    const pack = this.animPackId || 'magic';
+    const pack = this.animPackId || 'sword_shield';
     if (intent === 'block') return this.playParry() || this.requestOneShot('block');
     if (pack === 'magic' || intent === 'cast') {
       return this.requestOneShot('cast') || this.requestOneShot('attack');
@@ -1081,7 +1416,7 @@ export class CharacterController {
     const cfg = settings.meleeCombo || {};
     const maxHits = Math.max(1, Math.min(3, cfg.hits ?? 3));
     const windowS = cfg.chainWindow ?? 0.85;
-    const now = performance.now() / 1000;
+    const now = this._simTime;
     let step = 0;
     if (this._meleeComboStep >= 0 && now <= this._meleeComboUntil) {
       step = Math.min(this._meleeComboStep + 1, maxHits - 1);
@@ -1111,6 +1446,46 @@ export class CharacterController {
   }
 
   /**
+   * Air combo starters — dive (jumpAttack) then aerial 2 / 3. Separate chain from ground.
+   * @returns {{ ok: boolean, step: number, role: string|null, kind: 'air'|'none' }}
+   */
+  playMeleeComboAir() {
+    const windowS = (settings.meleeCombo?.airChainWindow ?? settings.meleeCombo?.chainWindow) || 0.95;
+    const now = this._simTime;
+    let step = 0;
+    if (this._airComboStep >= 0 && now <= this._airComboUntil) {
+      step = Math.min(this._airComboStep + 1, 2);
+    } else {
+      step = 0;
+    }
+    const byStep = [
+      ['jumpAttack', 'finisherAir', 'attack1'],
+      ['attack2', 'attack1', 'jumpAttack'],
+      ['attack3', 'finisherAir', 'attack']
+    ];
+    let played = null;
+    for (const role of byStep[step]) {
+      if (this.requestOneShot(role)) {
+        played = role;
+        break;
+      }
+    }
+    if (!played) {
+      const fin = this.playMeleeFinisher({ airborne: true });
+      if (fin?.ok) {
+        this._airComboStep = step;
+        this._airComboUntil = now + windowS;
+        return { ok: true, step, role: fin.role, kind: 'air' };
+      }
+      return { ok: false, step, role: null, kind: 'none' };
+    }
+    this._airComboStep = step;
+    this._airComboUntil = now + windowS;
+    this.animState = 'attack';
+    return { ok: true, step, role: played, kind: 'air' };
+  }
+
+  /**
    * Finisher: current sword_shield “attack” (jump/dash) or air drop.
    * Resets light combo chain.
    * @param {{ airborne?: boolean }} [opts]
@@ -1121,8 +1496,8 @@ export class CharacterController {
     this._meleeComboStep = -1;
     this._meleeComboUntil = 0;
     const prefer = air
-      ? ['finisherAir', 'attack', 'finisher', 'attack3']
-      : ['finisher', 'attack', 'finisherAir', 'attack3'];
+      ? ['jumpAttack', 'finisherAir', 'attack', 'finisher', 'attack3']
+      : ['finisher', 'attack', 'jumpAttack', 'finisherAir', 'attack3'];
     for (const role of prefer) {
       if (this.requestOneShot(role)) {
         this.animState = 'attack';
@@ -1134,10 +1509,10 @@ export class CharacterController {
 
   /**
    * Resolve next melee one-shot from combat context.
-   * @param {{ airborne?: boolean, largeMmTowardTarget?: boolean, forceFinisher?: boolean }} ctx
+   * @param {{ airborne?: boolean, justLanded?: boolean, largeMmTowardTarget?: boolean, forceFinisher?: boolean }} ctx
    */
   playMeleeAttack(ctx = {}) {
-    const pack = this.animPackId || 'magic';
+    const pack = this.animPackId || 'sword_shield';
     if (pack === 'magic') {
       const ok = this.requestOneShot('cast') || this.requestOneShot('attack');
       return { ok, step: -1, role: ok ? 'cast' : null, kind: ok ? 'cast' : 'none' };
@@ -1151,8 +1526,10 @@ export class CharacterController {
       return { ok, step: -1, role: ok ? 'attack' : null, kind: ok ? 'ranged' : 'none' };
     }
     // sword_shield: air or large MM → finisher; else light combo
-    if (ctx.forceFinisher || ctx.airborne || ctx.largeMmTowardTarget) {
-      return this.playMeleeFinisher({ airborne: !!ctx.airborne });
+    if (ctx.forceFinisher || ctx.airborne || ctx.justLanded || ctx.largeMmTowardTarget) {
+      return this.playMeleeFinisher({
+        airborne: !!(ctx.airborne || ctx.justLanded)
+      });
     }
     return this.playMeleeComboLight();
   }
@@ -1174,7 +1551,7 @@ export class CharacterController {
       /^(idle|walk|run|walkL|walkR|runL|runR)$/i.test(name) ||
       /:idle$|:walk$|:run$/i.test(name);
     const isCombat =
-      /attack|finisher|cast|dodge|roll|slide|jump|parry|block|skill|gunplay|charg|reload|whip/i.test(
+      /attack|finisher|cast|dodge|roll|slide|jump|parry|block|skill|gunplay|charg|reload|whip|hitReact|knocked|stun|blown|getup|mantle|airDash/i.test(
         name
       );
     let fade = fadeDuration;
@@ -1277,14 +1654,16 @@ export class CharacterController {
   /**
    * @param {0|1|2|number} level 0 idle, 1 walk, 2 run
    * @param {boolean} [sprinting]
-   * @param {{ strafe?: 'left'|'right'|null }} [opts] focus-mode side gait
+   * @param {{ strafe?: 'left'|'right'|null, octant?: string, aiming?: boolean }} [opts]
    */
   setGait(level, sprinting = false, opts = {}) {
     if (this._gaitLocked) return;
     if (this._castingExternal && level === 0) return;
     const g = sprinting ? 2 : MathUtils.clamp(level | 0, 0, 2);
     const strafe = opts.strafe === 'left' || opts.strafe === 'right' ? opts.strafe : null;
-    const key = `${g}:${strafe || 'fwd'}`;
+    const octant = typeof opts.octant === 'string' ? opts.octant : null;
+    const aiming = !!opts.aiming;
+    const key = `${g}:${this.animPackId === 'rifle' ? octant || 'F' : strafe || 'fwd'}:${aiming ? 'ads' : 'hip'}`;
     if (key === this._gaitKey && this.animState !== 'attack') return;
     this._gait = g;
     this._gaitKey = key;
@@ -1292,11 +1671,30 @@ export class CharacterController {
     this._sprinting = !!sprinting || g >= 2;
 
     if (g === 0) {
-      if (this.actions.has('idle') && this.animState !== 'cast_loop') {
+      if (this.animState === 'cast_loop') return;
+      const idleRole =
+        this.animPackId === 'rifle' && aiming && this.actions.has('idleAim')
+          ? 'idleAim'
+          : this.actions.has('idle')
+            ? 'idle'
+            : null;
+      if (idleRole) {
         this.animState = 'idle';
-        this.play('idle', 0.2);
+        this.play(idleRole, 0.2);
       }
       return;
+    }
+
+    // Training rifle: 8-way Mixamo octant (rifleAnimSsot) — real move, not L/R-only
+    if (this.animPackId === 'rifle') {
+      const prefer = rifleGaitRoles(g, octant || 'F');
+      for (const role of prefer) {
+        if (this.actions.has(role)) {
+          this.animState = g >= 2 ? 'run' : 'walk';
+          this.play(role, 0.12);
+          return;
+        }
+      }
     }
 
     // Focus strafe: prefer walkL/R or runL/R; fall back to forward walk/run
@@ -1341,12 +1739,24 @@ export class CharacterController {
       tryNames.push('block');
     } else if (role === 'finisher') {
       tryNames.push('finisher', 'attack', 'sword_shield:attack');
-    } else if (role === 'finisherAir') {
-      tryNames.push('finisherAir', 'attack', 'finisher');
+    } else if (role === 'finisherAir' || role === 'jumpAttack') {
+      tryNames.push('jumpAttack', 'finisherAir', 'attack', 'finisher');
     } else if (/^attack[123]$/.test(role)) {
       tryNames.push(role, `sword_shield:${role}`, 'attack1', 'attack2', 'attack3');
-    } else if (role === 'hitReact' || role === 'knockedUp') {
-      tryNames.push('hitReact', 'knockedUp', 'reactions:hitReact', 'reactions:knockedUp');
+    } else if (role === 'hitReact' || role === 'knockedUp' || role === 'stun' || role === 'blownAway') {
+      tryNames.push(
+        role,
+        'hitReact',
+        'knockedUp',
+        'stun',
+        'blownAway',
+        'reactions:hitReact',
+        'reactions:knockedUp',
+        'reactions:stun',
+        'reactions:blownAway'
+      );
+    } else if (role === 'getup' || role === 'slideGetup') {
+      tryNames.push('slideGetup', 'getup', 'combat_mobility:slideGetup', 'reactions:getup');
     } else {
       tryNames.push(role);
     }
@@ -1374,6 +1784,12 @@ export class CharacterController {
       else if (/whip|skill3/i.test(role + name)) act.timeScale = pistolTimeScale('whip');
       else if (/charged|skill2/i.test(role + name)) act.timeScale = pistolTimeScale('charged');
       else act.timeScale = pistolTimeScale('fire');
+      const tpsRole = /draw|block|cast|reload/i.test(role + name)
+        ? 'draw'
+        : /whip|charged|skill2|skill3/i.test(role + name)
+          ? null
+          : 'fireaim';
+      if (tpsRole) playTpsPistolClip(this.weaponAttach, tpsRole);
     } else if (act && act.timeScale !== 1) {
       act.timeScale = 1;
     }
@@ -1398,17 +1814,132 @@ export class CharacterController {
 
   /**
    * Physical hit reaction — knocked-up bake (reactions pack).
+   * Prefer overlay flinch; exclusive knockup only via playReaction('knockback'|'blownAway').
    * @returns {boolean}
    */
   playHitReaction() {
-    if (this.requestOneShot('hitReact') || this.requestOneShot('knockedUp')) {
-      this.animState = 'attack';
+    return this.playReaction('flinch');
+  }
+
+  /**
+   * Take-hit overlay on the live gait (one mixer). Does not cross-fade walk away.
+   * @param {string} role
+   * @param {{ weight?: number, fade?: number, lockGait?: boolean, duration?: number, state?: string }} [opts]
+   */
+  playOverlay(role, opts = {}) {
+    const tryNames = [
+      role,
+      `reactions:${role}`,
+      `combat_mobility:${role}`,
+      'hitReact',
+      'knockedUp',
+      'reactions:hitReact',
+      'reactions:knockedUp'
+    ];
+    let act = null;
+    let name = null;
+    for (const n of tryNames) {
+      if (this.actions.has(n)) {
+        act = this.actions.get(n);
+        name = n;
+        break;
+      }
+    }
+    if (!act) return false;
+    if (this._overlayAct && this._overlayAct !== act) {
+      try {
+        this._overlayAct.fadeOut(0.08);
+      } catch {
+        /* */
+      }
+    }
+    const weight = Math.max(0.2, Math.min(1, opts.weight ?? settings.character?.overlayBlend ?? 0.62));
+    const fade = opts.fade ?? 0.08;
+    try {
+      act.reset();
+      act.enabled = true;
+      act.setLoop(LoopOnce, 1);
+      act.clampWhenFinished = true;
+      act.setEffectiveTimeScale(1);
+      act.setEffectiveWeight(weight);
+      act.play();
+    } catch {
+      return false;
+    }
+    this._overlayAct = act;
+    this._overlayRole = name;
+    const dur = (act.getClip?.()?.duration ?? 0.6) / Math.max(0.05, act.timeScale || 1);
+    this._overlayTimer = Math.min(dur, opts.duration ?? dur) + fade;
+    if (opts.lockGait) {
+      this._gaitLocked = true;
+      this._oneShotTimer = Math.max(this._oneShotTimer, opts.duration ?? Math.min(dur, 1.2));
+      this.animState = opts.state || 'hit';
+    }
+    return true;
+  }
+
+  /**
+   * Status / combat reaction on the locomotion mixer.
+   * @param {'flinch'|'hit'|'knockback'|'stun'|'freeze'|'knockup'|'blownAway'|'blown'|'getup'|string} kind
+   * @param {{ duration?: number, weight?: number }} [opts]
+   */
+  playReaction(kind, opts = {}) {
+    const k = String(kind || 'flinch').toLowerCase();
+    if (k === 'getup') return this.playGetup();
+    if (k === 'stun' || k === 'freeze' || k === 'daze') {
+      const ok = this.playOverlay('stun', {
+        weight: 0.88,
+        lockGait: true,
+        duration: opts.duration ?? 1.15,
+        state: 'stun',
+        fade: 0.07
+      });
+      if (!ok) return this.requestOneShot('hitReact');
+      return ok;
+    }
+    if (k === 'blown' || k === 'blownaway' || k === 'knockup' || k === 'launched') {
+      const ok = this.requestOneShot('blownAway') || this.requestOneShot('knockedUp');
+      if (ok) this.animState = 'blownAway';
+      return ok;
+    }
+    if (k === 'knockback' || k === 'push') {
+      const ok = this.requestOneShot('hitReact') || this.requestOneShot('knockedUp');
+      if (ok) this.animState = 'knockback';
+      return ok;
+    }
+    // Light take-hit: overlay on walk/idle (best blend)
+    return this.playOverlay('hitReact', {
+      weight: opts.weight ?? settings.character?.overlayBlend ?? 0.62,
+      lockGait: false,
+      fade: 0.08,
+      state: 'hit'
+    });
+  }
+
+  playGetup() {
+    for (const name of ['slideGetup', 'getup', 'combat_mobility:slideGetup', 'reactions:getup']) {
+      if (!this.actions.has(name)) continue;
+      this.play(name, 0.1, { exclusive: true });
+      const act = this.actions.get(name);
+      const dur = act?.getClip?.()?.duration ?? 0.8;
+      this._oneShotTimer = Math.max(this._oneShotTimer, dur * 0.92);
+      this._gaitLocked = true;
+      this.animState = 'getup';
       return true;
     }
-    // Soft fallback: brief gait lock
-    this._gaitLocked = true;
-    this._oneShotTimer = Math.max(this._oneShotTimer, 0.45);
+    this._gaitLocked = false;
+    this.setGait?.(0, false);
     return false;
+  }
+
+  _bindRigDebug() {
+    try {
+      this.rigDebug?.dispose?.();
+    } catch {
+      /* */
+    }
+    this.rigDebug = new AnimRigDebug(this);
+    this.rigDebug.syncEnabled();
   }
 
   playCastFlourish() {
@@ -1688,8 +2219,40 @@ export class CharacterController {
   }
 
   /**
+   * Spine socket world position (barrel / cast / tip / blunt / …).
+   * Uniform location API — skills must not invent offsets when a point exists.
+   * @param {string} [pointId]
+   * @param {import('three').Vector3} [out]
+   */
+  getWeaponSpinePoint(pointId, out) {
+    const target = out || _castOrigin;
+    const attach =
+      this.weaponAttach || getWeaponAttachFromHand(this.bones?.rHand) || findWeaponAttach(this);
+    if (attach) this.weaponAttach = attach;
+    if (attach && !attach.userData?.spine) {
+      stampWeaponSpine(attach, {
+        profile: attach.userData?.profile,
+        family: attach.userData?.spineFamily
+      });
+    }
+    const family =
+      attach?.userData?.spineFamily ||
+      familyFromAttachProfile(attach?.userData?.profile) ||
+      familyFromWeaponType(this.weaponHoldKind || this.animPackId);
+    const id =
+      (pointId && spinePointForVfxAnchor(pointId)) ||
+      attach?.userData?.primarySpine ||
+      primaryCombatPointId(family);
+    if (attach) {
+      getSpineWorldFromAttach(attach, id, target);
+      if (target.lengthSq() > 1e-8) return target;
+    }
+    return this.getWeaponTip(target);
+  }
+
+  /**
    * Weapon tip / barrel muzzle world position.
-   * Pistol: WeaponAttach muzzle marker (barrel tip). Melee: facing offset from grip.
+   * Primary combat point by family (gun = barrel, staff = cast, melee = tip).
    * @param {import('three').Vector3} [out]
    * @param {number} [tipOffsetM] metres along blade from grip (melee fallback)
    */
@@ -1699,8 +2262,30 @@ export class CharacterController {
       this.weaponAttach || getWeaponAttachFromHand(this.bones?.rHand) || findWeaponAttach(this);
     if (attach) this.weaponAttach = attach;
 
+    const family =
+      attach?.userData?.spineFamily ||
+      familyFromAttachProfile(attach?.userData?.profile) ||
+      familyFromWeaponType(this.weaponHoldKind || this.animPackId);
+    const primary = attach?.userData?.primarySpine || primaryCombatPointId(family);
+
+    // Guns / bows: barrel first (never chest / hand as muzzle)
+    if ((primary === 'barrel' || attach?.userData?.profile === 'pistol') && attach) {
+      getSpineWorldFromAttach(attach, 'barrel', target);
+      if (target.lengthSq() > 1e-8) return target;
+      if (attach.userData?.muzzle) {
+        getMuzzleWorld(attach, target);
+        if (target.lengthSq() > 1e-8) return target;
+      }
+    }
+
+    // Staff / wand: cast socket
+    if (primary === 'cast' && attach) {
+      getSpineWorldFromAttach(attach, 'cast', target);
+      if (target.lengthSq() > 1e-8) return target;
+    }
+
     // Prefer mesh-fitted cylinder tip (weapon volume SSOT)
-    if (this.weaponVolume) {
+    if (this.weaponVolume && primary !== 'barrel') {
       getVolumeTipWorld(this.weaponVolume, target);
       if (target.lengthSq() > 1e-8) return target;
     }
@@ -1753,6 +2338,12 @@ export class CharacterController {
       this.weaponHoldKind =
         this.weaponHoldKind ||
         normalizeHoldKind(attach?.userData?.profile || this.animPackId || 'sword');
+      const mesh = this.weaponVolume.mesh;
+      if (this.physics?.attachFollowConvex && mesh?.isMesh) {
+        this.physics.attachFollowConvex('weapon_main', mesh, { sensor: true, hullVerts: 64 });
+      }
+    } else {
+      this.physics?.detachFollow?.('weapon_main');
     }
     return this.weaponVolume;
   }
@@ -1830,7 +2421,7 @@ export class CharacterController {
     if (this._rideActive) {
       // Mount / freeride: hands free for boom/rail IK — sheath weapon
       this.weaponSheath?.sheath?.('mount');
-      // Hold idle gait under ride — mixer still runs, IK overrides limbs
+      this.playRide?.(false);
       this.setGait?.(0, false);
       this._gaitLocked = true;
     } else {
@@ -1927,9 +2518,9 @@ export class CharacterController {
 
   resetPlacement() {
     if (this._rideParented) return; // WalkController owns unparent first
-    this.root.position.y = 0;
     this.setLean(0);
     this.setRideActive(false);
+    this._plantFeetAtTerrain(this._sampleHeight(this.root.position.x, this.root.position.z));
   }
 
   /**
@@ -1958,17 +2549,10 @@ export class CharacterController {
     this.root.rotation.z = 0;
     this.root.scale.set(1, 1, 1);
     if (Number.isFinite(pose.yaw)) this.root.rotation.y = pose.yaw;
-    if (Number.isFinite(pose.x) || Number.isFinite(pose.z)) {
-      this.root.position.set(
-        Number.isFinite(pose.x) ? pose.x : this.root.position.x,
-        Number.isFinite(pose.y) ? pose.y : 0,
-        Number.isFinite(pose.z) ? pose.z : this.root.position.z
-      );
-    } else if (Number.isFinite(pose.y)) {
-      this.root.position.y = pose.y;
-    } else {
-      this.root.position.y = 0;
-    }
+    const x = Number.isFinite(pose.x) ? pose.x : this.root.position.x;
+    const z = Number.isFinite(pose.z) ? pose.z : this.root.position.z;
+    const y = Number.isFinite(pose.y) ? pose.y : this._sampleHeight(x, z);
+    this.placeAt(x, y, z);
     this.setGait?.(0, false);
   }
 
@@ -2004,8 +2588,29 @@ export class CharacterController {
       }
     }
 
+    if (this._overlayTimer > 0) {
+      this._overlayTimer -= dt;
+      if (this._overlayTimer <= 0 && this._overlayAct) {
+        try {
+          this._overlayAct.fadeOut(0.12);
+        } catch {
+          /* */
+        }
+        this._overlayAct = null;
+        this._overlayRole = null;
+      }
+    }
+
+    this._simTime += dt;
     this.mixer.timeScale = settings.global.animationSpeed;
-    this.mixer.update(dt);
+    const mixerDt = Math.min(Math.max(0, dt), 1 / 20);
+    if (!this._rideActive && !this._rideParented) this.footGrounder.beginFrame();
+    // Same clamp as Time.maxDelta — clip speed does not jump on a hitch
+    this.mixer.update(mixerDt);
+    if (!this._rideActive && !this._rideParented && this._footGrounded) {
+      this.footGrounder.apply(mixerDt);
+    }
+    updateTpsPistolProp(this.weaponAttach, dt);
 
     // Auto sheath / unsheath: traversal · mount · air · mobility vs combat draw
     // oneShotActive only for combat flourishes (not jump/dodge timers)
@@ -2030,19 +2635,21 @@ export class CharacterController {
 
     // Post-mixer weapon hold residual (SSOT: ObjectStore grudge6-weapon-hold-pose)
     // Only while drawn — sheathed mesh rides hip/back stow, not hand residual.
+    // Ride owns hands (boom grip) — never fight RideIK with weapon hold.
     if (
       this.mixer &&
       this.model &&
+      !this._rideActive &&
       !this._pistolReload?.active &&
       this.weaponSheath?.isDrawn !== false
     ) {
       const kind =
         this.weaponHoldKind ||
-        normalizeHoldKind(this.weaponAttach?.userData?.profile || this.animPackId || 'sword');
+        normalizeHoldKind(this.animPackId === 'magic' ? 'staff' : this.animPackId || 'sword');
       applyWeaponHoldPose(this.mixer, this._gait, kind, {
         THREE: { Quaternion, Euler },
         root: this.model,
-        hand: 'both',
+        hand: this.weaponHoldOffKind ? 'both' : 'main',
         offKind: this.weaponHoldOffKind || null
       });
     }
@@ -2053,7 +2660,7 @@ export class CharacterController {
     }
 
     // Soft hand aim toward soft-lock / cast target (optional HandIK)
-    if (this.ik?.aimWeight > 1e-3) this.ik.update?.();
+    if (!this._rideActive && this.ik?.aimWeight > 1e-3) this.ik.update?.();
 
     // Back-slot windsurf sail cloth (stow visible) — vertex wind only
     this.backSlot?.update?.(dt, { wind: this._gait >= 2 ? 1.35 : this._gait >= 1 ? 1.1 : 0.85 });
@@ -2078,14 +2685,19 @@ export class CharacterController {
       this.applyRideIk(dt);
     }
     this._rideIkExternal = false;
+
+    this.rigDebug?.update?.(dt, {
+      terrainY: this.root?.parent ? this.root.position.y : this.root?.position?.y ?? 0
+    });
   }
 
   /**
    * Post-mixer windsurf IK (feet deck · hands boom).
    * Call from WalkController.applyRiderIk after character.update so mixer wins first.
    * @param {number} dt
+   * @param {{ swapLr?: boolean }} [opts]
    */
-  applyRideIk(dt) {
+  applyRideIk(dt, opts = {}) {
     if (!this.rideIk || !(this._rideActive || this.rideIk.weight > 1e-3)) return;
     const yaw = this._rideYaw || this.facing;
     _rideFwd.set(Math.sin(yaw), 0, Math.cos(yaw));
@@ -2093,7 +2705,8 @@ export class CharacterController {
     this.rideIk.update(dt, {
       boardForward: _rideFwd,
       boardLeft: _rideLeft,
-      hipDrop: (settings.walk?.hipDrop ?? 0.1) + (this._softHipRide || 0)
+      hipDrop: (settings.walk?.hipDrop ?? 0.16) + (this._softHipRide || 0),
+      swapLr: opts.swapLr === true
     });
   }
 
