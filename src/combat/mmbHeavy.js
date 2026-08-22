@@ -1,13 +1,72 @@
 /**
- * Middle-mouse heavy — pick from ANIM_ROLE_META / unarmed / sword_shield.
- * Positionally aware: last combo step, air/ground, distance to target, pack, class.
- * Does not invent clip names.
+ * MMB = each class's intuitive melee / space-create move.
+ * Eight product specs. Clips only from ANIM_ROLE_META / unarmed / sword_shield.
+ * Pose (air, combo, range) *refines* the class move — it does not replace the spec.
  *
  * @see src/config/animLibrary.js ANIM_ROLE_META
- * @see src/config/unarmedAnimSsot.js
+ * @see src/combat/playClasses.js CLASS_IDS
  */
 
 import { ANIM_ROLE_META } from '../config/animLibrary.js';
+
+/**
+ * Signature MMB per product class (humanoid). Worge *forms* use pickWorgeFormMmb.
+ */
+export const CLASS_MMB = Object.freeze({
+  warrior: {
+    label: 'Warrior heavy',
+    kind: 'warriorHeavy',
+    roles: ['uppercut', 'hurricane', 'finisher', 'attack3', 'kick', 'spin', 'stomp'],
+    knockbackMm: 240,
+    pose: true
+  },
+  raider: {
+    label: 'Raider slam',
+    kind: 'raiderSlam',
+    roles: ['finisher', 'stomp', 'attack3', 'uppercut', 'hurricane'],
+    knockbackMm: 280,
+    pose: true
+  },
+  mage: {
+    label: 'Staff melee',
+    kind: 'casterMelee',
+    roles: ['kick', 'stomp', 'attack3'],
+    knockbackMm: 160
+  },
+  priest: {
+    label: 'Tome shove',
+    kind: 'casterMelee',
+    roles: ['kick', 'attack3', 'stomp'],
+    knockbackMm: 150
+  },
+  ranger: {
+    label: 'Hop-shot',
+    kind: 'kiteHopShot',
+    dodge: 'back',
+    roles: ['attack', 'skill1', 'gunplay'],
+    knockbackMm: 80
+  },
+  thief: {
+    label: 'Peel shot',
+    kind: 'kiteHopShot',
+    dodge: 'back',
+    roles: ['gunplay', 'spin', 'kick', 'attack'],
+    knockbackMm: 100
+  },
+  worge: {
+    label: 'Pack typhoon',
+    kind: 'typhoon',
+    roles: ['hurricane', 'kick', 'attack3'],
+    typhoon: { outM: 7, upM: 2 },
+    noDamage: true
+  },
+  verduror: {
+    label: 'Crane kick',
+    kind: 'craneKick',
+    roles: ['kick', 'hurricane', 'stomp', 'attack3'],
+    knockbackMm: 180
+  }
+});
 
 /**
  * @param {{
@@ -52,95 +111,66 @@ export function pickMmbMove(s = {}) {
   }
 
   if (s.formId) {
-    if (s.classId === 'worge') return pickWorgeFormMmb(s);
+    if (classId === 'worge') return pickWorgeFormMmb(s);
     return { kind: 'none', roles: [], knockbackMm: 0 };
   }
 
-  const ranger =
-    pack === 'longbow' ||
-    pack === 'rifle' ||
-    pack === 'pistol' ||
-    classId === 'ranger';
-  const caster =
-    pack === 'magic' ||
-    classId === 'mage' ||
-    classId === 'priest' ||
-    classId === 'verduror';
-
-  if (ranger) {
-    return {
-      kind: 'kiteHopShot',
-      dodge: 'back',
-      roles: pack === 'pistol' ? ['gunplay', 'spin', 'attack'] : ['attack', 'skill1', 'gunplay'],
-      knockbackMm: 80,
-      label: 'Hop-shot'
-    };
+  const spec = CLASS_MMB[classId] || CLASS_MMB.warrior;
+  if (!spec.pose) {
+    return { ...spec };
   }
+  return refineMeleeMmb(spec, { air, step, last, dist, pack });
+}
 
-  if (caster) {
+/** Warrior / raider: class identity + air / combo / range. */
+function refineMeleeMmb(spec, p) {
+  if (p.air) {
     return {
-      kind: 'casterMelee',
-      roles: dist < 2.2 ? ['kick', 'stomp', 'attack3'] : ['kick', 'attack3', 'stomp'],
-      knockbackMm: dist < 2.2 ? 220 : 140,
-      label: 'Staff / tome melee'
-    };
-  }
-
-  if (air) {
-    return {
+      ...spec,
       kind: 'airHeavy',
-      roles: ['hurricane', 'finisherAir', 'jumpAttack', 'uppercut', 'kick'],
-      knockbackMm: 300,
-      knockupVy: 1.6,
-      label: 'Air heavy'
+      label: `${spec.label} · air`,
+      roles: ['hurricane', 'finisherAir', 'jumpAttack', 'uppercut', 'kick', ...spec.roles],
+      knockbackMm: Math.max(spec.knockbackMm || 0, 300),
+      knockupVy: 1.6
     };
   }
-
-  if (step >= 2 || last === 'attack3' || last === 'finisher') {
+  if (p.step >= 2 || p.last === 'attack3' || p.last === 'finisher') {
     return {
+      ...spec,
       kind: 'spinFinisher',
+      label: `${spec.label} · finisher`,
       roles: ['spin', 'hurricane', 'finisher', 'uppercut', 'attack3'],
-      knockbackMm: 340,
-      knockupVy: 1.4,
-      label: 'Spin / finisher'
+      knockbackMm: Math.max(spec.knockbackMm || 0, 340),
+      knockupVy: 1.4
     };
   }
-
-  if (step === 1 || last === 'attack2') {
+  if (p.step === 1 || p.last === 'attack2') {
     return {
+      ...spec,
       kind: 'overhead',
-      roles: ['stomp', 'attack3', 'finisher', 'uppercut'],
-      knockbackMm: 260,
-      label: 'Overhead'
+      label: `${spec.label} · overhead`,
+      roles: ['stomp', 'attack3', 'finisher', 'uppercut']
     };
   }
-
-  if (dist < 1.85) {
+  if (p.dist < 1.85) {
     return {
+      ...spec,
       kind: 'uppercut',
+      label: `${spec.label} · uppercut`,
       roles: ['uppercut', 'kick', 'attack3', 'finisher'],
-      knockbackMm: 240,
-      knockupVy: 2.4,
-      label: 'Uppercut'
+      knockupVy: 2.4
     };
   }
-
-  if (dist > 4.2) {
+  if (p.dist > 4.2) {
     return {
+      ...spec,
       kind: 'lunge',
+      label: `${spec.label} · lunge`,
       roles: ['finisher', 'hurricane', 'kick', 'attack3'],
-      knockbackMm: 220,
-      dash: true,
-      label: 'Lunge heavy'
+      dash: true
     };
   }
-
-  return {
-    kind: 'heavy',
-    roles: ['kick', 'hurricane', 'uppercut', 'attack3', 'spin', 'finisher'],
-    knockbackMm: 200,
-    label: 'Heavy'
-  };
+  return { ...spec };
 }
 
 /** Worge animal MMB — better than claw-only (F/R/MMB extras). */

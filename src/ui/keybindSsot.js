@@ -17,7 +17,7 @@ export const KEYBIND_ROWS = Object.freeze([
   { id: 'rmb', action: 'Focus / cycle target', category: 'Combat', key: 'RMB' },
   { id: 'class0', action: 'Class skill 0', category: 'Combat', key: 'F', note: 'combat only' },
   { id: 'classItem', action: 'Class item / hold radial or skill tree', category: 'Combat', key: 'R', note: 'combat tap = item · hold = radial or tree · form = form R' },
-  { id: 'mmb', action: 'Heavy / form MMB', category: 'Combat', key: 'MMB', note: 'finisher · ranger hop-shot · worge typhoon/bear stun' },
+  { id: 'mmb', action: 'Class melee instinct', category: 'Combat', key: 'MMB', note: '8 specs: warrior heavy · raider slam · mage/priest staff · ranger hop-shot · thief peel · worge typhoon · verdure crane' },
   { id: 'form4', action: 'Leave form', category: 'Skills', key: '4', note: 'in animal form only' },
   { id: 'harvestF', action: 'Harvest swing', category: 'Combat', key: 'F', note: 'harvest mode' },
   { id: 'block', action: 'Block', category: 'Combat', key: 'E', note: 'combat' },

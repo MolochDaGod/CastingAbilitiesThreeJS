@@ -52,6 +52,8 @@ Priority: inventory > ride > equip > harvest > combat.
 | **1–4** | Weapon skills | off |
 | **E C X** | Block parry dodge | off |
 
+**MMB** = class melee instinct (`CLASS_MMB` in `mmbHeavy.js`) — all 8 specs. Worge forms override (bear stun/charge, typhoon 7 m / 2 m).
+
 Lab only: **Alt+** sandbox VFX · **Alt+Shift+** linear skillshots (qualifiers, not tap Q).
 
 ---
