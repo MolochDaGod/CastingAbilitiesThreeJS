@@ -97,7 +97,7 @@ npx vercel --prod --yes
 | `https://ui.grudge-studio.com/game-ui-runtime.js` | `GrudgeGameUI.load('warlords').mount(#hud).setState('combat')` |
 | `hud-settings.js` | Move/skin/hotkeys — **do not** apply default Q=block on Casting |
 | Local copy | `public/ui/grudge-game-ui/` (downloaded 2026-08) |
-| Play chrome in lab today | `src/ui/HUD.js` + CraftPix `public/ui/craftpix` |
+| Play chrome | **One** GrudgeGameUI Warlords pack; `HUD.js` binds live combat (HP, target, skills, cast) + toast/crosshair |
 
 Docs: [XState v5](https://stately.ai/docs/quick-start) · [lil-gui](https://lil-gui.georgealways.com/) · [packs index](https://ui.grudge-studio.com/game-ui-packs/index.json)
 

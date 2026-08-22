@@ -1,19 +1,8 @@
 /* ------------------------------------------------------------------ *
- * Bending Sandbox — UI shell
- * The 3D view owns the whole viewport; everything here floats on top.
+ * Grudge Warlords Casting — UI shell
+ * Brand tokens + fonts: grudge-brand.css (ObjectStore SSOT).
  * ------------------------------------------------------------------ */
-
-:root {
-  --ui-bg: rgba(10, 14, 20, 0.55);
-  --ui-bg-solid: rgba(12, 16, 22, 0.92);
-  --ui-border: rgba(255, 255, 255, 0.12);
-  --ui-text: rgba(238, 245, 255, 0.92);
-  --ui-text-dim: rgba(197, 214, 232, 0.6);
-  --ui-accent: #7fd6ff;
-  --ui-radius: 14px;
-  --ui-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
-  --ui-font: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
-}
+@import "./grudge-brand.css";
 
 * {
   box-sizing: border-box;
@@ -25,9 +14,9 @@ body {
   padding: 0;
   height: 100%;
   overflow: hidden;
-  background: #05070a;
+  background: var(--bg);
   color: var(--ui-text);
-  font-family: var(--ui-font);
+  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -66,6 +55,32 @@ body.focus-aim .hud {
 }
 .hud__crosshair.is-visible {
   opacity: 1;
+}
+
+/* Soft-lock target pip — tracks enemy/location in screen space */
+.hud__lock-pip {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 22px;
+  height: 22px;
+  z-index: 25;
+  pointer-events: none;
+  opacity: 0;
+  border: 2px solid rgba(255, 140, 90, 0.9);
+  border-radius: 2px;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 10px rgba(255, 90, 50, 0.45);
+  transition: opacity 0.12s ease;
+}
+.hud__lock-pip.is-visible {
+  opacity: 1;
+}
+.hud__lock-pip.is-on-aim {
+  border-color: rgba(255, 220, 160, 1);
+  box-shadow: 0 0 14px rgba(255, 180, 80, 0.7);
+  width: 16px;
+  height: 16px;
 }
 .hud__crosshair.is-focus .hud__crosshair-ring {
   border-color: rgba(180, 230, 255, 0.55);
@@ -190,7 +205,7 @@ body.focus-aim .hud {
   z-index: 100;
   display: grid;
   place-items: center;
-  background: radial-gradient(120% 120% at 50% 30%, #16202c 0%, #05070a 70%);
+  background: radial-gradient(120% 90% at 50% 18%, #1a1620 0%, #0a0a0f 62%);
   transition: opacity 0.7s ease, visibility 0.7s;
 }
 
@@ -206,11 +221,23 @@ body.focus-aim .hud {
 }
 
 .loader__title {
-  margin: 22px 0 18px;
-  font-size: 26px;
-  font-weight: 600;
-  letter-spacing: 0.22em;
+  margin: 18px 0 0;
+  font-family: var(--font-brand);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
+  color: var(--gold-light);
+  text-shadow: 0 0 24px rgba(212, 175, 55, 0.28);
+}
+
+.loader__sub {
+  margin: 0.4rem 0 18px;
+  font-family: var(--font-heading);
+  font-size: 0.78rem;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--gold-dim);
 }
 
 .loader__sigil {
@@ -266,7 +293,7 @@ body.focus-aim .hud {
   height: 100%;
   width: 0%;
   border-radius: 3px;
-  background: linear-gradient(90deg, #ff6a1a, #31b6ff, #c9f0ff);
+  background: linear-gradient(90deg, var(--gold-dim), var(--gold-light), var(--gold));
   transition: width 0.25s ease;
 }
 
@@ -288,6 +315,24 @@ body.focus-aim .hud {
   pointer-events: none;
   z-index: 20;
   font-size: 13px;
+}
+
+/* One chrome: GrudgeGameUI pack fills #hud; HUD.js only binds live combat + toast/crosshair */
+.hud--ggui .hud-ggui {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+.hud--ggui .hud-ggui .ggui-root {
+  pointer-events: none;
+}
+.hud--ggui .hud__toast,
+.hud--ggui .hud__help,
+.hud--ggui .hud__stats,
+.hud--ggui .hud__crosshair,
+.hud--ggui .hud__lock-pip {
+  z-index: 6;
 }
 
 .hud__elements,
@@ -347,9 +392,9 @@ body.focus-aim .hud {
 }
 
 .mode-card.is-active {
-  color: #06131c;
-  background: var(--ui-accent);
-  box-shadow: 0 0 22px -6px var(--ui-accent);
+  color: #1a1408;
+  background: var(--gold);
+  box-shadow: 0 0 22px -6px var(--gold);
 }
 
 .mode-card__glyph {
@@ -475,8 +520,9 @@ body.focus-aim .hud {
   transition: opacity 0.3s ease;
 }
 
-.hud__help.is-hidden {
-  opacity: 0;
+.hud__help.is-hidden,
+.hud__stats.is-hidden {
+  display: none;
 }
 
 .hud__help strong {
@@ -512,12 +558,7 @@ body.focus-aim .hud {
 }
 
 .hud__title {
-  left: 22px;
-  top: 22px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  font-size: 11px;
-  font-weight: 600;
+  display: none;
 }
 
 .hud__title span {
@@ -614,12 +655,13 @@ body.focus-aim .hud {
   pointer-events: none;
   min-width: 200px;
   max-width: 280px;
-  padding: 8px 10px;
-  background: var(--ui-bg-solid);
-  border: 1px solid var(--ui-border);
-  border-radius: 12px;
-  box-shadow: var(--ui-shadow);
-  backdrop-filter: blur(10px);
+  padding: 0;
+  /* Chrome lives on bars PNG / CraftPix slot art — never a second glass card. */
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .hud-frame--player {
@@ -797,10 +839,11 @@ body.focus-aim .hud__crosshair {
   display: flex;
   flex-direction: column;
   pointer-events: auto;
-  background: var(--ui-bg-solid);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius);
-  box-shadow: var(--ui-shadow);
+  background:
+    linear-gradient(165deg, rgba(18, 18, 26, 0.96) 0%, rgba(10, 10, 15, 0.97) 100%);
+  border: 1px solid var(--gold-border);
+  border-radius: 8px;
+  box-shadow: var(--ui-shadow), inset 0 0 0 1px rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(12px);
   color: var(--ui-text);
   overflow: hidden;
@@ -821,15 +864,19 @@ body.focus-aim .hud__crosshair {
   justify-content: space-between;
   align-items: flex-start;
   gap: 12px;
-  padding: 14px 16px 8px;
-  border-bottom: 1px solid var(--ui-border);
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--gold-border);
+  background: linear-gradient(180deg, rgba(212, 175, 55, 0.08), transparent);
 }
 
 .inv-panel__head h2 {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-family: var(--font-heading);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold-light);
 }
 
 .inv-panel__sub {
@@ -870,24 +917,28 @@ body.focus-aim .hud__crosshair {
 .inv-nav-tab {
   border: 1px solid transparent;
   background: transparent;
-  color: var(--ui-text-dim);
-  border-radius: 8px;
-  padding: 8px 6px;
-  font-size: 11px;
+  color: var(--text-dim);
+  border-radius: 4px;
+  padding: 9px 8px;
+  font-family: var(--font-heading);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   text-align: left;
   cursor: pointer;
   line-height: 1.2;
 }
 
 .inv-nav-tab:hover {
-  color: var(--ui-text);
-  background: rgba(255, 255, 255, 0.04);
+  color: var(--gold-light);
+  background: rgba(212, 175, 55, 0.06);
 }
 
 .inv-nav-tab.is-active {
-  color: var(--ui-text);
-  border-color: var(--ui-border);
-  background: rgba(127, 214, 255, 0.14);
+  color: var(--gold-light);
+  border-color: var(--gold-border);
+  background: rgba(212, 175, 55, 0.14);
+  box-shadow: inset 2px 0 0 var(--gold);
 }
 
 .inv-panel__tabs {
@@ -900,18 +951,21 @@ body.focus-aim .hud__crosshair {
 .inv-tab {
   flex: 1;
   border: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--ui-text-dim);
-  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-dim);
+  border-radius: 4px;
   padding: 8px;
-  font-size: 12px;
+  font-family: var(--font-heading);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   cursor: pointer;
 }
 
 .inv-tab.is-active {
-  color: var(--ui-text);
-  border-color: var(--ui-border);
-  background: rgba(127, 214, 255, 0.12);
+  color: var(--gold-light);
+  border-color: var(--gold-border);
+  background: rgba(212, 175, 55, 0.12);
 }
 
 .inv-panel__body {

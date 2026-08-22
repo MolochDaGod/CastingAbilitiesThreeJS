@@ -1,4 +1,6 @@
-import { Vector3, MathUtils } from 'three';
+import { Vector3, MathUtils, Box3 } from 'three';
+
+const _lockProj = new Vector3();
 
 import { Renderer } from './Renderer.js';
 import { Time } from './Time.js';
@@ -6,15 +8,12 @@ import { CameraRig } from './CameraRig.js';
 import { frame } from './FrameUniforms.js';
 
 import { Environment } from '../world/Environment.js';
-import { Ground } from '../world/Ground.js';
 import { StageWater } from '../world/StageWater.js';
 import { Seafloor } from '../world/Seafloor.js';
 import { OceanWindIndicators } from '../effects/OceanWindIndicators.js';
-import { IslandHeightfield } from '../world/IslandHeightfield.js';
-import { IslandTown } from '../world/IslandTown.js';
 import { terrainHandle } from '../world/terrainGround.js';
-import { mountTerrainLayers, TERRAIN_LAYER } from '../world/terrainLayers.js';
-import { OpenSeaShells } from '../world/OpenSeaShells.js';
+import { mountTerrainLayers } from '../world/terrainLayers.js';
+import { TRAINING_ROOM_MAP_ID, TRAINING_ROOM_LABEL } from '../world/trainingRoomMap.js';
 import { DustMotes } from '../world/DustMotes.js';
 import { ContactShadows } from '../world/ContactShadows.js';
 import { WORLD } from '../config/worldScale.js';
@@ -22,11 +21,12 @@ import { WORLD } from '../config/worldScale.js';
 import { AssetLoader } from '../loaders/AssetLoader.js';
 import { CharacterController } from '../animation/CharacterController.js';
 import { WalkController } from '../animation/WalkController.js';
+import { HorseMount } from '../world/HorseMount.js';
 
 import { InputManager } from '../input/InputManager.js';
 import { PathDrawer } from '../input/PathDrawer.js';
 import { MouseAim } from '../input/MouseAim.js';
-import { Mesh, MeshBasicMaterial, RingGeometry, DoubleSide } from 'three';
+import { CircleGeometry, DoubleSide, Group, Mesh, MeshBasicMaterial, RingGeometry } from 'three';
 
 import { ParticleEngine } from '../particles/ParticleEngine.js';
 import { LightPool } from '../effects/LightPool.js';
@@ -45,6 +45,7 @@ import {
 import { PostProcessing } from '../postprocessing/PostProcessing.js';
 
 import { HUD, LoadingScreen } from '../ui/HUD.js';
+import { GameMenu } from '../ui/GameMenu.js';
 import { OverheadNameplates } from '../ui/OverheadNameplates.js';
 import { Editor } from '../ui/Editor.js';
 import { VfxStudio } from '../ui/vfxStudio/VfxStudio.js';
@@ -58,11 +59,6 @@ import { loadPrefabCatalog, pickSamplePrefab, bagItemFromPresent } from '../loot
 import { WorldDrops } from '../world/WorldDrops.js';
 import { DevIslandHarvest } from '../world/DevIslandHarvest.js';
 import { HARVEST_RANGE_M } from '../world/devIslandCatalog.js';
-import {
-  TRAINING_ROOM_BUILDERS,
-  TRAINING_ROOM_LABEL,
-  TRAINING_ROOM_MAP_ID
-} from '../world/trainingRoomMap.js';
 import { loadTrainingRoomLayoutForPlay } from '../world/trainingRoomDeploy.js';
 import { fleetDeploySnapshot } from '../config/fleetEnv.js';
 import { DropBag } from '../ui/DropBag.js';
@@ -102,8 +98,10 @@ import {
   getActiveSkills
 } from '../combat/drcSkills.js';
 import { T0_ALL_WEAPON_IDS } from '../api/t0WeaponCatalog.js';
+import { applyRaceClassT0 } from '../character/raceClassT0.js';
 import { loadLabAdmin, labAdminStatusLine } from '../config/labAdmin.js';
 import { PhysicsWorld } from '../physics/PhysicsWorld.js';
+import { accelerateObject3D, installMeshBvh } from '../physics/meshBvh.js';
 import { VfxDirector } from '../vfx/VfxDirector.js';
 import { loadGeneratedCatalog, spawnGeneratedProp } from '../assets/generatedCatalog.js';
 import { CASTING_LAB_CONTRACT } from '../sdk/castingLabSdk.js';
@@ -176,16 +174,13 @@ export class App {
     );
     settings.camera.minDistance = Math.min(settings.camera.minDistance ?? 2.5, WORLD.cameraMinDistance);
 
-    // Ground pad removed when heightfield is on — was double ground + z-fight.
-    // Seafloor (−5 m sand) + single StageWater (y=0) only.
+    // One play world: IslandHeightfield. No Ground pad, no DS2 voxel, no extra island GLB.
     this.ground = null;
     this.seafloor = new Seafloor();
     this.water = new StageWater();
-    /** Heightfield land (snakey / three-stylized / Rapier terrain patterns) */
-    this.islandTerrain =
-      settings.terrain?.enabled !== false ? new IslandHeightfield() : null;
+    this.islandTerrain = null;
+    this.homeIsland = null;
     this.growingForest = null;
-    /** L2 stylized grass (three-stylized pattern on L0 height) */
     this.stylizedGrass = null;
     this.islandTown = null;
     this.dust = new DustMotes();
@@ -201,27 +196,17 @@ export class App {
       this.dust.points,
       this.contactShadows.group
     );
-    /** One terrain handle for aim / path / harvest / drops (no N lambdas) */
-    this.terrain = terrainHandle(this.islandTerrain);
-    if (this.islandTerrain?.mesh) {
-      this.scene.add(this.islandTerrain.mesh);
-    } else {
-      // Fallback flat pad only if heightfield disabled
-      this.ground = new Ground(this.environment);
-      this.scene.add(this.ground.mesh);
-    }
+    /** One terrain handle for aim / path / harvest / drops */
+    this.terrain = null;
     console.info(
-      `[App] world waterY=${WORLD.waterY} shelfY=${WORLD.seafloorY} oceanFloorY=${WORLD.oceanFloorY ?? -50} (shore bathymetry · single water)`
+      `[App] world waterY=${WORLD.waterY} shelfY=${WORLD.seafloorY} oceanFloorY=${WORLD.oceanFloorY ?? -50}`
     );
     this.dust.setPixelRatio(this.renderer.gl.getPixelRatio());
-    /** One map: Training Room · DevIsland (play + /devnode) */
+    /** One map: Training Room (IslandHeightfield). Voxel DS2 is not the play shell. */
     this.mapId = TRAINING_ROOM_MAP_ID;
     this.mapLabel = TRAINING_ROOM_LABEL;
     console.info(
-      `[App] ${TRAINING_ROOM_LABEL} · SI mapScale=${WORLD.mapScale} ground=${WORLD.groundSize}m fogFar=${WORLD.fogFar}m water=${WORLD.waterSize}m terrain=${!!this.islandTerrain}`
-    );
-    console.info(
-      `[App] layers L0=${TRAINING_ROOM_BUILDERS.layers.L0_height.code} L2 grass+forest L3=${TRAINING_ROOM_BUILDERS.layers.L3_detail.harvest.code}`
+      `[App] ${TRAINING_ROOM_LABEL} · IslandHeightfield (not ds2-terrain voxel)`
     );
 
     /* ---- shared VFX services ---- */
@@ -288,6 +273,14 @@ export class App {
       /** Fishing harvest tree + blue meals + rod sea_legs → freeride boat speed */
       getNauticalSpeedMul: () => this.fishing?.getNauticalSpeedMul?.() ?? 1
     });
+    this.horseMount = new HorseMount(this.character, {
+      scene: this.scene,
+      assets: null,
+      physics: this.physics,
+      session: this.session,
+      camera: this.camera,
+      heightSample: (x, z) => this.terrain?.sample?.(x, z) ?? 0
+    });
 
     /* ---- input ---- */
     this.input = new InputManager(canvas);
@@ -304,18 +297,10 @@ export class App {
       this.hud.setCrosshairVisible?.(!!on);
       this.hud.root?.classList.toggle('hud--focus', !!on);
       this._applyMouseLockForFocus(!!on);
-      // Focus play: purge editor / admin / equip chrome so look is pure combat
+      // Focus is look/crosshair only. Camera + DRC session stay on SessionState.
       if (on) {
         this.editor?.close?.();
         if (this.adminHub?.open) this.adminHub.setOpen?.(false);
-        if (this.drc?.session === 'equip') this.drc.setSession?.('combat');
-        if (this.session.mode === INTERACTION_MODE.WALK && !this.session.riding) {
-          // Stay walk only if freeriding; land combat wants casting mode for TPS
-          // Keep current mode if freeriding skills
-        } else if (this.session.mode !== INTERACTION_MODE.CASTING && !this.session.freeriding) {
-          this.session.setMode?.(INTERACTION_MODE.CASTING, { silent: true });
-        }
-        this.rig.setViewMode?.('tps');
         this.rig.enterFocusLook?.();
         if (settings.aim?.softLockOnFocus !== false) {
           const feet = this.character?.position || this.character?.root?.position;
@@ -350,19 +335,35 @@ export class App {
         this.hud.root?.classList.remove('hud--softlock');
       }
     });
-    // Ground aim ring under crosshair (combat)
-    const ringGeo = new RingGeometry(0.18, 0.32, 32);
-    const ringMat = new MeshBasicMaterial({
+    // Ground aim ring under crosshair (combat) — high-seg circle + ring
+    const fillGeo = new CircleGeometry(0.22, 64);
+    const ringGeo = new RingGeometry(0.22, 0.34, 64);
+    const fillMat = new MeshBasicMaterial({
       color: 0x7fd6ff,
       transparent: true,
-      opacity: 0.75,
+      opacity: 0.22,
       side: DoubleSide,
       depthWrite: false
     });
-    this.aimMarker = new Mesh(ringGeo, ringMat);
-    this.aimMarker.rotation.x = -Math.PI / 2;
+    const ringMat = new MeshBasicMaterial({
+      color: 0x7fd6ff,
+      transparent: true,
+      opacity: 0.85,
+      side: DoubleSide,
+      depthWrite: false
+    });
+    const fill = new Mesh(fillGeo, fillMat);
+    const ring = new Mesh(ringGeo, ringMat);
+    fill.rotation.x = -Math.PI / 2;
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.01;
+    this.aimMarker = new Group();
+    this.aimMarker.name = 'AimMarker';
+    this.aimMarker.add(fill, ring);
     this.aimMarker.position.y = 0.04;
     this.aimMarker.visible = false;
+    this.aimMarker.userData.fillMat = fillMat;
+    this.aimMarker.userData.ringMat = ringMat;
     this.scene.add(this.aimMarker);
 
     /* ---- post ---- */
@@ -390,7 +391,18 @@ export class App {
     });
     this.editor = new Editor({
       onClear: () => this.clearEffects(),
-      onToast: (message) => this.hud.showToast(message)
+      onToast: (message) => this.hud.showToast(message),
+      onApplyVariant: (id) => {
+        try {
+          this.linearSkills?.applyVariant?.(id);
+        } catch {
+          /* optional */
+        }
+      },
+      onMainPanel: () => {
+        this.inventory?.setOpen?.(true);
+        this.inventory?.openTab?.('prefabs');
+      }
     });
     /** Singular tabbed VFX / skill authoring shell (hosts lil-gui knobs) */
     this.vfxStudio = new VfxStudio({
@@ -448,6 +460,16 @@ export class App {
             this._playerIdentity.raceLabel = raceDef(raceId).label;
           }
         }
+        try {
+          await applyRaceClassT0(this.character, {
+            onToast: (m) => this.hud.showToast(m)
+          });
+          setActiveSkillTree('equipped');
+          if (this.drc) this.drc.skills = getActiveSkills();
+          this.hud.refreshSkillLabels?.();
+        } catch (e) {
+          console.warn('[App] race T0 loadout', e);
+        }
         this._syncPlayerFrame();
         this.hud.showToast(`Race · ${raceDef(raceId).label}`);
       },
@@ -481,6 +503,17 @@ export class App {
     if (typeof window !== 'undefined') {
       window.__castingInventory = this.inventory;
     }
+    this.gameMenu = new GameMenu({
+      onResume: () => this.gameMenu.setOpen(false),
+      onHelp: () => this.hud.toggleHelp(),
+      onOpenPanel: (tab) => {
+        this.showcase?.setOpen?.(false);
+        const id = tab === 'hotkeys' || tab === 'settings' || tab === 'equip' || tab === 'character' || tab === 'inventory'
+          ? tab
+          : 'character';
+        this.inventory.openTab?.(id);
+      }
+    });
 
     /** F1–F5 admin tools: player · assets · creatures · prefabs · world */
     this.adminHub = new AdminHub({
@@ -499,8 +532,8 @@ export class App {
         await this.worldHarvest?.spawnDecor?.();
       },
       equipHarvestTool: () => this._equipHarvestTool?.(),
-      respawnDummies: () => {
-        this.worldHarvest?.spawnTrainingDummies?.();
+      respawnDummies: async () => {
+        await this.worldHarvest?.spawnTrainingDummies?.();
         this.overheadBars?.bindDummies?.(this.worldHarvest?.dummies || []);
       }
     });
@@ -522,6 +555,16 @@ export class App {
               this._playerIdentity.roleId
             );
           }
+        }
+        try {
+          await applyRaceClassT0(this.character, {
+            onToast: (m) => this.hud.showToast(m)
+          });
+          setActiveSkillTree('equipped');
+          if (this.drc) this.drc.skills = getActiveSkills();
+          this.hud.refreshSkillLabels?.();
+        } catch (e) {
+          console.warn('[App] showcase race T0', e);
         }
         this._syncPlayerFrame();
       },
@@ -567,12 +610,15 @@ export class App {
     this.physics = new PhysicsWorld();
     this.vfxDirector = new VfxDirector({
       scene: this.scene,
+      assets: this._assets,
+      character: this.character,
       particles: this.particles,
       lights: this.lights,
       decals: this.decals,
       bursts: this.bursts,
       shake: this.shake,
-      flash: this.flash
+      flash: this.flash,
+      oceanWind: this.oceanWind
     });
 
     this.drc = new DrcCombatController({
@@ -629,11 +675,15 @@ export class App {
       this.walk?.cancel?.();
     }
 
-    // Camera: combat/freeride = Fortnite shoulder TPS; equip/builder = orbit
+    // Camera: combat/freeride = owned TPS; equip/builder = orbit
     if (g.tpsCamera) {
       this.rig.applyGameplayMode?.('combat') || this.rig.setViewMode('tps');
+      if (drcChanged || modeChanged) {
+        this._applyMouseLockForFocus(!!this.combatFocus?.focusEnabled);
+      }
     } else if (g.orbitCamera) {
       this.rig.applyGameplayMode?.('builder') || this.rig.setViewMode('orbit');
+      if (drcChanged || modeChanged) this._applyMouseLockForFocus(false);
     }
 
     this.input.setCombatKeys?.(g.combatKeys);
@@ -808,10 +858,7 @@ export class App {
       if (this.drc.inCombat || this.session.freeriding) {
         this.pathDrawer.setCombatMinLength?.(settings.staffCast?.combatMinPathLength ?? 0.9);
         const ok = this.drc.castPathAbility?.(curve, length || curve?.getLength?.() || 0, holdSec);
-        if (!ok) {
-          this.abilities.cast(curve);
-          this.character.playCastFlourish?.();
-        }
+        if (!ok) this.hud.showToast('Path cast failed');
         return;
       }
       this.abilities.cast(curve);
@@ -890,6 +937,9 @@ export class App {
         break;
       case 'help':
         this.hud.toggleHelp();
+        break;
+      case 'game':
+        this.gameMenu?.toggle();
         break;
       case 'clear':
         this.clearEffects();
@@ -1073,6 +1123,67 @@ export class App {
     }
   }
 
+  /**
+   * Live dump: play terrain vs horizon vs kit weapons.
+   * Console: copy(app.auditSectorShells())
+   */
+  auditSectorShells() {
+    const box = new Box3();
+    const size = new Vector3();
+    const layers = [];
+    const push = (obj, role) => {
+      if (!obj) return;
+      obj.updateMatrixWorld?.(true);
+      box.setFromObject(obj);
+      box.getSize(size);
+      layers.push({
+        role,
+        name: obj.name || obj.type,
+        visible: obj.visible !== false,
+        sizeM: [+size.x.toFixed(2), +size.y.toFixed(2), +size.z.toFixed(2)],
+        minY: +box.min.y.toFixed(2),
+        maxY: +box.max.y.toFixed(2),
+        waterY: WORLD.waterY,
+        seafloorY: WORLD.seafloorY
+      });
+    };
+    push(this.islandTerrain?.mesh || this.homeIsland?.mesh, 'play-terrain');
+    push(this.ground?.mesh, 'fallback-ground');
+    push(this.openSea?.group, 'horizon-shells');
+    this.openSea?.group?.children?.forEach((c) => push(c, 'horizon-island'));
+    push(this.homeScenery?.group, 'l3-scenery');
+    const weapons = [];
+    this.character?.model?.traverse((o) => {
+      if (!(o.isMesh || o.isSkinnedMesh)) return;
+      const n = `${o.name} ${o.parent?.name || ''}`;
+      if (!/weapon|sword|staff|bow|axe|hammer|shield|WeaponAttach/i.test(n)) return;
+      if (!o.visible) return;
+      weapons.push({ name: o.name, parent: o.parent?.name, visible: true });
+    });
+    const flags = [];
+    if (this.openSea?.group?.children?.length) flags.push('competing-horizon-shells');
+    if (this.ground?.mesh) flags.push('competing-ground-pad');
+    if (this.homeIsland?.mesh) flags.push('competing-home-island-glb');
+    if (weapons.length > 1) flags.push(`visible-weapon-meshes=${weapons.length}`);
+    const playName = this.islandTerrain?.mesh?.name || play?.name;
+    if (playName && /ds2|HomeIslandMap/i.test(playName)) flags.push('voxel-or-ds2-play-terrain');
+    const play = layers.find((l) => l.role === 'play-terrain');
+    const hor = layers.filter((l) => l.role === 'horizon-island');
+    for (const h of hor) {
+      if (h.sizeM[1] > 12) flags.push(`horizon-too-tall:${h.sizeM[1]}m`);
+      if (play && Math.abs(h.minY - (WORLD.seafloorY ?? -5)) > 3) flags.push('horizon-not-welded-shelf');
+    }
+    const report = {
+      mapId: this.mapId || TRAINING_ROOM_MAP_ID,
+      flags,
+      layers,
+      weapons,
+      ok: flags.length === 0
+    };
+    console.info('[auditSectorShells]', report);
+    return report;
+  }
+
   _handleAction(action, detail) {
     const index = ELEMENTS.indexOf(this.abilities.selected);
     switch (action) {
@@ -1096,6 +1207,12 @@ export class App {
         break;
       case 'rHoldEnd':
         this._endRHold();
+        break;
+      case 'mHoldStart':
+        this._beginMHold();
+        break;
+      case 'mHoldEnd':
+        this._endMHold();
         break;
       case 'toggleHelp':
         this.hud.toggleHelp();
@@ -1128,7 +1245,9 @@ export class App {
           this._applyMouseLockForFocus?.(true);
         }
         this.combatFocus.softLockEnabled = true;
-        const fwd = this.rig.getCameraForward?.(new Vector3());
+        const fwd =
+          this.rig.getLookDirection?.(new Vector3()) ||
+          this.rig.getCameraForward?.(new Vector3());
         this.combatFocus.cycleTarget(feet, reverse, fwd);
         // HUD target frame
         const t = this.combatFocus.selectedTarget;
@@ -1150,12 +1269,27 @@ export class App {
         }
         break;
       }
+      case 'escape':
       case 'closeAdmin':
         this.linearSkills?.cancel?.();
+        if (this.gameMenu?.open) {
+          this.gameMenu.setOpen(false);
+          break;
+        }
+        if (this.inventory?.open) {
+          this.inventory.setOpen(false);
+          break;
+        }
+        if (this.vfxStudio?._open) {
+          this.vfxStudio.close();
+          break;
+        }
         if (this.adminHub?.open) {
           this.adminHub.setOpen(false);
           this.hud.showToast('Admin closed');
+          break;
         }
+        this.gameMenu?.setOpen(true);
         break;
       case 'toggleEditor':
         if (this.vfxStudio) this.vfxStudio.toggle();
@@ -1166,6 +1300,9 @@ export class App {
         else {
           this.showcase?.setOpen?.(false);
           this.inventory.toggle();
+          this.hud.setPlayScreen?.(
+            this.inventory.open ? 'inventory' : this.activityMode || 'combat'
+          );
           this.hud.showToast(this.inventory.open ? 'Inventory open' : 'Inventory closed');
         }
         break;
@@ -1240,17 +1377,19 @@ export class App {
   }
 
   /**
-   * Staff / bow / wand / magic = freeride non-focus cast path.
+   * Staff / bow / gun = path or slot-1. Melee sword_shield is NOT staff.
    */
   _isRangedOrStaffEquipped() {
-    const w = getEquippedWeapon?.() || this.character?.weapon || null;
-    const id = `${w?.id || ''} ${w?.weaponType || ''} ${w?.animPack || ''}`.toLowerCase();
-    if (/staff|wand|bow|longbow|crossbow|gun|pistol|rifle|magic|tome|spell/.test(id)) return true;
-    const pack = this.character?.animPack || this.character?.activePack || '';
-    if (/magic|longbow|pistol|bow/.test(String(pack))) return true;
-    // Default staff casting lab
-    if (!w) return true;
-    return false;
+    const pack = String(this.character?.animPackId || '').toLowerCase();
+    if (pack === 'sword_shield' || pack === 'unarmed') return false;
+    if (pack === 'magic' || pack === 'longbow' || pack === 'pistol' || pack === 'rifle') return true;
+    const w = getEquippedWeapon?.();
+    if (!w) return false;
+    const blob = `${w.id || ''} ${w.weaponType || ''} ${w.animPack || ''}`.toLowerCase();
+    if (/sword|axe|hammer|mace|spear|dagger|greatsword|greataxe/.test(blob) && !/staff|wand|tome/.test(blob)) {
+      return false;
+    }
+    return /staff|wand|bow|longbow|crossbow|magic|tome|pistol|rifle|\bgun\b/.test(blob);
   }
 
   /* ── Hold Q / R radials (Open parity) ───────────────────────── */
@@ -1322,6 +1461,63 @@ export class App {
     this._rHold = { armed: false, t: 0, open: false };
   }
 
+  _beginMHold() {
+    this._mHold = { armed: true, t: 0, open: false };
+  }
+
+  _endMHold() {
+    if (!this._mHold?.armed && !this._mHold?.open) return;
+    if (this._mHold.open) {
+      const aim = this.modeRadial?.getAimId?.();
+      void this._selectMountOrBack(aim);
+      this.modeRadial?.hide?.();
+    } else if (this._mHold.armed && this._mHold.t < RADIAL_HOLD_S) {
+      void this._tapMount();
+    }
+    this._mHold = { armed: false, t: 0, open: false };
+  }
+
+  async _tapMount() {
+    if (this.horseMount?.mounted || this.horseMount?.active) {
+      this.horseMount.dismount();
+      this.hud.showToast?.('Dismount');
+      return;
+    }
+    const last = this._lastMountId || 'horse';
+    await this._selectMountOrBack(last);
+  }
+
+  /**
+   * Hold-M radial: horse (land) · windsurf (water back) · stow back.
+   * @param {string|null} id
+   */
+  async _selectMountOrBack(id) {
+    const pick = id || 'horse';
+    this._lastMountId = pick;
+    if (pick === 'horse') {
+      this.horseMount.ctx.assets = this._assets || this.horseMount.ctx.assets;
+      this.horseMount.ctx.physics = this.physics;
+      this.horseMount.ctx.camera = this.camera;
+      this.horseMount.ctx.heightSample = (x, z) => this.terrain?.sample?.(x, z) ?? 0;
+      const r = await this.horseMount.summon();
+      this.hud.showToast?.(r === 'dismount' ? 'Dismount' : 'Horse · approaching');
+      return;
+    }
+    if (pick === 'windsurf') {
+      try {
+        await this.character.equipBackSlot?.('windsurf');
+        this.hud.showToast?.('Back · Windsurf (water)');
+      } catch (err) {
+        this.hud.showToast?.(err?.message || 'Windsurf equip failed');
+      }
+      return;
+    }
+    if (pick === 'back_none') {
+      await this.character.equipBackSlot?.('none');
+      this.hud.showToast?.('Back empty');
+    }
+  }
+
   /**
    * @param {'combat'|'harvest'} mode
    */
@@ -1365,7 +1561,7 @@ export class App {
           : 'Tap Q weapon 1↔2 · F skill · 1–4'
       }`
     );
-    this.hud.root?.classList.toggle('hud--harvest', next === 'harvest');
+    this.hud.setPlayScreen?.(next);
   }
 
   /** Tap R / machine DRAW_LAST_TOOL — pull last tool, default pick. */
@@ -1499,24 +1695,40 @@ export class App {
       }
       if (this._rHold.open) this.modeRadial.aimFromPointer(cx, cy);
     }
+
+    if (this._mHold?.armed || this._mHold?.open) {
+      this._mHold.t += dt;
+      if (this._mHold.t >= RADIAL_HOLD_S && !this._mHold.open) {
+        this._mHold.open = true;
+        if (this.combatFocus?.focusEnabled) {
+          this.combatFocus.focusEnabled = false;
+          this.combatFocus.emit?.('focus', false);
+        }
+        setCursorIntent('default', { force: true });
+        this.modeRadial.show({
+          kind: 'mount',
+          current: this.activityMode,
+          aimId: this._lastMountId || 'horse'
+        });
+      }
+      if (this._mHold.open) this.modeRadial.aimFromPointer(cx, cy);
+    }
   }
 
   _onLmbAttack() {
-    // Focus + LMB: staff/wand → hotbar slot 1 normal attack (shared staff primary).
-    // Melee / other → weapon primary (F / residual path).
     if (this._isRangedOrStaffEquipped?.()) {
       const ok =
         this.drc.useSkill?.(0) ||
         this.drc.useWeaponSkillF?.() ||
         this.drc.performQuickAction?.('primary');
-      if (!ok) this.hud.showToast('Staff normal (slot 1)');
+      if (!ok) this.hud.showToast('Ranged / staff slot 1');
       return;
     }
     const ok =
       this.drc.useMeleeStrike?.() ||
-      this.drc.performQuickAction?.('primary') ||
       this.character.playWeaponCombat?.('attack') ||
-      this.character.playWeaponCombat?.('cast');
+      this.character.playMeleeComboLight?.() ||
+      this.drc.performQuickAction?.('primary');
     if (!ok) this.hud.showToast('Attack');
   }
 
@@ -1600,7 +1812,8 @@ export class App {
         hp01: Number.isFinite(t?.mesh?.userData?.hp01)
           ? t.mesh.userData.hp01
           : 1,
-        present: true
+        present: true,
+        auras: this.drc?.statuses?.listAuras?.(t?.id || t?.mesh?.uuid) || []
       });
     } else {
       this.combatFocus?.clearTarget?.();
@@ -1610,43 +1823,30 @@ export class App {
   }
 
   /**
-   * Focus ON = remove OS mouse; mouse becomes look + center crosshair aim.
-   * Focus OFF = unlock cursor for free select / UI.
-   * @param {boolean} focusOn
+   * Combat TPS: pointer lock + look (combat.grudge-studio.com).
+   * Focus still toggles soft-lock / reticle emphasis — it does not unlock the mouse.
+   * Equip / UI still call this(false) and exit lock.
+   * @param {boolean} playLock
    */
-  _applyMouseLockForFocus(focusOn) {
-    document.body?.classList.toggle('focus-aim', !!focusOn);
-    if (!focusOn) {
+  _applyMouseLockForFocus(playLock) {
+    const inTps = this.session?.gates?.tpsCamera !== false && this.drc?.session !== 'equip';
+    const wantLock = !!playLock && inTps;
+    document.body?.classList.toggle('focus-aim', !!wantLock);
+    if (!wantLock) {
       if (document.pointerLockElement) document.exitPointerLock?.();
       setCursorIntent('select', {
         force: true,
         label: 'Free aim',
         lmb: 'Select target',
-        rmb: 'Focus look (toggle)'
+        rmb: 'Look'
       });
       this.hud.setCrosshairVisible?.(false);
       return;
     }
-    // Hide cursor + tip; screen-center crosshair is the reticle
     setCursorIntent('none', { force: true, tooltip: false });
-    if (this.canvas) {
-      this.canvas.style.cursor = 'none';
-      // Pointer lock (RMB toggle is a user gesture). Fallback: free mouse delta look.
-      const tryLock = () => {
-        try {
-          this.canvas.requestPointerLock?.();
-        } catch {
-          /* policy */
-        }
-      };
-      tryLock();
-      // Retry once after tick if browser delayed grant
-      window.setTimeout(() => {
-        if (this.combatFocus?.focusEnabled && document.pointerLockElement !== this.canvas) {
-          tryLock();
-        }
-      }, 40);
-    }
+    if (this.canvas) this.canvas.style.cursor = 'none';
+    // Pointer Lock requires a user gesture — CameraRig pointerdown requests it.
+    // Boot / session change must not call requestPointerLock (NotAllowedError).
     this.hud.setCrosshairVisible?.(true);
   }
 
@@ -1768,6 +1968,8 @@ export class App {
       mana01: (this.drc?.mana ?? maxM) / maxM,
       sta01: (this.drc?.stamina ?? maxS) / maxS
     });
+    const auras = this.drc?.statuses?.listAuras?.('player') || [];
+    this.hud.setAuras?.('player', auras);
   }
 
   /**
@@ -1876,15 +2078,6 @@ export class App {
     this.loading.setProgress(0.05, 'Init Rapier physics…');
     try {
       await this.physics.init();
-      // Land heightfield + water sensor layer (must learn: one height source)
-      if (this.islandTerrain) {
-        const ok = this.physics.addHeightfield(this.islandTerrain.rapierDesc(), {
-          landHeightAt: this.terrain?.sample || null,
-          waterHeightAt: (x, z, t) =>
-            this.water?.sampleHeight?.(x, z, t ?? this.elapsed) ?? WORLD.waterY
-        });
-        console.info('[App] terrain heightfield physics', ok ? 'ok' : 'fallback flat');
-      }
       this.physics.addWaterLayer({
         waterY: WORLD.waterY,
         deepY: WORLD.oceanFloorY ?? -50,
@@ -1892,10 +2085,51 @@ export class App {
       });
       this.drc.setPhysics(this.physics);
       this.walk.setPhysics?.(this.physics);
+      this.mouseAim.setPhysics?.(this.physics);
+      this.character.physics = this.physics;
       const y0 = this.islandTerrain?.sample?.(0, 0) ?? 0;
       this.physics.setPlayerFeet(0, y0, 0);
     } catch (err) {
       console.warn('[App] Rapier init failed — kinematic fallback', err);
+    }
+
+    this.loading.setProgress(0.12, 'Terrain…');
+    try {
+      const layers = mountTerrainLayers({
+        scene: this.scene,
+        forest: false,
+        grass: true
+      });
+      this.islandTerrain = layers.heightfield;
+      this.stylizedGrass = layers.grass;
+      this.growingForest = layers.forest;
+      this.terrain = terrainHandle(this.islandTerrain);
+      this.mapId = TRAINING_ROOM_MAP_ID;
+      this.mouseAim.setTerrain(this.terrain);
+      this.pathDrawer.setTerrain(this.terrain);
+      if (this.water) this.water.islandRadiusOverride = WORLD.islandRadius;
+      const ok = this.islandTerrain
+        ? this.physics.addHeightfield(this.islandTerrain.rapierDesc(), {
+            landHeightAt: (x, z) => this.islandTerrain.sample(x, z),
+            waterHeightAt: (x, z, t) =>
+              this.water?.sampleHeight?.(x, z, t ?? this.elapsed) ?? WORLD.waterY
+          })
+        : false;
+      console.info(
+        `[App] Training Room · L0/L1 IslandHeightfield · L2 grass=${this.stylizedGrass?.count ?? 0} · physics=${ok ? 'ok' : 'flat'}`
+      );
+      const landAt = (x, z) => this.islandTerrain?.sample?.(x, z) ?? 0;
+      this.drc.setHeightSample(landAt);
+      this.character.setTerrainHeightAt?.(landAt);
+      const bvhOn = await installMeshBvh();
+      const nBvh = this.islandTerrain?.mesh
+        ? accelerateObject3D(this.islandTerrain.mesh)
+        : 0;
+      if (this.mouseAim?.raycaster) this.mouseAim.raycaster.firstHitOnly = !!bvhOn;
+      console.info(`[App] mesh-bvh ${bvhOn ? 'on' : 'off'} terrain=${nBvh}`);
+    } catch (err) {
+      console.warn('[App] terrain failed', err);
+      this.hud.showToast?.('Terrain failed', 4000);
     }
 
     this.loading.setProgress(0.15, 'Loading environment…');
@@ -1912,14 +2146,17 @@ export class App {
     );
     await this.character.load(assets, {
       raceId: id.raceId,
-      presetId: id.roleId || 'mage'
+      presetId: id.roleId
     });
-    // Feet on heightfield at spawn
+    // Feet on heightfield at spawn — Vector3/Matrix4 plant, not root.y = terrain
     {
-      const y0 = this.islandTerrain?.sample?.(0, 0) ?? 0;
+      const landAt = (x, z) => this.islandTerrain?.sample?.(x, z) ?? 0;
+      this.drc.setHeightSample(landAt);
+      this.character.setTerrainHeightAt?.(landAt);
+      const y0 = landAt(0, 0);
       this.character.placeAt?.(0, y0, 0);
-      this.character.resetPlacement?.();
       this.physics?.setPlayerFeet?.(0, y0, 0);
+      this.character.rebuildWeaponVolume?.({ debug: false });
     }
     this.hud.setPlayerFrame?.({
       name: id.displayName,
@@ -1929,6 +2166,7 @@ export class App {
       sta01: 1
     });
     this.hud.setAllies?.([]);
+    this.hud.setEnemies?.([]);
     this.hud.setTargetFrame?.(null);
     this.hud.refreshSkillLabels?.();
     this.inventory.refresh();
@@ -1946,7 +2184,14 @@ export class App {
 
     // Windsurf package always available for walk mode (RideIK + deck sockets)
     this._assets = assets;
+    if (this.vfxDirector) {
+      this.vfxDirector.ctx.assets = assets;
+      this.vfxDirector.ctx.character = this.character;
+      if (this.vfxDirector.healField) this.vfxDirector.healField.assets = assets;
+      void this.vfxDirector.waves?.preload?.(assets);
+    }
     this.walk.ctx.assets = assets;
+    if (this.horseMount) this.horseMount.ctx.assets = assets;
     this.loading.setProgress(0.7, 'Loading windsurf board…');
     try {
       await this.walk.load(assets);
@@ -1972,39 +2217,7 @@ export class App {
       })
       .catch((err) => console.warn('[App] prefab catalog', err));
 
-    // L2 vegetation via mountTerrainLayers (one height sample — forest + grass)
-    if (this.islandTerrain) {
-      try {
-        const layers = mountTerrainLayers({
-          scene: this.scene,
-          heightfield: this.islandTerrain,
-          forest: settings.terrain?.forestEnabled !== false,
-          grass: settings.terrain?.grassEnabled !== false,
-          onToast: (m) => this.hud.showToast(m)
-        });
-        // heightfield mesh already added at boot — avoid double-add
-        this.growingForest = layers.forest;
-        this.stylizedGrass = layers.grass;
-        if (this.growingForest) {
-          const fs = this.growingForest.getStats?.() || {
-            trees: this.growingForest.trees.length
-          };
-          console.info(
-            `[App] L2 harvest forest ×${fs.trees} mature=${fs.mature ?? '?'} branches=${fs.branches ?? '?'} leaves=${fs.leaves ?? '?'} · forestoutline · ${TERRAIN_LAYER.L2_VEGETATION}`
-          );
-        }
-        if (this.stylizedGrass) {
-          console.info(
-            `[App] L2 grass ×${this.stylizedGrass.count} · three-stylized · layers=${layers.layerIds?.join('+')}`
-          );
-        }
-      } catch (e) {
-        console.warn('[App] mountTerrainLayers', e);
-      }
-    }
-
-    // Training Room · DevIsland: production load chain (storage → published → builtin)
-    this.loading.setProgress(0.74, 'Training Room…');
+    this.loading.setProgress(0.74, 'Harvest nodes…');
     try {
       const boot = await loadTrainingRoomLayoutForPlay();
       this.mapLayoutSource = boot.source;
@@ -2017,7 +2230,7 @@ export class App {
         worldDrops: this.worldDrops,
         dropBag: this.dropBag,
         onToast: (m) => this.hud.showToast(m),
-        islandRadius: WORLD.islandRadius,
+        islandRadius: Math.min(56, this.homeIsland?.islandRadius || WORLD.islandRadius),
         rangeM: HARVEST_RANGE_M,
         heightSample: this.terrain?.sample || null
       });
@@ -2029,15 +2242,33 @@ export class App {
             ? boot.layout
             : null;
       await this.worldHarvest.init({ layout: useLayout });
+      const nMesh =
+        (this.physics?.addGltfStaticColliders?.(this.worldHarvest.group, {
+          idPrefix: 'harvest',
+          shape: 'convex'
+        }) || 0) +
+        (this.physics?.addGltfStaticColliders?.(this.worldHarvest.dummyGroup, {
+          idPrefix: 'dummy',
+          shape: 'convex'
+        }) || 0);
+      if (nMesh) {
+        console.info(`[App] Rapier mesh colliders ${nMesh} (harvest+dummies)`);
+        this.mouseAim.setAimColliders?.([
+          this.worldHarvest.group,
+          this.worldHarvest.dummyGroup
+        ].filter(Boolean));
+        accelerateObject3D(this.worldHarvest.group);
+        accelerateObject3D(this.worldHarvest.dummyGroup);
+      }
       // Enemy overhead bars (overhead_health_003 + fillers)
       this.overheadBars?.bindDummies?.(this.worldHarvest.dummies || []);
       const src = this.worldHarvest.layoutSource || boot.source || 'default';
       console.info(
-        `[App] ${TRAINING_ROOM_LABEL} · harvest=${this.worldHarvest.nodeCount} decor=${this.worldHarvest.decorCount} dummies=${this.worldHarvest.dummies?.length || 0} layout=${boot.source} F≤${HARVEST_RANGE_M}m padR=${WORLD.islandRadius.toFixed(0)}`
+        `[App] ${TRAINING_ROOM_LABEL} · harvest=${this.worldHarvest.nodeCount} layout=${boot.source} F≤${HARVEST_RANGE_M}m`
       );
       console.info('[App] fleet deploy', fleetDeploySnapshot().authority);
       this.hud.showToast?.(
-        `${TRAINING_ROOM_LABEL} · ${this.worldHarvest.nodeCount} nodes (${boot.source}) · /devnode.html`,
+        `${TRAINING_ROOM_LABEL} · ${this.worldHarvest.nodeCount} nodes`,
         3600
       );
     } catch (err) {
@@ -2046,38 +2277,10 @@ export class App {
       this.hud.showToast?.('Training Room map failed — check /models/dev-island', 4000);
     }
 
-    // Horizon islands (CDN) welded to seafloorY=-5 · water surface 0
-    this.loading.setProgress(0.76, 'Open sea shells…');
-    try {
-      this.openSea = new OpenSeaShells({ scene: this.scene, assets });
-      await this.openSea.init();
-    } catch (err) {
-      console.warn('[App] OpenSeaShells', err);
-      this.openSea = null;
-    }
+    this.openSea = null;
 
-    // Riverside hamlet ON play island (sand/timber — not white snow GLB / missing scenery module)
-    // Planted on heightfield; ?town=0 disables
-    this.loading.setProgress(0.78, 'Island town…');
-    try {
-      const townOff = /[?&]town=0\b/.test(location.search);
-      this.homeScenery = null;
-      if (!townOff) {
-        this.islandTown = new IslandTown({
-          sampleHeight: (x, z) => this.terrain?.sample?.(x, z) ?? 0,
-          islandRadius: WORLD.islandRadius
-        });
-        this.islandTown.build();
-        this.scene.add(this.islandTown.group);
-        // Softer ocean near pad when town dress is present
-        if (this.water?.uniforms?.uStorm) {
-          this.water._stormTarget = Math.min(this.water._stormTarget ?? 0.35, 0.22);
-        }
-      }
-    } catch (err) {
-      console.warn('[App] IslandTown', err);
-      this.islandTown = null;
-    }
+    this.homeScenery = null;
+    this.islandTown = null;
 
     this.generatedCatalog = null;
     if (/[?&]props=1\b/.test(location.search)) {
@@ -2106,8 +2309,9 @@ export class App {
       const ySpawn = this.islandTerrain?.sample?.(0, 0) ?? this.physics?.sampleLandY?.(0, 0) ?? 0;
       this.physics?.setPlayerFeet?.(0, ySpawn, 0);
       this.character.placeAt?.(0, ySpawn, 0);
-      this.rig.snapToCharacter?.(0, ySpawn, 0, this.character.facing);
-      this.rig.setAnchor(0, ySpawn, 0);
+      const spawn = this.character.position;
+      this.rig.snapToCharacter?.(spawn.x, spawn.y, spawn.z, this.character.facing);
+      this.rig.setAnchor(spawn.x, spawn.y, spawn.z);
       this.rig.setViewMode?.('tps');
     }
     // Backflip setup: hold camera yaw (do not follow reverse body)
@@ -2198,7 +2402,13 @@ export class App {
             ? 't0-wand'
             : /[?&]sapling=1\b/.test(location.search)
               ? 't0-nature-staff'
-              : null;
+              : /[?&]rifle=1\b/.test(location.search)
+                ? 't0-rifle'
+                : /[?&]poppy=1\b/.test(location.search)
+                  ? 't0-poppy'
+                  : /[?&]daax=1\b/.test(location.search)
+                    ? 't0-daax'
+                    : null;
       const t0Id = m?.[1] || legacy || (admin.admin ? admin.defaultWeaponId : null);
       if (t0Id) {
         try {
@@ -2227,6 +2437,17 @@ export class App {
           }
         } catch (err) {
           console.warn('[App] weapon equip', t0Id, err);
+        }
+      } else {
+        try {
+          await applyRaceClassT0(this.character, {
+            onToast: (m) => this.hud.showToast(m)
+          });
+          setActiveSkillTree('equipped');
+          if (this.drc) this.drc.skills = getActiveSkills();
+          this.hud.refreshSkillLabels?.();
+        } catch (e) {
+          console.warn('[App] race/class T0 default', e);
         }
       }
     }
@@ -2304,7 +2525,9 @@ export class App {
         let softPt = this.combatFocus.getSoftLockPoint?.() || null;
         // Keep soft-lock sticky: re-acquire directional best if lost
         if (!softPt && settings.aim?.softLockOnFocus !== false) {
-          const fwd0 = this.rig.getCameraForward?.(new Vector3());
+          const fwd0 =
+            this.rig.getLookDirection?.(new Vector3()) ||
+            this.rig.getCameraForward?.(new Vector3());
           this.combatFocus.acquireBest?.(feetPos, fwd0);
           softPt = this.combatFocus.getSoftLockPoint?.() || null;
         }
@@ -2353,10 +2576,19 @@ export class App {
           const d = this.mouseAim.distanceTo(feetPos);
           const s = MathUtils.clamp(0.7 + d * 0.04, 0.7, 1.6);
           this.aimMarker.scale.setScalar(s);
-          this.aimMarker.material.opacity = this.combatFocus?.focusEnabled ? 0.95 : 0.75;
-          this.aimMarker.material.color?.setHex?.(
-            this.combatFocus?.selectedTarget ? 0xff6a55 : 0x7fd6ff
-          );
+          this.aimMarker.rotation.y += dt * 0.7;
+          const hex = this.combatFocus?.selectedTarget ? 0xff6a55 : 0x7fd6ff;
+          const op = this.combatFocus?.focusEnabled ? 0.9 : 0.7;
+          const fm = this.aimMarker.userData.fillMat;
+          const rm = this.aimMarker.userData.ringMat;
+          if (fm) {
+            fm.opacity = op * 0.28;
+            fm.color?.setHex?.(hex);
+          }
+          if (rm) {
+            rm.opacity = op;
+            rm.color?.setHex?.(hex);
+          }
         }
       }
       // Screen-center HUD only in focus (or settings.crosshair force) — not the ground ring
@@ -2413,6 +2645,23 @@ export class App {
         spread,
         rangeState
       });
+      // Screen pip on the locked enemy / location (center reticle is look ray)
+      const lockPt = this.combatFocus?.getSoftLockPoint?.();
+      if (lockPt && this.combatFocus?.focusEnabled) {
+        _lockProj.copy(lockPt).project(this.camera);
+        const inFront = _lockProj.z < 1;
+        const sx = (_lockProj.x * 0.5 + 0.5) * window.innerWidth;
+        const sy = (-_lockProj.y * 0.5 + 0.5) * window.innerHeight;
+        const onAim = Math.hypot(_lockProj.x, _lockProj.y) < 0.09;
+        this.hud.setLockPip?.({
+          visible: inFront,
+          x: sx,
+          y: sy,
+          onCrosshair: onAim
+        });
+      } else {
+        this.hud.setLockPip?.({ visible: false });
+      }
       this.rig?.setSprinting?.(sprinting);
       // XState loco tag (anim / harvest gates read actor snapshot)
       {
@@ -2434,6 +2683,7 @@ export class App {
     } else {
       if (this.aimMarker) this.aimMarker.visible = false;
       this.hud.setCrosshairVisible?.(false);
+      this.hud.setLockPip?.({ visible: false });
       this.hud.root?.classList.remove('hud--focus', 'hud--softlock');
     }
 
@@ -2448,6 +2698,7 @@ export class App {
 
     // SSOT order: walk.update → character.update (mixer) → walk.applyRiderIk
     if (this.session.mode === INTERACTION_MODE.WALK || this.walk.active) this.walk.update(dt);
+    if (this.horseMount?.active) this.horseMount.update(dt, this.input.keys);
     this.drc.update(dt, this.input.keys);
     this.character.update(dt);
     if (this.session.mode === INTERACTION_MODE.WALK || this.walk.active) {
@@ -2505,6 +2756,7 @@ export class App {
     this.decals.update(dt);
     this.bursts.update(dt);
     this.lights.update(dt);
+    this.vfxDirector?.update?.(dt);
     try {
       this.fishing?.update?.(dt, this.input?.keys);
     } catch {
@@ -2519,9 +2771,7 @@ export class App {
     const focus = this.abilities.focus;
     if (focus) this.rig.lookAt(focus.position, MathUtils.clamp(1 - focus.u * 0.4, 0, 1));
     this.rig.setAnchor(px, py, pz);
-    // Camera yaw ownership:
-    //  · Focus ON → mouse owns camera (characterYaw); body lag-follows look
-    //  · Focus OFF → body facing drives orbit base (free / tank)
+    // Camera yaw is owned by the rig (pointer-lock look). Body lag-follows.
     if (this.character?.isBackflip || this.drc?._flipHoldYaw != null) {
       const hold =
         this.character?._flipCameraHoldYaw ??
@@ -2531,9 +2781,6 @@ export class App {
       this.rig.setHoldCharacterYaw?.(hold);
     } else {
       this.rig.setHoldCharacterYaw?.(null);
-      if (!this.combatFocus?.focusEnabled) {
-        this.rig.setCharacterYaw(this.character?.facing ?? 0);
-      }
     }
 
     // Soft lock ON in focus: frame target + subtle yaw assist (action auto-aim)
@@ -2551,14 +2798,17 @@ export class App {
             t.kind ||
             'Target',
           hp01: Number.isFinite(t.mesh?.userData?.hp01) ? t.mesh.userData.hp01 : 1,
-          present: true
+          present: true,
+          auras: this.drc?.statuses?.listAuras?.(t.id || t.mesh?.uuid) || []
         });
       }
     } else if (
       this.combatFocus?.focusEnabled &&
       settings.aim?.softLockOnFocus !== false
     ) {
-      const fwd = this.rig.getCameraForward?.(new Vector3());
+      const fwd =
+        this.rig.getLookDirection?.(new Vector3()) ||
+        this.rig.getCameraForward?.(new Vector3());
       this.combatFocus.acquireBest?.(feet, fwd);
       const p2 = this.combatFocus?.getSoftLockPoint?.();
       this.rig.setSoftLock?.(p2 || null, p2 ? 1 : 0);
@@ -2610,6 +2860,28 @@ export class App {
         present: true
       };
     }
+
+    const listed = this.combatFocus?.listTargetsInRange?.(feet, 28) || [];
+    const allyRows = [];
+    const enemyRows = [];
+    for (const t of listed) {
+      const row = {
+        id: t.id,
+        name:
+          t.mesh?.userData?.displayName ||
+          t.mesh?.name ||
+          (t.kind === 'hostile' ? 'Hostile' : t.kind) ||
+          'Unit',
+        hp01: Number.isFinite(t.mesh?.userData?.hp01) ? t.mesh.userData.hp01 : 1
+      };
+      if (t.kind === 'ally' || t.kind === 'friendly' || t.kind === 'party') {
+        allyRows.push(row);
+      } else {
+        enemyRows.push(row);
+      }
+    }
+    this.hud.setAllies?.(allyRows);
+    this.hud.setEnemies?.(enemyRows);
 
     this.hud.update(raw, () => ({
       particles: this.particles.countLive(this.elapsed),
