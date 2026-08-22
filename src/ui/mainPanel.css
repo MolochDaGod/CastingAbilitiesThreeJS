@@ -22,19 +22,115 @@
 }
 
 .inv-panel--main .inv-panel__head h2 {
-  color: #8ec8ff;
-  letter-spacing: 0.12em;
+  color: var(--gold-light);
+  letter-spacing: 0.16em;
   font-size: 0.85rem;
+  font-family: var(--font-heading);
   text-transform: uppercase;
 }
 
 .inv-panel--main .inv-nav-tab.is-active {
-  background: #143a5c;
-  color: #b8e0ff;
-  border-color: #2a6a9a;
+  background: rgba(212, 175, 55, 0.14);
+  color: var(--gold-light);
+  border-color: var(--gold-border);
 }
 
+/* Biometric tab */
+.bio-bars { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 14px; }
+.bio-bar { position: relative; height: 16px; background: #0a1520; border: 1px solid #1e4a6e; }
+.bio-bar span { position: absolute; left: 6px; top: 0; font-size: 10px; line-height: 16px; z-index: 1; }
+.bio-bar b { position: absolute; right: 6px; top: 0; font-size: 10px; line-height: 16px; z-index: 1; }
+.bio-bar i { display: block; height: 100%; }
+.bio-bar--hp i { background: #8c2a2a; }
+.bio-bar--sta i { background: #2a6a3a; }
+.bio-bar--mp i { background: #2a4a8c; }
+.bio-foods { display: flex; gap: 8px; margin: 6px 0 10px; }
+.bio-food { width: 56px; height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border: 1px solid #1e4a6e; background: #0e1a28; color: #c8d4e0; cursor: pointer; }
+.bio-food img { width: 28px; height: 28px; object-fit: contain; }
+.bio-food.is-on { border-color: var(--gold-border, #c9950a); }
+.bio-food--red.is-on { box-shadow: inset 0 0 8px #8c2a2a; }
+.bio-food--green.is-on { box-shadow: inset 0 0 8px #2a6a3a; }
+.bio-food--blue.is-on { box-shadow: inset 0 0 8px #2a4a8c; }
+.bio-food-bag { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.bio-pills { display: flex; flex-wrap: wrap; gap: 6px; min-height: 24px; margin-bottom: 10px; }
+.bio-pill { font-size: 11px; padding: 2px 8px; border: 1px solid #1e4a6e; }
+.bio-pill--buff { color: #7ee7a8; border-color: #2a6a3a; }
+.bio-pill--passive { color: #c8d4e0; }
+.bio-pill--debuff { color: #ff7a7a; border-color: #8c2a2a; }
+.bio-attrs, .bio-derived { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; margin-bottom: 12px; }
+.bio-attr, .bio-stat { display: flex; justify-content: space-between; padding: 4px 8px; background: #0e1a28; border: 1px solid #152a40; font-size: 11px; }
+
 /* ── Character paperdoll (TI style) ─────────────────────────── */
+.mp-hero-card {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background-image: url("/ui/craftpix/card/bg.png");
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+  min-height: 88px;
+}
+.mp-hero-card__avatar {
+  width: 64px;
+  height: 64px;
+  background-image: url("/ui/craftpix/card/avatar-bg.png"), url("/ui/craftpix/card/avatar-border.png");
+  background-size: 100% 100%;
+}
+.mp-hero-card h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+}
+.mp-hero-card__meta {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 10px;
+  font-size: 11px;
+}
+.mp-hero-card__meta dt {
+  color: rgba(180, 200, 220, 0.55);
+  font-size: 10px;
+}
+.mp-hero-card__meta dd {
+  margin: 0;
+}
+.mp-keys {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.mp-keys td {
+  padding: 4px 6px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.mp-slot[data-pd-slot="head"] .mp-slot__empty { background-image: url("/ui/craftpix/equip/head.png"); }
+.mp-slot[data-pd-slot="body"] .mp-slot__empty { background-image: url("/ui/craftpix/equip/body.png"); }
+.mp-slot[data-pd-slot="arms"] .mp-slot__empty { background-image: url("/ui/craftpix/equip/arms.png"); }
+.mp-slot[data-pd-slot="legs"] .mp-slot__empty { background-image: url("/ui/craftpix/equip/legs.png"); }
+.mp-slot[data-pd-slot="shoulders"] .mp-slot__empty { background-image: url("/ui/craftpix/equip/shoulders.png"); }
+.mp-slot[data-pd-slot="relic"] .mp-slot__empty { background-image: url("/ui/craftpix/equip/relic.png"); }
+.mp-slot[data-pd-slot="mainHand"] .mp-slot__empty,
+.mp-slot[data-pd-slot="weapon2"] .mp-slot__empty { background-image: url("/ui/craftpix/equip/mainHand.png"); }
+.mp-slot[data-pd-slot="offHand"] .mp-slot__empty,
+.mp-slot[data-pd-slot="offHand2"] .mp-slot__empty { background-image: url("/ui/craftpix/equip/offHand.png"); }
+.mp-slot[data-pd-slot="back"] .mp-slot__empty { background-image: url("/ui/craftpix/equip/back.png"); }
+.mp-slot[data-pd-slot="mount"] .mp-slot__empty { background-image: url("/ui/craftpix/equip/mount.png"); }
+.mp-slot__empty {
+  display: block;
+  width: 28px;
+  height: 28px;
+  margin: 0 auto 2px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  image-rendering: pixelated;
+  font-size: 0;
+}
+
 .mp-doll {
   display: grid;
   grid-template-columns: 72px 1fr 72px;

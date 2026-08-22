@@ -1,4 +1,5 @@
 import { EQUIP_SLOTS, WEAPON_SLOTS, ANIM_PACKS, ANIM_PACK_META, RACES } from '../config/assets.js';
+import { HAIR_STYLE_PILOTS, applyHairPilot } from '../character/modularCharacterPipeline.js';
 import { settings } from '../config/settings.js';
 import {
   fleetApi,
@@ -13,6 +14,15 @@ import {
   getActiveSkills,
   setActiveSkillTree
 } from '../combat/drcSkills.js';
+import {
+  liveFoodBuffs,
+  eatFood,
+  isFoodItem,
+  FOOD_SLOT_IDS
+} from '../combat/playerBiometrics.js';
+import { PRIMARY_ATTR_IDS } from '../combat/attributeStats.js';
+import { resolvePlayerClass } from '../combat/classAbilities.js';
+import { flattenClassSkills, getClassTree } from '../api/classSkillTrees.js';
 // setActiveSkillTree / getActiveSkills used by weapon equip only — no free skill trees
 import {
   animPackForLoadout,
@@ -117,6 +127,7 @@ import {
   UI_ASSET_CATALOG
 } from './uiAssetCatalog.js';
 import { fleetDeploySnapshot } from '../config/fleetEnv.js';
+import { keybindsByCategory } from './keybindSsot.js';
 
 /**
  * Main Panel — Warlords / TI equipment look · inventory slots · production tester.
@@ -181,6 +192,7 @@ export class InventoryPanel {
   _tabs() {
     return [
       { id: 'character', label: 'Character' },
+      { id: 'biometric', label: 'Biometric' },
       { id: 'equip', label: 'Equipment' },
       { id: 'inventory', label: 'Inventory' },
       { id: 'weapon', label: 'Weapon' },
@@ -191,6 +203,8 @@ export class InventoryPanel {
       { id: 'mesh', label: 'Mesh' },
       { id: 'mount', label: 'Mount' },
       { id: 'anims', label: 'Anims' },
+      { id: 'settings', label: 'Settings' },
+      { id: 'hotkeys', label: 'Hotkeys' },
       { id: 'slots', label: 'Slots' },
       { id: 'api', label: 'API' }
     ];
@@ -202,7 +216,7 @@ export class InventoryPanel {
       <header class="inv-panel__head">
         <div>
           <h2>Main Panel</h2>
-          <p class="inv-panel__sub">MMO equipment · bag · RMB item menus · API · production lab</p>
+          <p class="inv-panel__sub">Equipment · bag · skills · production lab</p>
         </div>
         <button type="button" class="inv-panel__close" data-close aria-label="Close">×</button>
       </header>
@@ -217,6 +231,7 @@ export class InventoryPanel {
         </nav>
         <div class="inv-panel__body">
           <section class="inv-section" data-panel="character"></section>
+          <section class="inv-section" data-panel="biometric" hidden></section>
           <section class="inv-section" data-panel="equip" hidden></section>
           <section class="inv-section" data-panel="inventory" hidden></section>
           <section class="inv-section" data-panel="weapon" hidden></section>
@@ -227,6 +242,8 @@ export class InventoryPanel {
           <section class="inv-section" data-panel="mesh" hidden></section>
           <section class="inv-section" data-panel="mount" hidden></section>
           <section class="inv-section" data-panel="anims" hidden></section>
+          <section class="inv-section" data-panel="settings" hidden></section>
+          <section class="inv-section" data-panel="hotkeys" hidden></section>
           <section class="inv-section" data-panel="slots" hidden></section>
           <section class="inv-section" data-panel="api" hidden></section>
         </div>
@@ -279,7 +296,13 @@ export class InventoryPanel {
         }
       },
       onUse: (item) => {
-        this.onToast(`Use ${item.name || item.id} (lab — wire consumable later)`);
+        if (isFoodItem(item)) {
+          const ate = eatFood(item);
+          this.onToast(`Food · ${ate.label} · ${ate.slot} slot`);
+          if (this._tab === 'biometric') this._fillBiometric();
+          return;
+        }
+        this.onToast(`Use ${item.name || item.id}`);
       },
       onDropWorld: this.onDropWorld
         ? (item, cx, cy) => this.onDropWorld(item, cx, cy)
@@ -367,6 +390,7 @@ export class InventoryPanel {
   refresh() {
     if (!this.open) return;
     this._fillCharacter();
+    this._fillBiometric();
     this._fillEquip();
     this._fillInventory();
     this._fillWeapon();
@@ -375,6 +399,8 @@ export class InventoryPanel {
     this._fillMesh();
     this._fillMount();
     this._fillAnims();
+    this._fillSettings();
+    this._fillHotkeys();
     this._fillSkills();
     this._fillProfessions();
     this._fillSlotsAdmin();
@@ -460,9 +486,9 @@ export class InventoryPanel {
         ${
           item
             ? `<img class="mp-slot__icon" src="${resolveItemIcon(item) || item.icon || ''}" alt="" referrerpolicy="no-referrer" />`
-            : `<span class="mp-slot__empty">+</span>`
+            : `<span class="mp-slot__empty" aria-hidden="true"></span>`
         }
-        <span class="mp-slot__label">${slot.label}${isActiveSet ? ' ●' : ''}</span>
+        <span class="mp-slot__label">${slot.label}${isActiveSet ? ' · on' : ''}</span>
       </button>`;
   }
 
@@ -918,11 +944,84 @@ export class InventoryPanel {
     );
   }
 
+  _fillSettings() {
+    const host = this.el.querySelector('[data-panel="settings"]');
+    if (!host || this._tab !== 'settings') return;
+    host.innerHTML = `
+      <div class="inv-card mp-settings">
+        <div class="inv-card__row"><span>HUD</span><b>CraftPix MMO + bars unit_frame_009</b></div>
+        <div class="inv-card__row"><span>Design space</span><b>HYDRA 1920×1080</b></div>
+        <div class="inv-card__row"><span>Studio</span>
+          <a href="https://ui.grudge-studio.com/hotkeys" target="_blank" rel="noopener">Hotkeys ↗</a>
+        </div>
+        <div class="inv-card__row"><span>Main Panel</span>
+          <a href="https://ui.grudge-studio.com/main-panel.html?era=warlords" target="_blank" rel="noopener">ui.grudge ↗</a>
+        </div>
+        <label class="inv-row"><input type="checkbox" data-hud-edit /> Edit HUD layout (drag frames)</label>
+        <p class="inv-hint">Esc = game menu · I = this panel · no second overlay shell.</p>
+      </div>
+    `;
+    const box = host.querySelector('[data-hud-edit]');
+    if (box) {
+      box.checked = !!settings.hud?.editLayout;
+      box.addEventListener('change', () => {
+        settings.hud = settings.hud || {};
+        settings.hud.editLayout = box.checked;
+        document.getElementById('hud')?.classList.toggle('hud--edit', box.checked);
+      });
+    }
+  }
+
+  _fillHotkeys() {
+    const host = this.el.querySelector('[data-panel="hotkeys"]');
+    if (!host || this._tab !== 'hotkeys') return;
+    const cats = keybindsByCategory();
+    host.innerHTML = `
+      <p class="inv-hint">Runtime map is InputManager. This table matches
+        <a href="https://ui.grudge-studio.com/hotkeys" target="_blank" rel="noopener">ui.grudge-studio.com/hotkeys</a>
+        categories. Combat keys are not remapped here.</p>
+      ${Object.entries(cats)
+        .map(
+          ([cat, rows]) => `
+        <div class="inv-card">
+          <div class="inv-card__row"><b>${cat}</b></div>
+          <table class="mp-keys">
+            ${rows
+              .map(
+                (r) =>
+                  `<tr><td>${r.action}</td><td><kbd>${r.key}</kbd></td><td class="inv-hint">${r.note || ''}</td></tr>`
+              )
+              .join('')}
+          </table>
+        </div>`
+        )
+        .join('')}
+    `;
+  }
+
   _fillCharacter() {
     const host = this.el.querySelector('[data-panel="character"]');
     if (!host || this._tab !== 'character') return;
-    this._renderPaperdoll(host);
     const s = this.character.getLabSummary?.() || {};
+    const ident = this.character.userData?.identity || {};
+    this._renderPaperdoll(host);
+    host.insertAdjacentHTML(
+      'afterbegin',
+      `
+      <article class="mp-hero-card">
+        <div class="mp-hero-card__avatar"></div>
+        <div>
+          <h3>${s.raceLabel || s.raceId || 'Hero'}</h3>
+          <dl class="mp-hero-card__meta">
+            <div><dt>Mesh</dt><dd class="inv-code">${(s.kitUrl || '').split('/').pop() || 'Toon RTS'}</dd></div>
+            <div><dt>Height</dt><dd>${(s.heightM ?? 1.8).toFixed?.(2) || '1.80'} m</dd></div>
+            <div><dt>Clips</dt><dd>${(s.clips || []).length}</dd></div>
+            <div><dt>UUID</dt><dd class="inv-code">${ident.characterId || ident.uuid || 'lab'}</dd></div>
+          </dl>
+        </div>
+      </article>
+    `
+    );
     const presets = this.character.presets || [];
     const presetOpts = presets
       .map(
@@ -950,9 +1049,126 @@ export class InventoryPanel {
         const id = e.target.value;
         this.character.applyPreset(id);
         await this.character.setAnimPack?.(this.character.animPackId);
+        try {
+          const { applyRaceClassT0 } = await import('../character/raceClassT0.js');
+          await applyRaceClassT0(this.character, { onToast: this.onToast });
+        } catch {
+          /* optional */
+        }
         this.onToast(`Preset ${id}`);
       })
     );
+  }
+
+  /* ── Biometric: vitals · food · buffs · passives · debuffs ─ */
+
+  _fillBiometric() {
+    const host = this.el.querySelector('[data-panel="biometric"]');
+    if (!host || this._tab !== 'biometric') return;
+    const drc = this.getDrc?.();
+    const stats = drc?.derivedStats || {};
+    const hp = drc?.hp ?? stats.health ?? 100;
+    const hpMax = drc?.maxHp ?? stats.health ?? 100;
+    const sta = drc?.stamina ?? stats.stamina ?? 70;
+    const staMax = drc?.maxStamina ?? stats.stamina ?? 70;
+    const mp = drc?.mana ?? stats.mana ?? 40;
+    const mpMax = drc?.maxMana ?? stats.mana ?? 40;
+    const foods = liveFoodBuffs();
+    const auras = drc?.statuses?.listAuras?.('player') || [];
+    const buffs = auras.filter((a) => a.kind === 'buff');
+    const debuffs = auras.filter((a) => a.kind === 'debuff');
+    const classId = resolvePlayerClass(this.character);
+    let passives = [];
+    try {
+      const tree = getClassTree?.(classId);
+      const flat = flattenClassSkills(tree) || [];
+      passives = flat.filter((s) => s.passive).slice(0, 12);
+    } catch {
+      passives = [];
+    }
+    const foodCell = (id) => {
+      const f = foods[id];
+      const left = f ? Math.max(0, Math.round((f.until - Date.now()) / 1000)) : 0;
+      return `<button type="button" class="bio-food bio-food--${id} ${f ? 'is-on' : ''}" data-food="${id}" title="${f ? `${f.label} · ${left}s` : `${id} food empty`}">
+        ${f?.iconUrl ? `<img src="${f.iconUrl}" alt="" />` : `<span>${id[0].toUpperCase()}</span>`}
+        <small>${f ? `${left}s` : 'empty'}</small>
+      </button>`;
+    };
+    const pill = (a, kind) =>
+      `<span class="bio-pill bio-pill--${kind}" title="${a.id}">${a.id}</span>`;
+    const attrRows = PRIMARY_ATTR_IDS.map((id) => {
+      const n = drc?.attrAlloc?.[id] ?? 0;
+      return `<div class="bio-attr"><span>${id.slice(0, 3).toUpperCase()}</span><b>${n}</b></div>`;
+    }).join('');
+    const derivedKeys = [
+      'damage',
+      'defense',
+      'criticalChance',
+      'evasion',
+      'attackSpeed',
+      'movementSpeed',
+      'healthRegen',
+      'manaRegen',
+      'block',
+      'accuracy'
+    ];
+    const derivedRows = derivedKeys
+      .map((k) => {
+        const v = stats[k];
+        if (v == null) return '';
+        const show = v < 2 && v > 0 ? `${(v * 100).toFixed(0)}%` : Number(v).toFixed(v >= 10 ? 0 : 1);
+        return `<div class="bio-stat"><span>${k}</span><b>${show}</b></div>`;
+      })
+      .join('');
+    const bag = loadBag();
+    const foodItems = (bag.slots || []).filter((it) => it && isFoodItem(it));
+
+    host.innerHTML = `
+      <h3>Biometric</h3>
+      <p class="inv-hint">HP / pools · RGB food · buffs / passives / debuffs · info.* 8 ATTR + derived</p>
+      <div class="bio-bars">
+        <div class="bio-bar bio-bar--hp"><span>HP</span><i style="width:${Math.max(0, Math.min(100, (hp / hpMax) * 100))}%"></i><b>${Math.round(hp)}/${Math.round(hpMax)}</b></div>
+        <div class="bio-bar bio-bar--sta"><span>STA</span><i style="width:${Math.max(0, Math.min(100, (sta / staMax) * 100))}%"></i><b>${Math.round(sta)}/${Math.round(staMax)}</b></div>
+        <div class="bio-bar bio-bar--mp"><span>MP</span><i style="width:${Math.max(0, Math.min(100, (mp / mpMax) * 100))}%"></i><b>${Math.round(mp)}/${Math.round(mpMax)}</b></div>
+      </div>
+      <h4>Food</h4>
+      <div class="bio-foods">${FOOD_SLOT_IDS.map(foodCell).join('')}</div>
+      <p class="inv-hint">RMB Use a bag meal to fill Red / Green / Blue (same RGB as fishing meals).</p>
+      ${
+        foodItems.length
+          ? `<div class="bio-food-bag">${foodItems
+              .slice(0, 8)
+              .map(
+                (it) =>
+                  `<button type="button" class="inv-btn inv-btn--ghost" data-eat-id="${it.id}">Eat ${it.name || it.id}</button>`
+              )
+              .join('')}</div>`
+          : ''
+      }
+      <h4>Buffs</h4>
+      <div class="bio-pills">${buffs.length ? buffs.map((a) => pill(a, 'buff')).join('') : '<span class="inv-hint">None</span>'}</div>
+      <h4>Passives</h4>
+      <div class="bio-pills">${
+        passives.length
+          ? passives.map((s) => pill({ id: s.label || s.id }, 'passive')).join('')
+          : '<span class="inv-hint">None on this class tree</span>'
+      }</div>
+      <h4>Debuffs</h4>
+      <div class="bio-pills">${debuffs.length ? debuffs.map((a) => pill(a, 'debuff')).join('') : '<span class="inv-hint">None</span>'}</div>
+      <h4>Attributes</h4>
+      <div class="bio-attrs">${attrRows}</div>
+      <h4>Derived (info.*)</h4>
+      <div class="bio-derived">${derivedRows}</div>
+    `;
+    host.querySelectorAll('[data-eat-id]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const it = foodItems.find((x) => x.id === btn.dataset.eatId);
+        if (!it) return;
+        eatFood(it);
+        this.onToast(`Food · ${it.name || it.id}`);
+        this._fillBiometric();
+      });
+    });
   }
 
   /* ── Equipment (paperdoll + kit mesh selects) ─────────────── */
@@ -976,7 +1192,7 @@ export class InventoryPanel {
       ].join('');
       return `
         <label class="inv-row">
-          <span>${slot}${WEAPON_SLOTS.includes(slot) ? ' ⚔' : ''}</span>
+          <span>${slot}${WEAPON_SLOTS.includes(slot) ? ' <i class="ui-mark">W</i>' : ''}</span>
           <select data-slot="${slot}">${opts}</select>
         </label>`;
     }).join('');
@@ -986,6 +1202,13 @@ export class InventoryPanel {
       `
       <p class="inv-hint" style="margin-top:12px">Kit mesh_ids (live 3D) — never body GLB swap</p>
       <div class="inv-slots">${slotRows || '<p class="inv-hint">No mesh slots</p>'}</div>
+      <p class="inv-hint">Hair pilots (Toon head_* — not Meshy)</p>
+      <div class="inv-hair">
+        ${HAIR_STYLE_PILOTS.map(
+          (p) =>
+            `<button type="button" class="inv-btn" data-hair="${p.asset_name}">${p.label}</button>`
+        ).join('')}
+      </div>
       <button type="button" class="inv-btn" data-attack>Weapon attack (F)</button>
     `
     );
@@ -997,6 +1220,15 @@ export class InventoryPanel {
         c._reGroundAfterEquip?.();
         c.ik?.setBones(c.equipment.findBones());
         this.onToast(`${slot} → ${variant}`);
+        this.onEquip();
+      });
+    });
+    host.querySelectorAll('[data-hair]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const p = applyHairPilot(c.equipment, btn.dataset.hair);
+        c._reGroundAfterEquip?.();
+        c.ik?.setBones?.(c.equipment.findBones?.());
+        this.onToast(p ? `${p.label} → head ${p.head_variant}` : 'No hair pilot');
         this.onEquip();
       });
     });
@@ -1642,7 +1874,7 @@ export class InventoryPanel {
     this.character.model?.traverse((o) => {
       if (!o.isMesh && !o.isSkinnedMesh) return;
       if (!o.name) return;
-      meshList += `<div class="inv-mesh-line ${o.visible ? 'is-vis' : ''}">${o.visible ? '●' : '○'} ${o.name}</div>`;
+      meshList += `<div class="inv-mesh-line ${o.visible ? 'is-vis' : ''}">${o.visible ? 'on' : 'off'} ${o.name}</div>`;
     });
 
     host.innerHTML = `
