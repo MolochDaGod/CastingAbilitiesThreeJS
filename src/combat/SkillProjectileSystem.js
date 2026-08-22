@@ -21,19 +21,15 @@ import {
   SphereGeometry,
   Vector3
 } from 'three';
-import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
-import { MeshMixer } from '../animation/meshMixer.js';
 import { mmToM } from './motionMath.js';
-import { SUMMON_MESH_BY_ELEMENT, STAFF_CHARGE_MESH, UTTVM_AURA_MESH } from './skillDelivery.js';
+import { SUMMON_MESH_BY_ELEMENT, STAFF_CHARGE_MESH } from './skillDelivery.js';
 import { sharedGltfLoader } from '../loaders/gltfPipeline.js';
 import {
   applyElementalOrbMaterials,
-  hideUttvmMiddle,
   staffOrbForElement,
   staffOrbWarmUrls,
   STAFF_CHARGE,
-  STAFF_ORB_DIAMETER_M,
-  UTTVM_AURA
+  STAFF_ORB_DIAMETER_M
 } from '../vfx/staffOrbVfx.js';
 import {
   ARROW_SYSTEMS,
@@ -43,9 +39,9 @@ import {
   FREEZE_NOVA,
   WATER_BUBBLE,
   createWaterBubbleMaterial,
+  pickEarthRocks,
   resolveArrowEndEvent
 } from '../vfx/elementAttackVfx.js';
-import { pickMagicRocks } from '../vfx/magicRocks.js';
 import {
   PISTOL_BULLET,
   isLivingTarget
@@ -56,7 +52,6 @@ import {
   projectileMeshUrl,
   projectileTrailPaint
 } from '../vfx/projectileSaves.js';
-import { compileProjectileLearn } from '../vfx/projectileLearn.js';
 
 const _v = new Vector3();
 const _box = new Box3();
@@ -95,15 +90,11 @@ export class SkillProjectileSystem {
     this._live = [];
     /** @type {Map<string, Group>} */
     this._templates = new Map();
-    /** @type {Map<string, import('three').AnimationClip[]>} */
-    this._templateClips = new Map();
     /** Shared fleet GLTF (one Draco pool + Meshopt + KTX2 if bound) */
     this._loader = null;
     this._placeholderGeo = new SphereGeometry(0.28, 12, 12);
     /** @type {{ mesh: Group|Mesh, element: string, age: number, baseScale: number }|null} */
     this._charge = null;
-    /** @type {{ mesh: Group, mixer?: object, meshMixer?: import('../animation/meshMixer.js').MeshMixer, follow?: object, age: number, life: number, baseScale: number }|null} */
-    this._aura = null;
   }
 
   _ensureLoader() {
@@ -142,14 +133,12 @@ export class SkillProjectileSystem {
     const gltf = await loader.loadAsync(url);
     const root = gltf.scene || gltf.scenes?.[0];
     if (!root) return null;
-    this._templateClips.set(url, gltf.animations || []);
-    const skipNorm = /uttvm-aura|uttvm-core/.test(url);
     // Normalize max dimension if author scale slipped
     _box.setFromObject(root);
     const size = new Vector3();
     _box.getSize(size);
     const maxDim = Math.max(size.x, size.y, size.z, 1e-4);
-    if (!skipNorm && (maxDim > 1.2 || maxDim < 0.15)) {
+    if (maxDim > 1.2 || maxDim < 0.15) {
       const s = 0.55 / maxDim;
       root.scale.multiplyScalar(s);
     }
@@ -195,9 +184,7 @@ export class SkillProjectileSystem {
       else forward.normalize();
     } else forward.normalize();
 
-    const learn = opts.skill?.projectileLearn || compileProjectileLearn(opts.skill || {});
-    const bolt = learn.bolt || {};
-    const speed = opts.speed ?? bolt.speed ?? 14;
+    const speed = opts.speed ?? 14;
     const orbDef = staffOrbForElement(opts.element);
     const url =
       opts.meshUrl ||
@@ -257,19 +244,19 @@ export class SkillProjectileSystem {
     this.scene.add(mesh);
 
     const vel = forward.clone().multiplyScalar(speed);
-    const gravity = opts.gravity ?? bolt.gravity ?? 0;
     // Drop shots (over target): aim velocity toward target, not only forward
-    if (gravity && gravity < 0) {
+    if (opts.gravity && opts.gravity < 0) {
       const dist = origin.distanceTo(target);
       const t = Math.max(0.25, dist / Math.max(4, speed));
       vel.copy(target).sub(origin).multiplyScalar(1 / t);
-      vel.y += 0.5 * Math.abs(gravity) * t * (bolt.arc > 0.05 ? bolt.arc : 0.35);
+      // leave room for gravity arc
+      vel.y += 0.5 * Math.abs(opts.gravity) * t * 0.35;
     }
 
     const proj = {
       mesh,
       vel,
-      gravity,
+      gravity: opts.gravity ?? 0,
       contactRadius: opts.contactRadius ?? 0.35,
       life: opts.life ?? 2.5,
       age: 0,
@@ -280,19 +267,10 @@ export class SkillProjectileSystem {
       element: opts.element || 'arcane',
       explodeOnHit: opts.explodeOnHit !== false,
       targets: opts.targets || [],
-      hit: false,
-      explosionSize: bolt.explosionSize,
-      mist: learn.mist?.enabled ? learn.mist : null,
-      skill: opts.skill || null
+      hit: false
     };
     this._live.push(proj);
-    this._attachTail(proj, {
-      ...opts,
-      paint: opts.trail || opts.paint,
-      life: opts.life,
-      trailColor: bolt.colorInner,
-      width: bolt.trailWidth
-    });
+    this._attachTail(proj, opts);
     return proj;
   }
 
@@ -405,89 +383,6 @@ export class SkillProjectileSystem {
       }
     });
     this._charge = null;
-  }
-
-  /**
-   * Colorable UTTVM trail aura (middle core hidden). Loop = ward/aura, cast = clip once.
-   * @param {{
-   *   origin: Vector3,
-   *   element?: string,
-   *   mode?: 'cast'|'loop',
-   *   follow?: { position: Vector3 },
-   *   size?: number,
-   *   life?: number,
-   *   intensity?: number
-   * }} opts
-   */
-  async spawnUttvmAura(opts) {
-    this.clearAura();
-    const url = UTTVM_AURA.path || UTTVM_AURA_MESH;
-    let mesh = null;
-    try {
-      const tpl = await this._loadTemplate(url);
-      if (tpl) {
-        mesh = skeletonClone(tpl);
-        hideUttvmMiddle(mesh);
-        applyElementalOrbMaterials(mesh, opts.element, {
-          additive: true,
-          intensity: opts.intensity ?? 1.05
-        });
-      }
-    } catch (e) {
-      console.warn('[SkillProjectile] uttvm aura', url, e);
-    }
-    if (!mesh) return null;
-    const size = opts.size ?? UTTVM_AURA.diameterM;
-    _box.setFromObject(mesh);
-    const dim = new Vector3();
-    _box.getSize(dim);
-    const maxDim = Math.max(dim.x, dim.y, dim.z, 1e-4);
-    const baseScale = size / maxDim;
-    mesh.scale.setScalar(baseScale);
-    mesh.position.copy(opts.origin);
-    mesh.userData.uttvmAura = true;
-    this.scene.add(mesh);
-    const clips = this._templateClips.get(url) || [];
-    const clip = clips.find((c) => c.name === UTTVM_AURA.clip) || clips[0];
-    const meshMixer = new MeshMixer(mesh);
-    if (clip) {
-      meshMixer.addClip(clip, 'aura', { once: opts.mode !== 'loop' });
-      meshMixer.play('aura', 0.04);
-    }
-    const life = opts.life ?? (opts.mode === 'loop' ? 8 : Math.max(0.9, clip?.duration || 1.2));
-    this._aura = {
-      mesh,
-      mixer: meshMixer.mixer,
-      meshMixer,
-      follow: opts.follow || null,
-      age: 0,
-      life,
-      baseScale,
-      element: opts.element || 'arcane'
-    };
-    return this._aura;
-  }
-
-  _tickAura(dt) {
-    if (!this._aura?.mesh) return;
-    this._aura.age += dt;
-    if (this._aura.follow?.position) {
-      this._aura.mesh.position.copy(this._aura.follow.position);
-    }
-    if (this._aura.meshMixer) this._aura.meshMixer.update(dt);
-    else this._aura.mixer?.update(dt);
-    if (this._aura.age >= this._aura.life) this.clearAura();
-  }
-
-  clearAura() {
-    if (!this._aura?.mesh) {
-      this._aura = null;
-      return;
-    }
-    if (this._aura.meshMixer) this._aura.meshMixer.dispose();
-    else this._aura.mixer?.stopAllAction?.();
-    this.scene.remove(this._aura.mesh);
-    this._aura = null;
   }
 
   /**
@@ -675,9 +570,7 @@ export class SkillProjectileSystem {
       else forward.normalize();
     } else forward.normalize();
 
-    const learn = opts.skill?.projectileLearn || compileProjectileLearn(opts.skill || { family: 'gun' });
-    const bolt = learn.bolt || {};
-    const speed = opts.speed ?? bolt.speed ?? PISTOL_BULLET.speed;
+    const speed = opts.speed ?? PISTOL_BULLET.speed;
     const url = opts.meshUrl || PISTOL_BULLET.meshUrl;
 
     // Muzzle flash (short)
@@ -727,27 +620,22 @@ export class SkillProjectileSystem {
     const vel = forward.clone().multiplyScalar(speed);
     const colorId = opts.color || opts.element || 'fire';
     const paint = projectileTrailPaint('bullet', colorId);
-    if (bolt.trailWidth) paint.width = bolt.trailWidth;
-    if (bolt.trailLength) paint.length = Math.min(1, bolt.trailLength / 6);
     const proj = {
       mesh,
       vel,
-      gravity: bolt.gravity ?? PISTOL_BULLET.gravity,
+      gravity: PISTOL_BULLET.gravity,
       contactRadius: PISTOL_BULLET.contactRadius,
       life: PISTOL_BULLET.life,
       age: 0,
       force: PISTOL_BULLET.force,
       knockbackMm: PISTOL_BULLET.knockbackMm,
       knockupVy: PISTOL_BULLET.knockupVy,
-      aoe: bolt.explosionSize ?? PISTOL_BULLET.aoe,
+      aoe: PISTOL_BULLET.aoe,
       element: colorId,
       explodeOnHit: true,
       targets: opts.targets || [],
       hit: false,
-      kind: 'bullet',
-      explosionSize: bolt.explosionSize,
-      mist: learn.mist?.enabled ? learn.mist : null,
-      skill: opts.skill || null
+      kind: 'bullet'
     };
     this._live.push(proj);
     this._attachTail(proj, { ...opts, paint, life: PISTOL_BULLET.life });
@@ -981,8 +869,7 @@ export class SkillProjectileSystem {
     }
 
     const count = opts.rockCount ?? 1;
-    const el = opts.skill?.element || opts.element || 'nature';
-    const urls = pickMagicRocks(count, el);
+    const urls = pickEarthRocks(count);
     const side = new Vector3(-forward.z, 0, forward.x);
     const aimMode = opts.aimMode || 'linear';
     const speed = opts.speed ?? 13;
@@ -1194,7 +1081,6 @@ export class SkillProjectileSystem {
    * @param {number} dt
    */
   update(dt) {
-    this._tickAura(dt);
     for (let i = this._live.length - 1; i >= 0; i--) {
       const p = this._live[i];
       p.age += dt;
@@ -1443,9 +1329,7 @@ export class SkillProjectileSystem {
   _explode(p) {
     const at = p.mesh.position.clone();
     const fwd = p.vel.lengthSq() > 1e-4 ? p.vel.clone().normalize() : new Vector3(0, 0, 1);
-    const boom = Math.max(0.2, p.explosionSize ?? p.skill?.projectileLearn?.bolt?.explosionSize ?? 0.3);
-    const mist = p.mist || (p.skill?.projectileLearn?.mist?.enabled ? p.skill.projectileLearn.mist : null);
-    if (mist) {
+    if (p.mist || p.kind === 'magic') {
       const id =
         p.element === 'fire'
           ? 'inferno'
@@ -1454,17 +1338,12 @@ export class SkillProjectileSystem {
             : p.element === 'holy'
               ? 'moon_beam'
               : 'frost_wave';
-      this.vfx?.deploy?.(id, { origin: at, intensity: 0.5 + boom, aoe: boom, forward: fwd });
-      this.vfx?.puffMist?.(at, mist);
-      return;
-    }
-    if (p.kind === 'magic') {
-      this.vfx?.deploy?.('inferno', { origin: at, intensity: 0.85, aoe: boom, forward: fwd });
-      this.vfx?._smokeBlast?.(at, boom, 0.65, false);
+      this.vfx?.deploy?.(id, { origin: at, intensity: 0.85, aoe: 0.55, forward: fwd });
+      this.vfx?._smokeBlast?.(at, 0.55, 0.65, false);
       return;
     }
     if (p.kind === 'cannon') {
-      this.vfx?.deploy?.('earth_surge', { origin: at, intensity: 0.45, aoe: Math.max(1.1, boom), forward: fwd });
+      this.vfx?.deploy?.('earth_surge', { origin: at, intensity: 0.45, aoe: 1.1, forward: fwd });
       return;
     }
     const id =
@@ -1475,8 +1354,7 @@ export class SkillProjectileSystem {
           : 'inferno';
     this.vfx?.deploy?.(id, {
       origin: at,
-      intensity: 0.55 + boom * 2,
-      aoe: boom,
+      intensity: 1.15,
       forward: fwd
     });
   }
