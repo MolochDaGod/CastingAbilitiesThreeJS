@@ -72,6 +72,13 @@ export class VfxDirector {
    */
   attachNatureHealField(target, opts = {}) {
     const t = target || this.ctx.character;
+    if (opts.curve) {
+      void this.healField?.attachAlongCurve(opts.curve, {
+        duration: opts.duration ?? 6,
+        samples: opts.samples ?? 4,
+        heightSample: this.heightSample
+      });
+    }
     if (!t) return;
     void this.healField?.attach(t, {
       duration: opts.duration ?? 8,
@@ -860,6 +867,13 @@ export class VfxDirector {
         size: r * 0.35,
         aoe: r
       });
+      if (opts.curve || opts.healTarget) {
+        this.attachNatureHealField(opts.healTarget || this.ctx.character, {
+          curve: opts.curve,
+          duration: 6,
+          samples: 4
+        });
+      }
       return;
     }
     if (pattern === 'nature_vine') {

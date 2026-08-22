@@ -62,6 +62,25 @@ export class HealFieldFollow {
   }
 
   /**
+   * Ground mist disks along a CatmullRom (same spline as travel / totem tether).
+   * @param {{ getPoint?: Function, getPointAt?: Function }} curve
+   * @param {{ samples?: number, duration?: number, heightSample?: Function }} [opts]
+   */
+  async attachAlongCurve(curve, opts = {}) {
+    if (!curve) return;
+    const n = Math.max(2, Math.min(8, Math.round(opts.samples ?? 4)));
+    for (let i = 0; i <= n; i++) {
+      const u = i / n;
+      const p =
+        typeof curve.getPointAt === 'function'
+          ? curve.getPointAt(u)
+          : curve.getPoint?.(u);
+      if (!p) continue;
+      await this.attach({ position: p.clone() }, opts);
+    }
+  }
+
+  /**
    * @param {object} target  character / mesh with .position
    * @param {{ duration?: number, heightSample?: Function }} [opts]
    */

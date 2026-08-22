@@ -74,7 +74,10 @@ import { pickMoveOctant, RIFLE_HAND_IK } from '../config/rifleAnimSsot.js';
 import {
   classifyBendingPattern,
   resolveSkillSpline,
-  shockwaveElementOf
+  shockwaveElementOf,
+  nearestTotemWorldPos,
+  skillWantsSpline,
+  skillWantsHealSpline
 } from '../vfx/bendingSkillAttach.js';
 import { getEffectVariant } from '../vfx/effectVariants.js';
 import { applyPullToward } from './hitReaction.js';
@@ -750,6 +753,17 @@ export class DrcCombatController {
         enriched._deliveryLabel = 'Freeze Nova';
         return enriched;
       }
+      if (this.projectiles?.spawnUttvmAura && this.character) {
+        void this.projectiles.spawnUttvmAura({
+          origin: resolved.origin.clone(),
+          element: el,
+          mode: pattern === 'toggle_aura' ? 'loop' : 'cast',
+          follow: pattern === 'around_target' || pattern === 'at_location' ? null : this.character,
+          size: Math.max(1.5, phys.aoe ?? 1.7),
+          life: phys.life,
+          intensity: 1.1
+        });
+      }
       this.projectiles?.pulse?.({
         origin: resolved.origin,
         aoe: phys.aoe ?? 1.5,
@@ -1015,6 +1029,7 @@ export class DrcCombatController {
   update(dt, keys) {
     this.elapsed += dt;
     this.physics?.syncFollowMeshes?.();
+    this.physics?.tickSplineVfx?.(dt);
     this.projectiles?.update?.(dt);
     this.tipTrail?.update?.(dt, this.elapsed);
     this.statuses?.update?.(this.elapsed);
@@ -1788,6 +1803,16 @@ export class DrcCombatController {
         meshUrl: opts.chargeMeshUrl || STAFF_CHARGE_MESH,
         size: 0.32
       });
+      if (this.projectiles.spawnUttvmAura && this.character) {
+        void this.projectiles.spawnUttvmAura({
+          origin: this.character.position.clone(),
+          element: this._cast.element,
+          mode: 'cast',
+          follow: this.character,
+          size: 1.7,
+          intensity: 1.05
+        });
+      }
     }
     this.onCastBar?.(this.getCastBarState());
     return true;
@@ -1992,6 +2017,9 @@ export class DrcCombatController {
           origin: this.character?.position,
           intensity: 0.85
         });
+      }
+      if (skillWantsHealSpline(skill)) {
+        this.vfx?.attachNatureHealField?.(this.character, { duration: 6 });
       }
       return true;
     }
@@ -2529,6 +2557,24 @@ export class DrcCombatController {
           aim: aimPt3
         });
         if (okLin) skill._deliveryLabel = `Linear · ${castPlan.linearId}`;
+        if (okLin && this.physics?.spawnSplineVfx && pose.origin && pose.aim) {
+          const mid = pose.origin.clone().lerp(pose.aim, 0.5);
+          mid.y += Math.min(1.6, pose.origin.distanceTo(pose.aim) * 0.08);
+          const line = new CatmullRomCurve3(
+            [pose.origin.clone(), mid, pose.aim.clone()],
+            false,
+            'catmullrom',
+            0.5
+          );
+          this.physics.spawnSplineVfx(`lin_${skill.id}`, line, {
+            beads: 4,
+            life: 1.1,
+            speed: 16,
+            heal: false,
+            effectRadius: 0.38,
+            shapeRadius: 0.16
+          });
+        }
       } catch (e) {
         console.warn('[DrcCombat] linear cast', e);
       }
@@ -3824,7 +3870,13 @@ export class DrcCombatController {
     behind.y = spline.end.y;
     const variant = getEffectVariant(skill._castPlan?.variantHint || skill.variantHint);
     const el = skill.element || skill.abilityElement || 'nature';
-    if (wantBend && this.abilities?.cast && spline.start && spline.end) {
+    const scene = this.scene || this.vfx?.ctx?.scene || this.character?.model?.parent;
+    const totem = nearestTotemWorldPos(scene, spline.end, skill.rangeM || 22);
+    if (totem && skillWantsSpline(skill)) {
+      spline.end.copy(totem);
+    }
+    let curve = null;
+    if (wantBend && spline.start && spline.end) {
       try {
         const dist = spline.start.distanceTo(spline.end);
         const ang = ((variant?.angleDeg || 18) * Math.PI) / 180;
@@ -3835,14 +3887,25 @@ export class DrcCombatController {
         const mid = spline.start.clone().lerp(spline.end, 0.45);
         mid.addScaledVector(right, Math.sin(ang) * dist * 0.22);
         mid.y += Math.min(2.4, dist * 0.12);
-        const curve = new CatmullRomCurve3(
+        curve = new CatmullRomCurve3(
           [spline.start.clone(), mid, spline.end.clone()],
           false,
           'catmullrom',
           0.5
         );
-        this.abilities.select?.(el);
-        this.abilities.cast(curve, el);
+        if (this.abilities?.cast) {
+          this.abilities.select?.(el);
+          this.abilities.cast(curve, el);
+        }
+        const heal = skillWantsHealSpline(skill) || pattern === 'jade_mist';
+        this.physics?.spawnSplineVfx?.(`bend_${skill.id}`, curve, {
+          beads: heal ? 7 : 5,
+          life: heal ? 5.2 : 2.2,
+          speed: variant?.speed ? 8 * variant.speed : 10,
+          heal,
+          effectRadius: heal ? 0.72 : 0.48,
+          shapeRadius: 0.22
+        });
       } catch (e) {
         console.warn('[DrcCombat] bend path', e);
       }
@@ -3860,6 +3923,8 @@ export class DrcCombatController {
         source: src,
         behind,
         variant,
+        curve,
+        healTarget: this.character,
         shockwaveElement: shockwaveElementOf(skill),
         onTornado: (aim, spec) => this._applyTornadoPull(aim, spec),
         onEarthStun: (aim, spec) => this._applyEarthStunAoe(aim, spec),

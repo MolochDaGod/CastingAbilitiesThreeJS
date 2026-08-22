@@ -1,5 +1,16 @@
 import RAPIER from '@dimforge/rapier3d-compat';
+import { Quaternion, Vector3 } from 'three';
 import { PLAYER_CAPSULE, WORLD } from '../config/worldScale.js';
+import { sampleMeshLocalPositions } from '../character/weaponMeshCollider.js';
+
+const _p = new Vector3();
+const _q = new Quaternion();
+const _s = new Vector3();
+const _up = new Vector3(0, 1, 0);
+const _tan = new Vector3();
+
+const SKIP_MESH_RE =
+  /grass|water|helper|debug|collider_|volume|trail|particle|fog|sprite|afterimage/i;
 
 /**
  * Fleet-style Rapier world for Casting Abilities.
@@ -39,6 +50,9 @@ export class PhysicsWorld {
     this.vy = 0;
     this.grounded = true;
     this.gravity = -9.81;
+    this._follow = [];
+    /** Spline VFX: kinematic shape head + effect sensor beads (one world). */
+    this._splineVfx = [];
     /** Multiplier on gravity (backflip hang = ~0.32 for air-aim window) */
     this.gravityScale = 1;
   }
@@ -61,6 +75,9 @@ export class PhysicsWorld {
     this.waterHeightAt = null;
     /** Optional land height sampler (matches heightfield) */
     this.landHeightAt = null;
+    /** @type {{ id: string, mesh: import('three').Object3D, body: any }[]} */
+    this._follow = [];
+    this._splineVfx = [];
 
     // Player kinematic capsule (CCT)
     const r = opts.radius ?? HUMAN_CAPSULE.radius;
@@ -361,6 +378,364 @@ export class PhysicsWorld {
    * Dynamic sphere for skill projectile hit proxy (sensor).
    * @returns {string} id
    */
+  /**
+   * Skip helpers / skinned heroes / instanced grass — those are not static GLTF colliders.
+   * @param {import('three').Object3D} o
+   */
+  _isStaticColliderMesh(o) {
+    if (!o?.isMesh || o.isSkinnedMesh || o.isInstancedMesh) return false;
+    if (!o.visible || !o.geometry?.attributes?.position) return false;
+    const n = `${o.name || ''} ${o.parent?.name || ''}`;
+    if (SKIP_MESH_RE.test(n)) return false;
+    if (o.userData?.ignorePhysics || o.userData?.rigDebug) return false;
+    return true;
+  }
+
+  /**
+   * World-space packed xyz from a mesh (real GLTF verts, not a box guess).
+   * @param {import('three').Mesh} mesh
+   * @param {number} [maxVerts]
+   */
+  meshWorldVerts(mesh, maxVerts = 256) {
+    const local = sampleMeshLocalPositions(mesh, maxVerts);
+    if (!local || local.length < 12) return null;
+    mesh.updateWorldMatrix(true, false);
+    const out = new Float32Array(local.length);
+    for (let i = 0; i < local.length; i += 3) {
+      _p.set(local[i], local[i + 1], local[i + 2]).applyMatrix4(mesh.matrixWorld);
+      out[i] = _p.x;
+      out[i + 1] = _p.y;
+      out[i + 2] = _p.z;
+    }
+    return out;
+  }
+
+  /**
+   * Mesh-local verts with scale baked (body owns world translation + rotation).
+   * @param {import('three').Mesh} mesh
+   * @param {number} [maxVerts]
+   */
+  meshLocalScaledVerts(mesh, maxVerts = 96) {
+    const local = sampleMeshLocalPositions(mesh, maxVerts);
+    if (!local || local.length < 12) return null;
+    mesh.updateWorldMatrix(true, false);
+    mesh.matrixWorld.decompose(_p, _q, _s);
+    const out = new Float32Array(local.length);
+    for (let i = 0; i < local.length; i += 3) {
+      out[i] = local[i] * _s.x;
+      out[i + 1] = local[i + 1] * _s.y;
+      out[i + 2] = local[i + 2] * _s.z;
+    }
+    return out;
+  }
+
+  /**
+   * Fixed trimesh or convex from a GLTF mesh. Trimesh = fixed only (Rapier law).
+   * Large meshes (>8k tris) fall back to convex hull of sampled verts.
+   * @returns {string|null} body id
+   */
+  addMeshCollider(mesh, opts = {}) {
+    if (!this.ready || !this._isStaticColliderMesh(mesh)) return null;
+    const id = opts.id || `mesh_${mesh.uuid}`;
+    if (this.bodies.has(id)) this.removeBody(id);
+
+    const geo = mesh.geometry;
+    const pos = geo.attributes.position;
+    const indexed = !!geo.index;
+    const triCount = indexed ? geo.index.count / 3 : pos.count / 3;
+    const useTrimesh = opts.shape !== 'convex' && triCount <= (opts.maxTris ?? 8000);
+
+    mesh.updateWorldMatrix(true, false);
+    mesh.matrixWorld.decompose(_p, _q, _s);
+
+    let desc = null;
+    if (useTrimesh) {
+      const verts = new Float32Array(pos.count * 3);
+      mesh.updateWorldMatrix(true, false);
+      for (let i = 0; i < pos.count; i++) {
+        _p.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+        verts[i * 3] = _p.x;
+        verts[i * 3 + 1] = _p.y;
+        verts[i * 3 + 2] = _p.z;
+      }
+      const idx = indexed
+        ? new Uint32Array(geo.index.array)
+        : (() => {
+            const n = pos.count;
+            const a = new Uint32Array(n);
+            for (let i = 0; i < n; i++) a[i] = i;
+            return a;
+          })();
+      try {
+        desc = RAPIER.ColliderDesc.trimesh(verts, idx);
+      } catch {
+        desc = null;
+      }
+    }
+    if (!desc) {
+      const hull = this.meshWorldVerts(mesh, opts.hullVerts ?? 96);
+      if (!hull) return null;
+      desc = RAPIER.ColliderDesc.convexHull(hull);
+    }
+    if (!desc) return null;
+    desc.setFriction(opts.friction ?? 0.7).setRestitution(opts.restitution ?? 0.02);
+    if (opts.sensor) desc.setSensor(true);
+
+    const body = this.world.createRigidBody(
+      RAPIER.RigidBodyDesc.fixed().setTranslation(0, 0, 0)
+    );
+    const col = this.world.createCollider(desc, body);
+    const colliderClass = useTrimesh ? 'trimesh' : 'convex';
+    mesh.userData.colliderClass = colliderClass;
+    this.bodies.set(id, {
+      body,
+      collider: col,
+      kind: colliderClass,
+      colliderClass,
+      mesh
+    });
+    return id;
+  }
+
+  /**
+   * Walk a GLTF group and add real-mesh colliders (harvest, dummies, scenery).
+   * Skips skinned kits and grass.
+   * @returns {number} count
+   */
+  addGltfStaticColliders(root, opts = {}) {
+    if (!this.ready || !root) return 0;
+    let n = 0;
+    root.updateMatrixWorld(true);
+    root.traverse((o) => {
+      if (!this._isStaticColliderMesh(o)) return;
+      const id = this.addMeshCollider(o, {
+        ...opts,
+        id: opts.idPrefix ? `${opts.idPrefix}_${o.uuid}` : undefined,
+        shape: opts.shape || 'convex'
+      });
+      if (id) n += 1;
+    });
+    return n;
+  }
+
+  /**
+   * Kinematic convex hull that follows an animated mesh (weapon on Bip001 R Hand).
+   * Sensor by default so the CCT does not snag the player's own blade.
+   */
+  attachFollowConvex(id, mesh, opts = {}) {
+    if (!this.ready || !mesh?.isMesh) return null;
+    this.detachFollow(id);
+    const verts = this.meshLocalScaledVerts(mesh, opts.hullVerts ?? 64);
+    if (!verts) return null;
+    const desc = RAPIER.ColliderDesc.convexHull(verts);
+    if (!desc) return null;
+    desc.setFriction(0.2);
+    if (opts.sensor !== false) desc.setSensor(true);
+    mesh.updateWorldMatrix(true, false);
+    mesh.matrixWorld.decompose(_p, _q, _s);
+    const body = this.world.createRigidBody(
+      RAPIER.RigidBodyDesc.kinematicPositionBased()
+        .setTranslation(_p.x, _p.y, _p.z)
+        .setRotation({ x: _q.x, y: _q.y, z: _q.z, w: _q.w })
+    );
+    const col = this.world.createCollider(desc, body);
+    mesh.userData.colliderClass = 'followConvex';
+    this.bodies.set(id, { body, collider: col, kind: 'followConvex', colliderClass: 'followConvex', mesh });
+    this._follow.push({ id, mesh, body });
+    return id;
+  }
+
+  detachFollow(id) {
+    this._follow = this._follow.filter((f) => f.id !== id);
+    if (this.bodies.has(id)) this.removeBody(id);
+  }
+
+  /** Sync kinematic follow hulls from Three.js mesh world Matrix4. */
+  syncFollowMeshes() {
+    if (!this.ready) return;
+    for (const f of this._follow) {
+      if (!f.mesh || !f.body) continue;
+      f.mesh.updateWorldMatrix(true, false);
+      f.mesh.matrixWorld.decompose(_p, _q, _s);
+      if (typeof f.body.setNextKinematicTranslation === 'function') {
+        f.body.setNextKinematicTranslation({ x: _p.x, y: _p.y, z: _p.z });
+        f.body.setNextKinematicRotation({ x: _q.x, y: _q.y, z: _q.z, w: _q.w });
+      }
+    }
+  }
+
+  /**
+   * Best physics ray for GLTF play: Rapier scene query (not a second engine).
+   * Excludes the player CCT. Returns world point or null.
+   */
+  castRay(origin, dir, maxToi = 80) {
+    if (!this.ready || !this.world || !origin || !dir) return null;
+    const ray = new RAPIER.Ray(
+      { x: origin.x, y: origin.y, z: origin.z },
+      { x: dir.x, y: dir.y, z: dir.z }
+    );
+    const hit = this.world.castRay(
+      ray,
+      maxToi,
+      true,
+      undefined,
+      undefined,
+      this.playerCollider || undefined
+    );
+    if (!hit) return null;
+    const toi = hit.timeOfImpact;
+    return {
+      toi,
+      point: {
+        x: origin.x + dir.x * toi,
+        y: origin.y + dir.y * toi,
+        z: origin.z + dir.z * toi
+      }
+    };
+  }
+
+  /**
+   * Three Rapier VFX roles on this world (not three worlds):
+   *   shape  — kinematic capsule, driven along a CatmullRom (mist/line head)
+   *   slash  — followConvex weapon hull (attachFollowConvex)
+   *   effect — kinematic sensor balls (heal mist, tether beads, totem field)
+   *
+   * @param {string} id
+   * @param {{ x: number, y: number, z: number }} pos
+   * @param {{ role?: 'shape'|'effect', shape?: 'capsule'|'ball', radius?: number, halfHeight?: number }} [opts]
+   */
+  spawnKinematicSensor(id, pos, opts = {}) {
+    if (!this.ready || !pos) return null;
+    if (this.bodies.has(id)) this.removeBody(id);
+    const role = opts.role === 'shape' ? 'shape' : 'effect';
+    const radius = Number(opts.radius) > 0 ? opts.radius : role === 'shape' ? 0.22 : 0.48;
+    const body = this.world.createRigidBody(
+      RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(pos.x, pos.y, pos.z)
+    );
+    const useCapsule = opts.shape === 'capsule' || role === 'shape';
+    const desc = useCapsule
+      ? RAPIER.ColliderDesc.capsule(opts.halfHeight ?? 0.32, radius)
+      : RAPIER.ColliderDesc.ball(radius);
+    desc.setSensor(true).setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS);
+    const col = this.world.createCollider(desc, body);
+    this.bodies.set(id, {
+      body,
+      collider: col,
+      kind: role,
+      colliderClass: 'sensor',
+      vfxRole: role
+    });
+    return id;
+  }
+
+  /**
+   * Shape capsule + effect beads along a CatmullRom. Head advances at constant m/s.
+   * @param {string} id
+   * @param {{ getPointAt: Function, getTangentAt?: Function, getLength?: Function, getPoints?: Function }} curve
+   * @param {{ beads?: number, life?: number, speed?: number, heal?: boolean, effects?: boolean, shapeRadius?: number, effectRadius?: number }} [opts]
+   */
+  spawnSplineVfx(id, curve, opts = {}) {
+    if (!this.ready || !curve) return null;
+    this.clearSplineVfx(id);
+    const beads = Math.max(2, Math.min(10, Math.round(opts.beads ?? 6)));
+    const pts =
+      typeof curve.getPoints === 'function'
+        ? curve.getPoints(beads)
+        : [curve.getPointAt(0), curve.getPointAt(1)];
+    const start = pts[0];
+    if (!start) return null;
+    const shapeId = `${id}:shape`;
+    this.spawnKinematicSensor(shapeId, start, {
+      role: 'shape',
+      shape: 'capsule',
+      radius: opts.shapeRadius ?? 0.22,
+      halfHeight: 0.32
+    });
+    const beadIds = [];
+    if (opts.effects !== false) {
+      for (let i = 0; i < pts.length; i++) {
+        const bid = `${id}:fx:${i}`;
+        this.spawnKinematicSensor(bid, pts[i], {
+          role: 'effect',
+          shape: 'ball',
+          radius: opts.effectRadius ?? (opts.heal ? 0.7 : 0.48)
+        });
+        beadIds.push(bid);
+      }
+    }
+    this._splineVfx.push({
+      id,
+      shapeId,
+      beadIds,
+      curve,
+      u: 0,
+      speed: opts.speed ?? 11,
+      life: opts.life ?? 2.4,
+      age: 0,
+      heal: !!opts.heal
+    });
+    return id;
+  }
+
+  tickSplineVfx(dt) {
+    if (!this.ready || !this._splineVfx.length) return;
+    const keep = [];
+    for (const s of this._splineVfx) {
+      s.age += dt;
+      if (s.age >= s.life) {
+        this._disposeSplineRec(s);
+        continue;
+      }
+      const len =
+        (typeof s.curve.getLength === 'function' && s.curve.getLength()) || 8;
+      s.u = Math.min(1, s.u + (s.speed * dt) / Math.max(0.6, len));
+      const p =
+        typeof s.curve.getPointAt === 'function' ? s.curve.getPointAt(s.u) : null;
+      const shape = this.bodies.get(s.shapeId);
+      if (p && shape?.body?.setNextKinematicTranslation) {
+        shape.body.setNextKinematicTranslation({ x: p.x, y: p.y, z: p.z });
+        if (typeof s.curve.getTangentAt === 'function' && shape.body.setNextKinematicRotation) {
+          _tan.copy(s.curve.getTangentAt(s.u));
+          if (_tan.lengthSq() > 1e-8) {
+            _tan.normalize();
+            _q.setFromUnitVectors(_up, _tan);
+            shape.body.setNextKinematicRotation({
+              x: _q.x,
+              y: _q.y,
+              z: _q.z,
+              w: _q.w
+            });
+          }
+        }
+      }
+      keep.push(s);
+    }
+    this._splineVfx = keep;
+  }
+
+  _disposeSplineRec(s) {
+    if (!s) return;
+    this.removeBody(s.shapeId);
+    for (const b of s.beadIds || []) this.removeBody(b);
+  }
+
+  clearSplineVfx(id) {
+    if (!id) {
+      for (const s of this._splineVfx) this._disposeSplineRec(s);
+      this._splineVfx = [];
+      return;
+    }
+    const keep = [];
+    for (const s of this._splineVfx) {
+      if (s.id !== id) {
+        keep.push(s);
+        continue;
+      }
+      this._disposeSplineRec(s);
+    }
+    this._splineVfx = keep;
+  }
+
   spawnProjectileSensor(x, y, z, radius = 0.25) {
     if (!this.ready) return null;
     const id = `proj_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -384,6 +759,8 @@ export class PhysicsWorld {
   }
 
   dispose() {
+    this.clearSplineVfx();
+    this._follow = [];
     if (this.world) {
       this.world.free();
       this.world = null;

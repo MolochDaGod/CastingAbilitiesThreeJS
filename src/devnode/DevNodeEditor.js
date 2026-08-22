@@ -268,6 +268,8 @@ export class DevNodeEditor {
         }
         const g = src.clone(true);
         g.scale.setScalar(scale);
+        g.userData.paletteId = entry.id;
+        g.userData.kind = /totem/i.test(entry.id) ? 'totem' : entry.family;
         g.traverse((o) => {
           if (o.isMesh) {
             o.castShadow = true;

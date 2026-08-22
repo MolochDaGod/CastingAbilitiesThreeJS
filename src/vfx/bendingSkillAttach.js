@@ -16,7 +16,7 @@ import { spinePointForVfxAnchor } from '../character/weaponPrefabSpine.js';
 const _tmp = new Vector3();
 
 /**
- * @typedef {'fire_bullet'|'fire_orbit'|'poison_mist'|'poison_trap'|'poison_shot'|'poison_bomb'|'poison_proc'|'tornado_pull'|'earth_stun'|'holy_smite'|'arrow_path'|'arrow_loft'|'fire_rain'|'shockwave'|'outline_beam'|'smoke_blink'|'ranger_invis'} BendingPattern
+ * @typedef {'fire_bullet'|'fire_orbit'|'poison_mist'|'poison_trap'|'poison_shot'|'poison_bomb'|'poison_proc'|'tornado_pull'|'earth_stun'|'holy_smite'|'arrow_path'|'arrow_loft'|'fire_rain'|'shockwave'|'outline_beam'|'smoke_blink'|'ranger_invis'|'jade_mist'|'nature_vine'|'elemental_curve'} BendingPattern
  */
 
 /**
@@ -130,4 +130,50 @@ export function resolveSkillSpline(character, skill, pose = {}) {
     end.copy(start).add(new Vector3(0, 0, 8));
   }
   return { start, end, startId, endId: endId || 'aim' };
+}
+
+/**
+ * Nearest fire/air totem in the scene (training-room palette or named GLB).
+ * Spline tethers retarget here instead of a second attach system.
+ * @param {import('three').Object3D|null} root
+ * @param {import('three').Vector3} from
+ * @param {number} [maxM]
+ * @returns {import('three').Vector3|null}
+ */
+export function nearestTotemWorldPos(root, from, maxM = 22) {
+  if (!root || !from) return null;
+  let best = null;
+  let bestD = maxM;
+  root.traverse((o) => {
+    const blob = `${o.name || ''} ${o.userData?.paletteId || ''} ${o.userData?.kind || ''} ${o.userData?.skillId || ''}`;
+    if (!/totem/i.test(blob)) return;
+    if (o.parent && /totem/i.test(`${o.parent.name || ''} ${o.parent.userData?.paletteId || ''}`)) {
+      return;
+    }
+    o.getWorldPosition(_tmp);
+    const d = _tmp.distanceTo(from);
+    if (d < bestD) {
+      bestD = d;
+      best = _tmp.clone();
+    }
+  });
+  return best;
+}
+
+/**
+ * Heal / mist / tether / vine skills ride the spline (not click-spawn).
+ * @param {object} skill
+ */
+export function skillWantsSpline(skill) {
+  if (!skill) return false;
+  if (skill.travelMode === 'bend' || skill.travelMode === 'linear') return true;
+  const blob = `${skill.id || ''} ${skill.label || ''} ${skill.variantHint || ''} ${(skill.effects || []).join(' ')}`.toLowerCase();
+  return /mist|vine|tether|totem|envelop|heal|jade|soothing/.test(blob);
+}
+
+/** Heal-field along the same spline (mist / envelop / revival). */
+export function skillWantsHealSpline(skill) {
+  if (!skill) return false;
+  const blob = `${skill.id || ''} ${skill.label || ''} ${skill.variantHint || ''} ${(skill.effects || []).join(' ')}`.toLowerCase();
+  return /mist|heal|envelop|revival|soothing|jade|mend/.test(blob);
 }

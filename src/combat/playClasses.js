@@ -70,6 +70,34 @@ export const COLLIDER_CLASSES = Object.freeze({
 
 export const TRAVEL_CLASSES = Object.freeze(['melee', 'bullet', 'linear', 'bend']);
 
+/**
+ * Three Rapier VFX roles on the one PhysicsWorld — not three worlds.
+ * Spline (CatmullRom) drives shape + effect; slash hull follows the weapon mesh.
+ */
+export const RAPIER_VFX_SYSTEMS = Object.freeze({
+  shape: {
+    id: 'shape',
+    colliderClass: 'sensor',
+    body: 'kinematicPositionBased',
+    shape: 'capsule',
+    use: '3d shape animation — mist/line head along CatmullRom'
+  },
+  slash: {
+    id: 'slash',
+    colliderClass: 'followConvex',
+    body: 'kinematicPositionBased',
+    shape: 'convexHull',
+    use: 'weapon slash hull on Bip001 R Hand'
+  },
+  effect: {
+    id: 'effect',
+    colliderClass: 'sensor',
+    body: 'kinematicPositionBased',
+    shape: 'ball',
+    use: 'heal mist beads, totem tether, AoE trigger'
+  }
+});
+
 /** Family → default travel + weapon collider for class skills. */
 export const CLASS_PLAY_DEFAULTS = Object.freeze({
   warrior: { travelMode: 'melee', colliderClass: 'followConvex', pack: 'sword_shield' },
@@ -131,5 +159,6 @@ export const PLAY_CLASS_CONTRACT = Object.freeze({
   productClasses: ['warrior', 'raider', 'mage', 'priest', 'ranger', 'thief', 'worge', 'verduror'],
   colliderClasses: Object.keys(COLLIDER_CLASSES),
   travelClasses: [...TRAVEL_CLASSES],
-  note: 'Eight specs · four families. Weapon 1–3 stay on the item. Class F / Shift+1–5 use these travel+collider stamps.'
+  rapierVfxSystems: Object.keys(RAPIER_VFX_SYSTEMS),
+  note: 'Eight specs · four families. Weapon 1–3 stay on the item. Class F / Shift+1–5 use these travel+collider stamps. VFX Rapier: shape + slash + effect on one world, spline-driven mist/tether.'
 });
