@@ -1,5 +1,6 @@
 import { Vector2 } from 'three';
 import { EventEmitter } from '../utils/EventEmitter.js';
+import { matchKeyDown } from './hotkeyContext.js';
 
 /**
  * Pointer + keyboard → events.
@@ -25,6 +26,8 @@ export class InputManager extends EventEmitter {
     this.enabled = true;
     /** When true, fleet combat keys win over sandbox (clear→Shift+C, etc.) */
     this.combatKeys = true;
+    /** @type {import('./hotkeyContext.js').HotkeyCtx} */
+    this.hotkeyCtx = 'combat';
     /**
      * App sets this: () => 'draw' | 'attack' | 'select'
      * @type {(() => 'draw'|'attack'|'select')|null}
@@ -44,6 +47,11 @@ export class InputManager extends EventEmitter {
    */
   setActivityMode(mode) {
     this.activityMode = mode === 'harvest' ? 'harvest' : 'combat';
+  }
+
+  /** @param {import('./hotkeyContext.js').HotkeyCtx} ctx */
+  setHotkeyContext(ctx) {
+    this.hotkeyCtx = ctx || 'combat';
   }
 
   _bind() {
@@ -165,85 +173,39 @@ export class InputManager extends EventEmitter {
       return;
     }
 
-    // Digit skills / element select (1–6 staffs: fire storm ice nature holy arcane)
-    // Combat: emit skillHold:start for hold-to-charge (Charged Shot); keyup releases
-    if (event.code === 'Digit1') {
-      this.emit('element', 0);
-      this.emit('skillHold:start', 0);
-      return;
-    }
-    if (event.code === 'Digit2') {
-      this.emit('element', 1);
-      this.emit('skillHold:start', 1);
-      return;
-    }
-    if (event.code === 'Digit3') {
-      this.emit('element', 2);
-      this.emit('skillHold:start', 2);
-      return;
-    }
-    if (event.code === 'Digit4') {
-      this.emit('element', 3);
-      this.emit('skillHold:start', 3);
-      return;
-    }
-    if (event.code === 'Digit5') {
-      this.emit('element', 4);
-      this.emit('skillHold:start', 4);
-      return;
-    }
-    if (event.code === 'Digit6') {
-      this.emit('element', 5);
-      this.emit('skillHold:start', 5);
+    const bound = matchKeyDown(event, this.hotkeyCtx);
+    if (bound) {
+      if (bound.prevent) event.preventDefault();
+      this.emit(bound.channel, bound.payload);
+      if (bound.channel === 'skillHold:start' && typeof bound.payload === 'number') {
+        this.emit('element', bound.payload);
+      }
       return;
     }
 
-    // F = best next action always (pickup / harvest / standard attack)
-    // Alt+F is sandbox frost (handled above). Residual is attack fallback, not a free skill key.
-    // Combat F also starts skillHold for Charged Shot when weapon skill is chargeable.
-    if (event.code === 'KeyF') {
-      event.preventDefault();
-      this.emit('combatAction', 'interact');
-      this.emit('skillHold:start', 'f');
+    // Digit 5–6 staffs — combat context only (1–4 are in HOTKEY_BINDINGS)
+    if (this.hotkeyCtx === 'combat' && (event.code === 'Digit5' || event.code === 'Digit6')) {
+      const i = event.code === 'Digit5' ? 4 : 5;
+      this.emit('element', i);
+      this.emit('skillHold:start', i);
       return;
     }
 
-    // Danger Room combat actions when combatKeys
-    // Harvest mode: R is tool radial (not heavy); Q is mode radial (not equip)
-    if (this.combatKeys) {
-      const combatMap = {
-        KeyX: 'dodge',
-        KeyC: 'parry',
-        KeyE: 'block',
-        KeyV: 'kick',
-        KeyJ: 'heal',
-        KeyH: 'bomb'
-      };
-      if (event.code === 'KeyR') {
+    // Danger leftover: J/H heals/bomb only in combat (not in table to keep table small)
+    if (this.hotkeyCtx === 'combat' && this.combatKeys) {
+      if (event.code === 'KeyJ') {
         event.preventDefault();
-        this.emit('action', 'rHoldStart');
+        this.emit('combatAction', 'heal');
         return;
       }
-      if (combatMap[event.code]) {
+      if (event.code === 'KeyH') {
         event.preventDefault();
-        this.emit('combatAction', combatMap[event.code]);
+        this.emit('combatAction', 'bomb');
         return;
       }
     }
 
     switch (event.code) {
-      case 'KeyQ':
-        // Hold Q = mode radial (Open parity); Shift+Q = equip session toggle
-        if (event.shiftKey) {
-          this.emit('action', 'toggleDrcSession');
-        } else {
-          this.emit('action', 'qHoldStart');
-        }
-        break;
-      case 'KeyR':
-        event.preventDefault();
-        this.emit('action', 'rHoldStart');
-        break;
       case 'KeyE':
         // Equip mode only: cycle element (combat uses E as block)
         if (!this.combatKeys) this.emit('action', 'nextElement');

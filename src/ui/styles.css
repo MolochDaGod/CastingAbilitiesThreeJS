@@ -317,6 +317,19 @@ body.focus-aim .hud {
   font-size: 13px;
 }
 
+/* Hotkey context — CSS chrome only (logic stays in hotkeyContext.js) */
+html[data-hotkey-ctx='harvest'] #hud,
+#hud[data-hotkey-ctx='harvest'] {
+  --hotkey-ctx: harvest;
+}
+html[data-hotkey-ctx='combat'] #hud,
+#hud[data-hotkey-ctx='combat'] {
+  --hotkey-ctx: combat;
+}
+html[data-hotkey-ctx='inventory'] .hud-ggui {
+  pointer-events: auto;
+}
+
 /* One chrome: GrudgeGameUI pack fills #hud; HUD.js only binds live combat + toast/crosshair */
 .hud--ggui .hud-ggui {
   position: absolute;

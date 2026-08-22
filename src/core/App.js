@@ -82,6 +82,7 @@ import {
   DEFAULT_HARVEST_TOOL,
   harvestToolIdForNodeDef
 } from '../combat/playerActivity.js';
+import { resolveHotkeyContext, applyHotkeyCss } from '../input/hotkeyContext.js';
 import {
   CLASS_ITEMS,
   CLASS_R_PROFILE,
@@ -605,12 +606,14 @@ export class App {
         this.activityMode = activityFromSnap(snap);
         this.harvestToolId = toolIdFromSnap(snap);
         this.input.setActivityMode?.(this.activityMode);
+        this._syncHotkeyContext();
       }
     });
     this.modeRadial = new ModeRadial();
     this._qHold = { armed: false, t: 0, open: false };
     this._rHold = { armed: false, t: 0, open: false };
     this.input.setActivityMode?.(this.activityMode);
+    this._syncHotkeyContext();
 
     /** @type {WorldDrops|null} filled after assets load */
     this.worldDrops = null;
@@ -696,6 +699,7 @@ export class App {
     }
 
     this.input.setCombatKeys?.(g.combatKeys);
+    this._syncHotkeyContext();
     this.pathDrawer.setCombatMinLength?.(
       snap.drc === DRC_SESSION.COMBAT && snap.mode === INTERACTION_MODE.CASTING
         ? settings.staffCast?.combatMinPathLength ?? 0.9
@@ -728,6 +732,17 @@ export class App {
       // Freeride implies combat skills on board
       if (snap.drc !== DRC_SESSION.COMBAT) this.session.setDrc(DRC_SESSION.COMBAT);
     }
+  }
+
+  _syncHotkeyContext() {
+    const ctx = resolveHotkeyContext({
+      activity: this.activityMode,
+      drcSession: this.drc?.session || this.session?.drc,
+      inventoryOpen: !!this.inventory?.open,
+      riding: !!this.session?.riding
+    });
+    this.input.setHotkeyContext?.(ctx);
+    applyHotkeyCss(ctx);
   }
 
   /* ------------------------------------------------------------------ */
@@ -903,6 +918,10 @@ export class App {
     this.hud.onMode = (mode) => this.setMode(mode);
 
     // Combat: F = class skill 0 · harvest F = swing. E block · C parry.
+    this.input.on('classSkill', (slot) => {
+      if (this.activityMode === 'harvest') return;
+      this.drc.useClassAbility?.(slot);
+    });
     this.input.on('combatAction', (actionId) => {
       if (actionId === 'interact') {
         this._tryBestAction();
@@ -1305,6 +1324,7 @@ export class App {
           this.hud.setPlayScreen?.(
             this.inventory.open ? 'inventory' : this.activityMode || 'combat'
           );
+          this._syncHotkeyContext();
           this.hud.showToast(this.inventory.open ? 'Inventory open' : 'Inventory closed');
         }
         break;
@@ -1567,11 +1587,12 @@ export class App {
 
     this.activityMode = next;
     this.input.setActivityMode?.(next);
+    this._syncHotkeyContext();
     this.hud.showToast?.(
       `${MODE_LABEL[next]} mode · Hold Q switch · ${
         next === 'harvest'
-          ? 'F nearest · Hold R tools · Tap R last tool'
-          : 'Tap Q weapon 1↔2 · F skill · 1–4'
+          ? 'Tap Q nearest tool · F swing · Hold R tools'
+          : 'F class 0 · R item/radial · Tap Q weapons · 1–4 weapon'
       }`
     );
     this.hud.setPlayScreen?.(next);
