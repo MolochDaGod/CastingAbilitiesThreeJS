@@ -1,9 +1,11 @@
 /**
  * Class combat slots — ObjectStore trees + class relics.
  *
- *   F tap     → starter (slot f)
- *   Shift+1–5 → class abilities
- *   Hold F    → radial: rebind slot + pick sub-ability
+ *   Combat F tap  → class skill 0 (slot f)
+ *   Combat R tap  → class item use
+ *   Combat R hold → radial (melee specs) or skill tree panel (casters)
+ *   Shift+1–5     → class abilities (when bound)
+ *   Weapon 1–3 stay Digit 1–3. Harvest F = swing. Harvest tap Q = tool for nearest node.
  *
  * Eight Warlords specs. Do not invent skill ids — use master-skillTrees.json.
  * Weapon 1–3 stay on the equipped item (Digit 1–3, no Shift).
@@ -121,6 +123,21 @@ export const CLASS_ITEMS = Object.freeze({
     iconPath: '/icons/pack/weapons/staff_31.png',
     ready: true
   }
+});
+
+/**
+ * Combat R: tap = class item. Hold = radial of class slots, or Main Panel skills tree.
+ * Casters open the tree; weapon specs use the radial.
+ */
+export const CLASS_R_PROFILE = Object.freeze({
+  warrior: { hold: 'radial', tap: 'item' },
+  raider: { hold: 'radial', tap: 'item' },
+  ranger: { hold: 'radial', tap: 'item' },
+  thief: { hold: 'radial', tap: 'item' },
+  worge: { hold: 'radial', tap: 'item' },
+  mage: { hold: 'skilltree', tap: 'item' },
+  priest: { hold: 'skilltree', tap: 'item' },
+  verduror: { hold: 'skilltree', tap: 'item' }
 });
 
 /**

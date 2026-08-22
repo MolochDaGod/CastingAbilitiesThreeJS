@@ -1,5 +1,6 @@
 import { MODES, MODE_META } from '../config/settings.js';
-import { getActiveSkills, skillForFKey } from '../combat/drcSkills.js';
+import { getActiveSkills } from '../combat/drcSkills.js';
+import { getClassLoadout, compileClassSkill, resolvePlayerClass } from '../combat/classAbilities.js';
 
 import {
   applyCraftpixCssVars,
@@ -285,9 +286,11 @@ export class HUD {
     const fLab =
       this.root.querySelector('[data-f-skill-label]') ||
       this.root.querySelector('[data-melee] .action-slot__label');
-    const fSkill = skillForFKey();
+    const classId = resolvePlayerClass();
+    const load = getClassLoadout(classId);
+    const fSkill = compileClassSkill(classId, load.f);
     if (fLab) {
-      fLab.textContent = fSkill?.label || 'Weapon';
+      fLab.textContent = fSkill?.label || 'Class 0';
     }
     const fSlot = this.root.querySelector('[data-melee]');
     if (fSlot && fSkill) {
@@ -297,7 +300,7 @@ export class HUD {
       }`;
     }
     if (this.ggui?.bindWeaponSkills) {
-      const f = skillForFKey();
+      const f = fSkill;
       const list = [];
       if (f) {
         list.push({

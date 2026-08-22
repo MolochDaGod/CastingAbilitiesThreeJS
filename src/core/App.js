@@ -79,8 +79,16 @@ import {
   RADIAL_HOLD_S,
   HARVEST_TOOL_RADIAL,
   MODE_LABEL,
-  DEFAULT_HARVEST_TOOL
+  DEFAULT_HARVEST_TOOL,
+  harvestToolIdForNodeDef
 } from '../combat/playerActivity.js';
+import {
+  CLASS_ITEMS,
+  CLASS_R_PROFILE,
+  getClassLoadout,
+  compileClassSkill,
+  resolvePlayerClass
+} from '../combat/classAbilities.js';
 import {
   createPlayerActivityActor,
   activityFromSnap,
@@ -91,7 +99,8 @@ import {
   getEquippedWeapon,
   equipWeaponById,
   unequipWeapon,
-  swapWeaponLoadout
+  swapWeaponLoadout,
+  attachOffhandById
 } from '../combat/equippedWeaponRuntime.js';
 import {
   setActiveSkillTree,
@@ -877,8 +886,11 @@ export class App {
       if (this.drc.inCombat) this.drc.useSkill(slot, { skipCharge: true });
     };
     this.hud.onMelee = () => {
-      // F slot = weapon skill (not residual)
-      if (this.drc.inCombat) this.drc.useWeaponSkillF?.();
+      if (this.activityMode === 'harvest') {
+        this._tryBestAction();
+        return;
+      }
+      if (this.drc.inCombat) this.drc.useClassAbility?.('f');
     };
     this.hud.onQuickAction = (actionId) => {
       if (actionId === 'interact' || actionId === 'fskill') {
@@ -890,7 +902,7 @@ export class App {
     this.hud.onMenu = (menuId) => this._handleHudMenu(menuId);
     this.hud.onMode = (mode) => this.setMode(mode);
 
-    // Combat hotkeys: E = block · C = parry · F = best-next-action (pickup/harvest/attack)
+    // Combat: F = class skill 0 · harvest F = swing. E block · C parry.
     this.input.on('combatAction', (actionId) => {
       if (actionId === 'interact') {
         this._tryBestAction();
@@ -973,10 +985,8 @@ export class App {
       }
     }
 
-    // 2) Harvest — always try if node in range; harvest mode prioritizes over skills
-    const wantHarvest =
-      this.activityMode === 'harvest' ||
-      this.worldHarvest?.nearestAlive?.(this.character.position, HARVEST_RANGE_M);
+    // 2) Harvest swing only in harvest mode (combat F is class skill 0)
+    const wantHarvest = this.activityMode === 'harvest';
     if (wantHarvest) {
       if (typeof this.tryHarvest === 'function') {
         const harvested = this.tryHarvest();
@@ -995,17 +1005,9 @@ export class App {
       }
     }
 
-    // 3) Weapon skill F (prefab + cast bar path) — combat mode
+    // 3) Combat F = class skill 0
     if (this.drc?.inCombat) {
-      return !!(
-        this.drc.useWeaponSkillF?.() ||
-        this.drc.performQuickAction?.('fskill') ||
-        false
-      );
-    }
-    if (this.character.playWeaponAttack?.()) {
-      this.hud.showToast('Equip combat (Q) for weapon skills');
-      return true;
+      return !!this.drc.useClassAbility?.('f');
     }
     this.hud.showToast('F · nothing nearby');
     return false;
@@ -1406,12 +1408,12 @@ export class App {
       else if (aim === 'mode_combat') this.setActivityMode('combat');
       this.modeRadial?.hide?.();
     } else if (this._qHold.armed && this._qHold.t < RADIAL_HOLD_S) {
-      // Tap Q · combat → dual weapon loadout A↔B (mesh · anim pack · skills)
-      // Tap Q · harvest → back to combat (hold Q = mode radial)
+      // Tap Q · combat → dual weapon loadout A↔B
+      // Tap Q · harvest → tool for closest harvest node
       if (this.activityMode === 'combat') {
         void this._swapWeaponLoadoutTap();
       } else {
-        this.setActivityMode('combat');
+        void this._equipToolForNearestNode();
       }
     }
     this._qHold = { armed: false, t: 0, open: false };
@@ -1444,19 +1446,30 @@ export class App {
   }
 
   _beginRHold() {
-    if (this.activityMode !== 'harvest') return;
-    this._rHold = { armed: true, t: 0, open: false };
+    const harvest = this.activityMode === 'harvest';
+    const combat = this.activityMode === 'combat' && this.drc?.inCombat;
+    if (!harvest && !combat) return;
+    this._rHold = { armed: true, t: 0, open: false, harvest };
   }
 
   _endRHold() {
     if (!this._rHold?.armed && !this._rHold?.open) return;
+    const harvest = this._rHold.harvest || this.activityMode === 'harvest';
     if (this._rHold.open) {
-      const aim = this.modeRadial?.getAimId?.();
-      if (aim) this._selectHarvestTool(aim);
+      if (harvest) {
+        const aim = this.modeRadial?.getAimId?.();
+        if (aim) this._selectHarvestTool(aim);
+      } else if (this._rHold.skilltree) {
+        /* Main Panel skills stays open */
+      } else {
+        const aim = this.modeRadial?.getAimId?.();
+        if (aim === 'f' || aim === 'class_f') this.drc.useClassAbility?.('f');
+        else if (aim != null && aim !== '') this.drc.useClassAbility?.(Number(aim));
+      }
       this.modeRadial?.hide?.();
     } else if (this._rHold.armed && this._rHold.t < RADIAL_HOLD_S) {
-      // Tap R → draw last used tool (default pick) without radial
-      this._drawLastHarvestTool();
+      if (harvest) this._drawLastHarvestTool();
+      else void this._useClassItem();
     }
     this._rHold = { armed: false, t: 0, open: false };
   }
@@ -1611,6 +1624,69 @@ export class App {
   }
 
   /**
+   * Harvest tap Q — equip the tool the closest node wants.
+   */
+  async _equipToolForNearestNode() {
+    const pos = this.character?.position;
+    if (!pos) return;
+    const hit = this.worldHarvest?.nearestAlive?.(pos, HARVEST_RANGE_M);
+    let toolId = null;
+    let label = '';
+    if (hit?.node?.def) {
+      toolId = harvestToolIdForNodeDef(hit.node.def);
+      label = hit.node.def.label || toolId;
+    } else {
+      const tree = this.growingForest?.findNearest?.(pos, HARVEST_RANGE_M);
+      if (tree) {
+        toolId = 'hatchet';
+        label = 'wood';
+      }
+    }
+    if (!toolId) {
+      this.hud.showToast('No harvest node nearby');
+      return;
+    }
+    await this._selectHarvestTool(toolId, { quiet: false, fromTapR: true });
+    this.hud.showToast(`Tool · ${toolId} · ${label}`);
+  }
+
+  _classRadialWedges(classId) {
+    const load = getClassLoadout(classId);
+    const wedges = [];
+    const f = compileClassSkill(classId, load.f);
+    wedges.push({ id: 'f', label: f?.label || 'Class 0', glyph: 'F' });
+    (load.slots || []).forEach((sid, i) => {
+      const sk = compileClassSkill(classId, sid);
+      wedges.push({
+        id: String(i),
+        label: sk?.label || sid,
+        glyph: String(i + 1)
+      });
+    });
+    return wedges;
+  }
+
+  async _useClassItem() {
+    const classId = resolvePlayerClass(this.character);
+    const item = CLASS_ITEMS[classId];
+    if (!item) {
+      this.hud.showToast('No class item');
+      return;
+    }
+    if (item.slot === 'offhand') {
+      const id = item.id === 'holy_tome' ? 't0-offhand-tome' : item.id;
+      try {
+        await attachOffhandById(this.character, id);
+        this.hud.showToast(`${item.name} · off-hand`);
+      } catch (e) {
+        this.hud.showToast(e?.message || item.name);
+      }
+      return;
+    }
+    this.hud.showToast(`${item.name} · ${item.effect || 'class item'}`);
+  }
+
+  /**
    * @param {string} toolId
    * @param {{ quiet?: boolean, fromTapR?: boolean }} [opts]
    */
@@ -1686,14 +1762,32 @@ export class App {
           this.combatFocus.emit?.('focus', false);
         }
         setCursorIntent('default', { force: true });
-        this.modeRadial.show({
-          kind: 'tool',
-          current: this.activityMode,
-          toolId: this.harvestToolId,
-          aimId: this.harvestToolId
-        });
+        if (this.activityMode === 'harvest') {
+          this.modeRadial.show({
+            kind: 'tool',
+            current: this.activityMode,
+            toolId: this.harvestToolId,
+            aimId: this.harvestToolId
+          });
+        } else {
+          const classId = resolvePlayerClass(this.character);
+          const profile = CLASS_R_PROFILE[classId] || { hold: 'radial' };
+          if (profile.hold === 'skilltree') {
+            this._rHold.skilltree = true;
+            this.inventory?.openTab?.('skills');
+            this.hud.setPlayScreen?.('inventory');
+            this.hud.showToast('Class skill tree (R hold)');
+          } else {
+            this.modeRadial.show({
+              kind: 'class',
+              current: this.activityMode,
+              wedges: this._classRadialWedges(classId),
+              aimId: 'f'
+            });
+          }
+        }
       }
-      if (this._rHold.open) this.modeRadial.aimFromPointer(cx, cy);
+      if (this._rHold.open && !this._rHold.skilltree) this.modeRadial.aimFromPointer(cx, cy);
     }
 
     if (this._mHold?.armed || this._mHold?.open) {

@@ -1,7 +1,12 @@
 /**
  * Hold-Q mode radial + Hold-R tool radial (DOM, Open ModeRadial / RadialMenu parity).
  */
-import { MODE_SWITCH_RADIAL, HARVEST_TOOL_RADIAL, MODE_LABEL } from '../combat/playerActivity.js';
+import {
+  MODE_SWITCH_RADIAL,
+  HARVEST_TOOL_RADIAL,
+  MOUNT_BACK_RADIAL,
+  MODE_LABEL
+} from '../combat/playerActivity.js';
 import './modeRadial.css';
 
 export class ModeRadial {
@@ -12,8 +17,10 @@ export class ModeRadial {
     this.el.setAttribute('role', 'dialog');
     document.body.appendChild(this.el);
 
-    /** @type {'none'|'mode'|'tool'} */
+    /** @type {'none'|'mode'|'tool'|'mount'|'class'} */
     this.kind = 'none';
+    /** @type {{ id: string, label?: string, glyph?: string }[]} */
+    this._wedges = [];
     /** @type {'combat'|'harvest'} */
     this.current = 'combat';
     /** @type {string|null} */
@@ -23,16 +30,18 @@ export class ModeRadial {
 
   /**
    * @param {{
-   *   kind: 'mode'|'tool',
+   *   kind: 'mode'|'tool'|'mount'|'class',
    *   current: 'combat'|'harvest',
    *   aimId?: string|null,
-   *   toolId?: string
+   *   toolId?: string,
+   *   wedges?: { id: string, label?: string, glyph?: string }[]
    * }} state
    */
   show(state) {
     this.kind = state.kind;
     this.current = state.current || 'combat';
     this.aimId = state.aimId ?? null;
+    this._wedges = Array.isArray(state.wedges) ? state.wedges : [];
     if (state.toolId) this._toolId = state.toolId;
     this.el.hidden = false;
     this._render();
@@ -63,8 +72,13 @@ export class ModeRadial {
       this._render();
       return this.aimId;
     }
-    if (this.kind === 'tool') {
-      const opts = HARVEST_TOOL_RADIAL;
+    if (this.kind === 'tool' || this.kind === 'mount' || this.kind === 'class') {
+      const opts =
+        this.kind === 'class'
+          ? this._wedges
+          : this.kind === 'mount'
+            ? MOUNT_BACK_RADIAL
+            : HARVEST_TOOL_RADIAL;
       const n = opts.length;
       const ang = (Math.atan2(clientY - cy, clientX - cx) * 180) / Math.PI;
       const slice = 360 / n;
@@ -89,7 +103,7 @@ export class ModeRadial {
           <div class="mode-radial-wedge mode-radial-up ${aim === 'mode_combat' ? 'hot' : ''} ${
             this.current === 'combat' ? 'active' : ''
           }">
-            <span class="mode-radial-icon">⚔</span>
+            <span class="mode-radial-icon ui-mark">C</span>
             <span class="mode-radial-label">Combat</span>
             <span class="mode-radial-hint">mouse up</span>
           </div>
@@ -100,13 +114,71 @@ export class ModeRadial {
           <div class="mode-radial-wedge mode-radial-down ${aim === 'mode_harvest' ? 'hot' : ''} ${
             this.current === 'harvest' ? 'active' : ''
           }">
-            <span class="mode-radial-icon">🪓</span>
+            <span class="mode-radial-icon ui-mark">H</span>
             <span class="mode-radial-label">Harvest</span>
             <span class="mode-radial-hint">mouse down</span>
           </div>
         </div>
-        <p class="mode-radial-foot">Release Q to confirm · tap Q toggles mode</p>
+        <p class="mode-radial-foot">Release Q to confirm · tap Q combat = weapons · harvest = nearest tool</p>
       `;
+      return;
+    }
+
+    if (this.kind === 'mount') {
+      const opts = MOUNT_BACK_RADIAL;
+      const n = opts.length;
+      const wedges = opts
+        .map((o, i) => {
+          const rot = (360 / n) * i - 90;
+          const hot = this.aimId === o.id;
+          return `
+          <div class="tool-radial-wedge ${hot ? 'hot' : ''}" style="--rot:${rot}deg">
+            <span class="tool-radial-inner" style="--irot:${-rot}deg">
+              <b>${o.glyph}</b>
+              <small>${o.label}</small>
+            </span>
+          </div>`;
+        })
+        .join('');
+      this.el.innerHTML = `
+      <div class="tool-radial-ring">
+        ${wedges}
+        <div class="mode-radial-core tool-radial-core">
+          <span class="mode-radial-core-title">M hold</span>
+          <span class="mode-radial-core-sub">Mount / Back</span>
+        </div>
+      </div>
+      <p class="mode-radial-foot">Release M to confirm · tap M summons last / dismounts</p>
+    `;
+      return;
+    }
+
+    if (this.kind === 'class') {
+      const opts = this._wedges;
+      const n = Math.max(1, opts.length);
+      const wedges = opts
+        .map((o, i) => {
+          const rot = (360 / n) * i - 90;
+          const hot = this.aimId === o.id;
+          return `
+          <div class="tool-radial-wedge ${hot ? 'hot' : ''}" style="--rot:${rot}deg">
+            <span class="tool-radial-inner" style="--irot:${-rot}deg">
+              <b>${o.glyph || o.id}</b>
+              <small>${o.label || o.id}</small>
+            </span>
+          </div>`;
+        })
+        .join('');
+      this.el.innerHTML = `
+      <div class="tool-radial-ring">
+        ${wedges}
+        <div class="mode-radial-core tool-radial-core">
+          <span class="mode-radial-core-title">R hold</span>
+          <span class="mode-radial-core-sub">Class skills</span>
+        </div>
+      </div>
+      <p class="mode-radial-foot">Release R to fire · tap R uses class item</p>
+    `;
       return;
     }
 

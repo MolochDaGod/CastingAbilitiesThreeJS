@@ -4,10 +4,10 @@ import { EventEmitter } from '../utils/EventEmitter.js';
 /**
  * Pointer + keyboard → events.
  *
- * LMB modes (combat, from CombatFocus):
- *   focus ON  → lmb:attack
- *   focus OFF → lmb:select (unlocked mouse)
- *   sandbox / walk path → draw:start|move|end
+ * LMB (grudge-combat-targeting — one pipeline, no camera steal):
+ *   focus ON  → lmb:attack  (TPS look may lock)
+ *   focus OFF → lmb:select  (free cursor · no pointer lock)
+ *   staff sandbox / walk course → draw:start|move|end (free cursor)
  *
  * Combat hotkeys:
  *   1–4 skills · F interact/attack · X dodge · C parry · E block
@@ -71,18 +71,28 @@ export class InputManager extends EventEmitter {
     if (event.target !== this.dom) return;
 
     this._updatePointer(event);
-    const mode = this.getLmbMode?.() || 'draw';
+    const mode = this.getLmbMode?.() || 'select';
 
     if (mode === 'attack') {
       this.emit('lmb:attack', this.pointer.clone());
       return;
     }
+
+    // Select / draw need a free cursor — drop TPS lock so look does not eat the stroke
+    if (document.pointerLockElement) {
+      try {
+        document.exitPointerLock?.();
+      } catch {
+        /* */
+      }
+    }
+
     if (mode === 'select') {
       this.emit('lmb:select', this.pointer.clone());
       return;
     }
 
-    // Path draw (casting sandbox / walk course)
+    // Path draw (staff sandbox / walk course) — not combat attack
     this.isDrawing = true;
     this.dom.setPointerCapture?.(event.pointerId);
     this.emit('draw:start', this.pointer);
@@ -205,12 +215,11 @@ export class InputManager extends EventEmitter {
         KeyX: 'dodge',
         KeyC: 'parry',
         KeyE: 'block',
-        KeyR: 'heavy',
         KeyV: 'kick',
         KeyJ: 'heal',
         KeyH: 'bomb'
       };
-      if (event.code === 'KeyR' && this.activityMode === 'harvest') {
+      if (event.code === 'KeyR') {
         event.preventDefault();
         this.emit('action', 'rHoldStart');
         return;
@@ -232,11 +241,8 @@ export class InputManager extends EventEmitter {
         }
         break;
       case 'KeyR':
-        // Non-combat: tool radial always available for harvest tools
-        if (this.activityMode === 'harvest') {
-          event.preventDefault();
-          this.emit('action', 'rHoldStart');
-        }
+        event.preventDefault();
+        this.emit('action', 'rHoldStart');
         break;
       case 'KeyE':
         // Equip mode only: cycle element (combat uses E as block)
@@ -265,7 +271,8 @@ export class InputManager extends EventEmitter {
         this.emit('action', 'togglePose');
         break;
       case 'KeyM':
-        this.emit('action', 'toggleMode');
+        event.preventDefault();
+        this.emit('action', 'mHoldStart');
         break;
       case 'KeyI':
         this.emit('action', 'toggleInventory');
@@ -304,7 +311,7 @@ export class InputManager extends EventEmitter {
         // Unbound — World moved to ]
         break;
       case 'Escape':
-        this.emit('action', 'closeAdmin');
+        this.emit('action', 'escape');
         break;
       default:
         break;
@@ -318,6 +325,9 @@ export class InputManager extends EventEmitter {
     }
     if (event.code === 'KeyR') {
       this.emit('action', 'rHoldEnd');
+    }
+    if (event.code === 'KeyM') {
+      this.emit('action', 'mHoldEnd');
     }
     // Digit / F release — Charged Shot release or tap fire
     const digitMap = {

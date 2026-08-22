@@ -4,7 +4,8 @@
  *
  * Hold Q → mode radial (↑ combat · ↓ harvest)
  * Tap Q · combat → dual weapon loadout swap (Weapon 1 ↔ Weapon 2 · skills · loco)
- * Tap Q · harvest → return to combat
+ * Tap Q · harvest → equip tool for the closest harvest node
+ * Combat F → class skill 0 · Combat R tap → class item · Hold R → class radial / skill tree
  * Hold R (harvest) → tool radial
  * Tap R (harvest) → draw last tool (default pick) — auto stow weapon on harvest enter
  * F harvest → nearest node for tool in hand
@@ -18,7 +19,7 @@
  */
 
 /** @typedef {'combat'|'harvest'} ActivityMode */
-/** @typedef {'none'|'mode'|'tool'} RadialKind */
+/** @typedef {'none'|'mode'|'tool'|'mount'} RadialKind */
 
 export const ACTIVITY_MODES = Object.freeze(['combat', 'harvest']);
 
@@ -55,6 +56,13 @@ export const HARVEST_TOOL_RADIAL = Object.freeze([
   { id: 'back_slot', label: 'Back', glyph: 'Bk', hint: 'windsurf', color: '#b0c8ff', weaponId: null }
 ]);
 
+/** Hold-M mount / back-slot wedges. */
+export const MOUNT_BACK_RADIAL = Object.freeze([
+  { id: 'horse', label: 'Horse', glyph: 'Hs', hint: 'land', color: '#c8a060' },
+  { id: 'windsurf', label: 'Windsurf', glyph: 'Ws', hint: 'water', color: '#70c8e8' },
+  { id: 'back_none', label: 'Stow', glyph: 'Bk', hint: 'back off', color: '#8890a0' }
+]);
+
 /** Hold duration (s) before radial opens. Tap under this = toggle / draw last. */
 export const RADIAL_HOLD_S = 0.18;
 
@@ -69,6 +77,24 @@ export function nextActivityMode(mode) {
  * Map tool radial id → harvest class preferences.
  * @param {string} toolId
  */
+/**
+ * Node def.tool (pickaxe/axe/hand/…) → Hold-R harvest tool id.
+ * @param {{ tool?: string, classId?: string }|null} def
+ */
+export function harvestToolIdForNodeDef(def) {
+  const t = String(def?.tool || def?.toolId || '').toLowerCase();
+  if (t === 'pickaxe' || t === 'pick' || t === 'mine') return 'pick';
+  if (t === 'axe' || t === 'hatchet' || t === 'chop') return 'hatchet';
+  if (t === 'knife' || t === 'sickle' || t === 'scythe') return 'knife';
+  if (t === 'hand' || t === 'herb') return 'hand';
+  if (t === 'shovel') return 'shovel';
+  const cls = String(def?.classId || '').toLowerCase();
+  if (cls === 'ore' || cls === 'rock') return 'pick';
+  if (cls === 'wood') return 'hatchet';
+  if (cls === 'herb' || cls === 'fiber') return 'hand';
+  return 'pick';
+}
+
 export function toolPreferClasses(toolId) {
   switch (toolId) {
     case 'pick':
