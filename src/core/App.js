@@ -3,6 +3,7 @@ import { Vector3, MathUtils } from 'three';
 import { Renderer } from './Renderer.js';
 import { Time } from './Time.js';
 import { CameraRig } from './CameraRig.js';
+import { PointerLockManager } from './PointerLockManager.js';
 import { frame } from './FrameUniforms.js';
 
 import { Environment } from '../world/Environment.js';
@@ -160,6 +161,7 @@ export class App {
     this.renderer = new Renderer(canvas);
     this.rig = new CameraRig(canvas);
     this.camera = this.rig.camera;
+    this.pointerLock = new PointerLockManager(canvas);
 
     this.environment = new Environment(this.renderer, this.camera);
     this.scene = this.environment.scene;
@@ -1641,14 +1643,15 @@ export class App {
   }
 
   /**
-   * Focus ON = remove OS mouse; mouse becomes look + center crosshair aim.
-   * Focus OFF = unlock cursor for free select / UI.
+   * Focus ON = RMB controls pointer lock; mouse becomes look + center crosshair.
+   * Focus OFF = force unlock + show cursor for free select / UI.
    * @param {boolean} focusOn
    */
   _applyMouseLockForFocus(focusOn) {
     document.body?.classList.toggle('focus-aim', !!focusOn);
     if (!focusOn) {
-      if (document.pointerLockElement) document.exitPointerLock?.();
+      // Force unlock when focus toggles OFF
+      this.pointerLock?.forceUnlock();
       setCursorIntent('select', {
         force: true,
         label: 'Free aim',
@@ -1658,26 +1661,8 @@ export class App {
       this.hud.setCrosshairVisible?.(false);
       return;
     }
-    // Hide cursor + tip; screen-center crosshair is the reticle.
-    // setCursorIntent('none') already writes the canvas cursor — one writer.
+    // Focus ON: hide cursor + show crosshair. RMB down will request lock.
     setCursorIntent('none', { force: true, tooltip: false });
-    if (this.canvas) {
-      // Pointer lock (RMB toggle is a user gesture). Fallback: free mouse delta look.
-      const tryLock = () => {
-        try {
-          this.canvas.requestPointerLock?.();
-        } catch {
-          /* policy */
-        }
-      };
-      tryLock();
-      // Retry once after tick if browser delayed grant
-      window.setTimeout(() => {
-        if (this.combatFocus?.focusEnabled && document.pointerLockElement !== this.canvas) {
-          tryLock();
-        }
-      }, 40);
-    }
     this.hud.setCrosshairVisible?.(true);
   }
 
@@ -2730,6 +2715,7 @@ export class App {
     this.environment.dispose();
     this.vfxStudio?.dispose?.();
     this.editor.dispose();
+    this.pointerLock?.dispose();
     this.rig.dispose();
     this.renderer.dispose();
   }
