@@ -399,7 +399,7 @@ export class CameraRig {
       ? (cam.focusShoulderOffset ?? cam.shoulderOffset ?? 0.8)
       : (cam.shoulderOffset ?? 0.72);
 
-    // Look target: chest + optional soft lock + ability frame
+    // Look target: chest ONLY (no shoulder offset in aim point)
     _desiredTarget.copy(this.anchor);
     _desiredTarget.y += cam.targetHeight;
 
@@ -407,9 +407,9 @@ export class CameraRig {
     // True right vector is forward×up = (-cos yaw, 0, sin yaw); the previous
     // (cos, 0, -sin) was up×forward = LEFT, so "+1 right" rode the left
     // shoulder and the character sat right of centre — backwards.
+    // Shoulder offset affects camera POSITION, not look target (Conan style).
     const side = Math.sign(cam.shoulderSide ?? 1) || 1;
     _shoulder.set(-Math.cos(yaw) * shoulder * side, 0, Math.sin(yaw) * shoulder * side);
-    _desiredTarget.add(_shoulder);
 
     if (this.focusWeight > 0.05) {
       _desiredTarget.lerp(this.focus, Math.min(0.45, this.focusWeight * cam.autoFrame));
@@ -427,13 +427,14 @@ export class CameraRig {
       _desiredTarget.lerp(_soft, softW);
     }
 
-    // Spherical offset behind shoulder pivot (ref grudge-third-person-controller)
+    // Spherical offset behind shoulder pivot + lateral shoulder shift (Conan style).
+    // Camera rides to the right shoulder while looking at chest.
     const cosP = Math.cos(pitch);
     const sinP = Math.sin(pitch);
     _desiredPos.set(
-      _desiredTarget.x - Math.sin(yaw) * dist * cosP,
+      _desiredTarget.x - Math.sin(yaw) * dist * cosP + _shoulder.x,
       _desiredTarget.y + Math.sin(pitch) * dist * 0.92 + cam.targetHeight * 0.15,
-      _desiredTarget.z - Math.cos(yaw) * dist * cosP
+      _desiredTarget.z - Math.cos(yaw) * dist * cosP + _shoulder.z
     );
 
     if (snap || dt <= 0) {

@@ -93,17 +93,20 @@ export const ANIM_PACKS = {
     attack1: [
       'sword_shield/intoout',
       'sword_shield/one-hand-combo-hit1',
-      'sword_shield/sword and shield slash'
+      'sword_shield/sword and shield slash',
+      'sword_shield/drake_attack'
     ],
     attack2: [
       'sword_shield/st1able-sword-inward-slash',
       'sword_shield/one-hand-combo-hit2',
-      'sword_shield/sword and shield slash'
+      'sword_shield/sword and shield slash',
+      'sword_shield/drake_attack2'
     ],
     attack3: [
       'sword_shield/11upward-thrust',
       'sword_shield/one-hand-combo-hit3',
-      'sword_shield/sword and shield slash'
+      'sword_shield/sword and shield slash',
+      'sword_shield/drake_attack3'
     ],
     /** Finisher (was misused as light attack): lunge / jump-dash */
     attack: ['sword_shield/sword and shield attack'],

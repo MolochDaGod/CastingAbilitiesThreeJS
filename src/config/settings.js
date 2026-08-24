@@ -339,6 +339,7 @@ export const settings = {
     /** Nature vine lash — green earth surge + heal aura */
     natureVineCount: 3,
     natureHealAura: true,
+    natureWhipMaxM: 15,
     /** Storm defensive shield aura (wall / guard skills) */
     stormShieldRadius: 2.4,
     stormShieldDuration: 1.8,

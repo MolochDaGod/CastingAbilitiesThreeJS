@@ -1,4 +1,12 @@
-import { Color, Vector3 } from 'three';
+import {
+  Color,
+  Vector3,
+  Mesh,
+  IcosahedronGeometry,
+  OctahedronGeometry,
+  TetrahedronGeometry,
+  MeshPhysicalMaterial,
+} from 'three';
 import { BurstMode } from '../effects/BurstSphere.js';
 import { DecalType } from '../effects/GroundDecals.js';
 import { ParticleShape } from '../particles/ParticleSystem.js';
@@ -113,19 +121,20 @@ export class VfxDirector {
         this._flash(color, 0.07);
         break;
       case 'moon_beam': {
-        const beam = aim.clone();
-        beam.y = 0.08;
-        this._auraRing(beam, color, 1.7, intensity);
-        this._castAura(beam.clone().setY(1.3), color, intensity);
-        this._burst(beam.clone().setY(2.0), color, 22, 2.6, intensity);
-        this._nova(beam.clone().setY(1.5), 0xe8f4ff, intensity * 0.9);
-        this._flash(color, 0.05);
+        // Instant caster DoT + dim ground mark (melee impact location).
+        const beam = (opts.aim || opts.impact || origin).clone();
+        beam.y = 0.06;
+        this._auraRing(beam, color, 1.15, intensity * 0.35);
+        this._castAura(cast, color, intensity * 0.28);
+        this._burst(beam.clone().setY(0.35), color, 10, 1.4, intensity * 0.3);
+        this._flash(color, 0.02);
         break;
       }
       case 'frost_wave':
         this._frostPlate(ground, 4.4, color, intensity * 1.15);
         this._shockwave(ground, color, 4.6, intensity);
         this._burst(front, color, 26, 3.6, intensity);
+        this._iceShells(opts.targets || [front], color);
         this.ctx.shake?.add(0.035 * intensity, 0.85, 18);
         break;
       case 'fire_aura':
@@ -139,6 +148,9 @@ export class VfxDirector {
         this._dustBurst(ground, 36, intensity);
         this._burst(front, 0xc4a574, 28, 4.0, intensity);
         this.ctx.shake?.add(0.055 * intensity, 0.95, 16);
+        break;
+      case 'nature_whip':
+        this._deployVineLash(presentationFor('nature'), ground, aim, fwd, intensity, settings.presentation || {});
         break;
       case 'fireball':
         this._castAura(cast, color, intensity * 0.9);
@@ -297,9 +309,16 @@ export class VfxDirector {
       this._deployGroundFlood(pres, ground, aim, intensity, p);
     }
 
-    // Nature school = EarthAbility green + vine/earth_surge (catalog skills only)
+    // Nature school = 15 m vine whip from hand + EarthWave rocks + heal flower
     if (pres.style === 'vineLash' || el === 'nature' || opts.presentation === 'vineLash') {
-      this._deployVineLash(pres, ground, aim, fwd, intensity, p);
+      this.deploy('nature_whip', {
+        origin,
+        forward: fwd,
+        aim,
+        intensity,
+        color: pres.color,
+        handWorld: pose.handWorld || pose.origin
+      });
     }
 
     // Storm: offense = narrow chain lightning + wind residual; wall/shield = defensive aura
@@ -624,34 +643,46 @@ export class VfxDirector {
     }, delay);
   }
 
-  /** Nature school (catalog): green earth_surge + vine lashes + heal aura. */
+  /** Nature vine whip: 15 m spline from hand, EarthWave rocks, AOE heal flower at tip. */
   _deployVineLash(pres, ground, aim, fwd, intensity, p) {
-    const n = Math.max(1, Math.round(p.natureVineCount ?? 3));
     const green = pres.color;
     const dark = pres.colorB || 0x2d6b3a;
-    // Underground rumble (soft)
+    const maxM = Math.min(15, p.natureWhipMaxM ?? 15);
+    const hand = p.handWorld?.clone?.() || new Vector3(ground.x, 1.25, ground.z);
+    const tip = aim.clone();
+    tip.y = 0.06;
+    const span = new Vector3().subVectors(tip, hand);
+    if (span.length() > maxM) {
+      span.setLength(maxM);
+      tip.copy(hand).add(span);
+      tip.y = 0.06;
+    }
     this.deploy('earth_surge', {
       origin: ground,
       forward: fwd,
-      aim,
+      aim: tip,
       intensity: intensity * 0.85,
       color: green
     });
-    for (let i = 0; i < n; i++) {
-      const t = 80 + i * 110;
-      const side = new Vector3(-fwd.z, 0, fwd.x).multiplyScalar((i - (n - 1) / 2) * 0.9);
-      const root = ground.clone().add(side).addScaledVector(fwd, 1.2 + i * 0.8);
+    const steps = 6;
+    for (let i = 1; i <= steps; i++) {
+      const u = i / steps;
+      const pt = hand.clone().lerp(tip, u);
+      pt.y = 0.05 + Math.sin(u * Math.PI) * 0.35;
       setTimeout(() => {
-        // Lash: shockwave + burst rising like water jet but earth/green
-        this._shockwave(root, green, 1.6, intensity * 0.8);
-        this._dustBurst(root, 18, intensity * 0.7);
-        this._burst(root.clone().setY(1.1), green, 16, 3.2, intensity);
-        this._emitBurst('mote', root.clone().setY(0.8), 14, 2.4, dark);
-      }, t);
+        this._dustBurst(pt, 10, intensity * 0.55);
+        this._emitBurst('mote', pt.clone().setY(pt.y + 0.4), 8, 1.6, dark);
+      }, i * 55);
     }
+    setTimeout(() => {
+      this._shockwave(tip, green, 2.4, intensity);
+      this._burst(tip.clone().setY(0.9), green, 18, 2.8, intensity);
+      this._auraRing(tip, 0x8fe06a, 2.5, intensity * 0.75);
+      this._castAura(tip.clone().setY(0.7), 0xffe08a, intensity * 0.45);
+      this._emitBurst('mote', tip.clone().setY(0.5), 20, 1.8, green);
+    }, 380);
     if (pres.healAura && p.natureHealAura !== false) {
-      this._auraRing(ground, green, 2.6, intensity * 0.7);
-      this._castAura(ground.clone().setY(1.0), green, intensity * 0.55);
+      this._auraRing(tip, green, 2.8, intensity * 0.7);
     }
   }
 
@@ -748,6 +779,51 @@ export class VfxDirector {
       colorA: new Color(color),
       colorB: new Color(color).multiplyScalar(0.6)
     });
+  }
+
+  _iceShells(targets, _color) {
+    const scene = this.ctx.scene;
+    if (!scene || !targets?.length) return;
+    const ice = new Color(0xd4f0ff);
+    const edge = new Color(0x8ec8e8);
+    for (const t of targets) {
+      const origin = t.clone ? t.clone() : new Vector3(t.x ?? t[0], t.y ?? t[1] ?? 0.2, t.z ?? t[2]);
+      for (let i = 0; i < 9; i++) {
+        const geo =
+          i % 3 === 0
+            ? new IcosahedronGeometry(0.5, 0)
+            : i % 3 === 1
+              ? new OctahedronGeometry(0.5, 0)
+              : new TetrahedronGeometry(0.55, 0);
+        const mat = new MeshPhysicalMaterial({
+          color: ice,
+          emissive: edge,
+          emissiveIntensity: 0.08,
+          roughness: 0.2,
+          metalness: 0.04,
+          transmission: 0.7,
+          thickness: 0.3,
+          transparent: true,
+          opacity: 0.26,
+          depthWrite: false,
+        });
+        const mesh = new Mesh(geo, mat);
+        const a = (i / 9) * Math.PI * 2;
+        mesh.position.set(
+          origin.x + Math.cos(a) * 0.32,
+          origin.y + 0.4 + (i % 4) * 0.18,
+          origin.z + Math.sin(a) * 0.32,
+        );
+        mesh.scale.setScalar(0.1 + (i % 3) * 0.04);
+        mesh.rotation.set(a, i, a * 0.5);
+        scene.add(mesh);
+        window.setTimeout(() => {
+          scene.remove(mesh);
+          geo.dispose();
+          mat.dispose();
+        }, 1800);
+      }
+    }
   }
 
   _frostPlate(ground, radius, color, intensity = 1) {

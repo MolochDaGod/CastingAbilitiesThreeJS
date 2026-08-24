@@ -34,7 +34,16 @@
   "character": {
     "playKit": "toonKitPlay / loadRaceKit",
     "mixer": 1,
-    "siHumanM": 1.8
+    "siHumanM": 1.8,
+    "feet": "placeRootFeetAt Vector3/Matrix4 — never root.y = terrain (pelvis)",
+    "footIk": "beginFrame → mixer.update → apply · same heightAt as Rapier CCT"
+  },
+  "projectiles": {
+    "bullet": "pistolBulletVfx + SkillProjectileSystem",
+    "linear": "elementalLinearCast + LinearSkillBridge",
+    "bend": "pathMode wall/spikes/stream Ability curve",
+    "bind": "compileProductionWeaponSkill.travelMode + procs[] + editable knobs",
+    "edit": "settings.effect / effectVariants / skills/production/<id>.json"
   },
   "export": {
     "module": "src/sdk/castingLabSdk.js",

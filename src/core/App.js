@@ -1925,6 +1925,7 @@ export class App {
       this.walk.setPhysics?.(this.physics);
       const y0 = this.islandTerrain?.sample?.(0, 0) ?? 0;
       this.physics.setPlayerFeet(0, y0, 0);
+      this.character?.setTerrainHeightAt?.((x, z) => this.islandTerrain?.sample?.(x, z) ?? 0);
     } catch (err) {
       console.warn('[App] Rapier init failed — kinematic fallback', err);
     }
@@ -2136,6 +2137,7 @@ export class App {
     {
       const ySpawn = this.islandTerrain?.sample?.(0, 0) ?? this.physics?.sampleLandY?.(0, 0) ?? 0;
       this.physics?.setPlayerFeet?.(0, ySpawn, 0);
+      this.character.setTerrainHeightAt?.((x, z) => this.islandTerrain?.sample?.(x, z) ?? 0);
       this.character.placeAt?.(0, ySpawn, 0);
       this.rig.snapToCharacter?.(0, ySpawn, 0, this.character.facing);
       this.rig.setAnchor(0, ySpawn, 0);

@@ -26,9 +26,9 @@ import {
   Vector3
 } from 'three';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
-import { HUMAN_HEIGHT_M } from '../config/grudge6SSOT.js';
+import { HUMAN_HEIGHT_M, WARLORDS_PLAY_CONTRACT_VERSION } from '../config/grudge6SSOT.js';
 
-export const WARLORDS_PLAY_CONTRACT_VERSION = '2026-08-07.harden.1';
+export { WARLORDS_PLAY_CONTRACT_VERSION };
 
 const _p = new Vector3();
 
@@ -300,6 +300,11 @@ export function deployToonPlayKit(gltfScene, opts = {}) {
   kit.userData.playPath = 'objectstore-loadRaceKit-parity';
   kit.userData.grudge6Play = true;
   kit.userData.warlordsPlayContract = WARLORDS_PLAY_CONTRACT_VERSION;
+  kit.userData.footIk = {
+    enabled: true,
+    order: 'beginFrame → mixer.update → apply',
+    sampler: 'same-height-field',
+  };
 
   // Bind pose as loaded — never multi-pose
   kit.traverse((o) => {

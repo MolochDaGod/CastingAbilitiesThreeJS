@@ -95,7 +95,7 @@ export const ELEMENT_PRESENTATION = {
     colorB: 0x2d6b3a,
     castEffectId: 'earth_surge',
     travelEffectId: 'earth_surge',
-    impactEffectId: 'earth_surge',
+    impactEffectId: 'nature_whip',
     healAura: true,
     learn:
       'Catalog nature school: EarthAbility + RockMaterial (green). Vine lash / earth_surge. No invented trap skills.'

@@ -457,6 +457,39 @@ export function compileProductionWeaponSkill(catalogSkill, ctx = {}) {
     useOrbProjectile: !!useOrb,
     useBulletProjectile: !!useBullet,
     projectileKind: useBullet ? 'bullet' : useOrb ? 'orb' : null,
+    travelMode: useBullet
+      ? 'bullet'
+      : staffB?.pathMode === 'stream' || castPlan?.useLinear
+        ? 'linear'
+        : staffB?.pathMode === 'wall' || staffB?.pathMode === 'spikes' || /curve|bend|arc/i.test(`${staffB?.pathMode || ''} ${catalogSkill.id}`)
+          ? 'bend'
+          : style === 'ranged'
+            ? 'linear'
+            : null,
+    procs: (() => {
+      const list = [];
+      const blob = effects.join(' ').toLowerCase();
+      if (/proc|on.?hit|chance/i.test(blob) || ov.procChance) {
+        list.push({
+          on: 'hit',
+          chance: Number(ov.procChance || 0.2),
+          travelMode: castPlan?.useLinear ? 'linear' : 'bend',
+          layer: castPlan?.layers?.[0] || 'mesh_projectile',
+          editable: true
+        });
+      }
+      if (ov.procs && Array.isArray(ov.procs)) list.push(...ov.procs);
+      return list;
+    })(),
+    editable: {
+      intensity: true,
+      speed: true,
+      size: true,
+      color: true,
+      aoe: true,
+      variants: !!castPlan?.variantHint
+    },
+    variantHint: castPlan?.variantHint || ov.variantHint || null,
     projectile: useBullet
       ? 'bullet'
       : catalogSkill.projectile || null,

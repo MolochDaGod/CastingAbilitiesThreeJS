@@ -274,6 +274,7 @@ export class AdminHub {
           <select data-race>${raceOpts || '<option value="WK">WK</option>'}</select>
         </label>
         <div class="admin-btn-row">
+          <button type="button" class="admin-btn" data-act="verify-kit">Verify kit / mesh swap</button>
           <button type="button" class="admin-btn admin-btn--primary" data-act="open-lab">Main Panel · Character</button>
           <button type="button" class="admin-btn" data-act="mode-combat">Combat</button>
           <button type="button" class="admin-btn" data-act="mode-harvest">Harvest</button>
@@ -317,6 +318,15 @@ export class AdminHub {
   }
 
   _bindPlayer(body) {
+    body.querySelector('[data-act="verify-kit"]')?.addEventListener('click', () => {
+      const api = this.character?.meshCorrect || window.__castingMeshCorrect;
+      const r = api?.verify?.() || { ok: false, errors: ['no-worker'] };
+      const msg = r.ok
+        ? `Kit OK Bip001 · ${r.warnings?.join(', ') || 'no warns'}`
+        : `Kit FAIL: ${(r.errors || []).join('; ')}`;
+      this.onToast(msg);
+      console.info('[mesh-correct]', r);
+    });
     body.querySelector('[data-act="open-lab"]')?.addEventListener('click', () => {
       this.setOpen(false);
       window.__castingInventory?.openTab?.('character');

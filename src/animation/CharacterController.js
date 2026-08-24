@@ -52,11 +52,15 @@ import {
   countSkeletons
 } from '../character/toonKitPlay.js';
 import { RideIK } from '../character/RideIK.js';
+import { createFootGrounder, samplerFromHeightAt, FLAT_FOOT_SAMPLER, placeRootFeetAt } from '../character/grudge6-foot-ik.js';
 import { BackSlotEquip } from '../character/BackSlotEquip.js';
 import { LAYER } from '../core/Layers.js';
 import { settings } from '../config/settings.js';
 import { disposeObject } from '../utils/dispose.js';
 import { loadBakedClipJson, rematchClipToSkeleton } from './bakeClip.js';
+import { verifyMeshSwap, verifyPlayKit } from '../character/meshSwapGuard.js';
+import { safeCrossFade } from './blendCorrect.js';
+import { attachMeshCorrectWorker } from '../api/meshCorrectWorker.js';
 import {
   loadFbxClipRematched,
   FLIP_FBX_URLS,
@@ -136,6 +140,7 @@ export class CharacterController {
     this.sitting = null;
     /** @type {import('../character/RideIK.js').RideIK|null} */
     this.rideIk = null;
+    this.footIk = null;
     /** @type {import('../character/BackSlotEquip.js').BackSlotEquip|null} */
     this.backSlot = null;
     /**
@@ -305,8 +310,15 @@ export class CharacterController {
 
     // Single AnimationMixer — Bip001 packs, position tracks stripped, bones-only rematch
     this.mixer = new AnimationMixer(kit);
+    this.footIk = createFootGrounder({ Vector3, Quaternion });
+    this.footIk.bind(kit);
+    this.footIk.setGroundSampler(FLAT_FOOT_SAMPLER);
+    kit.userData.footIk = { enabled: this.footIk.isBound, bound: this.footIk.isBound };
     this.actions.clear();
     this._boundPacks.clear();
+    this.meshCorrect = attachMeshCorrectWorker(this);
+    const kitGate = verifyPlayKit(kit);
+    if (!kitGate.ok) console.warn('[CharacterController] kit verify', kitGate.errors);
 
     // Critical path: primary pack only (idle/walk/run/cast) so loader can finish.
     // combat_mobility + longbow + reactions are large and 404-heavy — load async.
@@ -397,10 +409,13 @@ export class CharacterController {
     return out;
   }
 
-  /** Snap root feet to world XZ (physics / spawn). No-op while parented to board. */
+  /** Snap **soles** to world (x, terrainY, z). Never set root.y = terrain (pelvis-as-feet). */
   placeAt(x, y, z) {
     if (this._rideParented || this._rideActive) return;
-    this.root.position.set(x, y ?? 0, z);
+    this.root.position.x = x;
+    this.root.position.z = z;
+    const terrainY = Number.isFinite(y) ? y : 0;
+    placeRootFeetAt(this.root, terrainY, { Vector3, Box3 });
   }
 
   diagnoseLook() {
@@ -1001,6 +1016,11 @@ export class CharacterController {
     delete clean.carry;
     delete clean.showUtility;
     const meshIds = loadoutToMeshIds(race.prefix, clean);
+    const swapGate = verifyMeshSwap(this.model, meshIds);
+    if (!swapGate.ok) {
+      console.warn('[CharacterController] blocked mesh swap', swapGate.errors);
+      return { matched: 0, missing: swapGate.errors, blocked: true };
+    }
     // Prefer EquipmentManager exclusive apply (slot-safe) then mesh_ids safety net
     let report = this.equipment?.applyLoadout?.(clean);
     if (!report || (report.matched || 0) < 2) {
@@ -1212,13 +1232,14 @@ export class CharacterController {
     }
 
     if (this.current && this.current !== next && fade > 0 && !opts.exclusive) {
-      next.crossFadeFrom(this.current, fade, true);
+      safeCrossFade(next, this.current, fade, { exclusive: false });
     } else if (opts.exclusive) {
-      next.fadeIn(fade);
+      safeCrossFade(next, this.current, fade, { exclusive: true });
     } else if (this.current && this.current !== next && fade > 0) {
-      next.crossFadeFrom(this.current, fade, true);
+      safeCrossFade(next, this.current, fade, { exclusive: false });
+    } else {
+      next.play();
     }
-    next.play();
     this.current = next;
   }
 
@@ -1886,6 +1907,15 @@ export class CharacterController {
     this.rideIk.setTargets(worldSockets);
   }
 
+  /** Rebind foot IK sampler. Same heightAt as Rapier / body Y. null = flat y=0. */
+  setTerrainHeightAt(heightAt) {
+    if (!this.footIk) return;
+    this.footIk.setGroundSampler(
+      heightAt ? samplerFromHeightAt(heightAt, { withNormals: true }) : FLAT_FOOT_SAMPLER,
+    );
+    this.footIk.bind(this.model || this.tilt);
+  }
+
   setPose(pose) {
     // Standing stance only on Bip001 (no Mixamo lotus)
     settings.character.pose = 'idle';
@@ -2005,7 +2035,9 @@ export class CharacterController {
     }
 
     this.mixer.timeScale = settings.global.animationSpeed;
+    this.footIk?.beginFrame?.();
     this.mixer.update(dt);
+    this.footIk?.apply?.(dt);
 
     // Auto sheath / unsheath: traversal · mount · air · mobility vs combat draw
     // oneShotActive only for combat flourishes (not jump/dodge timers)

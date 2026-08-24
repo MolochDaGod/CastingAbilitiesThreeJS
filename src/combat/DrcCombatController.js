@@ -332,6 +332,20 @@ export class DrcCombatController {
 
   setPhysics(physics) {
     this.physics = physics;
+    const sample = physics?.landHeightAt;
+    this.character?.setTerrainHeightAt?.(typeof sample === 'function' ? sample : null);
+  }
+
+  /** World land Y under the hero (same field as Rapier + foot IK). */
+  _groundY() {
+    const p = this.character?.root?.position;
+    if (!p) return 0;
+    const fn = this.physics?.landHeightAt;
+    if (typeof fn === 'function') {
+      const y = fn(p.x, p.z);
+      if (Number.isFinite(y)) return y;
+    }
+    return 0;
   }
 
   setVfx(vfx) {
@@ -917,7 +931,7 @@ export class DrcCombatController {
       const vz = this._dodgeVel.z;
       if (this.physics?.ready && this._usePhysics) {
         const pose = this.physics.movePlayer(vx, vz, dt);
-        this.character.root.position.set(pose.x, pose.y, pose.z);
+        this.character.placeAt(pose.x, pose.y, pose.z);
         this._grounded = !!pose.grounded;
       } else {
         this.character.root.position.x += vx * dt;
@@ -1095,7 +1109,7 @@ export class DrcCombatController {
     let sampleVy = this._kinVy || 0;
     if (this.physics?.ready && this._usePhysics) {
       const pose = this.physics.movePlayer(vx, vz, dt);
-      this.character.root.position.set(pose.x, pose.y, pose.z);
+      this.character.placeAt(pose.x, pose.y, pose.z);
       // Prefer physics vertical speed when available
       if (Number.isFinite(pose.vy)) sampleVy = pose.vy;
       else if (Number.isFinite(pose.velocityY)) sampleVy = pose.velocityY;
@@ -1151,6 +1165,10 @@ export class DrcCombatController {
         this.character.root.position.z += vz * dt;
       }
       this._integrateKinematicJump(dt, keys);
+      if (this._grounded) {
+        const p = this.character.root.position;
+        this.character.placeAt(p.x, this._groundY(), p.z);
+      }
       if (!this._grounded) {
         this._airTime = (this._airTime || 0) + dt;
         this._lastVy = this._kinVy || 0;
@@ -1386,8 +1404,9 @@ export class DrcCombatController {
     if (this._kinVy === undefined) this._kinVy = 0;
     if (this._kinGravityScale === undefined) this._kinGravityScale = 1;
     const g = -9.81 * this._kinGravityScale;
+    const gy = this._groundY();
     if (this._grounded && this._kinVy <= 0) {
-      this.character.root.position.y = 0;
+      this.character.placeAt(this.character.root.position.x, gy, this.character.root.position.z);
       this._kinVy = 0;
       this._jumpsLeft = settings.drc?.maxJumps ?? 2;
       this._kinGravityScale = 1;
@@ -1395,9 +1414,9 @@ export class DrcCombatController {
     }
     this._kinVy += g * dt;
     this.character.root.position.y += this._kinVy * dt;
-    if (this.character.root.position.y <= 0) {
+    if (this.character.root.position.y <= gy + 0.04) {
       const impactVy = this._kinVy;
-      this.character.root.position.y = 0;
+      this.character.placeAt(this.character.root.position.x, gy, this.character.root.position.z);
       this._kinVy = 0;
       this._grounded = true;
       this._jumpsLeft = settings.drc?.maxJumps ?? 2;

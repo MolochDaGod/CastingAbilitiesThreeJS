@@ -58,6 +58,14 @@ export const VFX_CATALOG = Object.freeze([
     tags: ['earth', 'wave', 'slam']
   },
   {
+    id: 'nature_whip',
+    name: 'Nature Whip',
+    category: 'earth',
+    color: 0x6bbf4a,
+    description: '15 m vine whip from the hand bone · EarthWave rocks · AOE heal flower.',
+    tags: ['nature', 'vine', 'whip', 'heal', 'spline']
+  },
+  {
     id: 'fireball',
     name: 'Fireball',
     category: 'fire',
@@ -204,6 +212,7 @@ export const VFX_SANDBOX_SHORTCUTS = Object.freeze([
   { key: 'F', code: 'KeyF', label: 'Frost Wave', effectId: 'frost_wave' },
   { key: 'G', code: 'KeyG', label: 'Aura Ring', effectId: 'fire_aura' },
   { key: 'T', code: 'KeyT', label: 'Earth Surge', effectId: 'earth_surge' },
+  { key: 'U', code: 'KeyU', label: 'Nature Whip', effectId: 'nature_whip' },
   { key: 'C', code: 'KeyC', label: 'Fireball', effectId: 'fireball' },
   { key: 'L', code: 'KeyL', label: 'Chain Lightning', effectId: 'chain_lightning' }
 ]);
