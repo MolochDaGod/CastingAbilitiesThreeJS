@@ -1,35 +1,25 @@
 /**
- * Pointer lock manager — RMB-driven lock/unlock with read state.
+ * Pointer lock manager — focus-driven lock/unlock with read state.
  *
- * Rules:
- * - RMB down (focus enabled) → request lock
- * - RMB up → exit lock
- * - Focus toggle OFF → immediate exit
+ * Rules (simple):
+ * - Focus ON → request lock + stay locked
+ * - Focus OFF → exit lock immediately
  * - Lock state always readable via isLocked
- *
- * Handles browser policy delays and re-acquisition gracefully.
+ * - Handles browser policy delays gracefully (single 40ms retry)
  */
 
 export class PointerLockManager {
   constructor(canvas) {
     this.canvas = canvas;
     this.isLocked = false;
-    this._rmbDown = false;
     this._lockAttempts = 0;
-    this._maxRetries = 3;
+    this._maxRetries = 1; // One retry is enough
 
-    this._onPointerDown = this._onPointerDown.bind(this);
-    this._onPointerUp = this._onPointerUp.bind(this);
     this._onLockChange = this._onLockChange.bind(this);
     this._onLockError = this._onLockError.bind(this);
 
     document.addEventListener('pointerlockchange', this._onLockChange);
     document.addEventListener('pointerlockerror', this._onLockError);
-
-    if (canvas) {
-      canvas.addEventListener('pointerdown', this._onPointerDown, { capture: true });
-      document.addEventListener('pointerup', this._onPointerUp, { capture: true });
-    }
   }
 
   _onLockChange() {
@@ -43,20 +33,25 @@ export class PointerLockManager {
     this._lockAttempts++;
   }
 
-  _onPointerDown(e) {
-    if (e.button !== 2) return; // Only RMB
-    this._rmbDown = true;
-
-    // RMB down + focus → request lock
-    const focusEnabled = !!window.__castingApp?.combatFocus?.focusEnabled;
-    if (focusEnabled && !this.isLocked && this._lockAttempts < this._maxRetries) {
-      this._requestLock();
-    }
+  /**
+   * Engage lock when focus mode activates.
+   * Retries once (40ms) if browser delayed grant.
+   */
+  engageLock() {
+    if (this.isLocked || this._lockAttempts >= this._maxRetries) return;
+    this._requestLock();
+    setTimeout(() => {
+      if (!this.isLocked && this._lockAttempts < this._maxRetries) {
+        this._requestLock();
+      }
+    }, 40);
   }
 
-  _onPointerUp(e) {
-    if (e.button !== 2) return; // Only RMB
-    this._rmbDown = false;
+  /**
+   * Disengage lock when focus mode deactivates.
+   */
+  disengageLock() {
+    this._lockAttempts = 0;
     this._unlock();
   }
 
@@ -79,28 +74,9 @@ export class PointerLockManager {
     }
   }
 
-  /**
-   * Force unlock (e.g. focus toggle OFF).
-   */
-  forceUnlock() {
-    this._rmbDown = false;
-    this._unlock();
-  }
-
-  /**
-   * Check if RMB is currently held.
-   */
-  isRmbDown() {
-    return this._rmbDown;
-  }
-
   dispose() {
-    this.forceUnlock();
+    this.disengageLock();
     document.removeEventListener('pointerlockchange', this._onLockChange);
     document.removeEventListener('pointerlockerror', this._onLockError);
-    if (this.canvas) {
-      this.canvas.removeEventListener('pointerdown', this._onPointerDown, { capture: true });
-      document.removeEventListener('pointerup', this._onPointerUp, { capture: true });
-    }
   }
 }

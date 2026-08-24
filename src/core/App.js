@@ -1643,15 +1643,14 @@ export class App {
   }
 
   /**
-   * Focus ON = RMB controls pointer lock; mouse becomes look + center crosshair.
-   * Focus OFF = force unlock + show cursor for free select / UI.
+   * Focus ON = engage pointer lock + center crosshair aim.
+   * Focus OFF = disengage lock + show cursor for free select / UI.
    * @param {boolean} focusOn
    */
   _applyMouseLockForFocus(focusOn) {
     document.body?.classList.toggle('focus-aim', !!focusOn);
     if (!focusOn) {
-      // Force unlock when focus toggles OFF
-      this.pointerLock?.forceUnlock();
+      this.pointerLock?.disengageLock();
       setCursorIntent('select', {
         force: true,
         label: 'Free aim',
@@ -1661,7 +1660,8 @@ export class App {
       this.hud.setCrosshairVisible?.(false);
       return;
     }
-    // Focus ON: hide cursor + show crosshair. RMB down will request lock.
+    // Focus ON: engage lock + hide cursor + show crosshair
+    this.pointerLock?.engageLock();
     setCursorIntent('none', { force: true, tooltip: false });
     this.hud.setCrosshairVisible?.(true);
   }
