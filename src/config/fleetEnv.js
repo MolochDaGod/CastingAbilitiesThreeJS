@@ -47,7 +47,7 @@ export const INFO_API = env('VITE_INFO_API', 'https://info.grudge-studio.com/api
  * Catalog JSON fetch order. Same Railway player DB is never involved.
  * 1. same-origin /api/info (casting rewrites)
  * 2. info.grudge-studio.com (definitions SSOT)
- * 3. objectstore.grudge-studio.com/api/v1 (Worker proxy of info.*)
+ * 3. same-origin /api/objectstore (Vercel rewrite → Worker /api/v1 → info.*)
  * Do not use github.io or pages.dev as catalog SSOT.
  * @param {string} file e.g. t0-weapons.json
  * @returns {string[]}
@@ -55,11 +55,10 @@ export const INFO_API = env('VITE_INFO_API', 'https://info.grudge-studio.com/api
 export function catalogJsonUrls(file) {
   const name = String(file || '').replace(/^\/+/, '');
   const info = String(INFO_API || '').replace(/\/+$/, '');
-  const os = String(OBJECTSTORE_URL || '').replace(/\/+$/, '');
   return [
     `/api/info/v1/${name}`,
     `${info}/${name}`,
-    `${os}/api/v1/${name}`
+    `/api/objectstore/v1/${name}`
   ];
 }
 
