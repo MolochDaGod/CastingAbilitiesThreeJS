@@ -37,6 +37,7 @@ import {
 } from '../config/assets.js';
 import { animPackForLoadout, activeWeaponSlot, packCombatBlurb, WEAPON_SLOT_TO_PACK } from '../config/weaponAnimPack.js';
 import { describeAnimLibrary, roleBlurb } from '../config/animLibrary.js';
+import { getAnimRoleBind, setAnimRoleBind } from '../config/animRoleBind.js';
 import { pistolTimeScale, FLINTLOCK_FIRE } from '../config/pistolAnimSsot.js';
 import { playTpsPistolClip, updateTpsPistolProp } from './tpsPistolProp.js';
 import { rifleGaitRoles } from '../config/rifleAnimSsot.js';
@@ -729,6 +730,35 @@ export class CharacterController {
     );
   }
 
+  /**
+   * Lab bind: put a pack clip on a role (session localStorage). Production still ANIM_PACKS.
+   * @param {string} role
+   * @param {string} clipRel e.g. sword_shield/zoro_dag1
+   */
+  async bindRoleClip(role, clipRel) {
+    const r = String(role || '').split(':').pop();
+    const rel = String(clipRel || '').replace(/\.json$/i, '');
+    if (!r || !rel || !this.model) return false;
+    const packId = this.animPackId || 'sword_shield';
+    setAnimRoleBind(packId, r, rel);
+    const urls = bakedClipUrlsForRole(rel);
+    const loopOnce = !/^(idle|walk|run|walkL|walkR|runL|runR|cast)$/i.test(r);
+    for (const url of urls) {
+      try {
+        const raw = await loadBakedClipJson(url);
+        raw.name = r;
+        const matched = rematchClipToSkeleton(this.model, raw, { stripPositions: true });
+        if (!matched.tracks.length) continue;
+        this._registerClip(r, matched, loopOnce ? LoopOnce : LoopRepeat);
+        console.info(`[CharacterController] bind ${r} ← ${rel}`);
+        return true;
+      } catch {
+        /* next url */
+      }
+    }
+    return false;
+  }
+
   /** Play a library clip by role name (one-shot for attack/block/jump). */
   playLibraryClip(role) {
     if (!role) return false;
@@ -1279,7 +1309,9 @@ export class CharacterController {
     for (const [role, rel] of Object.entries(pack)) {
       const name =
         this.actions.has(role) && packId !== this.animPackId ? `${packId}:${role}` : role;
-      const urls = bakedClipUrlsForRole(rel);
+      const ov = getAnimRoleBind(packId, role);
+      const relEntry = ov ? [ov, ...(Array.isArray(rel) ? rel : [rel])] : rel;
+      const urls = bakedClipUrlsForRole(relEntry);
       let loaded = false;
       /** @type {{ url: string, matched: import('three').AnimationClip }|null} */
       let fallbackNoHands = null;

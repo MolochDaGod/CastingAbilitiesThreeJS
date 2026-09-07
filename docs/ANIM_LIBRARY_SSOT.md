@@ -3,7 +3,7 @@
 **Code:** `src/config/animLibrary.js` · `src/config/assets.js` (`ANIM_PACKS`) · `src/config/weaponAnimPack.js`  
 **Play:** `src/animation/CharacterController.js` · mobility drive `src/combat/DrcCombatController.js`  
 **MM:** `src/combat/motionMath.js` · afterimage `src/vfx/DodgeAfterimage.js`  
-**UI:** Showcase **Anims** tab (`O` / Show) — roles grouped by family  
+**UI:** Showcase **Anims** (`O` / Show) — **actions left · clips right**. Click action, click clip to session-bind (`animRoleBind.js` localStorage). Production bind stays `ANIM_PACKS`.  
 
 Use this language in code comments, toasts, agent notes, and fleet ports.  
 **Do not invent parallel role names or a second mixer.**
@@ -109,7 +109,7 @@ Blend knobs (same folder): `gaitBlend` · `combatBlend` · `overlayBlend`.
 2. Register meta in animLibrary.js ANIM_ROLE_META (+ MOBILITY_BINDINGS if input)
 3. roleMap LoopOnce/LoopRepeat in CharacterController._bindPack
 4. play* helper or DRC poll (do not one-off in App.js)
-5. Showcase Anims tab picks it up via listAnimRoles / getAnimLibrary
+5. Showcase Anims (actions · clips) picks it up via `listDesiredRoles` / `listPackClipRels`
 6. Document in this file + CASTING_LAB_SSOT if fleet-facing
 7. Smoke casting.grudge-studio.com / casting-abilities-threejs.vercel.app
 ```
