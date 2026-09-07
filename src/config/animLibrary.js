@@ -170,20 +170,38 @@ export const ANIM_ROLE_META = Object.freeze({
   twoHandAttack: {
     family: 'combat',
     channel: 'oneShot',
-    label: '2H combo 1 (Ken strike)',
-    input: 'LMB · hammer/axe'
+    label: '2H combo 1 (Zoro 3001)',
+    input: 'LMB · hammer/axe/greatsword'
   },
   twoHandAttack2: {
     family: 'combat',
     channel: 'oneShot',
-    label: '2H combo 2 (Ken slash)',
-    input: 'LMB click 2 · hammer/axe'
+    label: '2H combo 2 (Zoro 3011)',
+    input: 'LMB click 2 · hammer/axe/greatsword'
   },
   twoHandAttack3: {
     family: 'combat',
     channel: 'oneShot',
-    label: '2H combo 3 (Ken hit3)',
-    input: 'LMB click 3 · hammer/axe'
+    label: '2H combo 3 (Zoro 3003)',
+    input: 'LMB click 3 · hammer/axe/greatsword'
+  },
+  daggerAttack: {
+    family: 'combat',
+    channel: 'oneShot',
+    label: 'Dagger combo 1 (Zoro 3021)',
+    input: 'LMB · dagger'
+  },
+  daggerAttack2: {
+    family: 'combat',
+    channel: 'oneShot',
+    label: 'Dagger combo 2 (Zoro 3022)',
+    input: 'LMB click 2 · dagger'
+  },
+  daggerAttack3: {
+    family: 'combat',
+    channel: 'oneShot',
+    label: 'Dagger combo 3 (Zoro 3031)',
+    input: 'LMB click 3 · dagger'
   },
   finisher: {
     family: 'combat',

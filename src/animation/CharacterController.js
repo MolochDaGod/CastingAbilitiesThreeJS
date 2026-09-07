@@ -1262,6 +1262,9 @@ export class CharacterController {
       twoHandAttack3: LoopOnce,
       twoHandIdle: LoopRepeat,
       twoHandRun: LoopRepeat,
+      daggerAttack: LoopOnce,
+      daggerAttack2: LoopOnce,
+      daggerAttack3: LoopOnce,
       skill: LoopOnce,
       thrust: LoopOnce,
       combo: LoopOnce,
@@ -1578,7 +1581,10 @@ export class CharacterController {
     }
     const loadout = this.equipment?.loadout || {};
     const spearOn = !!(loadout.spear && loadout.spear !== 'none');
+    const hold = String(this.weaponHoldKind || '').toLowerCase();
+    const daggerOn = hold === 'dagger' || hold === 'knife';
     const twoHandOn = !!(
+      /greatsword|greataxe|twohand|2h/.test(hold) ||
       (loadout.hammer && loadout.hammer !== 'none') ||
       (loadout.axe && loadout.axe !== 'none' && !loadout.sword)
     );
@@ -1590,6 +1596,13 @@ export class CharacterController {
           : step === 1
             ? ['spearAttack2', 'attack2']
             : ['twoHandAttack3', 'attack3', 'spearAttack2'];
+    } else if (daggerOn) {
+      roles =
+        step === 0
+          ? ['daggerAttack', 'attack1']
+          : step === 1
+            ? ['daggerAttack2', 'attack2']
+            : ['daggerAttack3', 'attack3'];
     } else if (twoHandOn) {
       roles =
         step === 0
@@ -2003,6 +2016,8 @@ export class CharacterController {
       /^attack[123]$/.test(name) ||
       /^twoHandAttack[123]?$/.test(role) ||
       /^twoHandAttack[123]?$/.test(name) ||
+      /^daggerAttack[123]?$/.test(role) ||
+      /^daggerAttack[123]?$/.test(name) ||
       /^spearAttack[12]$/.test(role);
     const lockDur = isLight ? Math.min(duration, 0.55) + 0.02 : duration + 0.04;
     this._oneShotTimer = lockDur;

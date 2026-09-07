@@ -47,6 +47,7 @@ All sources under `Documents\*.fbx`, skeleton **Mixamo** (`Hips`…), rematched 
 | `Documents/quincy_ichigo.glb` | 2.17 / 2.57 / 6.00 s | Bow `longbow/ichi_shot` · staff `magic/ichi_cast` / `ichi_skill`. Not a melee combo. |
 | `Documents/hero_estes_old_2016.glb` | 1.33–1.50 s | **Staff** `magic/estes_cast` · `estes_skill` 1–3. Not melee. |
 | `Documents/longhai.glb` | 1.30 s attack · 1.43 s walk | `hai_strike` after Ken on attack1 · `hai_walk` · `hai_skill`. Skip `wait` (no Pelvis). |
+| `Documents/roronoa_zoro_post_timeskip.glb` | 0.77–1.70 s | **Dagger** `zoro_dag1–3` (3021/3022/3031). **2H** `zoro_strike/slash/hit3` (3001/3011/3003). Ken stays 1H sword. |
 | `Documents/attackcombo01.glb` | 6.92 s Mixamo | **Fallback** 3-hit `combo01-hit1..3` (2.31 s each) if Ken JSON 404 |
 | `Documents/attack_combo_2.glb` | 12.08 s Mixamo | **2H fallback** `combo2-hit1..3` after Ken / Bane |
 | Knight CDN `sword and shield attack` | 2.33 s | **Finisher** three-slash jump-dash — keep, not light LMB |

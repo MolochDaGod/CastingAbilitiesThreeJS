@@ -98,5 +98,12 @@
     "knockback": "reactions/op_knockback",
     "blown": "reactions/op_blown",
     "getup": "reactions/op_getup"
+  },
+  "zoro": {
+    "source": "Documents/roronoa_zoro_post_timeskip.glb",
+    "rig": "Bip001",
+    "dagger": ["sword_shield/zoro_dag1", "sword_shield/zoro_dag2", "sword_shield/zoro_dag3"],
+    "twoHand": ["2h_melee/zoro_strike", "2h_melee/zoro_slash", "2h_melee/zoro_hit3"],
+    "ids": "OPBR 3021/3022/3031 dagger · 3001/3011/3003 2H"
   }
 }

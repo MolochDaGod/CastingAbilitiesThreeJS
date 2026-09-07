@@ -40,6 +40,13 @@ const JOBS = [
     note: 'one-piece dash/hit/knockback',
     keep: /dodge|boost|damage|blownback|down|stun|slammed/
   },
+  {
+    src: 'roronoa_zoro_post_timeskip.glb',
+    pack: '2h_melee',
+    prefix: 'zoro',
+    note: 'dagger + 2H',
+    keep: /^(3001|3003|3011|3012|3021|3022|3031|3032|3041|3042|3051|3052)_/
+  },
 ];
 
 /** Skip author hold-pose / transition stubs — they break blend if bound as attacks. */
@@ -102,7 +109,16 @@ const PLAY_ALIASES = {
   op_pl_adio_orig01_down: ['reactions/op_down'],
   op_pl_adio_orig01_down_end: ['reactions/op_getup'],
   op_pl_adio_orig01_stun: ['reactions/op_stun'],
-  op_pl_adio_orig01_slammed: ['reactions/op_slammed']
+  op_pl_adio_orig01_slammed: ['reactions/op_slammed'],
+  zoro_3021_low: ['sword_shield/zoro_dag1'],
+  zoro_3022_low: ['sword_shield/zoro_dag2'],
+  zoro_3031_low: ['sword_shield/zoro_dag3'],
+  zoro_3042_low: ['sword_shield/zoro_dag_fast'],
+  zoro_3001_low: ['2h_melee/zoro_strike'],
+  zoro_3011_low: ['2h_melee/zoro_slash'],
+  zoro_3003_low: ['2h_melee/zoro_hit3'],
+  zoro_3041_low: ['2h_melee/zoro_heavy'],
+  zoro_3052_low: ['2h_melee/zoro_skill']
 };
 
 function toBip001Node(nodeName) {

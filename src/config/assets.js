@@ -130,10 +130,14 @@ export const ANIM_PACKS = {
       'sword_shield/one-hand-combo-hit3',
       'sword_shield/sword and shield slash'
     ],
-    twoHandAttack: ['2h_melee/ken_strike', '2h_melee/bane_attack1', '2h_melee/combo2-hit1', '2h_melee/monk-attack'],
+    twoHandAttack: ['2h_melee/zoro_strike', '2h_melee/ken_strike', '2h_melee/bane_attack1', '2h_melee/combo2-hit1', '2h_melee/monk-attack'],
     twoHandRun: ['2h_melee/ken_run', '2h_melee/bane_run', '2h_melee/run'],
-    twoHandAttack2: ['2h_melee/ken_slash', '2h_melee/bane_attack2', '2h_melee/combo2-hit2'],
-    twoHandAttack3: ['2h_melee/ken_hit3', '2h_melee/bane_skill1', '2h_melee/combo2-hit3', '2h_melee/attack3'],
+    twoHandAttack2: ['2h_melee/zoro_slash', '2h_melee/ken_slash', '2h_melee/bane_attack2', '2h_melee/combo2-hit2'],
+    twoHandAttack3: ['2h_melee/zoro_hit3', '2h_melee/ken_hit3', '2h_melee/bane_skill1', '2h_melee/combo2-hit3', '2h_melee/attack3'],
+    /** Zoro 3-sword shorts — dagger / knife LMB (holdKind dagger) */
+    daggerAttack: ['sword_shield/zoro_dag1', 'sword_shield/zoro_dag_fast', 'sword_shield/ken_strike'],
+    daggerAttack2: ['sword_shield/zoro_dag2', 'sword_shield/ken_slash'],
+    daggerAttack3: ['sword_shield/zoro_dag3', 'sword_shield/ken_hit3'],
     twoHandIdle: ['2h_melee/bane_fight_idle'],
     /** Knight three-slash jump-dash — finisher only, not light LMB */
     attack: ['sword_shield/sword and shield attack'],
