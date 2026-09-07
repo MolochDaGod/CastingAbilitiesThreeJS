@@ -40,7 +40,7 @@
 | Auth SSO | Grudge ID | `https://id.grudge-studio.com` |
 | Realtime rooms | Colyseus on same Railway | `wss://grudge-api-production-0d46.up.railway.app` |
 | Binary meshes / icons | R2 CDN | `https://assets.grudge-studio.com` |
-| JSON catalogs / gamedata | **info** (live) + ObjectStore **Pages** | `info.grudge-studio.com/api/v1` · `grudge-objectstore.pages.dev/api/v1` |
+| JSON catalogs / gamedata | **info** (SSOT) + objectstore **proxy** | `info.grudge-studio.com/api/v1` · `objectstore.grudge-studio.com/api/v1` |
 | Asset **index** | Cloudflare D1 | not player SSOT |
 | Weapon skill drafts + equip mirror | **CF Durable Object** `WeaponSkillDrafts` | `https://weapon-skills.grudge-studio.com` · control plane `casting.grudge.studio` · see `WEAPON_SKILL_DO_SSOT.md` |
 | Training Room map layout | Same-origin `maps/training_room/` → info/objectstore/R2 promote | `docs/TRAINING_ROOM_DEPLOY_SSOT.md` · R2 prefix `lab/casting/training-room` |
@@ -51,7 +51,7 @@
 
 Never fetch `assets.grudge-studio.com` or `open.grudge-studio.com` from the page (R2/Open lack CORS → `getTransfer` crash).  
 Live `/api/assets` goes through `api/cdn-proxy.js` (same-host Referer) so CF hotlink does not 403 images.  
-`/api/objectstore` rewrites to **grudge-objectstore.pages.dev** (custom-domain `/api/v1` is 404).
+`/api/objectstore` may still rewrite to Pages for legacy; **catalog JSON** is `catalogJsonUrls`: `/api/info` → info.* → objectstore `/api/v1` proxy.
 
 | Kind | Browser URL |
 |------|-------------|

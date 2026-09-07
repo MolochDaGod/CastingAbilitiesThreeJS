@@ -11,7 +11,6 @@ import { ASSETS_URL, catalogJsonUrls } from '../config/fleetEnv.js';
 
 export const CLASS_SKILL_TREES_URLS = Object.freeze([
   ...catalogJsonUrls('master-skillTrees.json'),
-  'https://molochdagod.github.io/ObjectStore/api/v1/master-skillTrees.json'
 ]);
 
 export const CLASS_SKILL_HTML = 'https://info.grudge-studio.com/WEAPON_SKILLS.html';

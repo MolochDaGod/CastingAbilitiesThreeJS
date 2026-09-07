@@ -5,9 +5,9 @@
  *   Player / bag / wallet → Railway Postgres via grudge-api (/api/* rewrite)
  *   Auth                 → id.grudge-studio.com
  *   Binary meshes/icons  → assets.grudge-studio.com (R2)
- *   JSON catalogs        → info.grudge-studio.com (+ Pages.dev mirror; not objectstore /api/v1)
+ *   JSON catalogs        → info.grudge-studio.com (SSOT) + objectstore /api/v1 proxy
  *   Asset INDEX only     → D1 (never player SSOT)
- *   Skill drafts         → weapon-skills DO
+ *   Skill drafts         → weapon-skills.grudge-studio.com DO (not the catalog browse)
  *
  * SPA never holds DATABASE_URL or CF tokens.
  * @see docs/CASTING_DEPLOY_ENV_SSOT.md · docs/TRAINING_ROOM_SSOT.md
@@ -26,19 +26,18 @@ function env(key, fallback = '') {
 /** R2 CDN binaries */
 export const ASSETS_URL = env('VITE_ASSETS_URL', 'https://assets.grudge-studio.com');
 
-/** ObjectStore JSON API (custom domain — /api/v1 catalogs 404 as of 2026-08-18) */
+/** ObjectStore Worker — D1/R2 asset API (/v1) + catalog JSON proxy (/api/v1 → info.*). */
 export const OBJECTSTORE_URL = env(
   'VITE_OBJECTSTORE_URL',
   'https://objectstore.grudge-studio.com'
 );
 
 /**
- * Live ObjectStore Pages (catalog JSON actually 200).
- * Do not treat objectstore.grudge-studio.com/api/v1 as a second catalog DB.
+ * @deprecated Catalog JSON is info.* then objectstore /api/v1 proxy. Do not fetch github.io.
  */
 export const OBJECTSTORE_PAGES_URL = env(
   'VITE_OBJECTSTORE_PAGES_URL',
-  'https://grudge-objectstore.pages.dev'
+  'https://objectstore.grudge-studio.com'
 );
 
 /** Info gamedata API (catalogs — live SSOT for JSON) */
@@ -47,19 +46,20 @@ export const INFO_API = env('VITE_INFO_API', 'https://info.grudge-studio.com/api
 /**
  * Catalog JSON fetch order. Same Railway player DB is never involved.
  * 1. same-origin /api/info (casting rewrites)
- * 2. info.grudge-studio.com
- * 3. ObjectStore Pages (working git host)
- * Never objectstore.grudge-studio.com/api/v1 — those keys 404.
+ * 2. info.grudge-studio.com (definitions SSOT)
+ * 3. objectstore.grudge-studio.com/api/v1 (Worker proxy of info.*)
+ * Do not use github.io or pages.dev as catalog SSOT.
  * @param {string} file e.g. t0-weapons.json
  * @returns {string[]}
  */
 export function catalogJsonUrls(file) {
   const name = String(file || '').replace(/^\/+/, '');
   const info = String(INFO_API || '').replace(/\/+$/, '');
+  const os = String(OBJECTSTORE_URL || '').replace(/\/+$/, '');
   return [
     `/api/info/v1/${name}`,
     `${info}/${name}`,
-    `${OBJECTSTORE_PAGES_URL}/api/v1/${name}`
+    `${os}/api/v1/${name}`
   ];
 }
 
