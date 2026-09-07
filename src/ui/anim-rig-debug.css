@@ -1,0 +1,26 @@
+/**
+ * Lab-only skeleton / blend math overlay. Not production HUD chrome.
+ */
+.anim-rig-debug {
+  position: fixed;
+  left: 12px;
+  top: 132px;
+  z-index: 36;
+  margin: 0;
+  padding: 8px 10px;
+  max-width: min(420px, 42vw);
+  max-height: 46vh;
+  overflow: auto;
+  pointer-events: none;
+  font: 11px/1.35 ui-monospace, 'JetBrains Mono', Consolas, monospace;
+  color: #d7e4f0;
+  background: rgba(6, 10, 16, 0.78);
+  border: 1px solid rgba(201, 162, 39, 0.45);
+  border-radius: 6px;
+  white-space: pre;
+  text-shadow: 0 1px 2px #000;
+}
+.anim-rig-debug.is-break {
+  border-color: rgba(255, 80, 70, 0.75);
+  color: #ffe8e4;
+}
