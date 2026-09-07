@@ -67,6 +67,7 @@ export const ANIM_PACKS = {
       'magic/standing idle'
     ],
     cast: [
+      'magic/ichi_cast',
       'magic/ancient_cast',
       'magic/rafa_cast',
       'prod:magic/standing-1h-cast-spell-01',
@@ -74,7 +75,7 @@ export const ANIM_PACKS = {
       'magic/standing 2h cast spell 01'
     ],
     attack: ['magic/ancient_attack', 'magic/rafa_attack', 'magic/ancient_cast'],
-    skill: ['magic/ancient_skill', 'magic/rafa_skill', 'magic/rafa_verigo'],
+    skill: ['magic/ichi_skill', 'magic/ichi_skill1', 'magic/ancient_skill', 'magic/rafa_skill', 'magic/rafa_verigo'],
     skill1: ['magic/rafa_skill', 'magic/rafa_cast', 'magic/ancient_skill'],
     skill2: ['magic/rafa_skill2', 'magic/ancient_skill_ready'],
     skill3: ['magic/rafa_skill3', 'magic/rafa_verigo'],
@@ -102,6 +103,8 @@ export const ANIM_PACKS = {
      */
     attack1: [
       'sword_shield/combo01-hit1',
+      'sword_shield/ken_strike',
+      'sword_shield/ken_slash',
       'sword_shield/haya_attack1',
       'sword_shield/drake_attack',
       'sword_shield/intoout',
@@ -110,6 +113,7 @@ export const ANIM_PACKS = {
     ],
     attack2: [
       'sword_shield/combo01-hit2',
+      'sword_shield/ken_slash',
       'sword_shield/haya_attack2',
       'sword_shield/st1able-sword-inward-slash',
       'sword_shield/one-hand-combo-hit2',
@@ -117,16 +121,17 @@ export const ANIM_PACKS = {
     ],
     attack3: [
       'sword_shield/combo01-hit3',
+      'sword_shield/ken_hit3',
       'sword_shield/haya_attack3',
       'sword_shield/11upward-thrust',
       'sword_shield/one-hand-combo-hit3',
       'sword_shield/sword and shield slash'
     ],
-    twoHandAttack: ['2h_melee/bane_attack1', '2h_melee/combo2-hit1', '2h_melee/monk-attack'],
+    twoHandAttack: ['2h_melee/ken_strike', '2h_melee/bane_attack1', '2h_melee/combo2-hit1', '2h_melee/monk-attack'],
+    twoHandRun: ['2h_melee/ken_run', '2h_melee/bane_run', '2h_melee/run'],
     twoHandAttack2: ['2h_melee/bane_attack2', '2h_melee/combo2-hit2'],
     twoHandAttack3: ['2h_melee/combo2-hit3', '2h_melee/bane_skill1', '2h_melee/attack3'],
     twoHandIdle: ['2h_melee/bane_fight_idle'],
-    twoHandRun: ['2h_melee/bane_run', '2h_melee/run'],
     /** Knight three-slash jump-dash — finisher only, not light LMB */
     attack: ['sword_shield/sword and shield attack'],
     finisher: ['sword_shield/sword and shield attack'],
@@ -139,6 +144,8 @@ export const ANIM_PACKS = {
       'magic/standing walk forward'
     ],
     run: [
+      'sword_shield/ken_run',
+      '2h_melee/ken_run',
       'sword_shield/sword and shield run',
       'prod:magic/standing-run-forward',
       'magic/standing run forward'
@@ -169,7 +176,7 @@ export const ANIM_PACKS = {
   longbow: {
     idle: ['longbow/miya_fight_idle', 'longbow/standing idle', 'longbow/standing idle 01', 'bow/standing idle', 'prod:magic/standing-idle'],
     /** Miya shot (hero_miya_2016) — cool bow fire; Mixamo draw as fallback */
-    attack: ['longbow/miya_shot', 'longbow/miya_attack1', 'longbow/standing draw arrow', 'longbow/standing aim recoil', 'bow/draw arrow'],
+    attack: ['longbow/ichi_shot', 'longbow/miya_shot', 'longbow/ichi_strike', 'longbow/miya_attack1', 'longbow/standing draw arrow', 'longbow/standing aim recoil', 'bow/draw arrow'],
     skill: ['longbow/miya_skill', 'longbow/miya_skill1', 'longbow/miya_verigo'],
     skill1: ['longbow/miya_skill', 'longbow/miya_skill1'],
     walk: ['longbow/standing walk forward', 'prod:magic/standing-walk-forward'],

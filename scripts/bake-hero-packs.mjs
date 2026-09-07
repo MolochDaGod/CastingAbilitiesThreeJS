@@ -29,6 +29,8 @@ const JOBS = [
   { src: 'hero_miya_2016.glb', pack: 'longbow', prefix: 'miya', note: 'bow/crossbow/gun' },
   { src: 'the_ancient.glb', pack: 'magic', prefix: 'ancient', note: 'caster' },
   { src: 'hero_old_rafaela.glb', pack: 'magic', prefix: 'rafa', note: 'caster' },
+  { src: 'zaraki_kenpachi.glb', pack: 'sword_shield', prefix: 'ken', note: 'melee/motion' },
+  { src: 'quincy_ichigo.glb', pack: 'longbow', prefix: 'ichi', note: 'bow' },
 ];
 
 function toBip001Node(nodeName) {

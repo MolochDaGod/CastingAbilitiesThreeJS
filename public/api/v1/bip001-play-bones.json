@@ -57,5 +57,15 @@
     "cast": "magic/rafa_cast",
     "attack": "magic/rafa_attack",
     "skill": "magic/rafa_skill"
+  },
+  "kenpachi": {
+    "source": "Documents/zaraki_kenpachi.glb",
+    "melee": "sword_shield/ken_strike",
+    "motion": "sword_shield/ken_run"
+  },
+  "ichigo": {
+    "source": "Documents/quincy_ichigo.glb",
+    "bow": "longbow/ichi_shot",
+    "staff": "magic/ichi_cast"
   }
 }
