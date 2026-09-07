@@ -39,6 +39,57 @@ export const MIXAMO_CORE_TO_BIP001 = Object.freeze({
   RightToeBase: 'Bip001 R Toe0',
 });
 
+/** Bandai / One Piece `Body_*` → Bip001 (Danger Room family `bandai`). */
+export const BANDAI_TO_BIP001 = Object.freeze({
+  'Body Pelvis': 'Bip001 Pelvis',
+  Body_Pelvis: 'Bip001 Pelvis',
+  'Body Belly': 'Bip001 Spine',
+  Body_Belly: 'Bip001 Spine',
+  'Body Chest': 'Bip001 Spine1',
+  Body_Chest: 'Bip001 Spine1',
+  'Body Neck': 'Bip001 Neck',
+  Body_Neck: 'Bip001 Neck',
+  'Body Head': 'Bip001 Head',
+  Body_Head: 'Bip001 Head',
+  'Body L Shoulder': 'Bip001 L Clavicle',
+  Body_L_Shoulder: 'Bip001 L Clavicle',
+  'Body L Arm': 'Bip001 L UpperArm',
+  Body_L_Arm: 'Bip001 L UpperArm',
+  'Body L Elbow': 'Bip001 L Forearm',
+  Body_L_Elbow: 'Bip001 L Forearm',
+  'Body L Hand': 'Bip001 L Hand',
+  Body_L_Hand: 'Bip001 L Hand',
+  'Body R Shoulder': 'Bip001 R Clavicle',
+  Body_R_Shoulder: 'Bip001 R Clavicle',
+  'Body R Arm': 'Bip001 R UpperArm',
+  Body_R_Arm: 'Bip001 R UpperArm',
+  'Body R Elbow': 'Bip001 R Forearm',
+  Body_R_Elbow: 'Bip001 R Forearm',
+  'Body R Hand': 'Bip001 R Hand',
+  Body_R_Hand: 'Bip001 R Hand',
+  'Body L Leg': 'Bip001 L Thigh',
+  Body_L_Leg: 'Bip001 L Thigh',
+  'Body L Knee': 'Bip001 L Calf',
+  Body_L_Knee: 'Bip001 L Calf',
+  'Body L Foot': 'Bip001 L Foot',
+  Body_L_Foot: 'Bip001 L Foot',
+  'Body R Leg': 'Bip001 R Thigh',
+  Body_R_Leg: 'Bip001 R Thigh',
+  'Body R Knee': 'Bip001 R Calf',
+  Body_R_Knee: 'Bip001 R Calf',
+  'Body R Foot': 'Bip001 R Foot',
+  Body_R_Foot: 'Bip001 R Foot',
+});
+
+/** Detect author rig from a bone name. Play target is always Bip001. */
+export function detectRigFamily(boneName) {
+  const n = String(boneName || '');
+  if (/^mixamorig/i.test(n) || /^(Hips|LeftArm|RightUpLeg)$/i.test(n)) return 'mixamo';
+  if (/^Body[ _]/i.test(n) || /^Body_(Pelvis|Belly|Chest)/i.test(n)) return 'bandai';
+  if (/^Bip001/i.test(n) || /^Bip01(?!\d)/i.test(n)) return 'biped';
+  return 'unknown';
+}
+
 export function findSkinnedMesh(root) {
   let found = null;
   root?.traverse?.((o) => {
@@ -90,6 +141,14 @@ export function buildBip001Names(targetSkinned, sourceSkinned) {
     if (!src) {
       const entry = Object.entries(MIXAMO_CORE_TO_BIP001).find(([, bip]) => bip === tname);
       if (entry) src = srcByCore.get(entry[0].toLowerCase());
+    }
+    if (!src) {
+      const bandai = Object.entries(BANDAI_TO_BIP001).find(([, bip]) => bip === tname);
+      if (bandai) {
+        src =
+          srcByNorm.get(normalizeBoneKey(bandai[0])) ||
+          srcByCore.get(mixamoCore(bandai[0]).toLowerCase());
+      }
     }
     if (!src) continue;
     names[tname] = src;

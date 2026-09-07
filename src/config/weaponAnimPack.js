@@ -7,7 +7,7 @@
  * Role language / families: config/animLibrary.js · docs/ANIM_LIBRARY_SSOT.md
  */
 
-/** @typedef {'magic'|'sword_shield'|'longbow'|'pistol'} WeaponAnimPackId */
+/** @typedef {'magic'|'sword_shield'|'longbow'|'pistol'|'polearm'} WeaponAnimPackId */
 
 /**
  * Weapon inventory slot → anim pack.
@@ -19,7 +19,7 @@ export const WEAPON_SLOT_TO_PACK = Object.freeze({
   sword: 'sword_shield',
   axe: 'sword_shield',
   hammer: 'sword_shield',
-  spear: 'sword_shield',
+  spear: 'polearm',
   shield: 'sword_shield',
   bow: 'longbow',
   longbow: 'longbow',
@@ -85,6 +85,16 @@ export const PACK_COMBAT_ROLES = Object.freeze({
     skill: ['skill1', 'skill2', 'skill3', 'skill4', 'skill5'],
     loco: ['idle', 'walk', 'run', 'jump', 'walkL', 'walkR'],
     mobility: [...MOBILITY_ROLES]
+  },
+  polearm: {
+    attack: 'attack',
+    cast: 'attack',
+    block: 'block',
+    combo: ['attack', 'attack2', 'attack3', 'attack4'],
+    skill: ['skill1', 'skill2', 'skill3', 'skill4'],
+    special: 'special',
+    loco: ['idle', 'walk', 'run'],
+    mobility: [...MOBILITY_ROLES]
   }
 });
 
@@ -113,7 +123,8 @@ export function animPackForLoadout(loadout = {}, presetPack) {
     presetPack === 'magic' ||
     presetPack === 'sword_shield' ||
     presetPack === 'longbow' ||
-    presetPack === 'pistol'
+    presetPack === 'pistol' ||
+    presetPack === 'polearm'
   ) {
     return presetPack;
   }

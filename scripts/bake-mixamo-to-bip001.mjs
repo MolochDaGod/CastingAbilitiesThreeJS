@@ -16,7 +16,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSy
 import { spawnSync } from 'node:child_process';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { MIXAMO_CORE_TO_BIP001 } from '../src/animation/retargetToBip001.js';
+import { MIXAMO_CORE_TO_BIP001, BANDAI_TO_BIP001 } from '../src/animation/retargetToBip001.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ANIM = join(ROOT, 'public', 'anim');
@@ -61,10 +61,14 @@ function stemOf(file) {
 
 function toBip001Node(nodeName) {
   let n = String(nodeName || '').replace(/_\d+$/, '');
+  if (BANDAI_TO_BIP001[n]) return BANDAI_TO_BIP001[n];
+  const spaced = n.replace(/_/g, ' ');
+  if (BANDAI_TO_BIP001[spaced]) return BANDAI_TO_BIP001[spaced];
   n = n.replace(/^mixamorig\d*:?/i, '');
   if (MIXAMO_CORE_TO_BIP001[n]) return MIXAMO_CORE_TO_BIP001[n];
-  if (/^Bip001/i.test(n)) return n;
-  if (/^Bip01(?!\d)/i.test(n)) return n.replace(/^Bip01/i, 'Bip001');
+  if (/^Bip001/i.test(n)) return n.replace(/_/g, ' ').replace(/^Bip001 /, 'Bip001 ');
+  if (/^Bip001/i.test(n.replace(/_/g, ' '))) return n.replace(/_/g, ' ');
+  if (/^Bip01(?!\d)/i.test(n)) return n.replace(/^Bip01/i, 'Bip001').replace(/_/g, ' ');
   return '';
 }
 

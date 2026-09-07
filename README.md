@@ -44,7 +44,7 @@ Play-ready clips/meshes: **lab bake / grudge-convert** → **R2** → **D1 index
 
 | Step | Where |
 |------|--------|
-| 1 Bake | Mixamo/FBX → Bip001 rotation JSON: `npm run bake:mixamo-bip001` (Blender + `retargetToBip001`). Runtime FBX uses `SkeletonUtils.retargetClip` then name rematch. **One** play skeleton (Toon `loadRaceKit`). |
+| 1 Bake | **One play skeleton = Bip001** (Toon `loadRaceKit`). Families: **Mixamo** (`npm run bake:mixamo-bip001`) · **Biped / Bleach** (Ikkaku Madarame already Bip001 → `polearm/`) · **Bandai / One Piece** (`Body_*` → Bip001 via `BANDAI_TO_BIP001`). Runtime: `SkeletonUtils.retargetClip` then name rematch. |
 | 2 Lab | `public/anims/baked/{pack}/{clip}.json` (same-origin `/anims/baked`) |
 | 3 CDN | `prod/anims/{pack}/{clip}.json` — `node scripts/upload-baked-anims-r2.mjs` |
 | 4 Index | D1 `asset_registry` (`purpose=play`) via ObjectStore `POST /v1/assets` — not Railway |

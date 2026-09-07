@@ -315,6 +315,31 @@ export const ANIM_PACKS = {
     fallLand: ['locomotion/fall-to-landing', 'locomotion/falling-to-landing'],
     fallRoll: ['locomotion/fall-to-roll', 'locomotion/falling-to-roll'],
     fallIdle: ['locomotion/fall-idle', 'locomotion/falling-idle']
+  },
+  /**
+   * Spear / polearm — Ikkaku Madarame (Bleach) already Bip001.
+   * One Piece Bandai Body_* retargets onto this same pack via BANDAI_TO_BIP001.
+   */
+  polearm: {
+    idle: ['polearm/idle'],
+    walk: ['polearm/walk', 'prod:magic/standing-walk-forward'],
+    run: ['polearm/run', 'polearm/sprint', 'prod:magic/standing-run-forward'],
+    attack: ['polearm/attack'],
+    attack1: ['polearm/attack'],
+    attack2: ['polearm/attack2'],
+    attack3: ['polearm/attack3'],
+    attack4: ['polearm/attack4'],
+    attack5: ['polearm/attack5'],
+    skill1: ['polearm/skill1'],
+    skill2: ['polearm/skill2'],
+    skill3: ['polearm/skill3'],
+    skill4: ['polearm/skill4'],
+    special: ['polearm/special'],
+    combo: ['polearm/combo', 'polearm/attack'],
+    thrust: ['polearm/thrust'],
+    slash: ['polearm/slash'],
+    hurt: ['polearm/hurt'],
+    death: ['polearm/death']
   }
 };
 
@@ -327,6 +352,11 @@ export const ANIM_PACK_META = {
     locomotion: 'walk·run·jump'
   },
   longbow: { label: 'Longbow', skills: 'attack · dodge L/R/F/B', locomotion: 'walk·run·jump' },
+  polearm: {
+    label: 'Spear / polearm (Ikkaku Bip001)',
+    skills: 'combo · lunge · skills 1–4 · special',
+    locomotion: 'walk·run'
+  },
   pistol: {
     label: 'Pistol / handgun',
     skills: 'gunplay(spin) · draw · charged · whip',
