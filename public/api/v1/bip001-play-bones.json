@@ -89,5 +89,14 @@
     "walk": "sword_shield/hai_walk",
     "skill": "sword_shield/hai_skill",
     "skip": "hai_idle / wait has no Pelvis; playshow and state* unnamed"
+  },
+  "adio": {
+    "source": "Documents/one_piece_bounty_rush_adio.glb",
+    "rig": "OPBR LArm_Upper / LLeg_Thigh / Head_Neck → Bip001",
+    "dash": "combat_mobility/op_dash",
+    "hit": "reactions/op_hit",
+    "knockback": "reactions/op_knockback",
+    "blown": "reactions/op_blown",
+    "getup": "reactions/op_getup"
   }
 }

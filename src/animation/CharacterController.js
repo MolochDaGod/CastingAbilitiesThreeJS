@@ -2017,8 +2017,7 @@ export class CharacterController {
   }
 
   /**
-   * Physical hit reaction — knocked-up bake (reactions pack).
-   * Prefer overlay flinch; exclusive knockup only via playReaction('knockback'|'blownAway').
+   * Physical take-hit — overlay flinch (`op_hit`). Exclusive knockback / launch via playReaction.
    * @returns {boolean}
    */
   playHitReaction() {
@@ -2107,7 +2106,10 @@ export class CharacterController {
       return ok;
     }
     if (k === 'knockback' || k === 'push') {
-      const ok = this.requestOneShot('hitReact') || this.requestOneShot('knockedUp');
+      const ok =
+        this.requestOneShot('knockedUp') ||
+        this.requestOneShot('blownAway') ||
+        this.requestOneShot('hitReact');
       if (ok) this.animState = 'knockback';
       return ok;
     }

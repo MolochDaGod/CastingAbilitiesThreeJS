@@ -11,7 +11,7 @@
  *
  *   node scripts/bake-hero-packs.mjs
  */
-import { mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { MIXAMO_CORE_TO_BIP001, BANDAI_TO_BIP001 } from '../src/animation/retargetToBip001.js';
@@ -33,6 +33,13 @@ const JOBS = [
   { src: 'quincy_ichigo.glb', pack: 'longbow', prefix: 'ichi', note: 'bow' },
   { src: 'hero_estes_old_2016.glb', pack: 'magic', prefix: 'estes', note: 'caster' },
   { src: 'longhai.glb', pack: 'sword_shield', prefix: 'longhai', note: 'melee' },
+  {
+    src: 'one_piece_bounty_rush_adio.glb',
+    pack: 'reactions',
+    prefix: 'op',
+    note: 'one-piece dash/hit/knockback',
+    keep: /dodge|boost|damage|blownback|down|stun|slammed/
+  },
 ];
 
 /** Skip author hold-pose / transition stubs — they break blend if bound as attacks. */
@@ -86,7 +93,16 @@ const PLAY_ALIASES = {
   longhai_walk: ['sword_shield/hai_walk'],
   longhai_use_skill: ['sword_shield/hai_skill'],
   longhai_use_skill2: ['sword_shield/hai_skill2'],
-  longhai_use_magic: ['sword_shield/hai_cast']
+  longhai_use_magic: ['sword_shield/hai_cast'],
+  op_pl_adio_orig01_dodge: ['combat_mobility/op_dash'],
+  op_pl_adio_orig01_boost: ['combat_mobility/op_boost'],
+  op_pl_adio_orig01_damage: ['reactions/op_hit'],
+  op_pl_adio_orig01_blownback_end: ['reactions/op_knockback'],
+  op_pl_adio_orig01_blownback_lp: ['reactions/op_blown'],
+  op_pl_adio_orig01_down: ['reactions/op_down'],
+  op_pl_adio_orig01_down_end: ['reactions/op_getup'],
+  op_pl_adio_orig01_stun: ['reactions/op_stun'],
+  op_pl_adio_orig01_slammed: ['reactions/op_slammed']
 };
 
 function toBip001Node(nodeName) {
@@ -99,6 +115,14 @@ function toBip001Node(nodeName) {
   if (/^Bip001/i.test(n)) return n.replace(/_/g, ' ');
   if (/^Bip01(?!\d)/i.test(n)) return n.replace(/^Bip01/i, 'Bip001').replace(/_/g, ' ');
   return '';
+}
+
+function resolveSrc(name) {
+  const cands = [
+    join(DOCS, name),
+    join('D:', 'Games', 'Models', name)
+  ];
+  return cands.find((p) => existsSync(p)) || join(DOCS, name);
 }
 
 function stem(name) {
@@ -225,7 +249,7 @@ for (const job of JOBS) {
   ) {
     continue;
   }
-  const src = join(DOCS, job.src);
+  const src = resolveSrc(job.src);
   const { json, bin } = readGlb(src);
   const anims = json.animations || [];
   console.log(`==== ${job.src} ${anims.length} clips → ${job.pack}/${job.prefix}_* (${job.note})`);
@@ -234,6 +258,9 @@ for (const job of JOBS) {
     const clip = bakeAnim(json, bin, anim);
     const roleStem = stem(anim.name);
     const fileStem = `${job.prefix}_${roleStem}`;
+    if (job.keep && !job.keep.test(roleStem) && !PLAY_ALIASES[fileStem]) {
+      continue;
+    }
     if (clip.duration < MIN_PLAY_DUR) {
       console.log(`  skip stub ${fileStem} dur=${clip.duration.toFixed(2)}`);
       continue;

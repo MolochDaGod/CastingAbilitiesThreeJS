@@ -69,13 +69,14 @@ Clip URL candidates: `bakedClipUrlsForRole` — `prod:…` then open baked.
 
 | Kind | Blend | When |
 |------|-------|------|
-| **flinch / hit** | Overlay weight `overlayBlend` (~0.62) on gait | Light hit (`knockbackMm` < 140) |
-| **knockback** | Exclusive one-shot `hitReact` | MM ≥ 140 or knockup vy ≥ 1.2 |
-| **blownAway / knockup** | Exclusive `knockedUp` | MM ≥ 320 or vy ≥ 2.4 |
-| **stun / freeze** | Overlay + gait lock | `skillStatusSystem` stun/freeze |
-| **getup** | Exclusive `slideGetup` | After knockdown |
+| **flinch / hit** | Overlay weight `overlayBlend` (~0.62) on gait | Light hit (`knockbackMm` < 140) · clip `reactions/op_hit` |
+| **knockback** | Exclusive one-shot `knockedUp` | MM ≥ 140 or knock-up vy ≥ 1.2 · clip `reactions/op_knockback` |
+| **blownAway / launch** | Exclusive `blownAway` | MM ≥ 320 or vy ≥ 2.4 · clip `reactions/op_blown` |
+| **stun / freeze** | Overlay + gait lock | `skillStatusSystem` stun/freeze · clip `reactions/op_stun` |
+| **getup** | Exclusive `getup` / `slideGetup` | After knockdown · clip `reactions/op_getup` |
+| **dash** | Exclusive dodge / airDash | AA/DD/WW/X and air dash · clip `combat_mobility/op_dash` (Adio dodge) |
 
-Same clip bake `reactions/knocked-up` until dedicated flinch/stun files exist. Do **not** add a second mixer.
+Author: One Piece Bounty Rush **Adio** (`Documents/one_piece_bounty_rush_adio.glb`), Bandai/OPBR bones rematched to Bip001. Mixamo `reactions/knocked-up` remains fallback. Do **not** add a second mixer.
 
 ### Rig debug (identify breaking anims)
 

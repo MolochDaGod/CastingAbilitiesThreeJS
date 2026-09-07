@@ -106,16 +106,40 @@ export const ANIM_ROLE_META = Object.freeze({
     input: 'Air S+Space'
   },
   hitReact: {
-    family: 'combat',
-    channel: 'oneShot',
-    label: 'Hit reaction (knocked up)',
-    input: 'on hit'
+    family: 'reaction',
+    channel: 'overlay',
+    label: 'Take-hit (One Piece Adio damage)',
+    input: 'light hit · knockbackMm < 140'
   },
   knockedUp: {
-    family: 'combat',
+    family: 'reaction',
     channel: 'oneShot',
-    label: 'Knocked up',
-    input: 'on heavy hit'
+    label: 'Knockback (Adio blown-back end)',
+    input: 'knockbackMm ≥ 140 or knockup vy ≥ 1.2'
+  },
+  blownAway: {
+    family: 'reaction',
+    channel: 'oneShot',
+    label: 'Launch (Adio blown-back loop)',
+    input: 'knockbackMm ≥ 320 or vy ≥ 2.4'
+  },
+  stun: {
+    family: 'reaction',
+    channel: 'overlay',
+    label: 'Stun (Adio stun)',
+    input: 'status stun / freeze'
+  },
+  getup: {
+    family: 'reaction',
+    channel: 'oneShot',
+    label: 'Get up (Adio down_end)',
+    input: 'after knockdown'
+  },
+  airDash: {
+    family: 'mobility',
+    channel: 'mobility',
+    label: 'Dash (Adio dodge)',
+    input: 'air dash / WW dodge'
   },
 
   cast: { family: 'combat', channel: 'oneShot', label: 'Cast', input: '1–4 / staff' },

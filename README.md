@@ -58,7 +58,7 @@ node scripts/upload-baked-anims-r2.mjs
 
 Browser: `/api/assets/prod/anims/…` or `/anims/baked/…`. Do not fetch `assets.*` from the page.
 
-**Hero play bind (first URL that loads wins — same-author chains):** Kenpachi 1H/2H `ken_strike` → `ken_slash` → `ken_hit3` (combo01 Mixamo is fallback). Quincy Ichigo bow `ichi_shot` / idle `ichi_idle` / run `ichi_run`; staff `ichi_cast` + `ichi_skill`. Estes caster `estes_cast` / `estes_skill` (1.3–1.5 s). Longhai melee `hai_strike` (after Ken) · `hai_walk` · `hai_skill`. Skip author stubs shorter than 0.35 s. Play mesh stays Toon `loadRaceKit`.
+**Hero play bind (first URL that loads wins — same-author chains):** Kenpachi 1H/2H `ken_strike` → `ken_slash` → `ken_hit3` (combo01 Mixamo is fallback). Quincy Ichigo bow `ichi_shot` / idle `ichi_idle` / run `ichi_run`; staff `ichi_cast` + `ichi_skill`. Estes caster `estes_cast` / `estes_skill` (1.3–1.5 s). Longhai melee `hai_strike` (after Ken) · `hai_walk` · `hai_skill`. One Piece Adio: dash `op_dash`, take-hit `op_hit`, knockback `op_knockback`. Skip author stubs shorter than 0.35 s. Play mesh stays Toon `loadRaceKit`.
 
 ### Render layers vs terrain L0–L3 (not the same)
 

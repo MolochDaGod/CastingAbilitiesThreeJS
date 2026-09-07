@@ -308,8 +308,12 @@ export const ANIM_PACKS = {
    * Bound on hero load with combat_mobility.
    */
   reactions: {
-    hitReact: ['reactions/knocked-up'],
-    knockedUp: ['reactions/knocked-up']
+    /** One Piece Bounty Rush Adio — take-hit / knockback / launch. Mixamo knocked-up is fallback. */
+    hitReact: ['reactions/op_hit', 'reactions/knocked-up'],
+    knockedUp: ['reactions/op_knockback', 'reactions/op_slammed', 'reactions/knocked-up'],
+    blownAway: ['reactions/op_blown', 'reactions/op_knockback', 'reactions/knocked-up'],
+    stun: ['reactions/op_stun', 'reactions/op_hit'],
+    getup: ['reactions/op_getup']
   },
   combat_mobility: {
     // Ghost Rider rolls (user-preferred) → locomotion pack → longbow dodge as last resort
@@ -339,10 +343,15 @@ export const ANIM_PACKS = {
     ],
     // Sprint+Ctrl slide (prod bake on assets CDN)
     slide: ['prod:extra/running-slide', 'prod:extra/quick-roll-to-run'],
-    dodgeL: ['longbow/standing dodge left', 'locomotion/dodge_l', 'ghost_rider/dodgeL'],
-    dodgeR: ['longbow/standing dodge right', 'locomotion/dodge_r', 'ghost_rider/dodgeR'],
-    dodgeF: ['longbow/standing dodge forward', 'locomotion/dodge_fwd', 'ghost_rider/dodgeF'],
-    dodgeB: ['longbow/standing dodge backward', 'locomotion/dodge_back', 'ghost_rider/dodgeB'],
+    dodgeL: ['combat_mobility/op_dash', 'longbow/standing dodge left', 'locomotion/dodge_l', 'ghost_rider/dodgeL'],
+    dodgeR: ['combat_mobility/op_dash', 'longbow/standing dodge right', 'locomotion/dodge_r', 'ghost_rider/dodgeR'],
+    dodgeF: ['combat_mobility/op_dash', 'longbow/standing dodge forward', 'locomotion/dodge_fwd', 'ghost_rider/dodgeF'],
+    dodgeB: ['combat_mobility/op_dash', 'longbow/standing dodge backward', 'locomotion/dodge_back', 'ghost_rider/dodgeB'],
+    airDash: ['combat_mobility/op_dash', 'combat_mobility/op_boost'],
+    airDashL: ['combat_mobility/op_dash'],
+    airDashR: ['combat_mobility/op_dash'],
+    airDashB: ['combat_mobility/op_dash'],
+    slideGetup: ['reactions/op_getup'],
     parry: ['sword_shield/sword and shield block'],
     block: ['sword_shield/sword and shield block'],
     /**

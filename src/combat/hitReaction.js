@@ -1,10 +1,17 @@
 /**
- * Hit reactions — knockback impulse + knocked-up clip.
+ * Hit reactions — knockback impulse + reaction clip (one mixer).
  *
- * Clip: public/anims/baked/reactions/knocked-up.json (Mixamo → rematch Bip001)
- * Physics: horizontal MM impulse + optional vy kick on PhysicsWorld / kinematic.
+ * Clips (Bip001, rotation-only):
+ *   reactions/op_hit         — light take-hit overlay (Adio damage)
+ *   reactions/op_knockback   — exclusive knockback (Adio blown-back end)
+ *   reactions/op_blown       — launch loop (Adio blown-back loop)
+ *   reactions/op_stun        — stun overlay
+ *   reactions/op_getup       — stand up after down
+ *   reactions/knocked-up     — Mixamo fallback
  *
- * @see docs/SKILL_DELIVERY_SSOT.md
+ * Physics: horizontal MM impulse (100 MM = 1 m) + optional vy kick on PhysicsWorld / kinematic.
+ *
+ * @see docs/SKILL_DELIVERY_SSOT.md · docs/ANIM_LIBRARY_SSOT.md
  */
 
 import { Vector3 } from 'three';
@@ -13,9 +20,10 @@ import { mmToM } from './motionMath.js';
 const _fwd = new Vector3();
 
 /**
- * Pick locomotion reaction from MM / knockup — flinch overlays gait;
- * knockback/blownAway exclusive one-shots.
+ * Pick locomotion reaction from MM / knock-up — flinch overlays gait;
+ * knockback / blownAway are exclusive one-shots.
  * @param {{ knockbackMm?: number, knockupVy?: number, reaction?: string }} hit
+ * @returns {'flinch'|'knockback'|'blownAway'|string}
  */
 export function reactionKindFromHit(hit = {}) {
   if (hit.reaction) return hit.reaction;
@@ -26,21 +34,6 @@ export function reactionKindFromHit(hit = {}) {
   return 'flinch';
 }
 
-/**
- * Apply knockback to lab hero (or future NPC with same shape).
- *
- * @param {{
- *   character: import('../animation/CharacterController.js').CharacterController,
- *   physics?: import('../physics/PhysicsWorld.js').PhysicsWorld|null,
- *   drc?: import('./DrcCombatController.js').DrcCombatController|null
- * }} ctx
- * @param {{
- *   forward: Vector3,
- *   knockbackMm?: number,
- *   knockupVy?: number,
- *   playAnim?: boolean
- * }} hit
- */
 /**
  * Pull a mesh toward a world point (tornado / cyclone).
  * @param {import('three').Object3D} mesh
@@ -60,6 +53,21 @@ export function applyPullToward(mesh, center, mm = 220) {
   return true;
 }
 
+/**
+ * Apply knockback to the lab hero (or an NPC with the same controller shape).
+ *
+ * @param {{
+ *   character: import('../animation/CharacterController.js').CharacterController,
+ *   physics?: import('../physics/PhysicsWorld.js').PhysicsWorld|null,
+ *   drc?: import('./DrcCombatController.js').DrcCombatController|null
+ * }} ctx
+ * @param {{
+ *   forward: Vector3,
+ *   knockbackMm?: number,
+ *   knockupVy?: number,
+ *   playAnim?: boolean
+ * }} hit
+ */
 export function applyKnockback(ctx, hit) {
   if (!ctx?.character) return false;
   const mm = hit.knockbackMm ?? 180;
@@ -76,14 +84,12 @@ export function applyKnockback(ctx, hit) {
     ctx.drc._dodgeVel.set(_fwd.x * speed, 0, _fwd.z * speed);
     ctx.drc._dodgeT = dur;
     ctx.drc._dodgeDur = dur;
-  } else {
-    // Fallback: direct root nudge
+  } else if (ctx.character.root) {
     ctx.character.root.position.x += _fwd.x * dist * 0.35;
     ctx.character.root.position.z += _fwd.z * dist * 0.35;
   }
 
-  // Vertical kick
-  const vy = hit.knockupVy ?? 2.2;
+  const vy = hit.knockupVy ?? (reactionKindFromHit(hit) === 'flinch' ? 0 : 2.2);
   if (vy > 0.05) {
     if (ctx.physics?.ready) ctx.physics.jump(vy);
     else if (ctx.drc) ctx.drc._kinVy = Math.max(ctx.drc._kinVy || 0, vy);

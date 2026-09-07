@@ -79,13 +79,38 @@ export const BANDAI_TO_BIP001 = Object.freeze({
   Body_R_Knee: 'Bip001 R Calf',
   'Body R Foot': 'Bip001 R Foot',
   Body_R_Foot: 'Bip001 R Foot',
+  // One Piece Bounty Rush (Adio / Mihawk / Shanks) — not Body_L_Arm spelling
+  Head_Neck: 'Bip001 Neck',
+  Head_Face: 'Bip001 Head',
+  LArm_Clavicle: 'Bip001 L Clavicle',
+  LArm_Upper: 'Bip001 L UpperArm',
+  LArm_Fore: 'Bip001 L Forearm',
+  LHand_Palm: 'Bip001 L Hand',
+  RArm_Clavicle: 'Bip001 R Clavicle',
+  RArm_Upper: 'Bip001 R UpperArm',
+  RArm_Fore: 'Bip001 R Forearm',
+  RHand_Palm: 'Bip001 R Hand',
+  LLeg_Thigh: 'Bip001 L Thigh',
+  LLeg_Calf: 'Bip001 L Calf',
+  LFoot_Heel: 'Bip001 L Foot',
+  LFoot_Toe: 'Bip001 L Toe0',
+  RLeg_Thigh: 'Bip001 R Thigh',
+  RLeg_Calf: 'Bip001 R Calf',
+  RFoot_Heel: 'Bip001 R Foot',
+  RFoot_Toe: 'Bip001 R Toe0'
 });
 
 /** Detect author rig from a bone name. Play target is always Bip001. */
 export function detectRigFamily(boneName) {
   const n = String(boneName || '');
   if (/^mixamorig/i.test(n) || /^(Hips|LeftArm|RightUpLeg)$/i.test(n)) return 'mixamo';
-  if (/^Body[ _]/i.test(n) || /^Body_(Pelvis|Belly|Chest)/i.test(n)) return 'bandai';
+  if (
+    /^Body[ _]/i.test(n) ||
+    /^Body_(Pelvis|Belly|Chest)/i.test(n) ||
+    /^(LArm_|RArm_|LLeg_|RLeg_|LHand_|RHand_|Head_Neck|Head_Face)/i.test(n)
+  ) {
+    return 'bandai';
+  }
   if (/^Bip001/i.test(n) || /^Bip01(?!\d)/i.test(n)) return 'biped';
   return 'unknown';
 }
