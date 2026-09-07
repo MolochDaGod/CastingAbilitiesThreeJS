@@ -1,6 +1,7 @@
 # Animation Library SSOT — Casting / Warlords lab
 
 **Code:** `src/config/animLibrary.js` · `src/config/assets.js` (`ANIM_PACKS`) · `src/config/weaponAnimPack.js`  
+**Cloud:** clip binaries `R2 prod/anims/{pack}/{clip}.json` · role table `public/api/v1/anim-packs.json` (hydrate from info.* / lab / CDN `_manifest`). **Not** Railway. D1 indexes clip files (`purpose=play`), not the role map.  
 **Play:** `src/animation/CharacterController.js` · mobility drive `src/combat/DrcCombatController.js`  
 **MM:** `src/combat/motionMath.js` · afterimage `src/vfx/DodgeAfterimage.js`  
 **UI:** Showcase **Anims** (`O` / Show) — **actions left · clips right**. Click action, click clip to session-bind (`animRoleBind.js` localStorage). Production bind stays `ANIM_PACKS`.  

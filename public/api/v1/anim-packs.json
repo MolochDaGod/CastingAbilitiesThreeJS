@@ -1,0 +1,710 @@
+{
+  "id": "anim-packs",
+  "version": "2026-09-07",
+  "law": "Role -> clip candidates (first URL that loads wins). Clips are R2 prod/anims/{rel}.json. This JSON is definitions (info.* / lab /api/v1). D1 indexes clip files, not the role table. Railway is player bag, not animations.",
+  "mixer": 1,
+  "skeleton": "bip001-play-bones",
+  "packs": {
+    "magic": {
+      "idle": [
+        "magic/rafa_fight_idle",
+        "magic/estes_idle",
+        "magic/ancient_wait_1",
+        "prod:magic/standing-idle",
+        "magic/standing idle"
+      ],
+      "cast": [
+        "magic/estes_cast",
+        "magic/ichi_cast",
+        "magic/ancient_cast",
+        "magic/rafa_cast",
+        "prod:magic/standing-1h-cast-spell-01",
+        "magic/standing 1h cast spell 01",
+        "magic/standing 2h cast spell 01"
+      ],
+      "attack": [
+        "magic/estes_attack",
+        "magic/rafa_attack",
+        "magic/ancient_attack",
+        "magic/ancient_cast"
+      ],
+      "skill": [
+        "magic/estes_skill",
+        "magic/ichi_skill",
+        "magic/ichi_skill1",
+        "magic/ancient_skill",
+        "magic/rafa_skill",
+        "magic/rafa_verigo"
+      ],
+      "skill1": [
+        "magic/estes_skill",
+        "magic/ichi_skill1",
+        "magic/rafa_skill",
+        "magic/rafa_cast",
+        "magic/ancient_skill"
+      ],
+      "skill2": [
+        "magic/estes_skill2",
+        "magic/rafa_skill2",
+        "magic/ancient_skill_ready"
+      ],
+      "skill3": [
+        "magic/estes_skill3",
+        "magic/estes_verigo",
+        "magic/rafa_skill3",
+        "magic/rafa_verigo"
+      ],
+      "walk": [
+        "prod:magic/standing-walk-forward",
+        "magic/Standing Walk Forward"
+      ],
+      "run": [
+        "prod:magic/standing-run-forward",
+        "magic/estes_run",
+        "magic/Standing Run Forward"
+      ],
+      "walkL": [
+        "prod:magic/standing-walk-left",
+        "magic/standing-walk-left"
+      ],
+      "walkR": [
+        "prod:magic/standing-walk-right",
+        "magic/standing-walk-right"
+      ],
+      "runL": [
+        "prod:magic/standing-run-left",
+        "magic/standing-run-left"
+      ],
+      "runR": [
+        "prod:magic/standing-run-right",
+        "magic/standing-run-right"
+      ],
+      "jump": [
+        "prod:magic/standing-jump",
+        "locomotion/jump"
+      ]
+    },
+    "sword_shield": {
+      "idle": [
+        "sword_shield/sword and shield idle"
+      ],
+      "attack1": [
+        "sword_shield/ken_strike",
+        "sword_shield/hai_strike",
+        "sword_shield/combo01-hit1",
+        "sword_shield/haya_attack1",
+        "sword_shield/drake_attack",
+        "sword_shield/intoout",
+        "sword_shield/one-hand-combo-hit1",
+        "sword_shield/sword and shield slash"
+      ],
+      "attack2": [
+        "sword_shield/ken_slash",
+        "sword_shield/combo01-hit2",
+        "sword_shield/haya_attack2",
+        "sword_shield/st1able-sword-inward-slash",
+        "sword_shield/one-hand-combo-hit2",
+        "sword_shield/sword and shield slash"
+      ],
+      "attack3": [
+        "sword_shield/ken_hit3",
+        "sword_shield/combo01-hit3",
+        "sword_shield/haya_attack3",
+        "sword_shield/11upward-thrust",
+        "sword_shield/one-hand-combo-hit3",
+        "sword_shield/sword and shield slash"
+      ],
+      "twoHandAttack": [
+        "2h_melee/zoro_strike",
+        "2h_melee/ken_strike",
+        "2h_melee/bane_attack1",
+        "2h_melee/combo2-hit1",
+        "2h_melee/monk-attack"
+      ],
+      "twoHandRun": [
+        "2h_melee/ken_run",
+        "2h_melee/bane_run",
+        "2h_melee/run"
+      ],
+      "twoHandAttack2": [
+        "2h_melee/zoro_slash",
+        "2h_melee/ken_slash",
+        "2h_melee/bane_attack2",
+        "2h_melee/combo2-hit2"
+      ],
+      "twoHandAttack3": [
+        "2h_melee/zoro_hit3",
+        "2h_melee/ken_hit3",
+        "2h_melee/bane_skill1",
+        "2h_melee/combo2-hit3",
+        "2h_melee/attack3"
+      ],
+      "daggerAttack": [
+        "sword_shield/zoro_dag1",
+        "sword_shield/zoro_dag_fast",
+        "sword_shield/ken_strike"
+      ],
+      "daggerAttack2": [
+        "sword_shield/zoro_dag2",
+        "sword_shield/ken_slash"
+      ],
+      "daggerAttack3": [
+        "sword_shield/zoro_dag3",
+        "sword_shield/ken_hit3"
+      ],
+      "twoHandIdle": [
+        "2h_melee/bane_fight_idle"
+      ],
+      "attack": [
+        "sword_shield/sword and shield attack"
+      ],
+      "finisher": [
+        "sword_shield/sword and shield attack"
+      ],
+      "finisherAir": [
+        "sword_shield/dropto-target",
+        "sword_shield/sword and shield attack"
+      ],
+      "block": [
+        "sword_shield/sword and shield block"
+      ],
+      "skill": [
+        "sword_shield/hai_skill",
+        "sword_shield/ken_skill"
+      ],
+      "skill1": [
+        "sword_shield/hai_skill2",
+        "sword_shield/hai_skill"
+      ],
+      "skill2": [
+        "sword_shield/hai_cast",
+        "sword_shield/hai_skill"
+      ],
+      "walk": [
+        "sword_shield/hai_walk",
+        "prod:magic/standing-walk-forward",
+        "sword_shield/sword and shield walk",
+        "magic/standing walk forward"
+      ],
+      "run": [
+        "sword_shield/ken_run",
+        "2h_melee/ken_run",
+        "sword_shield/sword and shield run",
+        "prod:magic/standing-run-forward",
+        "magic/standing run forward"
+      ],
+      "walkL": [
+        "prod:magic/standing-walk-left",
+        "magic/standing-walk-left",
+        "longbow/standing-walk-left"
+      ],
+      "walkR": [
+        "prod:magic/standing-walk-right",
+        "magic/standing-walk-right",
+        "longbow/standing-walk-right"
+      ],
+      "runL": [
+        "prod:magic/standing-run-left",
+        "magic/standing-run-left",
+        "longbow/standing-run-left"
+      ],
+      "runR": [
+        "prod:magic/standing-run-right",
+        "magic/standing-run-right",
+        "longbow/standing-run-right"
+      ],
+      "jump": [
+        "prod:magic/standing-jump",
+        "locomotion/jump"
+      ]
+    },
+    "longbow": {
+      "idle": [
+        "longbow/ichi_idle",
+        "longbow/miya_fight_idle",
+        "longbow/standing idle",
+        "longbow/standing idle 01",
+        "bow/standing idle",
+        "prod:magic/standing-idle"
+      ],
+      "attack": [
+        "longbow/ichi_shot",
+        "longbow/miya_shot",
+        "longbow/miya_attack1",
+        "longbow/standing draw arrow",
+        "longbow/standing aim recoil",
+        "bow/draw arrow"
+      ],
+      "skill": [
+        "longbow/miya_skill",
+        "longbow/miya_skill1",
+        "longbow/miya_verigo"
+      ],
+      "skill1": [
+        "longbow/miya_skill",
+        "longbow/miya_skill1"
+      ],
+      "walk": [
+        "longbow/standing walk forward",
+        "prod:magic/standing-walk-forward"
+      ],
+      "run": [
+        "longbow/ichi_run",
+        "longbow/miya_run",
+        "longbow/standing run forward",
+        "prod:magic/standing-run-forward"
+      ],
+      "walkL": [
+        "prod:longbow/standing-walk-left",
+        "longbow/standing-walk-left",
+        "longbow/walk-left",
+        "prod:magic/standing-walk-left"
+      ],
+      "walkR": [
+        "prod:longbow/standing-walk-right",
+        "longbow/standing-walk-right",
+        "longbow/walk-right",
+        "prod:magic/standing-walk-right"
+      ],
+      "runL": [
+        "prod:longbow/standing-run-left",
+        "longbow/standing-run-left",
+        "prod:magic/standing-run-left"
+      ],
+      "runR": [
+        "prod:longbow/standing-run-right",
+        "longbow/standing-run-right",
+        "prod:magic/standing-run-right"
+      ],
+      "jump": [
+        "prod:magic/standing-jump",
+        "locomotion/jump"
+      ],
+      "crossbowShoot": [
+        "longbow/ichi_shot",
+        "longbow/miya_shot",
+        "longbow/miya_attack1"
+      ],
+      "dodgeL": [
+        "longbow/standing dodge left",
+        "locomotion/dodge_l"
+      ],
+      "dodgeR": [
+        "longbow/standing dodge right",
+        "locomotion/dodge_r"
+      ],
+      "dodgeF": [
+        "longbow/standing dodge forward",
+        "locomotion/dodge_fwd"
+      ],
+      "dodgeB": [
+        "longbow/standing dodge backward",
+        "locomotion/dodge_back"
+      ],
+      "block": [
+        "sword_shield/sword and shield block"
+      ],
+      "parry": [
+        "sword_shield/sword and shield block"
+      ]
+    },
+    "pistol": {
+      "idle": [
+        "pistol/idle",
+        "pistol/clint_city_idle",
+        "pistol/pistol idle",
+        "pistol/clint_fight_idle",
+        "longbow/standing idle",
+        "prod:magic/standing-idle"
+      ],
+      "attack": [
+        "pistol/clint_attack1",
+        "pistol/clint_attack2",
+        "pistol/miya_shot",
+        "pistol/gunplay",
+        "pistol/charged-pistol",
+        "pistol/pistol-whip",
+        "longbow/standing aim recoil"
+      ],
+      "attack2": [
+        "pistol/clint_attack2",
+        "pistol/clint_attack1"
+      ],
+      "cast": [
+        "pistol/drawing-gun",
+        "pistol/charged-pistol",
+        "pistol/gunplay"
+      ],
+      "gunplay": [
+        "pistol/gunplay"
+      ],
+      "spin": [
+        "pistol/gunplay"
+      ],
+      "draw": [
+        "pistol/drawing-gun",
+        "pistol/gunplay"
+      ],
+      "reload": [
+        "pistol/reload",
+        "pistol/drawing-gun",
+        "rifle/reloading",
+        "pistol/charged-pistol"
+      ],
+      "skill1": [
+        "pistol/clint_skill1",
+        "pistol/miya_skill",
+        "pistol/gunplay",
+        "pistol/drawing-gun"
+      ],
+      "skill2": [
+        "pistol/charged-pistol",
+        "pistol/gunplay"
+      ],
+      "skill3": [
+        "pistol/pistol-whip",
+        "pistol/gunplay"
+      ],
+      "skill4": [
+        "pistol/charged-pistol",
+        "pistol/pistol-whip"
+      ],
+      "skill5": [
+        "pistol/reload",
+        "pistol/drawing-gun",
+        "rifle/reloading"
+      ],
+      "walk": [
+        "pistol/walk-forward",
+        "pistol/pistol walk",
+        "prod:magic/standing-walk-forward"
+      ],
+      "run": [
+        "pistol/clint_run",
+        "pistol/run-forward",
+        "pistol/pistol run",
+        "prod:magic/standing-run-forward"
+      ],
+      "walkL": [
+        "pistol/strafe-left",
+        "prod:magic/standing-walk-left",
+        "longbow/standing-walk-left"
+      ],
+      "walkR": [
+        "pistol/strafe-right",
+        "prod:magic/standing-walk-right",
+        "longbow/standing-walk-right"
+      ],
+      "runL": [
+        "pistol/strafe-left",
+        "prod:magic/standing-run-left"
+      ],
+      "runR": [
+        "pistol/strafe-right",
+        "prod:magic/standing-run-right"
+      ],
+      "jump": [
+        "pistol/pistol-jump",
+        "pistol/jump",
+        "prod:magic/standing-jump",
+        "locomotion/jump"
+      ],
+      "dodgeL": [
+        "longbow/standing dodge left",
+        "locomotion/dodge_l"
+      ],
+      "dodgeR": [
+        "longbow/standing dodge right",
+        "locomotion/dodge_r"
+      ],
+      "dodgeF": [
+        "longbow/standing dodge forward",
+        "locomotion/dodge_fwd"
+      ],
+      "dodgeB": [
+        "longbow/standing dodge backward",
+        "locomotion/dodge_back"
+      ],
+      "block": [
+        "pistol/drawing-gun",
+        "sword_shield/sword and shield block"
+      ],
+      "parry": [
+        "pistol/pistol-whip",
+        "sword_shield/sword and shield block"
+      ]
+    },
+    "locomotion_8way": {
+      "idle": [
+        "prod:magic/standing-idle"
+      ],
+      "walk": [
+        "locomotion/walk-forward",
+        "prod:magic/standing-walk-forward"
+      ],
+      "run": [
+        "locomotion/run-forward",
+        "prod:magic/standing-run-forward"
+      ],
+      "walkL": [
+        "prod:magic/standing-walk-left",
+        "longbow/standing-walk-left"
+      ],
+      "walkR": [
+        "prod:magic/standing-walk-right",
+        "longbow/standing-walk-right"
+      ],
+      "runL": [
+        "prod:magic/standing-run-left",
+        "longbow/standing-run-left"
+      ],
+      "runR": [
+        "prod:magic/standing-run-right",
+        "longbow/standing-run-right"
+      ],
+      "jump": [
+        "locomotion/jump",
+        "prod:magic/standing-jump"
+      ]
+    },
+    "reactions": {
+      "hitReact": [
+        "reactions/op_hit",
+        "reactions/knocked-up"
+      ],
+      "knockedUp": [
+        "reactions/op_knockback",
+        "reactions/op_slammed",
+        "reactions/knocked-up"
+      ],
+      "blownAway": [
+        "reactions/op_blown",
+        "reactions/op_knockback",
+        "reactions/knocked-up"
+      ],
+      "stun": [
+        "reactions/op_stun",
+        "reactions/op_hit"
+      ],
+      "getup": [
+        "reactions/op_getup"
+      ]
+    },
+    "combat_mobility": {
+      "rollL": [
+        "ghost_rider/roll_left",
+        "locomotion/roll_left",
+        "longbow/standing dodge left",
+        "locomotion/dodge_l"
+      ],
+      "rollR": [
+        "ghost_rider/roll_right",
+        "locomotion/roll_right",
+        "longbow/standing dodge right",
+        "locomotion/dodge_r"
+      ],
+      "rollF": [
+        "ghost_rider/roll_forward",
+        "locomotion/roll_forward",
+        "longbow/standing dodge forward",
+        "locomotion/dodge_fwd"
+      ],
+      "rollB": [
+        "ghost_rider/roll_back",
+        "locomotion/roll_back",
+        "longbow/standing dodge backward",
+        "locomotion/dodge_back"
+      ],
+      "slide": [
+        "prod:extra/running-slide",
+        "prod:extra/quick-roll-to-run"
+      ],
+      "dodgeL": [
+        "combat_mobility/op_dash",
+        "longbow/standing dodge left",
+        "locomotion/dodge_l",
+        "ghost_rider/dodgeL"
+      ],
+      "dodgeR": [
+        "combat_mobility/op_dash",
+        "longbow/standing dodge right",
+        "locomotion/dodge_r",
+        "ghost_rider/dodgeR"
+      ],
+      "dodgeF": [
+        "combat_mobility/op_dash",
+        "longbow/standing dodge forward",
+        "locomotion/dodge_fwd",
+        "ghost_rider/dodgeF"
+      ],
+      "dodgeB": [
+        "combat_mobility/op_dash",
+        "longbow/standing dodge backward",
+        "locomotion/dodge_back",
+        "ghost_rider/dodgeB"
+      ],
+      "airDash": [
+        "combat_mobility/op_dash",
+        "combat_mobility/op_boost"
+      ],
+      "airDashL": [
+        "combat_mobility/op_dash"
+      ],
+      "airDashR": [
+        "combat_mobility/op_dash"
+      ],
+      "airDashB": [
+        "combat_mobility/op_dash"
+      ],
+      "slideGetup": [
+        "reactions/op_getup"
+      ],
+      "parry": [
+        "sword_shield/sword and shield block"
+      ],
+      "block": [
+        "sword_shield/sword and shield block"
+      ],
+      "frontflip": [
+        "extra/front-flip",
+        "extra/running-forward-flip",
+        "extra/front-twist-flip"
+      ],
+      "backflip": [
+        "striker/backflip",
+        "striker/back_flip_to_uppercut"
+      ],
+      "fallLoop": [
+        "locomotion/fall-loop",
+        "locomotion/fall_a_loop",
+        "extra/fall-loop"
+      ],
+      "fall": [
+        "locomotion/falling",
+        "locomotion/fall",
+        "extra/falling"
+      ],
+      "fallLand": [
+        "locomotion/fall-to-landing",
+        "locomotion/falling-to-landing"
+      ],
+      "fallRoll": [
+        "locomotion/fall-to-roll",
+        "locomotion/falling-to-roll"
+      ],
+      "fallIdle": [
+        "locomotion/fall-idle",
+        "locomotion/falling-idle"
+      ]
+    },
+    "polearm": {
+      "idle": [
+        "polearm/idle"
+      ],
+      "walk": [
+        "polearm/walk",
+        "prod:magic/standing-walk-forward"
+      ],
+      "run": [
+        "polearm/run",
+        "polearm/sprint",
+        "prod:magic/standing-run-forward"
+      ],
+      "attack": [
+        "polearm/drake_stab",
+        "spear/drake_stab",
+        "polearm/spear-attack3",
+        "polearm/attack"
+      ],
+      "attack1": [
+        "polearm/drake_stab",
+        "spear/drake_stab",
+        "polearm/attack"
+      ],
+      "attack2": [
+        "polearm/attack2",
+        "polearm/drake_stab"
+      ],
+      "attack3": [
+        "polearm/spear-attack3",
+        "spear/attack3",
+        "polearm/attack3"
+      ],
+      "attack4": [
+        "polearm/attack4"
+      ],
+      "attack5": [
+        "polearm/attack5"
+      ],
+      "skill1": [
+        "polearm/skill1"
+      ],
+      "skill2": [
+        "polearm/skill2"
+      ],
+      "skill3": [
+        "polearm/skill3"
+      ],
+      "skill4": [
+        "polearm/skill4"
+      ],
+      "special": [
+        "polearm/special"
+      ],
+      "combo": [
+        "polearm/combo",
+        "polearm/attack"
+      ],
+      "thrust": [
+        "polearm/drake_stab",
+        "polearm/thrust"
+      ],
+      "slash": [
+        "polearm/slash"
+      ],
+      "hurt": [
+        "polearm/hurt"
+      ],
+      "death": [
+        "polearm/death"
+      ]
+    }
+  },
+  "meta": {
+    "magic": {
+      "label": "Magic / staff",
+      "skills": "cast",
+      "locomotion": "walk·run·jump"
+    },
+    "sword_shield": {
+      "label": "Sword & shield",
+      "skills": "combo×3 · finisher · block",
+      "locomotion": "walk·run·jump"
+    },
+    "longbow": {
+      "label": "Longbow",
+      "skills": "attack · dodge L/R/F/B",
+      "locomotion": "walk·run·jump"
+    },
+    "polearm": {
+      "label": "Spear / polearm (Ikkaku Bip001)",
+      "skills": "combo · lunge · skills 1–4 · special",
+      "locomotion": "walk·run"
+    },
+    "pistol": {
+      "label": "Pistol / handgun",
+      "skills": "gunplay(spin) · draw · charged · whip",
+      "locomotion": "walk·run·strafe·jump"
+    },
+    "locomotion_8way": {
+      "label": "Locomotion 8-way",
+      "skills": "—",
+      "locomotion": "walk·run·jump"
+    },
+    "combat_mobility": {
+      "label": "Shared rolls / dodges / slide / parry / fall",
+      "skills": "roll·dodge·slide·parry·fall",
+      "locomotion": "fallLoop·fallLand·fallRoll"
+    }
+  }
+}

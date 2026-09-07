@@ -16,7 +16,7 @@ import {
   kitUrlCandidates,
   kitUrlForRace
 } from './grudge6SSOT.js';
-import { sameOriginFleetUrl } from './fleetEnv.js';
+import { sameOriginFleetUrl, catalogJsonUrls } from './fleetEnv.js';
 
 export const ASSETS_CDN = CDN;
 export const OPEN_HOST = 'https://open.grudge-studio.com';
@@ -428,6 +428,43 @@ export const ANIM_PACK_META = {
     locomotion: 'fallLoop·fallLand·fallRoll'
   }
 };
+
+/**
+ * Overlay ANIM_PACKS from Cloudflare definitions JSON.
+ * Clips stay R2 binaries. Role table is info.* / lab /api/v1 (not Railway, not D1 rows).
+ * @returns {Promise<object|null>}
+ */
+export async function hydrateAnimPacks() {
+  const urls = [
+    ...catalogJsonUrls('anim-packs.json'),
+    '/api/v1/anim-packs.json',
+    sameOriginFleetUrl(`${CDN}/prod/anims/_manifest/anim-packs.json`)
+  ];
+  const seen = new Set();
+  for (const url of urls) {
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    try {
+      const r = await fetch(url, { cache: 'no-store' });
+      if (!r.ok) continue;
+      const doc = await r.json();
+      const packs = doc?.packs;
+      if (!packs || typeof packs !== 'object') continue;
+      for (const [id, roles] of Object.entries(packs)) {
+        if (roles && typeof roles === 'object') ANIM_PACKS[id] = roles;
+      }
+      if (doc.meta && typeof doc.meta === 'object') {
+        Object.assign(ANIM_PACK_META, doc.meta);
+      }
+      console.info(`[assets] ANIM_PACKS hydrated ← ${url} packs=${Object.keys(packs).join(',')}`);
+      return doc;
+    } catch {
+      /* next url */
+    }
+  }
+  console.info('[assets] ANIM_PACKS using bundled fallback (cloud JSON miss)');
+  return null;
+}
 
 /** Dodge role by direction for AA/DD/WW/X. */
 export const DODGE_ROLE = Object.freeze({

@@ -20,6 +20,7 @@ import { WORLD } from '../config/worldScale.js';
 
 import { AssetLoader } from '../loaders/AssetLoader.js';
 import { CharacterController } from '../animation/CharacterController.js';
+import { hydrateAnimPacks } from '../config/assets.js';
 import { WalkController } from '../animation/WalkController.js';
 import { HorseMount } from '../world/HorseMount.js';
 
@@ -2337,6 +2338,7 @@ export class App {
       0.45,
       `Loading ${id.raceLabel} kit…`
     );
+    await hydrateAnimPacks();
     await this.character.load(assets, {
       raceId: id.raceId,
       presetId: id.roleId
