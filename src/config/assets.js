@@ -93,25 +93,31 @@ export const ANIM_PACKS = {
      */
     attack1: [
       'sword_shield/combo01-hit1',
+      'sword_shield/haya_attack1',
+      'sword_shield/drake_attack',
       'sword_shield/intoout',
       'sword_shield/one-hand-combo-hit1',
       'sword_shield/sword and shield slash'
     ],
     attack2: [
       'sword_shield/combo01-hit2',
+      'sword_shield/haya_attack2',
       'sword_shield/st1able-sword-inward-slash',
       'sword_shield/one-hand-combo-hit2',
       'sword_shield/sword and shield slash'
     ],
     attack3: [
       'sword_shield/combo01-hit3',
+      'sword_shield/haya_attack3',
       'sword_shield/11upward-thrust',
       'sword_shield/one-hand-combo-hit3',
       'sword_shield/sword and shield slash'
     ],
-    twoHandAttack: ['2h_melee/combo2-hit1', '2h_melee/monk-attack'],
-    twoHandAttack2: ['2h_melee/combo2-hit2'],
-    twoHandAttack3: ['2h_melee/combo2-hit3', '2h_melee/attack3'],
+    twoHandAttack: ['2h_melee/bane_attack1', '2h_melee/combo2-hit1', '2h_melee/monk-attack'],
+    twoHandAttack2: ['2h_melee/bane_attack2', '2h_melee/combo2-hit2'],
+    twoHandAttack3: ['2h_melee/combo2-hit3', '2h_melee/bane_skill1', '2h_melee/attack3'],
+    twoHandIdle: ['2h_melee/bane_fight_idle'],
+    twoHandRun: ['2h_melee/bane_run', '2h_melee/run'],
     /** Knight three-slash jump-dash — finisher only, not light LMB */
     attack: ['sword_shield/sword and shield attack'],
     finisher: ['sword_shield/sword and shield attack'],
@@ -200,14 +206,17 @@ export const ANIM_PACKS = {
    * Timing SSOT: config/pistolAnimSsot.js
    */
   pistol: {
-    idle: ['pistol/idle', 'pistol/pistol idle', 'longbow/standing idle', 'prod:magic/standing-idle'],
-    /** Primary fire — gunplay spin flourish; TPS fire is ~0.21s snap (timeScale in combat) */
+    idle: ['pistol/clint_fight_idle', 'pistol/idle', 'pistol/pistol idle', 'longbow/standing idle', 'prod:magic/standing-idle'],
+    /** Clint (hero_old_clint.glb) is pistol fire SSOT — gunplay spin is flourish */
     attack: [
+      'pistol/clint_attack1',
+      'pistol/clint_attack2',
       'pistol/gunplay',
       'pistol/charged-pistol',
       'pistol/pistol-whip',
       'longbow/standing aim recoil'
     ],
+    attack2: ['pistol/clint_attack2', 'pistol/clint_attack1'],
     /** Aim-ready / drawn idle feel */
     cast: ['pistol/drawing-gun', 'pistol/charged-pistol', 'pistol/gunplay'],
     /** Spin flourish (explicit role for skills / lab library) */

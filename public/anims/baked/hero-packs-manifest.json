@@ -1,0 +1,475 @@
+{
+  "generated": "2026-09-07T08:50:24.243Z",
+  "clips": [
+    {
+      "src": "drake.glb",
+      "pack": "sword_shield",
+      "file": "sword_shield/drake_playshow.json",
+      "role": "playshow",
+      "duration": 5.833333492279053,
+      "tracks": 27,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "drake.glb",
+      "pack": "sword_shield",
+      "file": "sword_shield/drake_wait_inhand.json",
+      "role": "wait_inhand",
+      "duration": 1.2000000476837158,
+      "tracks": 27,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "drake.glb",
+      "pack": "sword_shield",
+      "file": "sword_shield/drake_wait_1.json",
+      "role": "wait_1",
+      "duration": 1.2000000476837158,
+      "tracks": 27,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "drake.glb",
+      "pack": "sword_shield",
+      "file": "sword_shield/drake_skill_ready.json",
+      "role": "skill_ready",
+      "duration": 0.8000000715255737,
+      "tracks": 27,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "drake.glb",
+      "pack": "sword_shield",
+      "file": "sword_shield/drake_hit.json",
+      "role": "hit",
+      "duration": 0.5,
+      "tracks": 27,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "drake.glb",
+      "pack": "sword_shield",
+      "file": "sword_shield/drake_walk.json",
+      "role": "walk",
+      "duration": 1,
+      "tracks": 27,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "drake.glb",
+      "pack": "sword_shield",
+      "file": "sword_shield/drake_be_touch.json",
+      "role": "be_touch",
+      "duration": 2.2333333492279053,
+      "tracks": 27,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "drake.glb",
+      "pack": "sword_shield",
+      "file": "sword_shield/drake_walk_inhand.json",
+      "role": "walk_inhand",
+      "duration": 1,
+      "tracks": 27,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "drake.glb",
+      "pack": "sword_shield",
+      "file": "sword_shield/drake_eat.json",
+      "role": "eat",
+      "duration": 2.566666841506958,
+      "tracks": 27,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "drake.glb",
+      "pack": "sword_shield",
+      "file": "sword_shield/drake_use_skill.json",
+      "role": "use_skill",
+      "duration": 1.5666667222976685,
+      "tracks": 27,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "drake.glb",
+      "pack": "sword_shield",
+      "file": "sword_shield/drake_die.json",
+      "role": "die",
+      "duration": 2.133333444595337,
+      "tracks": 27,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "drake.glb",
+      "pack": "sword_shield",
+      "file": "sword_shield/drake_happy.json",
+      "role": "happy",
+      "duration": 3.1000001430511475,
+      "tracks": 27,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "drake.glb",
+      "pack": "sword_shield",
+      "file": "sword_shield/drake_attack.json",
+      "role": "attack",
+      "duration": 1,
+      "tracks": 27,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_old_clint.glb",
+      "pack": "pistol",
+      "file": "pistol/clint_attack2.json",
+      "role": "attack2",
+      "duration": 1,
+      "tracks": 24,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_old_clint.glb",
+      "pack": "pistol",
+      "file": "pistol/clint_city_action.json",
+      "role": "city_action",
+      "duration": 3.833333969116211,
+      "tracks": 24,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_old_clint.glb",
+      "pack": "pistol",
+      "file": "pistol/clint_dead.json",
+      "role": "dead",
+      "duration": 1.3333333730697632,
+      "tracks": 24,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_old_clint.glb",
+      "pack": "pistol",
+      "file": "pistol/clint_fight_idle.json",
+      "role": "fight_idle",
+      "duration": 1.3333333730697632,
+      "tracks": 23,
+      "pelvis": false,
+      "hands": 2
+    },
+    {
+      "src": "hero_old_clint.glb",
+      "pack": "pistol",
+      "file": "pistol/clint_city_idle.json",
+      "role": "city_idle",
+      "duration": 2,
+      "tracks": 24,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_old_clint.glb",
+      "pack": "pistol",
+      "file": "pistol/clint_attack1.json",
+      "role": "attack1",
+      "duration": 1,
+      "tracks": 24,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_old_bane.glb",
+      "pack": "2h_melee",
+      "file": "2h_melee/bane_attack1.json",
+      "role": "attack1",
+      "duration": 1.1666665077209473,
+      "tracks": 25,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_old_bane.glb",
+      "pack": "2h_melee",
+      "file": "2h_melee/bane_attack2.json",
+      "role": "attack2",
+      "duration": 1.2666668891906738,
+      "tracks": 25,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_old_bane.glb",
+      "pack": "2h_melee",
+      "file": "2h_melee/bane_city_action.json",
+      "role": "city_action",
+      "duration": 3.466665267944336,
+      "tracks": 25,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_old_bane.glb",
+      "pack": "2h_melee",
+      "file": "2h_melee/bane_city_idle.json",
+      "role": "city_idle",
+      "duration": 1.5333328247070312,
+      "tracks": 24,
+      "pelvis": false,
+      "hands": 2
+    },
+    {
+      "src": "hero_old_bane.glb",
+      "pack": "2h_melee",
+      "file": "2h_melee/bane_dead.json",
+      "role": "dead",
+      "duration": 1.6333332061767578,
+      "tracks": 25,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_old_bane.glb",
+      "pack": "2h_melee",
+      "file": "2h_melee/bane_fight_idle.json",
+      "role": "fight_idle",
+      "duration": 1.3333333730697632,
+      "tracks": 25,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_old_bane.glb",
+      "pack": "2h_melee",
+      "file": "2h_melee/bane_run.json",
+      "role": "run",
+      "duration": 0.7666666507720947,
+      "tracks": 25,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_old_bane.glb",
+      "pack": "2h_melee",
+      "file": "2h_melee/bane_skill1.json",
+      "role": "skill1",
+      "duration": 1,
+      "tracks": 25,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_old_bane.glb",
+      "pack": "2h_melee",
+      "file": "2h_melee/bane_skill2.json",
+      "role": "skill2",
+      "duration": 0.6666679382324219,
+      "tracks": 25,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_old_bane.glb",
+      "pack": "2h_melee",
+      "file": "2h_melee/bane_skill3.json",
+      "role": "skill3",
+      "duration": 1.1333332061767578,
+      "tracks": 25,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_old_bane.glb",
+      "pack": "2h_melee",
+      "file": "2h_melee/bane_verigo.json",
+      "role": "verigo",
+      "duration": 2,
+      "tracks": 25,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_hayabusa.glb",
+      "pack": "sword_shield",
+      "file": "sword_shield/haya_fight_idle.json",
+      "role": "fight_idle",
+      "duration": 2.0000038146972656,
+      "tracks": 24,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_hayabusa.glb",
+      "pack": "sword_shield",
+      "file": "sword_shield/haya_fight_idle2.json",
+      "role": "fight_idle2",
+      "duration": 2.333333969116211,
+      "tracks": 24,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_hayabusa.glb",
+      "pack": "sword_shield",
+      "file": "sword_shield/haya_verigo.json",
+      "role": "verigo",
+      "duration": 1.6666679382324219,
+      "tracks": 24,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_hayabusa.glb",
+      "pack": "sword_shield",
+      "file": "sword_shield/haya_landing.json",
+      "role": "landing",
+      "duration": 2.000001907348633,
+      "tracks": 24,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_hayabusa.glb",
+      "pack": "sword_shield",
+      "file": "sword_shield/haya_attack2.json",
+      "role": "attack2",
+      "duration": 2.666667938232422,
+      "tracks": 24,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_hayabusa.glb",
+      "pack": "sword_shield",
+      "file": "sword_shield/haya_taunt01.json",
+      "role": "taunt01",
+      "duration": 4.433333396911621,
+      "tracks": 24,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_hayabusa.glb",
+      "pack": "sword_shield",
+      "file": "sword_shield/haya_skill3_1.json",
+      "role": "skill3_1",
+      "duration": 2.666667938232422,
+      "tracks": 24,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_hayabusa.glb",
+      "pack": "sword_shield",
+      "file": "sword_shield/haya_skill2.json",
+      "role": "skill2",
+      "duration": 0.8333339691162109,
+      "tracks": 24,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_hayabusa.glb",
+      "pack": "sword_shield",
+      "file": "sword_shield/haya_skill3.json",
+      "role": "skill3",
+      "duration": 0.40000152587890625,
+      "tracks": 24,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_hayabusa.glb",
+      "pack": "sword_shield",
+      "file": "sword_shield/haya_skill2_2.json",
+      "role": "skill2_2",
+      "duration": 1.5000019073486328,
+      "tracks": 24,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_hayabusa.glb",
+      "pack": "sword_shield",
+      "file": "sword_shield/haya_attack3.json",
+      "role": "attack3",
+      "duration": 1.6666679382324219,
+      "tracks": 24,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_hayabusa.glb",
+      "pack": "sword_shield",
+      "file": "sword_shield/haya_attack1.json",
+      "role": "attack1",
+      "duration": 1.6666674613952637,
+      "tracks": 24,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_hayabusa.glb",
+      "pack": "sword_shield",
+      "file": "sword_shield/haya_run.json",
+      "role": "run",
+      "duration": 0.73333740234375,
+      "tracks": 24,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_hayabusa.glb",
+      "pack": "sword_shield",
+      "file": "sword_shield/haya_skill1.json",
+      "role": "skill1",
+      "duration": 1.0000009536743164,
+      "tracks": 24,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_hayabusa.glb",
+      "pack": "sword_shield",
+      "file": "sword_shield/haya_dead.json",
+      "role": "dead",
+      "duration": 3.3333358764648438,
+      "tracks": 24,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_hayabusa.glb",
+      "pack": "sword_shield",
+      "file": "sword_shield/haya_recall.json",
+      "role": "recall",
+      "duration": 5.000000953674316,
+      "tracks": 24,
+      "pelvis": true,
+      "hands": 2
+    },
+    {
+      "src": "hero_hayabusa.glb",
+      "pack": "sword_shield",
+      "file": "sword_shield/haya_fastrun.json",
+      "role": "fastrun",
+      "duration": 0.6000003814697266,
+      "tracks": 24,
+      "pelvis": true,
+      "hands": 2
+    }
+  ]
+}
