@@ -61,14 +61,23 @@ export const ANIM_PACKS = {
   magic: {
     // Prefer prod (has L/R Hand). Open standing idle is hand-less — avoid as primary.
     idle: [
+      'magic/rafa_fight_idle',
+      'magic/ancient_wait_1',
       'prod:magic/standing-idle',
-      'magic/standing idle' // last resort only
+      'magic/standing idle'
     ],
     cast: [
+      'magic/ancient_cast',
+      'magic/rafa_cast',
       'prod:magic/standing-1h-cast-spell-01',
       'magic/standing 1h cast spell 01',
       'magic/standing 2h cast spell 01'
     ],
+    attack: ['magic/ancient_attack', 'magic/rafa_attack', 'magic/ancient_cast'],
+    skill: ['magic/ancient_skill', 'magic/rafa_skill', 'magic/rafa_verigo'],
+    skill1: ['magic/rafa_skill', 'magic/rafa_cast', 'magic/ancient_skill'],
+    skill2: ['magic/rafa_skill2', 'magic/ancient_skill_ready'],
+    skill3: ['magic/rafa_skill3', 'magic/rafa_verigo'],
     walk: ['prod:magic/standing-walk-forward', 'magic/Standing Walk Forward'],
     run: ['prod:magic/standing-run-forward', 'magic/Standing Run Forward'],
     /** Focus-mode lower body strafe (A/D while looking with mouse) */

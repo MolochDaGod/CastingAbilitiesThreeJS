@@ -45,5 +45,17 @@
     "shot": "longbow/miya_shot",
     "skill": "longbow/miya_skill",
     "use": "bow · crossbow · gun"
+  },
+  "ancient": {
+    "source": "Documents/the_ancient.glb",
+    "cast": "magic/ancient_cast",
+    "attack": "magic/ancient_attack",
+    "skill": "magic/ancient_skill"
+  },
+  "rafaela": {
+    "source": "Documents/hero_old_rafaela.glb",
+    "cast": "magic/rafa_cast",
+    "attack": "magic/rafa_attack",
+    "skill": "magic/rafa_skill"
   }
 }
