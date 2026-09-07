@@ -23,6 +23,7 @@ export const WEAPON_SLOT_TO_PACK = Object.freeze({
   shield: 'sword_shield',
   bow: 'longbow',
   longbow: 'longbow',
+  crossbow: 'longbow',
   /** Handgun / T0 pistol — Open baked pistol/* (gunplay spin, draw, whip) */
   pistol: 'pistol',
   gun: 'pistol',

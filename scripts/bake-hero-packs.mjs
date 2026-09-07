@@ -26,6 +26,7 @@ const JOBS = [
   { src: 'hero_old_clint.glb', pack: 'pistol', prefix: 'clint', note: 'pistol' },
   { src: 'hero_old_bane.glb', pack: '2h_melee', prefix: 'bane', note: '2H' },
   { src: 'hero_hayabusa.glb', pack: 'sword_shield', prefix: 'haya', note: '1H' },
+  { src: 'hero_miya_2016.glb', pack: 'longbow', prefix: 'miya', note: 'bow/crossbow/gun' },
 ];
 
 function toBip001Node(nodeName) {

@@ -158,8 +158,11 @@ export const ANIM_PACKS = {
     jump: ['prod:magic/standing-jump', 'locomotion/jump']
   },
   longbow: {
-    idle: ['longbow/standing idle', 'longbow/standing idle 01', 'bow/standing idle', 'prod:magic/standing-idle'],
-    attack: ['longbow/standing draw arrow', 'longbow/standing aim recoil', 'bow/draw arrow', 'sword_shield/sword and shield attack'],
+    idle: ['longbow/miya_fight_idle', 'longbow/standing idle', 'longbow/standing idle 01', 'bow/standing idle', 'prod:magic/standing-idle'],
+    /** Miya shot (hero_miya_2016) — cool bow fire; Mixamo draw as fallback */
+    attack: ['longbow/miya_shot', 'longbow/miya_attack1', 'longbow/standing draw arrow', 'longbow/standing aim recoil', 'bow/draw arrow'],
+    skill: ['longbow/miya_skill', 'longbow/miya_skill1', 'longbow/miya_verigo'],
+    skill1: ['longbow/miya_skill', 'longbow/miya_skill1'],
     walk: ['longbow/standing walk forward', 'prod:magic/standing-walk-forward'],
     run: ['longbow/standing run forward', 'prod:magic/standing-run-forward'],
     walkL: [
@@ -185,6 +188,8 @@ export const ANIM_PACKS = {
       'prod:magic/standing-run-right'
     ],
     jump: ['prod:magic/standing-jump', 'locomotion/jump'],
+    /** Miya shot also used as crossbow fire (same longbow pack) */
+    crossbowShoot: ['longbow/miya_shot', 'longbow/miya_attack1'],
     // Directional dodges (Danger Room AA/DD/WW/X) — longbow pack primary
     dodgeL: ['longbow/standing dodge left', 'locomotion/dodge_l'],
     dodgeR: ['longbow/standing dodge right', 'locomotion/dodge_r'],
@@ -211,6 +216,7 @@ export const ANIM_PACKS = {
     attack: [
       'pistol/clint_attack1',
       'pistol/clint_attack2',
+      'pistol/miya_shot',
       'pistol/gunplay',
       'pistol/charged-pistol',
       'pistol/pistol-whip',
@@ -235,7 +241,7 @@ export const ANIM_PACKS = {
       'pistol/charged-pistol'
     ],
     /** Open Danger: pistol_shot */
-    skill1: ['pistol/gunplay', 'pistol/drawing-gun'],
+    skill1: ['pistol/miya_skill', 'pistol/gunplay', 'pistol/drawing-gun'],
     /** Open Danger: pistol_fan / charged */
     skill2: ['pistol/charged-pistol', 'pistol/gunplay'],
     /** Open Danger: whip review */

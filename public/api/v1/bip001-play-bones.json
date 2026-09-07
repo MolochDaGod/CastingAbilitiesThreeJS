@@ -39,5 +39,11 @@
     "source": "Documents/drake.glb",
     "stab": "polearm/drake_stab",
     "spine": "author has Spine + Spine1 only — bake copies Spine1 → Spine2 for Toon"
+  },
+  "miya": {
+    "source": "Documents/hero_miya_2016.glb",
+    "shot": "longbow/miya_shot",
+    "skill": "longbow/miya_skill",
+    "use": "bow · crossbow · gun"
   }
 }
