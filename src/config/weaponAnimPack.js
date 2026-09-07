@@ -63,6 +63,7 @@ export const PACK_COMBAT_ROLES = Object.freeze({
     cast: 'attack1',
     block: 'block',
     combo: ['attack1', 'attack2', 'attack3'],
+    twoHandCombo: ['twoHandAttack', 'twoHandAttack2', 'twoHandAttack3'],
     finisher: 'finisher',
     finisherAir: 'finisherAir',
     loco: ['idle', 'walk', 'run', 'jump'],

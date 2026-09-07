@@ -92,21 +92,27 @@ export const ANIM_PACKS = {
      * Mixamo sources baked same-origin; rematch → Bip001 at bind.
      */
     attack1: [
+      'sword_shield/combo01-hit1',
       'sword_shield/intoout',
       'sword_shield/one-hand-combo-hit1',
       'sword_shield/sword and shield slash'
     ],
     attack2: [
+      'sword_shield/combo01-hit2',
       'sword_shield/st1able-sword-inward-slash',
       'sword_shield/one-hand-combo-hit2',
       'sword_shield/sword and shield slash'
     ],
     attack3: [
+      'sword_shield/combo01-hit3',
       'sword_shield/11upward-thrust',
       'sword_shield/one-hand-combo-hit3',
       'sword_shield/sword and shield slash'
     ],
-    /** Finisher (was misused as light attack): lunge / jump-dash */
+    twoHandAttack: ['2h_melee/combo2-hit1', '2h_melee/monk-attack'],
+    twoHandAttack2: ['2h_melee/combo2-hit2'],
+    twoHandAttack3: ['2h_melee/combo2-hit3', '2h_melee/attack3'],
+    /** Knight three-slash jump-dash — finisher only, not light LMB */
     attack: ['sword_shield/sword and shield attack'],
     finisher: ['sword_shield/sword and shield attack'],
     finisherAir: ['sword_shield/dropto-target', 'sword_shield/sword and shield attack'],
@@ -324,10 +330,10 @@ export const ANIM_PACKS = {
     idle: ['polearm/idle'],
     walk: ['polearm/walk', 'prod:magic/standing-walk-forward'],
     run: ['polearm/run', 'polearm/sprint', 'prod:magic/standing-run-forward'],
-    attack: ['polearm/attack'],
-    attack1: ['polearm/attack'],
+    attack: ['polearm/spear-attack3', 'polearm/attack'],
+    attack1: ['polearm/attack', 'spear/attack3'],
     attack2: ['polearm/attack2'],
-    attack3: ['polearm/attack3'],
+    attack3: ['polearm/spear-attack3', 'spear/attack3', 'polearm/attack3'],
     attack4: ['polearm/attack4'],
     attack5: ['polearm/attack5'],
     skill1: ['polearm/skill1'],
