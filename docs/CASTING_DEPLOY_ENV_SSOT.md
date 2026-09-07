@@ -51,7 +51,7 @@
 
 Never fetch `assets.grudge-studio.com` or `open.grudge-studio.com` from the page (R2/Open lack CORS → `getTransfer` crash).  
 Live `/api/assets` goes through `api/cdn-proxy.js` (same-host Referer) so CF hotlink does not 403 images.  
-`/api/objectstore` may still rewrite to Pages for legacy; **catalog JSON** is `catalogJsonUrls`: `/api/info` → info.* → objectstore `/api/v1` proxy.
+`/api/objectstore` rewrites to **objectstore.grudge-studio.com** (Worker proxy of info.*). **catalog JSON** is `catalogJsonUrls`: `/api/info` → info.* → `/api/objectstore/v1`.
 
 | Kind | Browser URL |
 |------|-------------|
@@ -89,6 +89,30 @@ Railway CORS already allowlists:
 - `https://casting-abilities-threejs.vercel.app`
 
 Same-origin is still preferred (cookies / fewer CORS footguns).
+
+---
+
+## Production controller + weapon skills
+
+Extend `DrcCombatController` + `weaponSkillProduction` — no second mixer, physics, or class tree.
+
+| Practice | Value |
+|----------|--------|
+| Body | Toon `{race}.glb` via `deployToonPlayKit` / `loadRaceKit` |
+| Mixer | **One** AnimationMixer · Bip001 packs · rotation-only |
+| Locomotion | WASD · Shift sprint · Ctrl roll · AA/DD dodge · Space **jump only** |
+| Combat camera | TPS · RMB focus · LMB select (attack if focus on) |
+| Attack | **F** melee residual from weapon spine (tip / barrel / cast) |
+| Weapon skills | Slots **1–4** from catalog `t0-weapons` / `master-weaponSkills` only |
+| Dual | Tap **Q** swap loadout (mesh + pack + skills) |
+| Compile | `compileProductionWeaponSkill` → anim · VFX · physics · status |
+| Catalogs | `catalogJsonUrls` → info.* (never invent skill ids, never github.io) |
+| Player bag | Railway `/api/account/*` — not D1, not ObjectStore JSON |
+| Unique loot | server `grudge_uuid` |
+
+Author a skill: catalog id exists → `node scripts/scaffold-weapon-skill.mjs --id <id>` → `skills/production/<id>.json` → smoke `?t0=<weapon>` · 1–4 · F.
+
+Full: `docs/WEAPON_SKILL_PRODUCTION_SSOT.md` · skill `casting-t0-weapon-play`.
 
 ---
 

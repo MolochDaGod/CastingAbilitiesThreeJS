@@ -1,6 +1,6 @@
 # Casting Lab SSOT — Warlords UX / ability effects + character path
 
-**Hosts:** https://casting-abilities-threejs.vercel.app · https://casting.grudge-studio.com (when DNS live)  
+**Hosts:** https://casting.grudge.studio · https://casting-abilities-threejs.vercel.app · https://casting.grudge-studio.com (legacy)  
 **Agent skill:** `~/.grok/skills/casting-warlords-lab/SKILL.md`  
 **Repo:** `C:\Users\nugye\Documents\CastingAbilitiesThreeJS`  
 **Anim library:** `docs/ANIM_LIBRARY_SSOT.md` · `src/config/animLibrary.js`  

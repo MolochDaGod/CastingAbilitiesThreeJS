@@ -27,7 +27,7 @@
     },
     {
       "source": "/api/objectstore/:path*",
-      "destination": "https://grudge-objectstore.pages.dev/api/:path*"
+      "destination": "https://objectstore.grudge-studio.com/api/:path*"
     },
     {
       "source": "/api/info/:path*",
