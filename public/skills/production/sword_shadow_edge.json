@@ -1,0 +1,32 @@
+{
+  "$schema": "weapon-skill-production-override",
+  "id": "sword_shadow_edge",
+  "weaponTypeId": "SWORD",
+  "note": "Bender pack — catalog id only. Variant look = bending-presets.json.",
+  "catalogUrl": "https://info.grudge-studio.com/WEAPON_SKILLS.html",
+  "animRole": "attack",
+  "hitFrameDelay": 0.18,
+  "castEffectId": "getsuga_slash",
+  "travelEffectId": null,
+  "impactEffectId": null,
+  "element": null,
+  "effects": [
+    "outline beam dash"
+  ],
+  "statuses": [
+    {
+      "id": "stun",
+      "durationSec": 1.5,
+      "magnitude": 1
+    }
+  ],
+  "checklist": {
+    "catalogIdVerified": true,
+    "animClipVerified": false,
+    "vfxCastTravelImpact": true,
+    "physicsSI": true,
+    "statusesMapped": true,
+    "readinessGreen": false,
+    "smokeCastingLab": false
+  }
+}

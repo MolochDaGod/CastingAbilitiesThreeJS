@@ -1,0 +1,24 @@
+{
+  "$schema": "weapon-skill-production-override",
+  "id": "t0_gun_practice_shot",
+  "weaponTypeId": "GUN",
+  "note": "TPS fireaim on hand-bone pistol + Bip001 gunplay. Do not retarget TPS onto Bip001.",
+  "catalogUrl": "https://info.grudge-studio.com/WEAPON_SKILLS.html",
+  "animRole": "attack",
+  "tpsClip": "fireaim",
+  "hitFrameDelay": 0.14,
+  "castEffectId": null,
+  "travelEffectId": "bullet1",
+  "impactEffectId": null,
+  "element": null,
+  "effects": ["Barrel", "TPS fireaim"],
+  "checklist": {
+    "catalogIdVerified": true,
+    "animClipVerified": true,
+    "vfxCastTravelImpact": true,
+    "physicsSI": true,
+    "statusesMapped": true,
+    "readinessGreen": false,
+    "smokeCastingLab": false
+  }
+}

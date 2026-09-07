@@ -38,6 +38,26 @@
 
 **Do not** reintroduce Mixamo FBX as play, Meshy heroes, dual mixers, dual physics, dual cameras, dual Draco loaders, or OrbitControls writing mid-TPS combat.
 
+### Bake → CDN → index (not the player DB)
+
+Play-ready clips/meshes: **lab bake / grudge-convert** → **R2** → **D1 index**. Player bag / `grudge_uuid` stays **Railway**.
+
+| Step | Where |
+|------|--------|
+| 1 Bake | Rotation-only Bip001 JSON (`scripts/bake-*.mjs`) or `grudge-convert` GLB. **Never** Mixamo tracks on Bip001. |
+| 2 Lab | `public/anims/baked/{pack}/{clip}.json` (same-origin `/anims/baked`) |
+| 3 CDN | `prod/anims/{pack}/{clip}.json` — `node scripts/upload-baked-anims-r2.mjs` |
+| 4 Index | D1 `asset_registry` (`purpose=play`) via ObjectStore `POST /v1/assets` — not Railway |
+| 5 Catalog | info.* `t0-weapons` / `master-weaponSkills` only |
+| 6 Player | Railway `/api/account/*` · unique loot `grudge_uuid` |
+
+```bash
+node scripts/upload-baked-anims-r2.mjs --dry-run
+node scripts/upload-baked-anims-r2.mjs
+```
+
+Browser: `/api/assets/prod/anims/…` or `/anims/baked/…`. Do not fetch `assets.*` from the page.
+
 ### Render layers vs terrain L0–L3 (not the same)
 
 | System | Meaning |

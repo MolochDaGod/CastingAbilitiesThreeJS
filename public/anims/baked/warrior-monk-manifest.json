@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "generated": "2026-08-22T10:56:07.070Z",
+  "mesh": "stripped",
+  "clips": [
+    {
+      "role": "spearAttack1",
+      "file": "spear/combo1.json",
+      "duration": 6.266666889190674,
+      "tracks": 30,
+      "source": "combo1.glb",
+      "note": "Spear LMB combo 1",
+      "mesh": "stripped"
+    },
+    {
+      "role": "spearAttack2",
+      "file": "spear/combo2.json",
+      "duration": 4.5,
+      "tracks": 30,
+      "source": "combo2.glb",
+      "note": "Spear LMB combo 2 + weapon skill",
+      "mesh": "stripped"
+    },
+    {
+      "role": "twoHandAttack3",
+      "file": "2h_melee/attack3.json",
+      "duration": 2.4666666984558105,
+      "tracks": 30,
+      "source": "attack3.glb",
+      "note": "2H / spear combo 3",
+      "mesh": "stripped"
+    },
+    {
+      "role": "twoHandRun",
+      "file": "2h_melee/run.json",
+      "duration": 0.800000011920929,
+      "tracks": 29,
+      "source": "run.glb",
+      "note": "2H / spear run",
+      "mesh": "stripped"
+    },
+    {
+      "role": "twoHandAttack",
+      "file": "2h_melee/monk-attack.json",
+      "duration": 1.6333333253860474,
+      "tracks": 30,
+      "source": "chinese_warrior_monk.glb",
+      "note": "2H skill / missing 2H attack",
+      "mesh": "stripped"
+    },
+    {
+      "role": "jumpAttack",
+      "file": "magic/quickleapattack.json",
+      "duration": 2.3333332538604736,
+      "tracks": 30,
+      "source": "quickleapattack.glb",
+      "note": "Staff in-air melee MMB",
+      "mesh": "stripped"
+    }
+  ]
+}

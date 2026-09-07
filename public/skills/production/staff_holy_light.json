@@ -1,0 +1,32 @@
+{
+  "$schema": "weapon-skill-production-override",
+  "id": "staff_holy_light",
+  "weaponTypeId": "STAFF",
+  "note": "Bender pack — catalog id only. Variant look = bending-presets.json.",
+  "catalogUrl": "https://info.grudge-studio.com/WEAPON_SKILLS.html",
+  "animRole": "cast",
+  "hitFrameDelay": 0.18,
+  "castEffectId": "moon_beam",
+  "travelEffectId": null,
+  "impactEffectId": "moon_beam",
+  "element": "holy",
+  "effects": [
+    "holy smite"
+  ],
+  "statuses": [
+    {
+      "id": "stun",
+      "durationSec": 1.2,
+      "magnitude": 1
+    }
+  ],
+  "checklist": {
+    "catalogIdVerified": true,
+    "animClipVerified": false,
+    "vfxCastTravelImpact": true,
+    "physicsSI": true,
+    "statusesMapped": true,
+    "readinessGreen": false,
+    "smokeCastingLab": false
+  }
+}

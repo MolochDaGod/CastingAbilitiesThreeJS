@@ -1,0 +1,32 @@
+{
+  "$schema": "weapon-skill-production-override",
+  "id": "staff_meteor_strike",
+  "weaponTypeId": "STAFF",
+  "note": "Bender pack — catalog id only. Variant look = bending-presets.json.",
+  "catalogUrl": "https://info.grudge-studio.com/WEAPON_SKILLS.html",
+  "animRole": "cast",
+  "hitFrameDelay": 0.18,
+  "castEffectId": "fire_hand",
+  "travelEffectId": "fireball",
+  "impactEffectId": "inferno",
+  "element": "fire",
+  "effects": [
+    "fire rain"
+  ],
+  "statuses": [
+    {
+      "id": "burn",
+      "durationSec": 3,
+      "magnitude": 4
+    }
+  ],
+  "checklist": {
+    "catalogIdVerified": true,
+    "animClipVerified": false,
+    "vfxCastTravelImpact": true,
+    "physicsSI": true,
+    "statusesMapped": true,
+    "readinessGreen": false,
+    "smokeCastingLab": false
+  }
+}

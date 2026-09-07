@@ -1,0 +1,32 @@
+{
+  "$schema": "weapon-skill-production-override",
+  "id": "t0_hammer_shockwave",
+  "weaponTypeId": "HAMMER",
+  "note": "Bender pack — catalog id only. Variant look = bending-presets.json.",
+  "catalogUrl": "https://info.grudge-studio.com/WEAPON_SKILLS.html",
+  "animRole": "attack",
+  "hitFrameDelay": 0.18,
+  "castEffectId": null,
+  "travelEffectId": null,
+  "impactEffectId": "earth_surge",
+  "element": null,
+  "effects": [
+    "shockwave"
+  ],
+  "statuses": [
+    {
+      "id": "slow",
+      "durationSec": 2,
+      "magnitude": 0.35
+    }
+  ],
+  "checklist": {
+    "catalogIdVerified": true,
+    "animClipVerified": false,
+    "vfxCastTravelImpact": true,
+    "physicsSI": true,
+    "statusesMapped": true,
+    "readinessGreen": false,
+    "smokeCastingLab": false
+  }
+}

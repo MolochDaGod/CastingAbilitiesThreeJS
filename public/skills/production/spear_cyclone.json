@@ -1,0 +1,33 @@
+{
+  "$schema": "weapon-skill-production-override",
+  "id": "spear_cyclone",
+  "weaponTypeId": "SPEAR",
+  "note": "Bender pack — catalog id only. Variant look = bending-presets.json.",
+  "catalogUrl": "https://info.grudge-studio.com/WEAPON_SKILLS.html",
+  "animRole": "spearAttack2",
+  "hitFrameDelay": 0.18,
+  "castEffectId": null,
+  "travelEffectId": null,
+  "impactEffectId": "earth_surge",
+  "element": null,
+  "effects": [
+    "tornado",
+    "cyclone"
+  ],
+  "statuses": [
+    {
+      "id": "pull",
+      "durationSec": 1.6,
+      "magnitude": 220
+    }
+  ],
+  "checklist": {
+    "catalogIdVerified": true,
+    "animClipVerified": true,
+    "vfxCastTravelImpact": true,
+    "physicsSI": true,
+    "statusesMapped": true,
+    "readinessGreen": false,
+    "smokeCastingLab": false
+  }
+}

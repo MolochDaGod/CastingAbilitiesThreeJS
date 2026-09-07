@@ -1,0 +1,33 @@
+{
+  "$schema": "weapon-skill-production-override",
+  "id": "bow_poison_arrow",
+  "weaponTypeId": "BOW",
+  "note": "Bender pack — catalog id only. Variant look = bending-presets.json.",
+  "catalogUrl": "https://info.grudge-studio.com/WEAPON_SKILLS.html",
+  "animRole": "attack",
+  "hitFrameDelay": 0.18,
+  "castEffectId": null,
+  "travelEffectId": "moon_beam",
+  "impactEffectId": "frost_wave",
+  "element": null,
+  "effects": [
+    "poison shot",
+    "arrow path"
+  ],
+  "statuses": [
+    {
+      "id": "poison",
+      "durationSec": 4,
+      "magnitude": 3
+    }
+  ],
+  "checklist": {
+    "catalogIdVerified": true,
+    "animClipVerified": false,
+    "vfxCastTravelImpact": true,
+    "physicsSI": true,
+    "statusesMapped": true,
+    "readinessGreen": false,
+    "smokeCastingLab": false
+  }
+}

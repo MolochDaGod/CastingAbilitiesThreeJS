@@ -1,0 +1,33 @@
+{
+  "$schema": "weapon-skill-production-override",
+  "id": "gun_smoke_shot",
+  "weaponTypeId": "GUN",
+  "note": "Bender pack — catalog id only. Variant look = bending-presets.json.",
+  "catalogUrl": "https://info.grudge-studio.com/WEAPON_SKILLS.html",
+  "animRole": "gunplay",
+  "hitFrameDelay": 0.18,
+  "castEffectId": null,
+  "travelEffectId": null,
+  "impactEffectId": null,
+  "element": null,
+  "effects": [
+    "invis",
+    "smoke bomb"
+  ],
+  "statuses": [
+    {
+      "id": "stealth",
+      "durationSec": 6,
+      "magnitude": 1
+    }
+  ],
+  "checklist": {
+    "catalogIdVerified": true,
+    "animClipVerified": false,
+    "vfxCastTravelImpact": true,
+    "physicsSI": true,
+    "statusesMapped": true,
+    "readinessGreen": false,
+    "smokeCastingLab": false
+  }
+}

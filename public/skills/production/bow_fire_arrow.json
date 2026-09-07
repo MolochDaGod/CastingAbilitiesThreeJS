@@ -1,0 +1,33 @@
+{
+  "$schema": "weapon-skill-production-override",
+  "id": "bow_fire_arrow",
+  "weaponTypeId": "BOW",
+  "note": "Bender pack — catalog id only. Variant look = bending-presets.json.",
+  "catalogUrl": "https://info.grudge-studio.com/WEAPON_SKILLS.html",
+  "animRole": "attack",
+  "hitFrameDelay": 0.18,
+  "castEffectId": null,
+  "travelEffectId": "fireball",
+  "impactEffectId": "inferno",
+  "element": "fire",
+  "effects": [
+    "fire bullet",
+    "arrow path"
+  ],
+  "statuses": [
+    {
+      "id": "burn",
+      "durationSec": 3,
+      "magnitude": 3
+    }
+  ],
+  "checklist": {
+    "catalogIdVerified": true,
+    "animClipVerified": false,
+    "vfxCastTravelImpact": true,
+    "physicsSI": true,
+    "statusesMapped": true,
+    "readinessGreen": false,
+    "smokeCastingLab": false
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "$schema": "weapon-skill-production-override",
+  "id": "dagger_phantom_dash",
+  "weaponTypeId": "DAGGER",
+  "note": "Bender pack — catalog id only. Variant look = bending-presets.json.",
+  "catalogUrl": "https://info.grudge-studio.com/WEAPON_SKILLS.html",
+  "animRole": "dodgeB",
+  "hitFrameDelay": 0.18,
+  "castEffectId": null,
+  "travelEffectId": null,
+  "impactEffectId": null,
+  "element": null,
+  "effects": [
+    "outline beam dash"
+  ],
+  "statuses": null,
+  "checklist": {
+    "catalogIdVerified": true,
+    "animClipVerified": false,
+    "vfxCastTravelImpact": true,
+    "physicsSI": true,
+    "statusesMapped": false,
+    "readinessGreen": false,
+    "smokeCastingLab": false
+  }
+}

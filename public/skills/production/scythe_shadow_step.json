@@ -1,0 +1,26 @@
+{
+  "$schema": "weapon-skill-production-override",
+  "id": "scythe_shadow_step",
+  "weaponTypeId": "SCYTHE",
+  "note": "Bender pack — catalog id only. Variant look = bending-presets.json.",
+  "catalogUrl": "https://info.grudge-studio.com/WEAPON_SKILLS.html",
+  "animRole": "attack",
+  "hitFrameDelay": 0.18,
+  "castEffectId": null,
+  "travelEffectId": null,
+  "impactEffectId": null,
+  "element": null,
+  "effects": [
+    "smoke blink"
+  ],
+  "statuses": null,
+  "checklist": {
+    "catalogIdVerified": true,
+    "animClipVerified": false,
+    "vfxCastTravelImpact": true,
+    "physicsSI": true,
+    "statusesMapped": false,
+    "readinessGreen": false,
+    "smokeCastingLab": false
+  }
+}
