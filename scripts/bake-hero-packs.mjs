@@ -33,6 +33,46 @@ const JOBS = [
   { src: 'quincy_ichigo.glb', pack: 'longbow', prefix: 'ichi', note: 'bow' },
 ];
 
+/** Skip author hold-pose / transition stubs — they break blend if bound as attacks. */
+const MIN_PLAY_DUR = 0.35;
+
+/** 22 Toon play bones (public/api/v1/bip001-play-bones.json). */
+const PLAY_CORE = [
+  'Bip001 Pelvis',
+  'Bip001 Spine',
+  'Bip001 Spine1',
+  'Bip001 Spine2',
+  'Bip001 Neck',
+  'Bip001 Head',
+  'Bip001 L Clavicle',
+  'Bip001 L UpperArm',
+  'Bip001 L Forearm',
+  'Bip001 L Hand',
+  'Bip001 R Clavicle',
+  'Bip001 R UpperArm',
+  'Bip001 R Forearm',
+  'Bip001 R Hand',
+  'Bip001 L Thigh',
+  'Bip001 L Calf',
+  'Bip001 L Foot',
+  'Bip001 L Toe0',
+  'Bip001 R Thigh',
+  'Bip001 R Calf',
+  'Bip001 R Foot',
+  'Bip001 R Toe0'
+];
+
+/** Extra play aliases (sanitize 22-bone). Keys = `${prefix}_${stem(anim.name)}`. */
+const PLAY_ALIASES = {
+  ken_commonattack: ['sword_shield/ken_strike', '2h_melee/ken_strike'],
+  ken_strike_1: ['sword_shield/ken_slash', '2h_melee/ken_slash'],
+  ken_attack_3: ['sword_shield/ken_hit3', '2h_melee/ken_hit3'],
+  ken_run: ['sword_shield/ken_run', '2h_melee/ken_run'],
+  ichi_commonattack: ['longbow/ichi_shot'],
+  ichi_skill_1_1: ['magic/ichi_cast', 'magic/ichi_skill1'],
+  ichi_skill_1_3: ['magic/ichi_skill']
+};
+
 function toBip001Node(nodeName) {
   let n = String(nodeName || '').replace(/_\d+$/, '');
   if (BANDAI_TO_BIP001[n] || BANDAI_TO_BIP001[n.replace(/_/g, ' ')]) {
@@ -135,6 +175,29 @@ function bakeAnim(json, bin, anim) {
   return { name: anim.name || 'clip', duration, tracks, pelvis, hands };
 }
 
+function sanitizePlay(clip, playName) {
+  const by = new Map();
+  for (const t of clip.tracks || []) {
+    if (t.type !== 'quaternion') continue;
+    const b = String(t.name).replace(/\.quaternion$/, '');
+    if (PLAY_CORE.includes(b) && !by.has(b)) {
+      by.set(b, { ...t, name: `${b}.quaternion`, type: 'quaternion' });
+    }
+  }
+  if (!by.has('Bip001 Spine2') && by.has('Bip001 Spine1')) {
+    const s1 = by.get('Bip001 Spine1');
+    by.set('Bip001 Spine2', { ...s1, name: 'Bip001 Spine2.quaternion' });
+  }
+  const tracks = PLAY_CORE.filter((b) => by.has(b)).map((b) => by.get(b));
+  return { name: playName, duration: clip.duration, tracks };
+}
+
+function writeNamedClip(rel, clip) {
+  const [pack, file] = rel.split('/');
+  mkdirSync(join(BAKED, pack), { recursive: true });
+  writeFileSync(join(BAKED, pack, `${file}.json`), JSON.stringify({ ...clip, name: rel }));
+}
+
 const manifest = { generated: new Date().toISOString(), clips: [] };
 
 for (const job of JOBS) {
@@ -145,22 +208,42 @@ for (const job of JOBS) {
   mkdirSync(join(BAKED, job.pack), { recursive: true });
   for (const anim of anims) {
     const clip = bakeAnim(json, bin, anim);
-    const fileStem = `${job.prefix}_${stem(anim.name)}`;
-    clip.name = `${job.pack}/${fileStem}`;
-    writeFileSync(join(BAKED, job.pack, `${fileStem}.json`), JSON.stringify(clip));
+    const roleStem = stem(anim.name);
+    const fileStem = `${job.prefix}_${roleStem}`;
+    if (clip.duration < MIN_PLAY_DUR) {
+      console.log(`  skip stub ${fileStem} dur=${clip.duration.toFixed(2)}`);
+      continue;
+    }
+    let pack = job.pack;
+    if (job.prefix === 'ichi' && /^(skill|cast|take_001|fbx_)/.test(roleStem)) pack = 'magic';
+    mkdirSync(join(BAKED, pack), { recursive: true });
+    clip.name = `${pack}/${fileStem}`;
+    writeFileSync(join(BAKED, pack, `${fileStem}.json`), JSON.stringify(clip));
     console.log(
-      `  ok ${fileStem} dur=${clip.duration.toFixed(2)} tracks=${clip.tracks.length} pelvis=${clip.pelvis} hands=${clip.hands}`
+      `  ok ${fileStem} → ${pack} dur=${clip.duration.toFixed(2)} tracks=${clip.tracks.length} pelvis=${clip.pelvis} hands=${clip.hands}`
     );
     manifest.clips.push({
       src: job.src,
-      pack: job.pack,
-      file: `${job.pack}/${fileStem}.json`,
-      role: stem(anim.name),
+      pack,
+      file: `${pack}/${fileStem}.json`,
+      role: roleStem,
       duration: clip.duration,
       tracks: clip.tracks.length,
       pelvis: clip.pelvis,
       hands: clip.hands,
     });
+    const aliases = PLAY_ALIASES[fileStem];
+    if (aliases) {
+      for (const rel of aliases) {
+        const play = sanitizePlay(clip, rel);
+        if (play.tracks.length < 18) {
+          console.log(`  skip alias ${rel} tracks=${play.tracks.length}`);
+          continue;
+        }
+        writeNamedClip(rel, play);
+        console.log(`  alias ${rel} tracks=${play.tracks.length}`);
+      }
+    }
   }
 }
 

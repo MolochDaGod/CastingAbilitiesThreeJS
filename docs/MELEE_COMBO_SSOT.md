@@ -43,8 +43,10 @@ All sources under `Documents\*.fbx`, skeleton **Mixamo** (`Hips`…), rematched 
 | `Documents/combo1.glb` | 6.27 s | **spearAttack1** (warrior mesh stripped → Bip001) |
 | `Documents/combo2.glb` | 4.50 s | **spearAttack2** + `spear_cyclone` skill |
 | `Documents/attack3.glb` | 2.47 s | **Spear** basic (`spear/attack3` · `polearm/attack3`) — Bip01→Bip001 |
-| `Documents/attackcombo01.glb` | 6.92 s Mixamo | **Standard 3-hit** `combo01-hit1..3` → sword_shield attack1–3 |
-| `Documents/attack_combo_2.glb` | 12.08 s Mixamo | **2H basic** `combo2-hit1..3` → twoHandAttack 1–3 |
+| `Documents/zaraki_kenpachi.glb` | 1.00 / 0.70 / 0.47 s | **Primary light 1H + 2H** `ken_strike` → `ken_slash` → `ken_hit3` (same-author; fits 0.85 s window). Run = `ken_run`. Skip stubs < 0.35 s. |
+| `Documents/quincy_ichigo.glb` | 2.17 / 2.57 / 6.00 s | Bow `longbow/ichi_shot` · staff `magic/ichi_cast` / `ichi_skill`. Not a melee combo. |
+| `Documents/attackcombo01.glb` | 6.92 s Mixamo | **Fallback** 3-hit `combo01-hit1..3` (2.31 s each) if Ken JSON 404 |
+| `Documents/attack_combo_2.glb` | 12.08 s Mixamo | **2H fallback** `combo2-hit1..3` after Ken / Bane |
 | Knight CDN `sword and shield attack` | 2.33 s | **Finisher** three-slash jump-dash — keep, not light LMB |
 | `Documents/run.glb` | 0.80 s | **sword_shield run** (2H/spear) |
 | `Documents/chinese_warrior_monk.glb` | 1.63 s | **twoHandAttack** (hammer/axe) |

@@ -61,11 +61,18 @@
   "kenpachi": {
     "source": "Documents/zaraki_kenpachi.glb",
     "melee": "sword_shield/ken_strike",
-    "motion": "sword_shield/ken_run"
+    "combo": ["sword_shield/ken_strike", "sword_shield/ken_slash", "sword_shield/ken_hit3"],
+    "twoHand": ["2h_melee/ken_strike", "2h_melee/ken_slash", "2h_melee/ken_hit3"],
+    "motion": "sword_shield/ken_run",
+    "skip": "clips shorter than 0.35s (ken_back, ken_attack_1/2, ken_skill_1_*)"
   },
   "ichigo": {
     "source": "Documents/quincy_ichigo.glb",
     "bow": "longbow/ichi_shot",
-    "staff": "magic/ichi_cast"
+    "bowIdle": "longbow/ichi_idle",
+    "bowRun": "longbow/ichi_run",
+    "staff": "magic/ichi_cast",
+    "staffSkill": "magic/ichi_skill",
+    "notBow": "longbow/ichi_strike (melee bash)"
   }
 }

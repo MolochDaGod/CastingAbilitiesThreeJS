@@ -1255,8 +1255,15 @@ export class CharacterController {
       spearAttack1: LoopOnce,
       spearAttack2: LoopOnce,
       twoHandAttack: LoopOnce,
+      twoHandAttack2: LoopOnce,
       twoHandAttack3: LoopOnce,
+      twoHandIdle: LoopRepeat,
       twoHandRun: LoopRepeat,
+      skill: LoopOnce,
+      thrust: LoopOnce,
+      combo: LoopOnce,
+      special: LoopOnce,
+      slash: LoopOnce,
       punch: LoopOnce,
       draw: LoopOnce,
       sheath: LoopOnce,
@@ -1585,7 +1592,7 @@ export class CharacterController {
         step === 0
           ? ['twoHandAttack', 'attack1']
           : step === 1
-            ? ['twoHandAttack3', 'attack2']
+            ? ['twoHandAttack2', 'attack2']
             : ['twoHandAttack3', 'attack3'];
     } else {
       roles = [`attack${step + 1}`, 'attack1', 'attack2', 'attack3'];
@@ -1988,7 +1995,12 @@ export class CharacterController {
     const duration =
       (act?.getClip?.()?.duration ?? 0.8) / Math.max(0.05, act?.timeScale || 1);
     // Light combo steps: don't lock gait for full clip (chain window needs free click)
-    const isLight = /^attack[123]$/.test(role) || /^attack[123]$/.test(name);
+    const isLight =
+      /^attack[123]$/.test(role) ||
+      /^attack[123]$/.test(name) ||
+      /^twoHandAttack[123]?$/.test(role) ||
+      /^twoHandAttack[123]?$/.test(name) ||
+      /^spearAttack[12]$/.test(role);
     const lockDur = isLight ? Math.min(duration, 0.55) + 0.02 : duration + 0.04;
     this._oneShotTimer = lockDur;
     this._attackTimer = this._oneShotTimer;

@@ -74,9 +74,9 @@ export const ANIM_PACKS = {
       'magic/standing 1h cast spell 01',
       'magic/standing 2h cast spell 01'
     ],
-    attack: ['magic/ancient_attack', 'magic/rafa_attack', 'magic/ancient_cast'],
+    attack: ['magic/rafa_attack', 'magic/ancient_attack', 'magic/ancient_cast'],
     skill: ['magic/ichi_skill', 'magic/ichi_skill1', 'magic/ancient_skill', 'magic/rafa_skill', 'magic/rafa_verigo'],
-    skill1: ['magic/rafa_skill', 'magic/rafa_cast', 'magic/ancient_skill'],
+    skill1: ['magic/ichi_skill1', 'magic/rafa_skill', 'magic/rafa_cast', 'magic/ancient_skill'],
     skill2: ['magic/rafa_skill2', 'magic/ancient_skill_ready'],
     skill3: ['magic/rafa_skill3', 'magic/rafa_verigo'],
     walk: ['prod:magic/standing-walk-forward', 'magic/Standing Walk Forward'],
@@ -95,16 +95,16 @@ export const ANIM_PACKS = {
     idle: ['sword_shield/sword and shield idle'],
     /**
      * Melee roles (see docs/MELEE_COMBO_SSOT.md):
-     * - idle = 2H idle (author: D:\Games\Models\2hand Idle.fbx)
-     * - attack1–3 = grounded light combo (3 LMB clicks)
+     * - idle = 2H idle FBX first (author: D:\Games\Models\2hand Idle.fbx)
+     * - attack1–3 = Kenpachi same-author chain (1.00 / 0.70 / 0.47 s) — fits 0.85 s window
+     * - combo01-hit* = Mixamo 2.31 s thirds, fallback only (first-URL-wins)
      * - attack / finisher = jump-dash finisher (CDN Bip001 “sword and shield attack”)
      * - finisherAir = drop-to-target when airborne
-     * Mixamo sources baked same-origin; rematch → Bip001 at bind.
+     * Do not bind stubs < 0.35 s (ken_attack_1, ken_back, ken_skill_1_*).
      */
     attack1: [
-      'sword_shield/combo01-hit1',
       'sword_shield/ken_strike',
-      'sword_shield/ken_slash',
+      'sword_shield/combo01-hit1',
       'sword_shield/haya_attack1',
       'sword_shield/drake_attack',
       'sword_shield/intoout',
@@ -112,16 +112,16 @@ export const ANIM_PACKS = {
       'sword_shield/sword and shield slash'
     ],
     attack2: [
-      'sword_shield/combo01-hit2',
       'sword_shield/ken_slash',
+      'sword_shield/combo01-hit2',
       'sword_shield/haya_attack2',
       'sword_shield/st1able-sword-inward-slash',
       'sword_shield/one-hand-combo-hit2',
       'sword_shield/sword and shield slash'
     ],
     attack3: [
-      'sword_shield/combo01-hit3',
       'sword_shield/ken_hit3',
+      'sword_shield/combo01-hit3',
       'sword_shield/haya_attack3',
       'sword_shield/11upward-thrust',
       'sword_shield/one-hand-combo-hit3',
@@ -129,8 +129,8 @@ export const ANIM_PACKS = {
     ],
     twoHandAttack: ['2h_melee/ken_strike', '2h_melee/bane_attack1', '2h_melee/combo2-hit1', '2h_melee/monk-attack'],
     twoHandRun: ['2h_melee/ken_run', '2h_melee/bane_run', '2h_melee/run'],
-    twoHandAttack2: ['2h_melee/bane_attack2', '2h_melee/combo2-hit2'],
-    twoHandAttack3: ['2h_melee/combo2-hit3', '2h_melee/bane_skill1', '2h_melee/attack3'],
+    twoHandAttack2: ['2h_melee/ken_slash', '2h_melee/bane_attack2', '2h_melee/combo2-hit2'],
+    twoHandAttack3: ['2h_melee/ken_hit3', '2h_melee/bane_skill1', '2h_melee/combo2-hit3', '2h_melee/attack3'],
     twoHandIdle: ['2h_melee/bane_fight_idle'],
     /** Knight three-slash jump-dash — finisher only, not light LMB */
     attack: ['sword_shield/sword and shield attack'],
@@ -174,13 +174,13 @@ export const ANIM_PACKS = {
     jump: ['prod:magic/standing-jump', 'locomotion/jump']
   },
   longbow: {
-    idle: ['longbow/miya_fight_idle', 'longbow/standing idle', 'longbow/standing idle 01', 'bow/standing idle', 'prod:magic/standing-idle'],
-    /** Miya shot (hero_miya_2016) — cool bow fire; Mixamo draw as fallback */
-    attack: ['longbow/ichi_shot', 'longbow/miya_shot', 'longbow/ichi_strike', 'longbow/miya_attack1', 'longbow/standing draw arrow', 'longbow/standing aim recoil', 'bow/draw arrow'],
+    idle: ['longbow/ichi_idle', 'longbow/miya_fight_idle', 'longbow/standing idle', 'longbow/standing idle 01', 'bow/standing idle', 'prod:magic/standing-idle'],
+    /** Quincy Ichigo CommonAttack (2.17 s draw-fire). ichi_strike is a melee bash — not bow LMB. */
+    attack: ['longbow/ichi_shot', 'longbow/miya_shot', 'longbow/miya_attack1', 'longbow/standing draw arrow', 'longbow/standing aim recoil', 'bow/draw arrow'],
     skill: ['longbow/miya_skill', 'longbow/miya_skill1', 'longbow/miya_verigo'],
     skill1: ['longbow/miya_skill', 'longbow/miya_skill1'],
     walk: ['longbow/standing walk forward', 'prod:magic/standing-walk-forward'],
-    run: ['longbow/standing run forward', 'prod:magic/standing-run-forward'],
+    run: ['longbow/ichi_run', 'longbow/miya_run', 'longbow/standing run forward', 'prod:magic/standing-run-forward'],
     walkL: [
       'prod:longbow/standing-walk-left',
       'longbow/standing-walk-left',
@@ -204,8 +204,8 @@ export const ANIM_PACKS = {
       'prod:magic/standing-run-right'
     ],
     jump: ['prod:magic/standing-jump', 'locomotion/jump'],
-    /** Miya shot also used as crossbow fire (same longbow pack) */
-    crossbowShoot: ['longbow/miya_shot', 'longbow/miya_attack1'],
+    /** Same draw-fire as bow LMB (crossbow shares longbow pack) */
+    crossbowShoot: ['longbow/ichi_shot', 'longbow/miya_shot', 'longbow/miya_attack1'],
     // Directional dodges (Danger Room AA/DD/WW/X) — longbow pack primary
     dodgeL: ['longbow/standing dodge left', 'locomotion/dodge_l'],
     dodgeR: ['longbow/standing dodge right', 'locomotion/dodge_r'],
@@ -227,7 +227,7 @@ export const ANIM_PACKS = {
    * Timing SSOT: config/pistolAnimSsot.js
    */
   pistol: {
-    idle: ['pistol/clint_fight_idle', 'pistol/idle', 'pistol/pistol idle', 'longbow/standing idle', 'prod:magic/standing-idle'],
+    idle: ['pistol/idle', 'pistol/clint_city_idle', 'pistol/pistol idle', 'pistol/clint_fight_idle', 'longbow/standing idle', 'prod:magic/standing-idle'],
     /** Clint (hero_old_clint.glb) is pistol fire SSOT — gunplay spin is flourish */
     attack: [
       'pistol/clint_attack1',
@@ -257,7 +257,7 @@ export const ANIM_PACKS = {
       'pistol/charged-pistol'
     ],
     /** Open Danger: pistol_shot */
-    skill1: ['pistol/miya_skill', 'pistol/gunplay', 'pistol/drawing-gun'],
+    skill1: ['pistol/clint_skill1', 'pistol/miya_skill', 'pistol/gunplay', 'pistol/drawing-gun'],
     /** Open Danger: pistol_fan / charged */
     skill2: ['pistol/charged-pistol', 'pistol/gunplay'],
     /** Open Danger: whip review */
@@ -266,7 +266,7 @@ export const ANIM_PACKS = {
     /** Open Danger: pistol_reload */
     skill5: ['pistol/reload', 'pistol/drawing-gun', 'rifle/reloading'],
     walk: ['pistol/walk-forward', 'pistol/pistol walk', 'prod:magic/standing-walk-forward'],
-    run: ['pistol/run-forward', 'pistol/pistol run', 'prod:magic/standing-run-forward'],
+    run: ['pistol/clint_run', 'pistol/run-forward', 'pistol/pistol run', 'prod:magic/standing-run-forward'],
     walkL: ['pistol/strafe-left', 'prod:magic/standing-walk-left', 'longbow/standing-walk-left'],
     walkR: ['pistol/strafe-right', 'prod:magic/standing-walk-right', 'longbow/standing-walk-right'],
     runL: ['pistol/strafe-left', 'prod:magic/standing-run-left'],

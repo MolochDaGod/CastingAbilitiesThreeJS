@@ -128,20 +128,38 @@ export const ANIM_ROLE_META = Object.freeze({
   attack1: {
     family: 'combat',
     channel: 'oneShot',
-    label: 'Melee combo 1 (into-out)',
+    label: 'Melee combo 1 (Ken strike)',
     input: 'LMB click 1'
   },
   attack2: {
     family: 'combat',
     channel: 'oneShot',
-    label: 'Melee combo 2 (inward slash)',
+    label: 'Melee combo 2 (Ken slash)',
     input: 'LMB click 2'
   },
   attack3: {
     family: 'combat',
     channel: 'oneShot',
-    label: 'Melee combo 3 (upward thrust)',
+    label: 'Melee combo 3 (Ken hit3)',
     input: 'LMB click 3'
+  },
+  twoHandAttack: {
+    family: 'combat',
+    channel: 'oneShot',
+    label: '2H combo 1 (Ken strike)',
+    input: 'LMB · hammer/axe'
+  },
+  twoHandAttack2: {
+    family: 'combat',
+    channel: 'oneShot',
+    label: '2H combo 2 (Ken slash)',
+    input: 'LMB click 2 · hammer/axe'
+  },
+  twoHandAttack3: {
+    family: 'combat',
+    channel: 'oneShot',
+    label: '2H combo 3 (Ken hit3)',
+    input: 'LMB click 3 · hammer/axe'
   },
   finisher: {
     family: 'combat',
