@@ -3,7 +3,7 @@
  * Prefer baked JSON when available; FBX is the author source for striker/extra flips.
  */
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
-import { rematchClipToSkeleton, toRotationOnlyClip } from './bakeClip.js';
+import { retargetClipToBip001 } from './retargetToBip001.js';
 
 let _loader = null;
 function getLoader() {
@@ -24,9 +24,8 @@ export async function loadFbxClipRematched(url, skeletonRoot, name = 'clip') {
     const raw = fbx.animations?.[0];
     if (!raw) return null;
     raw.name = name;
-    // Rotation-only + bone rematch (Mixamo/striker → Bip001)
-    const rot = toRotationOnlyClip(raw);
-    const matched = rematchClipToSkeleton(skeletonRoot, rot, { stripPositions: true });
+    // SkeletonUtils.retargetClip onto Bip001, else name rematch (one mixer)
+    const matched = retargetClipToBip001(skeletonRoot, fbx, raw);
     if (!matched.tracks.length) {
       console.warn('[fbxClip] empty after rematch', url);
       return null;
