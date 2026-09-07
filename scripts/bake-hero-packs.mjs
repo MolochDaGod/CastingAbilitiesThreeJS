@@ -31,6 +31,8 @@ const JOBS = [
   { src: 'hero_old_rafaela.glb', pack: 'magic', prefix: 'rafa', note: 'caster' },
   { src: 'zaraki_kenpachi.glb', pack: 'sword_shield', prefix: 'ken', note: 'melee/motion' },
   { src: 'quincy_ichigo.glb', pack: 'longbow', prefix: 'ichi', note: 'bow' },
+  { src: 'hero_estes_old_2016.glb', pack: 'magic', prefix: 'estes', note: 'caster' },
+  { src: 'longhai.glb', pack: 'sword_shield', prefix: 'longhai', note: 'melee' },
 ];
 
 /** Skip author hold-pose / transition stubs — they break blend if bound as attacks. */
@@ -70,7 +72,21 @@ const PLAY_ALIASES = {
   ken_run: ['sword_shield/ken_run', '2h_melee/ken_run'],
   ichi_commonattack: ['longbow/ichi_shot'],
   ichi_skill_1_1: ['magic/ichi_cast', 'magic/ichi_skill1'],
-  ichi_skill_1_3: ['magic/ichi_skill']
+  ichi_skill_1_3: ['magic/ichi_skill'],
+  estes_attack1: ['magic/estes_cast'],
+  estes_attack2: ['magic/estes_attack'],
+  estes_skill1: ['magic/estes_skill'],
+  estes_skill2: ['magic/estes_skill2'],
+  estes_skill3: ['magic/estes_skill3'],
+  estes_fight_idle: ['magic/estes_idle'],
+  estes_run: ['magic/estes_run'],
+  estes_verigo: ['magic/estes_verigo'],
+  longhai_attack: ['sword_shield/hai_strike'],
+  longhai_wait: ['sword_shield/hai_idle'],
+  longhai_walk: ['sword_shield/hai_walk'],
+  longhai_use_skill: ['sword_shield/hai_skill'],
+  longhai_use_skill2: ['sword_shield/hai_skill2'],
+  longhai_use_magic: ['sword_shield/hai_cast']
 };
 
 function toBip001Node(nodeName) {
@@ -200,7 +216,15 @@ function writeNamedClip(rel, clip) {
 
 const manifest = { generated: new Date().toISOString(), clips: [] };
 
+const only = process.argv.slice(2).filter((a) => !a.startsWith('-') && !a.endsWith('.mjs'));
+
 for (const job of JOBS) {
+  if (
+    only.length &&
+    !only.some((x) => job.src.toLowerCase().includes(x.toLowerCase()) || job.prefix === x)
+  ) {
+    continue;
+  }
   const src = join(DOCS, job.src);
   const { json, bin } = readGlb(src);
   const anims = json.animations || [];

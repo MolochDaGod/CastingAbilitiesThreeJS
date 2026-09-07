@@ -62,11 +62,13 @@ export const ANIM_PACKS = {
     // Prefer prod (has L/R Hand). Open standing idle is hand-less — avoid as primary.
     idle: [
       'magic/rafa_fight_idle',
+      'magic/estes_idle',
       'magic/ancient_wait_1',
       'prod:magic/standing-idle',
       'magic/standing idle'
     ],
     cast: [
+      'magic/estes_cast',
       'magic/ichi_cast',
       'magic/ancient_cast',
       'magic/rafa_cast',
@@ -74,13 +76,13 @@ export const ANIM_PACKS = {
       'magic/standing 1h cast spell 01',
       'magic/standing 2h cast spell 01'
     ],
-    attack: ['magic/rafa_attack', 'magic/ancient_attack', 'magic/ancient_cast'],
-    skill: ['magic/ichi_skill', 'magic/ichi_skill1', 'magic/ancient_skill', 'magic/rafa_skill', 'magic/rafa_verigo'],
-    skill1: ['magic/ichi_skill1', 'magic/rafa_skill', 'magic/rafa_cast', 'magic/ancient_skill'],
-    skill2: ['magic/rafa_skill2', 'magic/ancient_skill_ready'],
-    skill3: ['magic/rafa_skill3', 'magic/rafa_verigo'],
+    attack: ['magic/estes_attack', 'magic/rafa_attack', 'magic/ancient_attack', 'magic/ancient_cast'],
+    skill: ['magic/estes_skill', 'magic/ichi_skill', 'magic/ichi_skill1', 'magic/ancient_skill', 'magic/rafa_skill', 'magic/rafa_verigo'],
+    skill1: ['magic/estes_skill', 'magic/ichi_skill1', 'magic/rafa_skill', 'magic/rafa_cast', 'magic/ancient_skill'],
+    skill2: ['magic/estes_skill2', 'magic/rafa_skill2', 'magic/ancient_skill_ready'],
+    skill3: ['magic/estes_skill3', 'magic/estes_verigo', 'magic/rafa_skill3', 'magic/rafa_verigo'],
     walk: ['prod:magic/standing-walk-forward', 'magic/Standing Walk Forward'],
-    run: ['prod:magic/standing-run-forward', 'magic/Standing Run Forward'],
+    run: ['prod:magic/standing-run-forward', 'magic/estes_run', 'magic/Standing Run Forward'],
     /** Focus-mode lower body strafe (A/D while looking with mouse) */
     walkL: ['prod:magic/standing-walk-left', 'magic/standing-walk-left'],
     walkR: ['prod:magic/standing-walk-right', 'magic/standing-walk-right'],
@@ -104,6 +106,7 @@ export const ANIM_PACKS = {
      */
     attack1: [
       'sword_shield/ken_strike',
+      'sword_shield/hai_strike',
       'sword_shield/combo01-hit1',
       'sword_shield/haya_attack1',
       'sword_shield/drake_attack',
@@ -137,8 +140,13 @@ export const ANIM_PACKS = {
     finisher: ['sword_shield/sword and shield attack'],
     finisherAir: ['sword_shield/dropto-target', 'sword_shield/sword and shield attack'],
     block: ['sword_shield/sword and shield block'],
-    // Walk: open S&S walk 404s — prod magic walk is live SSOT fallback
+    /** Longhai use_skill / use_skill2 — Ken skill fallback. hai_idle skipped (no Pelvis). */
+    skill: ['sword_shield/hai_skill', 'sword_shield/ken_skill'],
+    skill1: ['sword_shield/hai_skill2', 'sword_shield/hai_skill'],
+    skill2: ['sword_shield/hai_cast', 'sword_shield/hai_skill'],
+    // Walk: Longhai Bip001 walk, then prod magic (open S&S walk 404s)
     walk: [
+      'sword_shield/hai_walk',
       'prod:magic/standing-walk-forward',
       'sword_shield/sword and shield walk',
       'magic/standing walk forward'

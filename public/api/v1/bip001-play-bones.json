@@ -74,5 +74,20 @@
     "staff": "magic/ichi_cast",
     "staffSkill": "magic/ichi_skill",
     "notBow": "longbow/ichi_strike (melee bash)"
+  },
+  "estes": {
+    "source": "Documents/hero_estes_old_2016.glb",
+    "cast": "magic/estes_cast",
+    "attack": "magic/estes_attack",
+    "skill": "magic/estes_skill",
+    "idle": "magic/estes_idle",
+    "note": "support caster 1.33–1.50s — Spine2 filled from Spine1"
+  },
+  "longhai": {
+    "source": "Documents/longhai.glb",
+    "melee": "sword_shield/hai_strike",
+    "walk": "sword_shield/hai_walk",
+    "skill": "sword_shield/hai_skill",
+    "skip": "hai_idle / wait has no Pelvis; playshow and state* unnamed"
   }
 }
