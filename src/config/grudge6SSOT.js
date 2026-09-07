@@ -13,7 +13,7 @@ import { sameOriginFleetUrl } from './fleetEnv.js';
 
 export const GRUDGE6_SSOT_VERSION = '2026-08-13.thirty-original';
 /** Must match ObjectStore WARLORDS_PLAY_CONTRACT_VERSION */
-export const WARLORDS_PLAY_CONTRACT_VERSION = '2026-08-18.play-kit.1';
+export const WARLORDS_PLAY_CONTRACT_VERSION = '2026-08-21.feet-terrain.2';
 
 /** Live lab that owns Warlords character + ability UX proof */
 export const CASTING_LAB_LIVE = 'https://casting.grudge.studio/';
@@ -61,6 +61,9 @@ export const UTILITY_SLOTS = Object.freeze(['bag', 'wood', 'quiver', 'back']);
  * Equipment slot SSOT (matches info canonical-equipment-pattern + UMMORPG names).
  * Hands use WeaponMeshAttach; back uses BackSlotEquip (deployable vehicle).
  */
+/** Admin: never Mixamo remesh / second mixer / invented hands on Toon. */
+export { WARLORDS_ADMIN_LAW_VERSION, resolveWarlordsHandBone } from './warlordsAdminLaw.js';
+
 export const EQUIPMENT_SLOTS = Object.freeze({
   mainHand: { bone: 'R_hand_container', attach: 'weapon' },
   offHand: { bone: 'L_hand_container', attach: 'weapon' },
@@ -183,6 +186,39 @@ export const RACES = {
 };
 
 export const DEFAULT_RACE = 'WK';
+
+/**
+ * Default product class per race — not mage-for-everyone.
+ * Matches raceClassT0.RACE_DEFAULT_T0 (WK sword, ELF bow, DWF rifle, …).
+ */
+export const RACE_DEFAULT_ROLE = Object.freeze({
+  WK: 'warrior',
+  ELF: 'ranger',
+  DWF: 'ranger',
+  BRB: 'warrior',
+  ORC: 'warrior',
+  UD: 'mage'
+});
+
+/** Weapon anim pack at kit load — catalog T0 swaps mesh after, same pack. */
+export const RACE_DEFAULT_PACK = Object.freeze({
+  WK: 'sword_shield',
+  ELF: 'longbow',
+  DWF: 'rifle',
+  BRB: 'pistol',
+  ORC: 'sword_shield',
+  UD: 'magic'
+});
+
+export function defaultRoleForRace(raceId) {
+  const id = String(raceId || DEFAULT_RACE).toUpperCase();
+  return RACE_DEFAULT_ROLE[id] || 'warrior';
+}
+
+export function defaultPackForRace(raceId) {
+  const id = String(raceId || DEFAULT_RACE).toUpperCase();
+  return RACE_DEFAULT_PACK[id] || 'sword_shield';
+}
 
 export function raceDef(raceId) {
   return RACES[raceId] || RACES[DEFAULT_RACE];
