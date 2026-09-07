@@ -963,7 +963,7 @@ export class CharacterController {
    */
   playDodge(dir) {
     const role = DODGE_ROLE[dir] || 'dodgeB';
-    const candidates = [role, `longbow:${role}`, `combat_mobility:${role}`];
+    const candidates = [`combat_mobility:${role}`, role, `longbow:${role}`];
     for (const name of candidates) {
       if (this.actions.has(name)) {
         this.play(name, 0.08, { exclusive: true });
