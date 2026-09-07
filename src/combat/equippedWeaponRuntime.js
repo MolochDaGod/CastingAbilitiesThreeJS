@@ -19,6 +19,7 @@ import {
 import { attachWeaponModel, clearWeaponAttach } from '../character/WeaponMeshAttach.js';
 import { loadEquipMap, saveEquipMap } from '../ui/mainPanelSlots.js';
 import { normalizeHoldKind } from '../character/weaponHoldPose.js';
+import { resolveWarlordsHandBone } from '../config/warlordsAdminLaw.js';
 
 /** @type {import('../api/t0WeaponCatalog.js').EquippableWeapon|null} */
 let _equipped = null;
@@ -100,6 +101,17 @@ export function listEquippableWeapons() {
 export function equippedWeaponHotbar() {
   if (!_equipped) return [];
   return hotbarForWeapon(_equipped, getEquippedSlot3Id());
+}
+
+/**
+ * Showcase / lab: tree already owns 1–3. Optional slot-3 pick.
+ * @param {string|number} slot
+ * @param {string} [skillId]
+ */
+export function applyWeaponTreeHotkey(slot, skillId) {
+  if (!_equipped) return { ok: false, reason: 'Equip a weapon — tree owns hotkeys' };
+  if (skillId && (slot === '2' || slot === 2 || slot === '3')) setEquippedSlot3(skillId);
+  return { ok: true, hotbar: equippedWeaponHotbar() };
 }
 
 /**
@@ -254,9 +266,13 @@ export async function equipWeapon(weapon, ctx) {
   await character.setAnimPack?.(weapon.animPack);
   await character._bindPack?.('combat_mobility');
 
-  // 3) 3D catalog model on hand (prefab model — for Warlords prefab QA)
+  // 3) 3D catalog model on R_hand_container (prefab model — Warlords prefab QA)
   const bones = character.equipment?.findBones?.() || character.bones || {};
-  const hand = bones.rHand || character.bones?.rHand;
+  const hand =
+    resolveWarlordsHandBone(character.model, 'main') ||
+    bones.rHand ||
+    character.bones?.rHand;
+  if (hand && character.bones) character.bones.rHand = hand;
   clearWeaponAttach(hand);
   _attach = null;
   if (weapon.modelUrl) {
@@ -265,31 +281,15 @@ export async function equipWeapon(weapon, ctx) {
     let profile = 'melee';
     if (/WAND/i.test(wt) || id === 't0-wand') profile = 'wand';
     else if (/STAFF|TOME|NATURE/i.test(wt) || /staff|sapling|tome/i.test(id)) profile = 'staff';
+    else if (/RIFLE|CROSSBOW/i.test(wt) || /rifle|crossbow|poppy/i.test(id)) profile = 'rifle';
     else if (/PISTOL|HANDGUN/i.test(wt) || /pistol|handgun/i.test(id)) profile = 'pistol';
-    else if (/GUN|RIFLE/i.test(wt) || /rifle|gun/i.test(id)) profile = 'pistol';
-    else if (/BOW|CROSSBOW/i.test(wt) || /bow|crossbow/i.test(id)) profile = 'bow';
+    else if (/GUN/i.test(wt) || /t0-gun|flintlock/i.test(id)) profile = 'pistol';
+    else if (/BOW/i.test(wt) || /bow/i.test(id)) profile = 'bow';
     else if (/SHIELD/i.test(wt)) profile = 'shield';
-    const maxLengthM =
-      profile === 'wand'
-        ? 0.95
-        : profile === 'staff'
-          ? 1.25
-          : profile === 'pistol'
-            ? 0.45
-            : profile === 'bow'
-              ? 1.35
-              : /SPEAR/i.test(wt) || /spear/i.test(id)
-                ? 1.9
-                : /GREAT|2H|GREATAXE|WARHAMMER/i.test(wt) || /great|2h|greataxe|hammer2h/i.test(id)
-                  ? 1.75
-                  : /DAGGER/i.test(wt) || /dagger/i.test(id)
-                    ? 0.55
-                    : /TOOL/i.test(wt) || /tool/i.test(id)
-                      ? 0.9
-                      : 1.2;
+    // Catalog grip owns SI length — do not pass a pistol cap onto rifles.
     _attach = await attachWeaponModel(hand, weapon.modelUrl, {
       profile,
-      maxLengthM
+      weaponId: weapon.id
     });
     // Character keeps pointer for getWeaponTip / reload pose
     if (character) {

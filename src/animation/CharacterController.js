@@ -17,6 +17,8 @@ import {
 import { settings } from '../config/settings.js';
 // Box3 used by getWeaponTip mesh-tip measure
 import { applyWeaponHoldPose, normalizeHoldKind } from '../character/weaponHoldPose.js';
+import { HandIK } from '../character/HandIK.js';
+import { RIFLE_HAND_IK } from '../config/rifleAnimSsot.js';
 import { WeaponSheathRuntime } from '../character/WeaponSheathRuntime.js';
 import {
   buildWeaponMeshVolume,
@@ -62,6 +64,7 @@ import {
   GRUDGE6_SSOT_VERSION
 } from '../config/grudge6SSOT.js';
 import { EquipmentManager } from '../character/EquipmentManager.js';
+import { resolveWarlordsHandBone } from '../config/warlordsAdminLaw.js';
 import {
   deployToonPlayKit,
   reGroundToonKit,
@@ -149,6 +152,9 @@ export class CharacterController {
     this._gaitKey = '0:fwd';
     this._strafe = null;
     this._gaitLocked = false;
+    this._gaitAiming = false;
+    this._gaitCrouching = false;
+    this._gaitOctant = 'F';
     /** Overlay take-hit (weight on gait — not exclusive one-shot) */
     this._overlayAct = null;
     this._overlayTimer = 0;
@@ -335,6 +341,13 @@ export class CharacterController {
     this.height = deployed.height || kit.userData.deployHeightM || 1.8;
     this.headPosition.set(0, this.height * 0.86, 0);
     this.bones = this.equipment.findBones();
+    {
+      const main = resolveWarlordsHandBone(kit, 'main');
+      const off = resolveWarlordsHandBone(kit, 'off');
+      if (main) this.bones.rHand = main;
+      if (off) this.bones.lHand = off;
+    }
+    this.ik = new HandIK(kit, this.bones);
 
     // Single AnimationMixer — Bip001 packs, position tracks stripped, bones-only rematch
     this.mixer = new AnimationMixer(kit);
@@ -886,7 +899,12 @@ export class CharacterController {
     this.animState = 'idle';
     const g = this._gait;
     this._gait = -1;
-    this.setGait?.(g, g >= 2);
+    this.setGait?.(g, g >= 2, {
+      aiming: this._gaitAiming,
+      crouching: this._gaitCrouching,
+      octant: this._gaitOctant,
+      strafe: this._strafe
+    });
     return true;
   }
 
@@ -899,6 +917,30 @@ export class CharacterController {
     this.weaponSheath?.rebind?.();
     this.weaponSheath?.unsheath?.('equip');
     return this.weaponAttach;
+  }
+
+  /**
+   * Rifle / pistol / crossbow HandIK after mixer. Clip owns grip; IK aims barrel.
+   * @param {import('three').Vector3|null} point
+   * @param {number} [weight]
+   * @param {{ twoHand?: boolean }} [opts]
+   */
+  setHandAim(point, weight = 0, opts = {}) {
+    if (!this.ik) return;
+    const twoHand =
+      opts.twoHand === true ||
+      this.animPackId === 'rifle' ||
+      this.weaponHoldKind === 'crossbow' ||
+      this.weaponHoldKind === 'rifle';
+    this.ik.twoHand = twoHand && this.animPackId !== 'pistol';
+    this.ik.supportScale = RIFLE_HAND_IK.supportScale;
+    this.ik.forestockM = RIFLE_HAND_IK.forestockM;
+    this.ik.weaponAttach = this.weaponAttach;
+    if (!point || weight < 1e-4) {
+      this.ik.clearAim();
+      return;
+    }
+    this.ik.setAimTarget(point.x, point.y, point.z, weight);
   }
 
   /** True when weapon is on hand socket (not hip/back stow). */
@@ -1117,7 +1159,7 @@ export class CharacterController {
 
     const roleMap = {
       idle: LoopRepeat,
-      cast: LoopRepeat,
+      cast: LoopRepeat, // channel / cast_loop — not LoopOnce (duplicate key used to overwrite this)
       attack: LoopOnce,
       attack1: LoopOnce,
       attack2: LoopOnce,
@@ -1126,7 +1168,6 @@ export class CharacterController {
       finisherAir: LoopOnce,
       jumpAttack: LoopOnce,
       blockHit: LoopOnce,
-      cast: LoopOnce,
       hitReact: LoopOnce,
       knockedUp: LoopOnce,
       stun: LoopOnce,
@@ -1180,6 +1221,27 @@ export class CharacterController {
       skill4: LoopOnce,
       skill5: LoopOnce,
       idleAim: LoopRepeat,
+      idleCrouch: LoopRepeat,
+      idleCrouchAim: LoopRepeat,
+      walkCrouch: LoopRepeat,
+      walkCrouchB: LoopRepeat,
+      walkCrouchL: LoopRepeat,
+      walkCrouchR: LoopRepeat,
+      walkCrouchFL: LoopRepeat,
+      walkCrouchFR: LoopRepeat,
+      walkCrouchBL: LoopRepeat,
+      walkCrouchBR: LoopRepeat,
+      sneakL: LoopRepeat,
+      sneakR: LoopRepeat,
+      crouchFire: LoopOnce,
+      shoulderThrow: LoopOnce,
+      shoulderThrowAir: LoopOnce,
+      kneelEnter: LoopOnce,
+      kneelExit: LoopOnce,
+      taunt: LoopOnce,
+      heavy: LoopOnce,
+      attack2: LoopOnce,
+      attack3: LoopOnce,
       walkB: LoopRepeat,
       runB: LoopRepeat,
       runFL: LoopRepeat,
@@ -1189,7 +1251,16 @@ export class CharacterController {
       kick: LoopOnce,
       hurricane: LoopOnce,
       stomp: LoopOnce,
-      uppercut: LoopOnce
+      uppercut: LoopOnce,
+      spearAttack1: LoopOnce,
+      spearAttack2: LoopOnce,
+      twoHandAttack: LoopOnce,
+      twoHandAttack3: LoopOnce,
+      twoHandRun: LoopRepeat,
+      punch: LoopOnce,
+      draw: LoopOnce,
+      sheath: LoopOnce,
+      crossbowShoot: LoopOnce
     };
 
     for (const [role, rel] of Object.entries(pack)) {
@@ -1356,6 +1427,16 @@ export class CharacterController {
     this.height = this.model.userData.deployHeightM || this.height;
     this.headPosition.set(0, this.height * 0.86, 0);
     this.bones = this.equipment?.findBones?.() || this.bones;
+    {
+      const main = resolveWarlordsHandBone(this.model, 'main');
+      const off = resolveWarlordsHandBone(this.model, 'off');
+      if (this.bones) {
+        if (main) this.bones.rHand = main;
+        if (off) this.bones.lHand = off;
+      }
+    }
+    if (!this.ik) this.ik = new HandIK(this.model, this.bones);
+    else this.ik.setBones(this.bones);
 
     // Weapon mesh → anim pack (staff→magic, bow→longbow, melee→sword_shield)
     const wantPack = animPackForLoadout(clean, meta.pack || this.animPackId);
@@ -1410,11 +1491,63 @@ export class CharacterController {
     if (intent === 'finisher') {
       return this.playMeleeFinisher({ airborne: false });
     }
+    if (pack === 'rifle' || pack === 'pistol' || pack === 'longbow') {
+      if (this.weaponHoldKind === 'crossbow') {
+        if (this._gaitCrouching) {
+          return (
+            this.requestOneShot('crouchFire') ||
+            this.requestOneShot('crossbowShoot') ||
+            this.requestOneShot('attack')
+          );
+        }
+        return (
+          this.requestOneShot('crossbowShoot') ||
+          this.requestOneShot('attack')
+        );
+      }
+      if (pack === 'rifle' && this._gaitCrouching) {
+        return this.requestOneShot('crouchFire') || this.requestOneShot('attack');
+      }
+      if (pack === 'pistol') {
+        return this._playPistolFire();
+      }
+      return (
+        this.requestOneShot('attack') ||
+        this.requestOneShot('gunplay') ||
+        this.requestOneShot('cast')
+      );
+    }
     // Default light: advance 3-hit combo (not the jump-dash finisher clip)
     if (pack === 'sword_shield' || intent === 'attack') {
       return this.playMeleeComboLight() || this.requestOneShot('attack');
     }
     return this.requestOneShot('attack') || this.requestOneShot('cast');
+  }
+
+  /**
+   * Pistol LMB — Clint 3-shot (attack → attack2 → attack3), kneel uses shot 1.
+   * Gunplay spin stays on skills, not default fire.
+   */
+  _playPistolFire() {
+    if (this._gaitCrouching) {
+      return this.requestOneShot('attack') || this.requestOneShot('gunplay');
+    }
+    const cfg = settings.meleeCombo || {};
+    const windowS = cfg.chainWindow ?? 0.85;
+    const now = this._simTime;
+    let step = 0;
+    if (this._meleeComboStep >= 0 && now <= this._meleeComboUntil) {
+      step = Math.min(this._meleeComboStep + 1, 2);
+    }
+    const roles = step === 0 ? ['attack'] : step === 1 ? ['attack2', 'attack'] : ['attack3', 'attack'];
+    for (const role of roles) {
+      if (this.requestOneShot(role)) {
+        this._meleeComboStep = step;
+        this._meleeComboUntil = now + windowS;
+        return true;
+      }
+    }
+    return this.requestOneShot('gunplay') || this.requestOneShot('cast');
   }
 
   /**
@@ -1433,7 +1566,30 @@ export class CharacterController {
     } else {
       step = 0;
     }
-    const roles = [`attack${step + 1}`, 'attack1', 'attack2', 'attack3'];
+    const loadout = this.equipment?.loadout || {};
+    const spearOn = !!(loadout.spear && loadout.spear !== 'none');
+    const twoHandOn = !!(
+      (loadout.hammer && loadout.hammer !== 'none') ||
+      (loadout.axe && loadout.axe !== 'none' && !loadout.sword)
+    );
+    let roles;
+    if (spearOn) {
+      roles =
+        step === 0
+          ? ['spearAttack1', 'attack1']
+          : step === 1
+            ? ['spearAttack2', 'attack2']
+            : ['twoHandAttack3', 'attack3', 'spearAttack2'];
+    } else if (twoHandOn) {
+      roles =
+        step === 0
+          ? ['twoHandAttack', 'attack1']
+          : step === 1
+            ? ['twoHandAttack3', 'attack2']
+            : ['twoHandAttack3', 'attack3'];
+    } else {
+      roles = [`attack${step + 1}`, 'attack1', 'attack2', 'attack3'];
+    }
     // Prefer exact step role, then any light role, never jump-dash `attack` first
     let played = null;
     for (const role of roles) {
@@ -1664,30 +1820,38 @@ export class CharacterController {
   /**
    * @param {0|1|2|number} level 0 idle, 1 walk, 2 run
    * @param {boolean} [sprinting]
-   * @param {{ strafe?: 'left'|'right'|null, octant?: string, aiming?: boolean }} [opts]
+   * @param {{ strafe?: 'left'|'right'|null, octant?: string, aiming?: boolean, crouching?: boolean }} [opts]
    */
   setGait(level, sprinting = false, opts = {}) {
     if (this._gaitLocked) return;
     if (this._castingExternal && level === 0) return;
-    const g = sprinting ? 2 : MathUtils.clamp(level | 0, 0, 2);
+    const crouching = !!opts.crouching;
+    const g = crouching ? Math.min(sprinting ? 1 : MathUtils.clamp(level | 0, 0, 2), 1) : sprinting ? 2 : MathUtils.clamp(level | 0, 0, 2);
     const strafe = opts.strafe === 'left' || opts.strafe === 'right' ? opts.strafe : null;
     const octant = typeof opts.octant === 'string' ? opts.octant : null;
     const aiming = !!opts.aiming;
-    const key = `${g}:${this.animPackId === 'rifle' ? octant || 'F' : strafe || 'fwd'}:${aiming ? 'ads' : 'hip'}`;
+    const packKey = this.animPackId === 'rifle' || this.animPackId === 'pistol' ? octant || 'F' : strafe || 'fwd';
+    const key = `${g}:${packKey}:${aiming ? 'ads' : 'hip'}:${crouching ? 'cr' : 'st'}`;
     if (key === this._gaitKey && this.animState !== 'attack') return;
     this._gait = g;
     this._gaitKey = key;
     this._strafe = strafe;
-    this._sprinting = !!sprinting || g >= 2;
+    this._sprinting = !crouching && (!!sprinting || g >= 2);
+    this._gaitAiming = aiming;
+    this._gaitCrouching = crouching;
+    this._gaitOctant = octant || 'F';
 
     if (g === 0) {
       if (this.animState === 'cast_loop') return;
-      const idleRole =
-        this.animPackId === 'rifle' && aiming && this.actions.has('idleAim')
-          ? 'idleAim'
-          : this.actions.has('idle')
-            ? 'idle'
-            : null;
+      let idleRole = null;
+      if (crouching) {
+        if (aiming && this.actions.has('idleCrouchAim')) idleRole = 'idleCrouchAim';
+        else if (this.actions.has('idleCrouch')) idleRole = 'idleCrouch';
+      }
+      if (!idleRole && this.animPackId === 'rifle' && aiming && this.actions.has('idleAim')) {
+        idleRole = 'idleAim';
+      }
+      if (!idleRole && this.actions.has('idle')) idleRole = 'idle';
       if (idleRole) {
         this.animState = 'idle';
         this.play(idleRole, 0.2);
@@ -1695,13 +1859,31 @@ export class CharacterController {
       return;
     }
 
-    // Training rifle: 8-way Mixamo octant (rifleAnimSsot) — real move, not L/R-only
+    // Rifle / crossbow: 8-way Mixamo octant — crouch/sneak when Z held
     if (this.animPackId === 'rifle') {
-      const prefer = rifleGaitRoles(g, octant || 'F');
+      const prefer = rifleGaitRoles(g, octant || 'F', crouching);
       for (const role of prefer) {
         if (this.actions.has(role)) {
-          this.animState = g >= 2 ? 'run' : 'walk';
+          this.animState = crouching ? 'walk' : g >= 2 ? 'run' : 'walk';
           this.play(role, 0.12);
+          return;
+        }
+      }
+    }
+
+    if (this.animPackId === 'pistol' && crouching) {
+      const prefer =
+        octant === 'L' || octant === 'FL' || octant === 'BL'
+          ? ['walkCrouch', 'walkL', 'walk']
+          : octant === 'R' || octant === 'FR' || octant === 'BR'
+            ? ['walkCrouch', 'walkR', 'walk']
+            : octant === 'B'
+              ? ['walkB', 'walkCrouch', 'walk']
+              : ['walkCrouch', 'walk'];
+      for (const role of prefer) {
+        if (this.actions.has(role)) {
+          this.animState = 'walk';
+          this.play(role, 0.14);
           return;
         }
       }
@@ -2582,7 +2764,12 @@ export class CharacterController {
           } else {
             const g = this._gait;
             this._gait = -1;
-            this.setGait(g, g >= 2);
+            this.setGait(g, g >= 2, {
+              aiming: this._gaitAiming,
+              crouching: this._gaitCrouching,
+              octant: this._gaitOctant,
+              strafe: this._strafe
+            });
           }
         }
       } else if (!this._gaitLocked) {

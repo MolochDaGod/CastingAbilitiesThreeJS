@@ -354,6 +354,15 @@ export class EquipmentManager {
     return list.length;
   }
 
+  /**
+   * Production path: catalog GLB is the play weapon.
+   * Hide every kit sword/axe/staff/bow — those skinned props float and spin.
+   */
+  hideKitWeapons() {
+    for (const w of WEAPON_SLOTS) delete this.loadout[w];
+    return this.applyLoadout(this.loadout);
+  }
+
   /** Toggle a single slot to a variant (updates loadout). */
   setSlot(slot, variant) {
     if (WEAPON_SLOTS.includes(slot)) {
@@ -388,11 +397,13 @@ export class EquipmentManager {
    * @returns {{ rHand: import('three').Object3D|null, lHand: import('three').Object3D|null, shield: import('three').Object3D|null, pelvis: import('three').Object3D|null }}
    */
   findBones() {
-    let rHand = null;
-    let lHand = null;
+    let rHandContainer = null;
+    let rHandBone = null;
+    let lHandContainer = null;
+    let lHandBone = null;
     let shield = null;
     let pelvis = null;
-    /** Prefer Bone instances (same name may exist as Object3D). */
+    /** Prefer Bone instances when the same *role* exists as Object3D. */
     const preferBone = (cur, next) => {
       if (!cur) return next;
       if (next?.isBone && !cur.isBone) return next;
@@ -401,11 +412,15 @@ export class EquipmentManager {
 
     this.root.traverse((n) => {
       const name = n.name || '';
-      if (/R_hand_container/i.test(name) || /^Bip001[\s_]R[\s_]Hand$/i.test(name)) {
-        rHand = preferBone(rHand, n);
+      // Kit palm sockets win over raw Bip001 Hand (wrist). Wrist attach is the
+      // giant / floating blade bug. Same order as WARLORDS_HAND_BONES.
+      if (/R_hand_container/i.test(name)) rHandContainer = rHandContainer || n;
+      else if (/^Bip001[\s_]R[\s_]Hand$/i.test(name)) {
+        rHandBone = preferBone(rHandBone, n);
       }
-      if (/L_hand_container/i.test(name) || /^Bip001[\s_]L[\s_]Hand$/i.test(name)) {
-        lHand = preferBone(lHand, n);
+      if (/L_hand_container/i.test(name)) lHandContainer = lHandContainer || n;
+      else if (/^Bip001[\s_]L[\s_]Hand$/i.test(name)) {
+        lHandBone = preferBone(lHandBone, n);
       }
       if (/L_shield_container/i.test(name)) shield = shield || n;
       if (/^Bip001[\s_]Pelvis$/i.test(name) || name === 'Bip001 Pelvis') {
@@ -413,7 +428,14 @@ export class EquipmentManager {
       }
     });
 
-    return { rHand, lHand, shield, pelvis };
+    return {
+      rHand: rHandContainer || rHandBone,
+      lHand: lHandContainer || lHandBone,
+      shield: shield || lHandContainer,
+      pelvis,
+      rHandContainer,
+      lHandContainer
+    };
   }
 }
 

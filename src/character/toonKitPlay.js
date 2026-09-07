@@ -258,9 +258,54 @@ function meshKey(name) {
 }
 
 function isEquippableName(name) {
-  return /body|arms|legs|head|shoulder|weapon|sword|axe|hammer|mace|spear|bow|staff|shield|dagger|pick|quiver|bag|wood|xtra|units_/i.test(
+  return /body|arms|legs|head|shoulder|weapon|sword|axe|hammer|mace|spear|bow|staff|shield|dagger|knife|pick|quiver|bag|wood|xtra|units_|voxel|cube/i.test(
     name || ''
   );
+}
+
+const KIT_WEAPON_RE =
+  /weapon_|_sword|_axe|_hammer|_mace|_spear|_bow|_staff|_shield|_dagger|_knife|_pick|voxel|cube_.*dagger|metal_.*dagger/i;
+
+/** Catalog WeaponAttach is the held mesh — hide in-kit weapons / voxel daggers. */
+export function stripKitNativeWeapons(root) {
+  if (!root) return 0;
+  let n = 0;
+  root.traverse((m) => {
+    if (!m.isMesh && !m.isSkinnedMesh) return;
+    const name = m.name || '';
+    if (/units_body|units_arms|units_legs|units_head|units_shoulder/i.test(name)) return;
+    if (KIT_WEAPON_RE.test(name) || /dagger|knife/i.test(name)) {
+      m.visible = false;
+      n += 1;
+    }
+  });
+  return n;
+}
+
+/**
+ * Remove leftover GLBs parented to the weapon/hand bone (huge voxel dagger).
+ * Keep WeaponAttach + bone children only.
+ */
+export function stripStrayHandProps(root) {
+  if (!root) return 0;
+  const HAND =
+    /r_hand_container|l_hand_container|l_shield_container|bip001 r hand|bip001 l hand|bip001 weapon|^weapon$/i;
+  let n = 0;
+  const hands = [];
+  root.traverse((o) => {
+    if (HAND.test(String(o.name || ''))) hands.push(o);
+  });
+  for (const hand of hands) {
+    for (const c of [...hand.children]) {
+      if (c.userData?.weaponAttach || c.name === 'WeaponAttach') continue;
+      if (c.isBone || c.type === 'Bone') continue;
+      if (/container|nub|socket/i.test(c.name || '')) continue;
+      c.visible = false;
+      c.removeFromParent();
+      n += 1;
+    }
+  }
+  return n;
 }
 
 export function normalizeEmbeddedMaps(root) {
@@ -311,6 +356,8 @@ export function deployToonPlayKit(gltfScene, opts = {}) {
 
   const meshIds = opts.meshIds || [];
   const equip = applyMeshIdsExclusive(kit, meshIds);
+  stripKitNativeWeapons(kit);
+  stripStrayHandProps(kit);
   const mats = normalizeEmbeddedMaps(kit);
   const fit = fitRootUniformSi(kit, opts.targetH ?? HUMAN_HEIGHT_M, { centerXZ: true });
   faceRootTowardCamera(kit);
@@ -396,7 +443,16 @@ export function diagnoseCharacterLook(root, groundY = 0) {
   }
   const head = root.getObjectByName('Bip001 Head');
   const pelvis = root.getObjectByName('Bip001 Pelvis');
+  const rHand =
+    root.getObjectByName('R_hand_container') ||
+    root.getObjectByName('Bip001 R Hand') ||
+    root.getObjectByName('Bip001_R_Hand');
+  const lHand =
+    root.getObjectByName('L_hand_container') ||
+    root.getObjectByName('Bip001 L Hand') ||
+    root.getObjectByName('Bip001_L_Hand');
   if (!pelvis) errors.push('no Bip001 Pelvis');
+  if (!rHand) errors.push('no R hand (R_hand_container / Bip001 R Hand)');
   if (head && pelvis) {
     const hp = new Vector3();
     const pp = new Vector3();
@@ -409,6 +465,11 @@ export function diagnoseCharacterLook(root, groundY = 0) {
     errors,
     height,
     feetMinY,
+    heightHumans: height / 1.8,
+    rHand: !!rHand,
+    lHand: !!lHand,
+    pelvis: !!pelvis,
+    xyz: { up: '+Y', forward: '+Z', right: '+X', unit: 'm' },
     scaleFactor: root.userData.deployScaleFactor ?? 1,
     artForward: !!root.userData.artForwardSet,
     warlordsPlayContract: root.userData.warlordsPlayContract || null,

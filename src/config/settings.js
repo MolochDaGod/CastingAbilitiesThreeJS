@@ -32,10 +32,10 @@ export const settings = {
    */
   drc: {
     session: 'combat', // combat-first showcase (Q → equip)
-    moveSpeed: 3.6,
-    sprintMul: 1.65,
-    /** Jump (Space) — SI m/s */
-    jumpVelocity: 5.4,
+    moveSpeed: 7.2,
+    sprintMul: 1.9,
+    /** Jump (Space) — SI m/s (combat SaberGame uses 10) */
+    jumpVelocity: 8.8,
     /** Second air jump (frontflip) vertical m/s */
     doubleJumpVelocity: 5.0,
     /** Max jumps before needing ground (1 = single, 2 = double) */
@@ -104,6 +104,9 @@ export const settings = {
     slideDistance: 4.2,
     slideDuration: 0.72,
     slideStamina: 14,
+    /** Air dash (Deadlock priest airdash_*) when AA/DD/WW/X off ground */
+    airDashDistance: 5.5,
+    airDashDuration: 0.72,
     /**
      * Dual resources for spells (Warlords production controller).
      * Hold LMB + long path → castIntensity 1..3 multiplies mana/stamina.
@@ -145,19 +148,35 @@ export const settings = {
       stream: { mana: 10, stamina: 8 }
     },
     /**
-     * Dodge afterimage — blur of model own colors, vapor dissipate.
-     * @see vfx/DodgeAfterimage.js
+     * Dodge afterimage — pooled GLSL ghosts (rim + dissolve + smear).
+     * Tint comes from the equipped weapon. @see vfx/DodgeAfterimage.js
      */
     afterimage: {
       enabled: true,
-      count: 6,
+      count: 4,
+      maxGhosts: 4,
       life: 0.55,
-      stampInterval: 0.048,
+      stampInterval: 0.072,
       stampLife: 0.32,
       vaporRise: 0.55,
       vaporExpand: 0.32,
       vaporHold: 0.1,
-      vaporPower: 2.5
+      vaporPower: 2.5,
+      smear: 0.18,
+      rim: 1.4,
+      weaponTint: true,
+      color: 0xc9f0ff
+    },
+    /**
+     * Air-bending trail projectile on mobility (WindRibbon + ocean gust pool).
+     * Dash / 2nd jump / backflip hang. sampleWind() stamps for future AI.
+     */
+    airTrail: {
+      enabled: true,
+      life: 0.52,
+      dashLen: 4.2,
+      jump2Len: 2.4,
+      backflipLen: 3.6
     }
   },
 
@@ -200,14 +219,26 @@ export const settings = {
     size: 1.0,
     /** #rrggbb override (empty = catalog color) */
     color: '#7dd3fc',
-    /** mesh id: none | slashblue | slashred | slashpurple | slashyellow | orb-fire | orb-ember | orb-core | orb-flare */
+    /** mesh id: slash* · orb-* · magic-rock-* · fire-wave-* · lava-wave-aoe | none */
     meshId: 'slashblue',
     /** seconds for residual / impact life */
     duration: 0.45,
     /** cast tell attach */
     attach: 'R_hand',
     /** which primitive the editor is currently authoring */
-    activeKind: 'residual'
+    activeKind: 'residual',
+    /** effectVariants id — size/speed/color/angle without a new mesh */
+    variantId: 'arc_bolt'
+  },
+
+  /**
+   * learn_bending_projectile overlay. Visuals still come from settings.fire
+   * (speed · flightArc · streamLength · explosionSize · smokeLifetime).
+   */
+  projectileLearn: {
+    mistMaxSec: 6,
+    volleyGapSec: 0.08,
+    volleySpreadRad: 0.045
   },
 
   /**
@@ -279,7 +310,21 @@ export const settings = {
     /** air finisher drop MM toward aim (horizontal) */
     airLungeMm: 180,
     /** residual range m while airborne finisher */
-    airFinisherRange: 6.5
+    airFinisherRange: 6.5,
+    /**
+     * Greatsword jump attack — air / just-landed LMB.
+     * Soft-lock + dash vector to target, slash residual at clip end, earth under feet.
+     */
+    jumpAttack: {
+      justLandedSec: 0.48,
+      dashMm: 480,
+      dashDur: 0.44,
+      stopShortM: 0.85,
+      residualRange: 6.5,
+      hitFrameDelay: 0.46,
+      earthRadius: 1.15,
+      earthIntensity: 0.38
+    }
   },
 
   /* ------------------------------------------------------------------ */
@@ -322,7 +367,7 @@ export const settings = {
     /** Multi fire micro-bolts per cast (rendering-friendly vs one fat volume) */
     fireVolleyCount: 5,
     fireVolleyDelayMs: 65,
-    fireVolleySize: 0.32,
+    fireVolleySize: 0.12, // bending flameWidth — tight stream
     /** Meteor: spawn from sky, small projectiles + ground infernos */
     meteorHeight: 14,
     meteorShards: 4,
@@ -373,7 +418,77 @@ export const settings = {
     arcaneCore: '#1a0a28',
     arcaneGlow: '#b070ff',
     /** Micro bullet size for first projectile in a volley */
-    microBulletSize: 0.14
+    microBulletSize: 0.12,
+    /**
+     * Combat bending pack — D:\Games\Models\bending-presets (1).json
+     * "bulletspoisonaoesturf3n turnado" (earth = holy)
+     */
+    fireOrbitCount: 5,
+    fireOrbitRadius: 0.85,
+    fireOrbitSendOnHit: true,
+    poison: {
+      colorDeep: '#012e00',
+      colorShallow: '#53e93f',
+      colorFoam: '#9ed963',
+      mistDensity: 0.75,
+      mistSize: 3.68,
+      mistLifetime: 4.9,
+      trapRadius: 2.4,
+      bombRadius: 3.6,
+      procSize: 0.9,
+      shotSpeed: 27.9
+    },
+    tornado: {
+      pullRadius: 3.5,
+      pullMm: 220,
+      aoeDamageScale: 0.65,
+      duration: 5.1
+    },
+    earthStun: {
+      radius: 2.8,
+      stunSec: 1.2,
+      speed: 35.2
+    },
+    /** Earth slot remapped — holy smite (gold beam + stun ring) */
+    holy: {
+      radius: 2.8,
+      stunSec: 1.2,
+      speed: 35.2,
+      color: '#ffe08a'
+    },
+    fireRain: {
+      count: 6,
+      radius: 4.2,
+      dropHeight: 8.5,
+      size: 0.22
+    },
+    shockwave: {
+      radius: 3.6,
+      fire: '#ff6a1e',
+      ice: '#5fd6ff',
+      holy: '#ffe08a',
+      storm: '#6ec8ff',
+      poison: '#53e93f',
+      nature: '#4ecf6a',
+      arcane: '#b070ff',
+      earth: '#ffe08a'
+    },
+    mobility: {
+      dashDist: 7.2,
+      dashDur: 0.38,
+      blinkHideSec: 0.22,
+      smokeLife: 1.35,
+      smokeSize: 1.85,
+      pullBehindM: 1.65
+    },
+    /** Ranger invis — light green smoke bomb at feet; self outline only */
+    stealth: {
+      durationSec: 6,
+      smokeColor: '#b8efc4',
+      outlineColor: '#8ed89a',
+      fillOpacity: 0.07,
+      smokeSize: 1.15
+    }
   },
 
   /* ------------------------------------------------------------------ */
@@ -400,12 +515,12 @@ export const settings = {
   /* Path drawing / input                                                */
   /* ------------------------------------------------------------------ */
   input: {
-    minPointDistance: 0.22, // world units — ignores mouse jitter
-    minPathLength: 1.6, // world units — shorter strokes do not cast
-    maxPoints: 220,
-    smoothing: 0.35, // 0..1 exponential smoothing of raw samples
-    curveTension: 0.5,
-    samplesPerUnit: 3.0 // resampling density of the final CatmullRom curve
+    minPointDistance: 0.12,
+    minPathLength: 1.6,
+    maxPoints: 280,
+    smoothing: 0.48,
+    curveTension: 0.25,
+    samplesPerUnit: 8.0
   },
 
   /* ------------------------------------------------------------------ */
@@ -420,6 +535,12 @@ export const settings = {
     chargeBlend: 0.22,
     /** Attack/cast/dodge one-shot fade */
     combatBlend: 0.12,
+    /** Take-hit overlay weight on top of gait (flinch — not exclusive) */
+    overlayBlend: 0.62,
+    /** Skeleton + laterality boxes + blend math HUD (lab) */
+    rigDebug: false,
+    /** Console dump when blend/laterality/hip flags change */
+    blendLog: false,
     breathing: 1.0, // breath amplitude while seated (0 = perfectly still)
     breathRate: 0.2, // breaths per second
     legSpread: 1.0, // widens or narrows the crossed legs
@@ -518,9 +639,10 @@ export const settings = {
 
     /* --- deck / IK --- */
     hover: 0.06,
-    standOffset: 0.02,
-    /** Hip drop for bent knees on deck (absolute vs bind Y) */
-    hipDrop: 0.14,
+    /** Fallback only — live stand comes from ride.manifest foot/deck sockets */
+    standOffset: 0.08,
+    /** Hip drop for bent knees on deck (absolute vs bind Y, bone only) */
+    hipDrop: 0.16,
     debugSockets: false,
     seatSink: 0.0,
     bob: 0.04,
@@ -567,12 +689,12 @@ export const settings = {
      * Focus mode: max body yaw rate toward camera (rad/s).
      * Keep low — high values make mouse look whip the body (felt “turn too easily”).
      */
-    focusTurnSpeed: 6.5,
+    focusTurnSpeed: 14,
     /**
      * Deadzone (deg): body does not turn until camera yaw differs by this much.
-     * Stops micro look from spinning the character.
+     * Combat damps at dt*14 with no deadzone — keep this tiny.
      */
-    focusTurnDeadzoneDeg: 16,
+    focusTurnDeadzoneDeg: 2,
     /**
      * When true, body only yaws with camera while WASD moving (look freer when idle).
      * Default false: always lag-follow with deadzone (predictable TPS).
@@ -580,6 +702,8 @@ export const settings = {
     focusTurnOnlyWhenMoving: false,
     /** Free aim: A/D tank turn rate (rad/s) */
     tankTurnSpeed: 2.6,
+    /** false = always camera-relative WASD (combat). true = A/D tank when unfocused */
+    tankWhenUnfocused: false,
     sprintTurnSpeed: 18,
     moveRelativeToAim: true,
     cameraFollowAim: true,
@@ -644,7 +768,7 @@ export const settings = {
      * true = press Shift toggles sprint on/off
      * false = hold Shift to sprint
      */
-    sprintToggle: true,
+    sprintToggle: false,
     /**
      * true = short RMB click toggles focus (current)
      * false = hold RMB to stay in focus (release = off)
@@ -655,7 +779,12 @@ export const settings = {
     /** Invert look Y in focus/TPS */
     invertLookY: false,
     /** Mouse look sensitivity scale (multiplies camera.orbitSensitivity) */
-    lookSensitivity: 1.0
+    lookSensitivity: 1.0,
+    /**
+     * Hold to crouch/sneak (rifle 8-way crouch + pistol kneel).
+     * Not Ctrl (roll) and not C (parry).
+     */
+    crouchCode: 'KeyZ'
   },
 
   /**
@@ -667,7 +796,7 @@ export const settings = {
     enabled: true,
     seed: 17,
     /** Peak hill height on pad (m) — SI human yardstick */
-    amp: 0.85,
+    amp: 2.4,
     segments: 96,
     /** Rapier grid verts ≈ grid; cells = grid-1 */
     grid: 65,
@@ -676,15 +805,16 @@ export const settings = {
     /** Island mesh vertex colors (NOT environment.floorColor void slab) */
     meadowColor: '#3f6b3a',
     dirtColor: '#6f5435',
+    forestColor: '#243820',
     shoreColor: '#8a7355',
     /** L2 harvest-node forest (Desktop forestoutline.html procedural instanced) */
     forestCount: 64,
     forestEnabled: true,
-    forestClearRadius: 9,
-    /** L2 Stylized grass (three-stylized meadow on L0) */
+    forestClearRadius: 11,
+    /** L2 instanced grass — one draw call, same L0 sample (beauty without voxel GLB) */
     grassEnabled: true,
-    /** denser meadow for Dev Island playtest (was 28) */
-    grassDensity: 52,
+    /** Keep modest; InstancedMesh cap 12k. Higher = prettier, not a second terrain. */
+    grassDensity: 24,
     grassClearRadius: 5,
     grassBladeMax: 0.55,
     grassWind: 0.22,
@@ -695,63 +825,65 @@ export const settings = {
   /* ------------------------------------------------------------------ */
   /* Camera rig — combat angles from grudge-third-person-controller      */
   /* ------------------------------------------------------------------ */
+  /**
+   * HUD layout — one player frame, one target frame, one hotbar.
+   * No heart orbs. Overhead HP = small bars, not unit frames.
+   */
+  hud: {
+    editLayout: false,
+    tightBar: false,
+    layout: null
+  },
+
   camera: {
     /**
-     * Fortnite TPS from grudge-third-person-controller (CAMERA_MODES.md):
-     *   distance 5.5 · height ~1.8 · shoulder 0.8 · FOV 85 combat / 70 free
-     * Soft-lock look: grudge-combat-targeting. Orbit sandbox unchanged.
-     * @see docs/COMBAT_CAMERA_FOCUS_SSOT.md
-     * @see MolochDaGod/grudge-third-person-controller
+     * Play TPS — over-the-right-shoulder follow, always behind the body.
+     * Screen-center crosshair = lookDir. Character sits lower-left of the reticle.
+     * Orbit only in builder/equip. Mouse owns yaw/pitch (no OrbitControls in play).
      */
-    /**
-     * Fortnite shoulder TPS (grudge-third-person-controller CAMERA_MODES):
-     * free ~6 m · focus 5.5 m · shoulder 0.72/0.8 · FOV 70/78 sprint.
-     * Builder uses orbit only in equip; combat always TPS.
-     */
-    distance: 6.0,
-    focusDistance: 5.5,
+    distance: 6.4,
+    sprintDistance: 7.2,
+    focusDistance: 5.6,
     minDistance: 2.5,
     maxDistance: 12,
     zoomSpeed: 0.55,
-    zoomDamping: 0.003,
-    minPolar: 0.22,
-    maxPolar: 1.4,
+    zoomDamping: 0.18,
+    minPolar: 0.05,
+    maxPolar: 1.45,
     fov: 70,
-    sprintFov: 78,
-    actionFov: 70,
-    fovDamping: 0.14,
-    /** Chest look height (m) — ~human 1.8 m band */
-    targetHeight: 1.55,
+    sprintFov: 76,
+    actionFov: 72,
+    fovDamping: 0.16,
+    followLambda: 11,
+    /** Chest / lower-head height (m). Hero sits in the lower-left of the reticle. */
+    targetHeight: 1.52,
+    /** Boom look-through (m). CameraRig pushes back if the boom crosses the chest. */
+    lookAhead: 1.6,
+    /** Extra camera lift (m) so the hero sits in the lower third */
+    boomLift: 0.42,
     damping: 0.06,
     autoFrame: 0.28,
     tpsDamping: 0.12,
     tpsDistanceScale: 1.0,
-    /** Free shoulder (m) */
-    shoulderOffset: 0.72,
-    /** Focus over-the-shoulder (Fortnite) */
-    focusShoulderOffset: 0.8,
-    tpsDefaultPitch: 0.4,
-    minPitch: 0.12,
-    maxPitch: 1.35,
-    /**
-     * Soft-lock camera look bias 0..1 when focus + target (not hard snap).
-     * Higher when focused — soft lock is ON in focus.
-     */
-    /** Mild free soft-look; stronger in focus for GRUDOX framing (not hard snap) */
-    /** Mild soft-look only — never auto yaw/pitch (shoulder rider owns orbit) */
-    softLockLook: 0.18,
-    softLockLookFocus: 0.28,
-    /** Purged: auto camera yaw toward target (was action-angle fight) */
-    softLockYawAssist: 0,
-    softLockYawConeDeg: 48,
-    /** Purged: auto pitch toward target chest */
-    softLockPitchAssist: false,
-    softLockPitchDamp: 0.045,
-    orbitSensitivity: 0.0042,
+    shoulderOffset: 0.58,
+    focusShoulderOffset: 0.72,
+    tpsDefaultPitch: 0.16,
+    /** Negative = look up (sky / flying / tall heads). Was 0.05 — glued below horizon. */
+    minPitch: -0.72,
+    maxPitch: 1.12,
+    softLockLook: 0.22,
+    softLockLookFocus: 0.38,
+    /** Mild cone-limited yaw pull toward soft-lock target (rad/s). Mouse still wins. */
+    softLockYawAssist: 0.95,
+    softLockYawConeDeg: 42,
+    /** Mild pitch pull toward target chest while in cone */
+    softLockPitchAssist: true,
+    softLockPitchDamp: 0.09,
+    orbitSensitivity: 0.0024,
     /** Shoulder: -1 left · 0 center · +1 right */
     shoulderSide: 1,
     /** Extra pitch bias when sprinting */
-    sprintPitchBias: 0.04
+    sprintPitchBias: 0.03
   },
 
   /* ------------------------------------------------------------------ */
@@ -824,23 +956,25 @@ export const settings = {
   /* FIRE                                                                */
   /* ================================================================== */
   fire: {
-    speed: 11.5,
+    // Author: D:\Games\Models\bending-presets.json → "My preset".fire
+    // FireAbility + VolumetricFireMaterial read these live. Do not fork a 2nd fire engine.
+    speed: 38.2,
     lifetime: 2.6,
     // Flight: fire does not crawl along the drawn path, it flies above it
     flightHeight: 1.0, // cruise altitude above the ground
-    flightArc: 0.29, // extra lob in the middle of the path
+    flightArc: 0, // bending preset — straight stream, not a lob
     // Flame body — this is a raymarched black-body volume, so these are volume
     // parameters, not surface ones. See VolumetricFireMaterial for how the four
     // layers (silhouette → vortex roll-up → turbulence → shred) stack up.
-    flameWidth: 0.22, // tube radius in metres
-    headSize: 1.89, // fireball radius at the head, × flameWidth
-    flameHeight: 1.84, // upward stretch of the volume (buoyant elongation)
+    flameWidth: 0.12, // tube radius in metres (bending: tight stream)
+    headSize: 1.0, // fireball radius at the head, × flameWidth
+    flameHeight: 1.78, // upward stretch of the volume (buoyant elongation)
     wakeSpread: 0.19, // how far the spent gas behind the head has ballooned out
     // Metre-scale lobes in the silhouette. Without these the outline stays a
     // capsule no matter how much fine turbulence is piled on top of it, and the
     // flame reads as a shaded tube.
-    bulge: 0.18, // how far those lobes swell and pinch the local radius
-    bulgeScale: 0.34, // lobes per metre — lower = bigger, slower shapes
+    bulge: 0.08, // how far those lobes swell and pinch the local radius
+    bulgeScale: 0.89, // lobes per metre — lower = bigger, slower shapes
     // Ring vortices shed off the head and travelling back down the wake. This is
     // what folds the field into curling, mushrooming billows; fbm alone can only
     // make clouds.
@@ -852,7 +986,7 @@ export const settings = {
     // lines rather than as tongues running along the flow.
     flameCurl: 0.45, // swirl of the density field around the axis
     flameTurbulence: 3.2, // noise amplitude eating into the volume
-    flameWarp: 0.2, // domain warp — folds the noise into curling sheets
+    flameWarp: 0.33, // domain warp — folds the noise into curling sheets
     tongueStretch: 1.38, // < 1 stretches structures upward into licking tongues
     streamStretch: 1.31, // < 1 draws them out along the flow
     // Radial shear: how far the fringe is dragged up and back relative to the
@@ -866,11 +1000,11 @@ export const settings = {
     buoyancy: 3.09, // how fast it climbs inside the volume
     detachment: 0.9, // how hard the tail tears into separate puffs
     wakeRise: 0, // how far the far end of the wake has floated upward
-    volumeDensity: 2.09,
+    volumeDensity: 0.69,
     soot: 1.42, // absorption — how much the cool gas occludes
-    coreClarity: 0.54, // extinction left in the hottest gas (low = white blob)
+    coreClarity: 0.22, // extinction left in the hottest gas (low = white blob)
     volumeSteps: 35, // raymarch samples per pixel (quality ↔ cost)
-    streamLength: 10.0, // how long the burning tail behind the head is
+    streamLength: 1.5, // how long the burning tail behind the head is
     flicker: 0.96,
     glow: 3.06,
     opacity: 0.96,
@@ -895,48 +1029,48 @@ export const settings = {
     heatFollow: 0.23,
     tailHeat: 0.28, // temperature of the spent gas at the far end of the wake
     // 0 = pure black-body physics, 1 = the hand-authored gradient below.
-    paletteBlend: 0.0,
+    paletteBlend: 0.03,
     scatter: 1.61, // firelight bouncing inside the sooty fringe
     scatterFalloff: 3.4, // how fast that bath dies away from the core
     // Colour gradient (core → mid → edge → smoke)
     colorCore: '#fff6d8',
     colorMid: '#ffb02e',
-    colorEdge: '#ff3d10',
+    colorEdge: '#000000',
     colorSmoke: '#181616',
     // Embers
-    emberCount: 1.24,
-    emberRate: 210,
-    emberSize: 0.075,
+    emberCount: 1.04,
+    emberRate: 115,
+    emberSize: 0.01,
     emberSpeed: 4.55,
     emberLifetime: 2.75,
     // Smoke
-    smokeDensity: 1.05,
-    smokeSpeed: 1.28,
-    smokeSize: 0.76,
-    smokeLifetime: 4.75,
+    smokeDensity: 0.09,
+    smokeSpeed: 0.52,
+    smokeSize: 0.31,
+    smokeLifetime: 0.65,
     // Sparks
-    sparkRate: 200,
-    sparkSpeed: 7.0,
+    sparkRate: 57,
+    sparkSpeed: 4.3,
     // Distortion
     heatDistortion: 0.0,
-    distortionRadius: 1.6,
+    distortionRadius: 0.2,
     // Light
     lightIntensity: 13,
-    lightRadius: 12,
-    lightColor: '#ff7a26',
-    // Explosion
-    explosionSize: 3.0,
-    explosionBrightness: 2.2,
-    explosionShake: 0.28,
-    explosionFlash: 0.18
+    lightRadius: 7.3,
+    lightColor: '#0a0900',
+    // Explosion / impact
+    explosionSize: 0.3,
+    explosionBrightness: 0.2,
+    explosionShake: 0.34,
+    explosionFlash: 0.21
   },
 
   /* ================================================================== */
   /* WATER                                                               */
   /* ================================================================== */
   water: {
-    speed: 7.5,
-    lifetime: 3.0,
+    speed: 27.9,
+    lifetime: 2.0,
     // Flight — the body surges over the drawn path rather than crawling on it
     height: 1.0, // cruise height above the ground
     surge: 0.2, // amplitude of the vertical undulation
@@ -946,10 +1080,10 @@ export const settings = {
     // Water body — this is a raymarched surface, so these are volume parameters
     // A stream, not a pipe: thin enough that the eye reads a moving body of
     // water rather than a tube, and long enough to arc across the stage.
-    radius: 0.1, // tube radius in metres
-    headSize: 1.9, // crest radius at the head, × radius
-    crest: 1.5, // upward stretch of the cross-section
-    streamLength: 12.0, // length of the body trailing the head
+    radius: 0.23, // combat poison-mist body (bending (1) water)
+    headSize: 1.28,
+    crest: 2.56,
+    streamLength: 17.5,
     waveAmplitude: 0.26, // how far the waves displace the surface
     waveFrequency: 1.8, // swells per metre along the body
     chop: 0.6, // fine noise riding on the swells
@@ -1018,7 +1152,7 @@ export const settings = {
   /* EARTH                                                               */
   /* ================================================================== */
   earth: {
-    speed: 6.0,
+    speed: 35.2,
     lifetime: 3.2,
     // The crust laid down along the path, before anything breaks
     crustWidth: 0.5, // metres of ground paved either side of the path
@@ -1034,8 +1168,8 @@ export const settings = {
     plateSpread: 0.19, // metres plates slide apart, opening the seams
     // Emerging rocks
     rockCount: 1.15, // density multiplier
-    rockSpacing: 1.74, // metres between eruption points
-    rockSize: 0.45,
+    rockSpacing: 1.02,
+    rockSize: 0.27,
     rockRandomness: 0.74,
     riseHeight: 1.68,
     riseSpeed: 4.95,
@@ -1092,8 +1226,8 @@ export const settings = {
     spiralRadius: 1.05,
     sheetTwist: 1.5,
     rotationSpeed: 5.5,
-    vortexStrength: 1.6,
-    swirlSpeed: 2.2,
+    vortexStrength: 3.74,
+    swirlSpeed: 4.24,
     filamentCount: 28,
     // Hairlines thinner than roughly a lane-eighth cannot be resolved at the
     // sizes this effect is seen at; past that the shader melts them into a
@@ -1122,9 +1256,9 @@ export const settings = {
     lightRadius: 8,
     lightColor: '#bfe8ff',
     // Impact
-    tornadoHeight: 8.3,
-    tornadoRadius: 2.2,
-    tornadoDuration: 1.6,
+    tornadoHeight: 5.4,
+    tornadoRadius: 3.5,
+    tornadoDuration: 5.1,
     // Funnel shape. `tornadoRadius` is the radius at the *top*; the neck is the
     // fraction of that the column pinches to at the ground, which is what makes
     // the silhouette concave instead of a cone.

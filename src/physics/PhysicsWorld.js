@@ -1,5 +1,5 @@
 import RAPIER from '@dimforge/rapier3d-compat';
-import { Quaternion, Vector3 } from 'three';
+import { Box3, Quaternion, Vector3 } from 'three';
 import { PLAYER_CAPSULE, WORLD } from '../config/worldScale.js';
 import { sampleMeshLocalPositions } from '../character/weaponMeshCollider.js';
 
@@ -10,7 +10,9 @@ const _up = new Vector3(0, 1, 0);
 const _tan = new Vector3();
 
 const SKIP_MESH_RE =
-  /grass|water|helper|debug|collider_|volume|trail|particle|fog|sprite|afterimage/i;
+  /grass|water|helper|debug|collider_|volume|trail|particle|fog|sprite|afterimage|highlight|harvest_highlight|harvest_chip/i;
+
+const _fragBox = new Box3();
 
 /**
  * Fleet-style Rapier world for Casting Abilities.
@@ -53,6 +55,8 @@ export class PhysicsWorld {
     this._follow = [];
     /** Spline VFX: kinematic shape head + effect sensor beads (one world). */
     this._splineVfx = [];
+    /** Harvest mine chips — dynamic convex, density > 0 (Rapier law). */
+    this._fragments = [];
     /** Multiplier on gravity (backflip hang = ~0.32 for air-aim window) */
     this.gravityScale = 1;
   }
@@ -78,6 +82,7 @@ export class PhysicsWorld {
     /** @type {{ id: string, mesh: import('three').Object3D, body: any }[]} */
     this._follow = [];
     this._splineVfx = [];
+    this._fragments = [];
 
     // Player kinematic capsule (CCT)
     const r = opts.radius ?? HUMAN_CAPSULE.radius;
@@ -163,7 +168,13 @@ export class PhysicsWorld {
         y: dy,
         z: vz * FIXED_DT
       };
-      this.characterController.computeColliderMovement(this.playerCollider, desired);
+      // Water / VFX sensors must not snag the CCT
+      const skipSensors = RAPIER.QueryFilterFlags?.EXCLUDE_SENSORS ?? 8;
+      this.characterController.computeColliderMovement(
+        this.playerCollider,
+        desired,
+        skipSensors
+      );
       const mv = this.characterController.computedMovement();
       grounded = this.characterController.computedGrounded();
       // If we hit ceiling, kill upward velocity
@@ -180,6 +191,7 @@ export class PhysicsWorld {
       this.world.step();
       this.accumulator -= FIXED_DT;
     }
+    this.syncFragments();
 
     this.grounded = grounded;
     const t = this.playerBody.translation();
@@ -237,6 +249,16 @@ export class PhysicsWorld {
    * }} desc
    * @param {{ landHeightAt?: (x:number,z:number)=>number, waterHeightAt?: (x:number,z:number,t?:number)=>number }} [samplers]
    */
+  _restoreFlatGround() {
+    const half = WORLD.physicsGroundHalf;
+    const gb = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, -0.05, 0));
+    const gc = this.world.createCollider(
+      RAPIER.ColliderDesc.cuboid(half, 0.05, half).setFriction(0.9).setRestitution(0.05),
+      gb
+    );
+    this.bodies.set('ground', { body: gb, collider: gc, kind: 'ground' });
+  }
+
   addHeightfield(desc, samplers = {}) {
     if (!this.ready || !this.world || !desc?.heights) return false;
     // Remove flat ground collider
@@ -251,29 +273,63 @@ export class PhysicsWorld {
       this.bodies.delete('ground');
     }
 
-    // Rapier heightfield: heights length (nrows+1)*(ncols+1)
-    const nrows = desc.nrows | 0;
-    const ncols = desc.ncols | 0;
+    // Rapier: nrows/ncols = cells; heights length (nrows+1)*(ncols+1).
+    // Passing vertex counts as nrows with n*n heights panics WASM (unreachable).
+    let nrows = desc.nrows | 0;
+    let ncols = desc.ncols | 0;
+    const raw = desc.heights;
+    const restoreFlat = (reason) => {
+      console.warn(`[PhysicsWorld] heightfield skipped — ${reason}`);
+      this._restoreFlatGround();
+      this.landHeightAt = samplers.landHeightAt || this.landHeightAt;
+      this.waterHeightAt = samplers.waterHeightAt || this.waterHeightAt;
+      return false;
+    };
+    if (!raw || nrows < 1 || ncols < 1) return restoreFlat('missing grid');
+    const len = raw.length | 0;
+    if (len === nrows * ncols && nrows >= 3 && ncols >= 3) {
+      nrows -= 1;
+      ncols -= 1;
+    }
+    const expect = (nrows + 1) * (ncols + 1);
+    if (len !== expect) {
+      return restoreFlat(`size mismatch heights=${len} expect=${expect} (nrows=${nrows} cells)`);
+    }
+    const heights = raw instanceof Float32Array ? raw : new Float32Array(raw);
+    for (let i = 0; i < heights.length; i++) {
+      if (!Number.isFinite(heights[i])) heights[i] = 0;
+    }
     const scale = desc.scale || { x: 1, y: 1, z: 1 };
+    if (![scale.x, scale.y, scale.z].every((v) => Number.isFinite(v) && v > 0 && v < 1e6)) {
+      return restoreFlat('invalid scale');
+    }
     const body = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, 0, 0));
     let colliderDesc;
     try {
-      colliderDesc = RAPIER.ColliderDesc.heightfield(nrows, ncols, desc.heights, scale)
+      colliderDesc = RAPIER.ColliderDesc.heightfield(nrows, ncols, heights, scale)
         .setFriction(0.95)
         .setRestitution(0.02);
     } catch (err) {
       console.warn('[PhysicsWorld] heightfield create failed — keep flat ground', err);
-      // Restore flat
-      const half = WORLD.physicsGroundHalf;
-      const gb = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, -0.05, 0));
-      const gc = this.world.createCollider(
-        RAPIER.ColliderDesc.cuboid(half, 0.05, half).setFriction(0.9),
-        gb
-      );
-      this.bodies.set('ground', { body: gb, collider: gc, kind: 'ground' });
-      return false;
+      try {
+        this.world.removeRigidBody(body);
+      } catch {
+        /* */
+      }
+      return restoreFlat(err?.message || 'ColliderDesc.heightfield');
     }
-    const col = this.world.createCollider(colliderDesc, body);
+    let col;
+    try {
+      col = this.world.createCollider(colliderDesc, body);
+    } catch (err) {
+      console.warn('[PhysicsWorld] heightfield collider panic — keep flat', err);
+      try {
+        this.world.removeRigidBody(body);
+      } catch {
+        /* */
+      }
+      return restoreFlat(err?.message || 'createCollider');
+    }
     this.bodies.set('ground', { body, collider: col, kind: 'heightfield' });
     this.landHeightAt = samplers.landHeightAt || null;
     this.waterHeightAt = samplers.waterHeightAt || null;
@@ -434,6 +490,15 @@ export class PhysicsWorld {
    * Large meshes (>8k tris) fall back to convex hull of sampled verts.
    * @returns {string|null} body id
    */
+  _vertsAreSafe(arr) {
+    if (!arr || arr.length < 12) return false;
+    for (let i = 0; i < arr.length; i++) {
+      const v = arr[i];
+      if (!Number.isFinite(v) || Math.abs(v) > 1e5) return false;
+    }
+    return true;
+  }
+
   addMeshCollider(mesh, opts = {}) {
     if (!this.ready || !this._isStaticColliderMesh(mesh)) return null;
     const id = opts.id || `mesh_${mesh.uuid}`;
@@ -441,41 +506,46 @@ export class PhysicsWorld {
 
     const geo = mesh.geometry;
     const pos = geo.attributes.position;
+    if (!pos || pos.count < 4) return null;
     const indexed = !!geo.index;
     const triCount = indexed ? geo.index.count / 3 : pos.count / 3;
     const useTrimesh = opts.shape !== 'convex' && triCount <= (opts.maxTris ?? 8000);
 
     mesh.updateWorldMatrix(true, false);
     mesh.matrixWorld.decompose(_p, _q, _s);
+    if (![ _p.x, _p.y, _p.z, _s.x, _s.y, _s.z ].every(Number.isFinite)) return null;
 
     let desc = null;
-    if (useTrimesh) {
-      const verts = new Float32Array(pos.count * 3);
-      mesh.updateWorldMatrix(true, false);
-      for (let i = 0; i < pos.count; i++) {
-        _p.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
-        verts[i * 3] = _p.x;
-        verts[i * 3 + 1] = _p.y;
-        verts[i * 3 + 2] = _p.z;
+    try {
+      if (useTrimesh) {
+        const verts = new Float32Array(pos.count * 3);
+        mesh.updateWorldMatrix(true, false);
+        for (let i = 0; i < pos.count; i++) {
+          _p.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+          verts[i * 3] = _p.x;
+          verts[i * 3 + 1] = _p.y;
+          verts[i * 3 + 2] = _p.z;
+        }
+        if (this._vertsAreSafe(verts)) {
+          const idx = indexed
+            ? new Uint32Array(geo.index.array)
+            : (() => {
+                const n = pos.count;
+                const a = new Uint32Array(n);
+                for (let i = 0; i < n; i++) a[i] = i;
+                return a;
+              })();
+          desc = RAPIER.ColliderDesc.trimesh(verts, idx);
+        }
       }
-      const idx = indexed
-        ? new Uint32Array(geo.index.array)
-        : (() => {
-            const n = pos.count;
-            const a = new Uint32Array(n);
-            for (let i = 0; i < n; i++) a[i] = i;
-            return a;
-          })();
-      try {
-        desc = RAPIER.ColliderDesc.trimesh(verts, idx);
-      } catch {
-        desc = null;
+      if (!desc) {
+        const hull = this.meshWorldVerts(mesh, opts.hullVerts ?? 96);
+        if (!hull || !this._vertsAreSafe(hull)) return null;
+        desc = RAPIER.ColliderDesc.convexHull(hull);
       }
-    }
-    if (!desc) {
-      const hull = this.meshWorldVerts(mesh, opts.hullVerts ?? 96);
-      if (!hull) return null;
-      desc = RAPIER.ColliderDesc.convexHull(hull);
+    } catch (err) {
+      console.warn('[PhysicsWorld] mesh collider skipped', mesh.name, err);
+      return null;
     }
     if (!desc) return null;
     desc.setFriction(opts.friction ?? 0.7).setRestitution(opts.restitution ?? 0.02);
@@ -519,6 +589,132 @@ export class PhysicsWorld {
   }
 
   /**
+   * Drop every Rapier body whose mesh lives under `root` (harvest remain / break).
+   * @param {import('three').Object3D} root
+   * @returns {number}
+   */
+  removeBodiesForObject(root) {
+    if (!root || !this.ready) return 0;
+    const ids = [];
+    for (const [id, e] of this.bodies) {
+      if (!e?.mesh) continue;
+      let o = e.mesh;
+      while (o) {
+        if (o === root) {
+          ids.push(id);
+          break;
+        }
+        o = o.parent;
+      }
+    }
+    for (const id of ids) this.removeBody(id);
+    return ids.length;
+  }
+
+  /**
+   * Rebuild convex hull after a harvest remain scale (same mesh, new world verts).
+   * @param {import('three').Object3D} root
+   * @param {{ idPrefix?: string, shape?: string }} [opts]
+   */
+  rebuildGltfStaticColliders(root, opts = {}) {
+    this.removeBodiesForObject(root);
+    return this.addGltfStaticColliders(root, opts);
+  }
+
+  /**
+   * Dynamic harvest chip — density > 0 or it will not fly (Rapier common mistake).
+   * @param {import('three').Mesh} mesh
+   * @param {{ linvel?: {x:number,y:number,z:number}, angvel?: {x:number,y:number,z:number}, density?: number, life?: number, id?: string }} [opts]
+   */
+  addDynamicFragment(mesh, opts = {}) {
+    if (!this.ready || !mesh?.isMesh) return null;
+    const id = opts.id || `frag_${mesh.uuid}`;
+    if (this.bodies.has(id)) this.removeBody(id);
+    const verts = this.meshLocalScaledVerts(mesh, opts.hullVerts ?? 24);
+    if (!verts) return null;
+    const desc = RAPIER.ColliderDesc.convexHull(verts);
+    if (!desc) return null;
+    desc.setDensity(opts.density ?? 2.1).setFriction(0.55).setRestitution(0.14);
+    mesh.updateWorldMatrix(true, false);
+    mesh.matrixWorld.decompose(_p, _q, _s);
+    const lv = opts.linvel || { x: 0, y: 2.4, z: 0 };
+    const av = opts.angvel || { x: 0, y: 0, z: 0 };
+    const body = this.world.createRigidBody(
+      RAPIER.RigidBodyDesc.dynamic()
+        .setTranslation(_p.x, _p.y, _p.z)
+        .setRotation({ x: _q.x, y: _q.y, z: _q.z, w: _q.w })
+        .setLinvel(lv.x, lv.y, lv.z)
+        .setAngvel(av.x, av.y, av.z)
+    );
+    const col = this.world.createCollider(desc, body);
+    mesh.userData.colliderClass = 'convex';
+    this.bodies.set(id, {
+      body,
+      collider: col,
+      kind: 'fragment',
+      colliderClass: 'convex',
+      mesh
+    });
+    this._fragments.push({
+      id,
+      mesh,
+      body,
+      born: performance.now() / 1000,
+      life: opts.life ?? 2.8
+    });
+    return id;
+  }
+
+  /** Copy dynamic fragment poses onto Three meshes; despawn expired chips. */
+  syncFragments() {
+    if (!this._fragments?.length) return;
+    const now = performance.now() / 1000;
+    const keep = [];
+    for (const f of this._fragments) {
+      if (!f.body || now - f.born > f.life) {
+        this.removeBody(f.id);
+        f.mesh?.removeFromParent?.();
+        continue;
+      }
+      const t = f.body.translation();
+      const r = f.body.rotation();
+      if (f.mesh) {
+        f.mesh.position.set(t.x, t.y, t.z);
+        f.mesh.quaternion.set(r.x, r.y, r.z, r.w);
+      }
+      keep.push(f);
+    }
+    this._fragments = keep;
+  }
+
+  /**
+   * Fail-closed spawn: drop static harvest/scenery hulls whose AABB overlaps the CCT pad.
+   * Never removes heightfield / player / water.
+   * @returns {number} removed count
+   */
+  clearSpawnSolid(x = 0, z = 0, radiusM = 1.8) {
+    if (!this.ready) return 0;
+    const drop = [];
+    for (const [id, e] of this.bodies) {
+      if (!e?.mesh) continue;
+      if (id === 'player' || e.kind === 'heightfield' || e.kind === 'ground' || e.kind === 'water') {
+        continue;
+      }
+      try {
+        e.mesh.updateWorldMatrix?.(true, false);
+        _fragBox.setFromObject(e.mesh);
+        const cx = Math.min(Math.max(x, _fragBox.min.x), _fragBox.max.x);
+        const cz = Math.min(Math.max(z, _fragBox.min.z), _fragBox.max.z);
+        if (Math.hypot(cx - x, cz - z) <= radiusM) drop.push(id);
+      } catch {
+        /* skip */
+      }
+    }
+    for (const id of drop) this.removeBody(id);
+    return drop.length;
+  }
+
+  /**
    * Kinematic convex hull that follows an animated mesh (weapon on Bip001 R Hand).
    * Sensor by default so the CCT does not snag the player's own blade.
    */
@@ -526,8 +722,13 @@ export class PhysicsWorld {
     if (!this.ready || !mesh?.isMesh) return null;
     this.detachFollow(id);
     const verts = this.meshLocalScaledVerts(mesh, opts.hullVerts ?? 64);
-    if (!verts) return null;
-    const desc = RAPIER.ColliderDesc.convexHull(verts);
+    if (!verts || !this._vertsAreSafe(verts)) return null;
+    let desc = null;
+    try {
+      desc = RAPIER.ColliderDesc.convexHull(verts);
+    } catch {
+      return null;
+    }
     if (!desc) return null;
     desc.setFriction(0.2);
     if (opts.sensor !== false) desc.setSensor(true);
@@ -566,30 +767,42 @@ export class PhysicsWorld {
 
   /**
    * Best physics ray for GLTF play: Rapier scene query (not a second engine).
-   * Excludes the player CCT. Returns world point or null.
+   * Excludes player CCT **and sensors** (water volume / VFX beads ate the aim ray).
+   * Hits heightfield + static convex props.
    */
   castRay(origin, dir, maxToi = 80) {
     if (!this.ready || !this.world || !origin || !dir) return null;
+    const lx = Number(dir.x);
+    const ly = Number(dir.y);
+    const lz = Number(dir.z);
+    const len = Math.hypot(lx, ly, lz);
+    if (len < 1e-8) return null;
+    const nx = lx / len;
+    const ny = ly / len;
+    const nz = lz / len;
     const ray = new RAPIER.Ray(
       { x: origin.x, y: origin.y, z: origin.z },
-      { x: dir.x, y: dir.y, z: dir.z }
+      { x: nx, y: ny, z: nz }
     );
+    const skipSensors = RAPIER.QueryFilterFlags?.EXCLUDE_SENSORS ?? 8;
     const hit = this.world.castRay(
       ray,
       maxToi,
       true,
+      skipSensors,
       undefined,
-      undefined,
-      this.playerCollider || undefined
+      this.playerCollider || undefined,
+      this.playerBody || undefined
     );
     if (!hit) return null;
     const toi = hit.timeOfImpact;
+    if (!Number.isFinite(toi) || toi < 0) return null;
     return {
       toi,
       point: {
-        x: origin.x + dir.x * toi,
-        y: origin.y + dir.y * toi,
-        z: origin.z + dir.z * toi
+        x: origin.x + nx * toi,
+        y: origin.y + ny * toi,
+        z: origin.z + nz * toi
       }
     };
   }
@@ -761,6 +974,7 @@ export class PhysicsWorld {
   dispose() {
     this.clearSplineVfx();
     this._follow = [];
+    this._fragments = [];
     if (this.world) {
       this.world.free();
       this.world = null;

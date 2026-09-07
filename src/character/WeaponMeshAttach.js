@@ -6,15 +6,55 @@
  * (mushroom / resonance heads) without becoming 100× giants.
  */
 
+import * as THREE from 'three';
 import { Group, Box3, Vector3, MathUtils, Object3D } from 'three';
 import { sharedGltfLoader } from '../loaders/gltfPipeline.js';
 import { FLINTLOCK_FIRE } from '../config/pistolAnimSsot.js';
+import {
+  familyFromAttachProfile,
+  primaryCombatPointId,
+  resolveWeaponSpine,
+  SPINE_POINT_IDS
+} from './weaponPrefabSpine.js';
+import { bindTpsPistolProp, isTpsPistolUrl } from '../animation/tpsPistolProp.js';
+import { gripEntryForWeapon, HAND_GRIP_WIDTH_M } from './weaponGripManifest.js';
+import { applyCatalogGrip, gripForWeapon } from './t0WeaponGrip.js';
 
 const _box = new Box3();
 const _size = new Vector3();
 const _handW = new Vector3();
 const _corner = new Vector3();
 const _best = new Vector3();
+const _meshBox = new Box3();
+
+/**
+ * Longest axis of visible mesh geometry only — helpers/lights inflate setFromObject
+ * and that is the 100× / floating-blade bug.
+ * @param {import('three').Object3D} root
+ */
+function measureHeldMeshLongest(root) {
+  _box.makeEmpty();
+  let any = false;
+  root.updateWorldMatrix(true, true);
+  root.traverse((o) => {
+    if (!o.isMesh && !o.isSkinnedMesh) return;
+    if (o.visible === false) return;
+    if (!o.geometry) return;
+    try {
+      _meshBox.setFromObject(o);
+      if (_meshBox.isEmpty()) return;
+      if (!any) {
+        _box.copy(_meshBox);
+        any = true;
+      } else _box.union(_meshBox);
+    } catch {
+      /* skip */
+    }
+  });
+  if (!any) _box.setFromObject(root);
+  _box.getSize(_size);
+  return Math.max(_size.x, _size.y, _size.z, 1e-4);
+}
 
 /**
  * @param {import('three').Object3D|null} handBone
@@ -22,7 +62,7 @@ const _best = new Vector3();
  * @param {{
  *   maxLengthM?: number,
  *   maxWidthM?: number,
- *   profile?: 'melee'|'wand'|'staff'|'bow'|'pistol'|'shield',
+ *   profile?: 'melee'|'wand'|'staff'|'bow'|'pistol'|'rifle'|'shield',
  *   clear?: boolean
  * }} [opts]
  * @returns {Promise<import('three').Object3D|null>}
@@ -42,12 +82,16 @@ export async function attachWeaponModel(handBone, modelUrl, opts = {}) {
         ? 'staff'
         : /pistol|handgun/i.test(urlLow)
           ? 'pistol'
-          : /bow|crossbow/i.test(urlLow)
-            ? 'bow'
-            : /gun|rifle/i.test(urlLow)
-              ? 'pistol'
-              : /shield/i.test(urlLow)
+          : /rifle/i.test(urlLow)
+            ? 'rifle'
+            : /bow|crossbow/i.test(urlLow)
+              ? 'bow'
+              : /gun/i.test(urlLow)
+                ? 'pistol'
+                : /shield/i.test(urlLow)
                 ? 'shield'
+                : /claw/i.test(urlLow)
+                  ? 'claw'
                 : 'melee');
 
   // SI: human ~1.8 m — pistol handgun short; wand/staff longer
@@ -56,11 +100,15 @@ export async function attachWeaponModel(handBone, modelUrl, opts = {}) {
     (profile === 'wand'
       ? 0.95
       : profile === 'staff'
-        ? 1.25
+        ? 1.55
         : profile === 'pistol'
           ? 0.48 // flintlock SI hand length
-          : profile === 'bow'
+          : profile === 'rifle'
+            ? 1.15
+            : profile === 'bow'
             ? 1.4
+            : profile === 'claw'
+              ? 0.32
             : 1.2);
   const maxWidth =
     opts.maxWidthM ??
@@ -68,6 +116,8 @@ export async function attachWeaponModel(handBone, modelUrl, opts = {}) {
       ? 0.55
       : profile === 'pistol'
         ? 0.28 // flintlock barrel + lock
+        : profile === 'claw'
+          ? 0.2
         : 0.4);
 
   try {
@@ -85,35 +135,55 @@ export async function attachWeaponModel(handBone, modelUrl, opts = {}) {
       }
     });
 
+    const grip = gripEntryForWeapon(opts.weaponId || modelUrl);
+    const catalogGrip = gripForWeapon(opts.weaponId, profile);
     const holder = new Group();
     holder.name = 'WeaponAttach';
     holder.userData.weaponAttach = true;
     holder.userData.profile = profile;
     holder.userData.modelUrl = modelUrl;
+    holder.userData.grip = grip;
+    holder.userData.catalogGrip = catalogGrip;
+    holder.userData.handGripWidthM = HAND_GRIP_WIDTH_M;
+    // Never play author clips on a held prop — that is the free-spin / tome-hover bug.
+    if (Array.isArray(gltf.animations)) gltf.animations.length = 0;
+    root.animations = [];
+    root.traverse((o) => {
+      o.matrixAutoUpdate = true;
+      if (o.animations) o.animations = [];
+      if (o.userData) o.userData.skipMixer = true;
+    });
     holder.add(root);
+    if (profile === 'pistol' && isTpsPistolUrl(modelUrl)) {
+      bindTpsPistolProp(holder, gltf);
+    }
 
-    // Normalize length first, then soft-cap width (willing wider than long for heads)
-    _box.setFromObject(root);
-    _box.getSize(_size);
-    const longest = Math.max(_size.x, _size.y, _size.z, 0.01);
-    let s = maxLen / longest;
+    // SI: mesh-only longest axis. Decade snap cm-as-m, then residual fit.
+    root.scale.setScalar(1);
+    let longest = measureHeldMeshLongest(root);
+    if (longest > 40) {
+      root.scale.setScalar(0.01);
+      longest = measureHeldMeshLongest(root);
+    }
+    const targetLen = Number(catalogGrip.maxLengthM || maxLen) || 1.2;
+    let s = root.scale.x * (targetLen / Math.max(longest, 1e-4));
+    if (s > 8) s = 8;
+    if (s < 0.04) s = 0.04;
     root.scale.setScalar(s);
-    _box.setFromObject(root);
-    _box.getSize(_size);
+    longest = measureHeldMeshLongest(root);
     const width = Math.max(_size.x, _size.z);
-    if (width > maxWidth) {
+    if (width > maxWidth && width > 1e-4) {
       s *= maxWidth / width;
       root.scale.setScalar(s);
     }
-
-    // Grip: shaft along +Y local (Toon R_hand)
-    // Pistol: barrel should read forward of grip after orient — same -90 pitch as melee
-    root.rotation.x = MathUtils.degToRad(profile === 'bow' ? -75 : -90);
-    if (profile === 'pistol') {
-      // Slight yaw so flintlock sits across palm → barrel out from body
-      root.rotation.z = MathUtils.degToRad(8);
+    if (grip.scale_factor && grip.scale_factor !== 1) {
+      s *= grip.scale_factor;
+      root.scale.setScalar(s);
     }
-    root.position.set(0, 0, 0);
+
+    applyCatalogGrip(root, catalogGrip, THREE);
+    const [gx, gy, gz] = grip.grip_offset_xyz || [0, 0, 0];
+    if (gx || gy || gz) root.position.add(new Vector3(gx, gy, gz));
 
     // SI fit metadata — lab scale editor multiplies this base
     holder.userData._fitScale = 1;
@@ -125,8 +195,16 @@ export async function attachWeaponModel(handBone, modelUrl, opts = {}) {
 
     // Parent first so world AABB / hand origin are valid for muzzle tip
     handBone.add(holder);
-    // Barrel tip marker (muzzle) — farthest mesh extent from hand grip
+    // Barrel tip marker (muzzle) + full spine (cast / barrel / tip / …)
     placeMuzzleMarker(holder, profile);
+    stampWeaponSpine(holder, { profile, family: familyFromAttachProfile(profile) });
+    holder.userData.bendingPreset = 'bulletspoisonaoestun turnado';
+    holder.userData.bendingPatterns = [
+      'fire_bullet',
+      'poison_shot',
+      'earth_stun',
+      'tornado_pull'
+    ];
     handBone.updateWorldMatrix?.(true, true);
     _box.setFromObject(holder);
     _box.getSize(_size);
@@ -208,6 +286,70 @@ export function placeMuzzleMarker(holder, profile = 'melee') {
 }
 
 /**
+ * Stamp family spine sockets as child Object3Ds (Open WEAPON_PREFAB.md §3).
+ * Barrel marker aliases WeaponMuzzle when present so guns stay one origin.
+ * @param {import('three').Object3D} holder
+ * @param {{ profile?: string, family?: string, spine?: object }} [opts]
+ */
+export function stampWeaponSpine(holder, opts = {}) {
+  if (!holder) return null;
+  const family = opts.family || familyFromAttachProfile(opts.profile || holder.userData?.profile);
+  const spine = resolveWeaponSpine({ family, spine: opts.spine || holder.userData?.spineAuthor });
+  holder.userData.spineFamily = family;
+  holder.userData.spine = spine;
+  holder.userData.primarySpine = primaryCombatPointId(family);
+
+  for (const c of [...holder.children]) {
+    if (c.userData?.isSpinePoint && c.name !== 'WeaponMuzzle') holder.remove(c);
+  }
+
+  const markers = {};
+  for (const id of SPINE_POINT_IDS) {
+    const p = spine.points[id];
+    if (!p?.pos) continue;
+    if (id === 'barrel' && holder.userData.muzzle) {
+      const m = holder.userData.muzzle;
+      m.userData.spineId = 'barrel';
+      m.userData.isSpinePoint = true;
+      markers.barrel = m;
+      continue;
+    }
+    const node = new Object3D();
+    node.name = `WeaponSpine_${id}`;
+    node.userData.isSpinePoint = true;
+    node.userData.spineId = id;
+    node.position.set(p.pos[0] || 0, p.pos[1] || 0, p.pos[2] || 0);
+    holder.add(node);
+    markers[id] = node;
+  }
+  if (!markers.barrel && holder.userData.muzzle) {
+    markers.barrel = holder.userData.muzzle;
+  }
+  holder.userData.spineMarkers = markers;
+  return spine;
+}
+
+/**
+ * World position of a spine point on WeaponAttach.
+ * @param {import('three').Object3D|null} attach
+ * @param {string} pointId
+ * @param {import('three').Vector3} [out]
+ */
+export function getSpineWorldFromAttach(attach, pointId, out = new Vector3()) {
+  if (!attach) return out.set(0, 0, 0);
+  const id = String(pointId || attach.userData?.primarySpine || 'tip');
+  const markers = attach.userData?.spineMarkers;
+  const node =
+    markers?.[id] ||
+    (id === 'barrel' || id === 'tip' ? attach.userData?.muzzle : null);
+  if (node) {
+    node.getWorldPosition(out);
+    return out;
+  }
+  return getMuzzleWorldFromAttach(attach, out);
+}
+
+/**
  * Find WeaponAttach under a hand bone.
  * @param {import('three').Object3D|null} handBone
  */
@@ -244,21 +386,16 @@ export function getMuzzleWorldFromAttach(attach, out = new Vector3()) {
  */
 export function clearWeaponAttach(handBone) {
   if (!handBone) return;
-  const doomed = [];
-  handBone.traverse((o) => {
-    if (o.userData?.weaponAttach || o.name === 'WeaponAttach') doomed.push(o);
-  });
-  // Only remove direct holders under hand (avoid double-dispose)
   for (const o of [...handBone.children]) {
-    if (o.userData?.weaponAttach || o.name === 'WeaponAttach') {
-      handBone.remove(o);
-      o.traverse((c) => {
-        if (c.geometry) c.geometry.dispose?.();
-        if (c.material) {
-          const mats = Array.isArray(c.material) ? c.material : [c.material];
-          for (const m of mats) m.dispose?.();
-        }
-      });
-    }
+    if (o.isBone || o.type === 'Bone') continue;
+    if (/container|nub|socket/i.test(o.name || '')) continue;
+    handBone.remove(o);
+    o.traverse((c) => {
+      if (c.geometry) c.geometry.dispose?.();
+      if (c.material) {
+        const mats = Array.isArray(c.material) ? c.material : [c.material];
+        for (const m of mats) m.dispose?.();
+      }
+    });
   }
 }
