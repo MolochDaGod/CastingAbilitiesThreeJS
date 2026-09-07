@@ -1,6 +1,6 @@
 {
   "id": "grudge6-warlords-play",
-  "version": "2026-08-18.play-kit.1",
+  "version": "2026-08-21.feet-terrain.2",
   "stamp": "root.userData.warlordsPlayContract",
   "proof": "https://casting.grudge.studio/",
   "health": "/api/play-kit-health",
@@ -23,15 +23,46 @@
     ]
   },
   "ground": {
-    "method": "bone-structural-box-min-y",
-    "not": ["pelvis-as-feet", "unskinned-aabb"],
+    "method": "placeRootFeetAt Vector3/Matrix4 + bone-structural-box-min-y",
+    "not": ["pelvis-as-feet", "unskinned-aabb", "root.y=terrainY"],
     "feetTolM": 0.12,
-    "heightM": [1.55, 2.15]
+    "heightM": [1.55, 2.15],
+    "footIk": {
+      "module": "src/character/grudge6-foot-ik.js",
+      "order": "beginFrame → mixer.update → apply",
+      "sampler": "same IslandHeightfield as Rapier CCT / body Y"
+    }
   },
   "locomotion": {
     "controller": "one",
     "mapOpen": "rebind-surface-only",
     "terrainSample": "same-as-feet"
+  },
+  "colliders": {
+    "player": "CCT capsule r=0.35 halfH=0.55 kinematic",
+    "terrain": "Rapier heightfield",
+    "staticGltf": "convex hull from mesh verts (trimesh only if fixed and <8k tris)",
+    "weapon": "follow convex on R_hand_container — sensor",
+    "ban": ["dynamic trimesh", "capsule as play mesh"]
+  },
+  "anim": {
+    "hands": ["R_hand_container", "Bip001 R Hand", "L_hand_container", "Bip001 L Hand"],
+    "bones": "/api/v1/bip001-play-bones.json",
+    "spine": ["Bip001 Spine", "Bip001 Spine1", "Bip001 Spine2"],
+    "retarget": "Mixamo / Bip01 / Bandai → Bip001 spaced names + strip position/scale",
+    "helpers": "?rigDebug=1 SkeletonHelper",
+    "ban": "mixamorig tracks on play mixer"
+  },
+  "xyz": { "up": "+Y", "forward": "+Z", "right": "+X", "unit": "m" },
+  "ray": {
+    "pick": "Raycaster firstHitOnly + three-mesh-bvh",
+    "physics": "Rapier.castRay",
+    "ground": "IslandHeightfield.sample"
+  },
+  "playClasses": {
+    "product": ["warrior", "raider", "mage", "priest", "ranger", "thief", "worge", "verduror"],
+    "collider": ["cct", "heightfield", "convex", "trimesh", "followConvex", "sensor", "hurtbox"],
+    "travel": ["melee", "bullet", "linear", "bend"]
   },
   "equip": {
     "method": "mesh_ids + SLOT_DEFS",
@@ -39,7 +70,8 @@
     "ban": "swap-whole-body-glb"
   },
   "weapons": {
-    "packs": ["magic", "sword_shield", "longbow"],
+    "packs": ["magic", "sword_shield", "longbow", "polearm", "pistol"],
+    "spearStab": "polearm/drake_stab",
     "skills": "weapon-catalog-not-class",
     "anim": "bip001-rotation-only-rematch"
   },

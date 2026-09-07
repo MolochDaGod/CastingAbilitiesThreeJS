@@ -339,9 +339,10 @@ export const ANIM_PACKS = {
     idle: ['polearm/idle'],
     walk: ['polearm/walk', 'prod:magic/standing-walk-forward'],
     run: ['polearm/run', 'polearm/sprint', 'prod:magic/standing-run-forward'],
-    attack: ['polearm/spear-attack3', 'polearm/attack'],
-    attack1: ['polearm/attack', 'spear/attack3'],
-    attack2: ['polearm/attack2'],
+    /** Drake 1s stab — simple spear LMB. Core 22 Bip001 bones (Spine2 filled from Spine1). */
+    attack: ['polearm/drake_stab', 'spear/drake_stab', 'polearm/spear-attack3', 'polearm/attack'],
+    attack1: ['polearm/drake_stab', 'spear/drake_stab', 'polearm/attack'],
+    attack2: ['polearm/attack2', 'polearm/drake_stab'],
     attack3: ['polearm/spear-attack3', 'spear/attack3', 'polearm/attack3'],
     attack4: ['polearm/attack4'],
     attack5: ['polearm/attack5'],
@@ -351,7 +352,7 @@ export const ANIM_PACKS = {
     skill4: ['polearm/skill4'],
     special: ['polearm/special'],
     combo: ['polearm/combo', 'polearm/attack'],
-    thrust: ['polearm/thrust'],
+    thrust: ['polearm/drake_stab', 'polearm/thrust'],
     slash: ['polearm/slash'],
     hurt: ['polearm/hurt'],
     death: ['polearm/death']
