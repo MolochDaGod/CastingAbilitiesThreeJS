@@ -2865,7 +2865,31 @@ export class DrcCombatController {
         this.character.playMeleeComboLight?.() ||
         this.character.playWeaponCombat?.('attack') ||
         this.character.playWeaponAttack?.();
-      if (played) return true;
+      const ok = played?.ok === true || played === true;
+      if (ok) {
+        const step = Number.isFinite(played?.step) ? played.step : this.character._meleeComboStep ?? 0;
+        const from =
+          this.character?.position?.clone?.() ||
+          this.character?.root?.position?.clone?.() ||
+          new Vector3();
+        const aim = this._softLockAimPoint(this.aim?.hitPoint) || from.clone().add(new Vector3(0, 0, 3));
+        const forward = aim.clone().sub(from);
+        forward.y = 0;
+        if (forward.lengthSq() < 1e-6) forward.set(0, 0, 1);
+        else forward.normalize();
+        // Bounty Rush-style: each light has a hit volume; last hit knocks down (finisher residual).
+        this._fireMeleeResidual(
+          {
+            style: 'melee',
+            animRole: played?.role || `attack${step + 1}`,
+            label: 'Combo',
+            damage: this.derivedStats?.damage
+          },
+          { origin: from, forward, aim },
+          { hit: { kind: step >= 2 ? 'finisher' : 'light', step } }
+        );
+        return true;
+      }
     }
     return !!(this.character.playMeleeAttack?.({}) || false);
   }

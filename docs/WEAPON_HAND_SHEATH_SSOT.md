@@ -10,6 +10,7 @@
 | Prefer kit containers | `R_hand_container` / `L_hand_container` (Toon RTS) over raw finger bones |
 | Fallback bones | `Bip001 R Hand` · `mixamorig:RightHand` (same order as hold-pose SSOT) |
 | One attach group | `WeaponAttach` under hand — never merge into skinned mesh |
+| Kit weapons off | Toon `WK_weapon_*` / voxel cubes / daggers stay **hidden**. Catalog GLB is the play blade. Showing kit swords is the huge floating voxel dagger bug. |
 | SI scale first | Normalize longest axis to profile max length, then soft-cap width |
 | Grip orientation | Mesh long axis → local +Y; pitch ≈ −90° for melee/pistol (bow −75°) |
 | Muzzle / tip | Marker on attach after parent (world-farthest from grip) |

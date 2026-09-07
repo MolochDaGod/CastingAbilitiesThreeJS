@@ -264,7 +264,7 @@ function isEquippableName(name) {
 }
 
 const KIT_WEAPON_RE =
-  /weapon_|_sword|_axe|_hammer|_mace|_spear|_bow|_staff|_shield|_dagger|_knife|_pick|voxel|cube_.*dagger|metal_.*dagger/i;
+  /weapon_|_sword|_axe|_hammer|_mace|_spear|_bow|_staff|_shield|_dagger|_knife|_pick|voxel|cube|metal.?dagger|prop1|xtra_weapon/i;
 
 /** Catalog WeaponAttach is the held mesh — hide in-kit weapons / voxel daggers. */
 export function stripKitNativeWeapons(root) {
@@ -272,14 +272,20 @@ export function stripKitNativeWeapons(root) {
   let n = 0;
   root.traverse((m) => {
     if (!m.isMesh && !m.isSkinnedMesh) return;
+    if (m.parent?.userData?.weaponAttach || m.userData?.weaponAttach) return;
     const name = m.name || '';
     if (/units_body|units_arms|units_legs|units_head|units_shoulder/i.test(name)) return;
-    if (KIT_WEAPON_RE.test(name) || /dagger|knife/i.test(name)) {
+    if (KIT_WEAPON_RE.test(name) || /dagger|knife|voxel|^cube/i.test(name)) {
       m.visible = false;
       n += 1;
     }
   });
   return n;
+}
+
+/** Hide kit swords/daggers + leftover hand GLBs. Catalog WeaponAttach stays. */
+export function stripPlayKitWeapons(root) {
+  return stripKitNativeWeapons(root) + stripStrayHandProps(root);
 }
 
 /**
@@ -356,8 +362,7 @@ export function deployToonPlayKit(gltfScene, opts = {}) {
 
   const meshIds = opts.meshIds || [];
   const equip = applyMeshIdsExclusive(kit, meshIds);
-  stripKitNativeWeapons(kit);
-  stripStrayHandProps(kit);
+  stripPlayKitWeapons(kit);
   const mats = normalizeEmbeddedMaps(kit);
   const fit = fitRootUniformSi(kit, opts.targetH ?? HUMAN_HEIGHT_M, { centerXZ: true });
   faceRootTowardCamera(kit);

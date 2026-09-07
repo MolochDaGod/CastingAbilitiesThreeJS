@@ -17,6 +17,7 @@ import {
   clearEquippableWeaponsCache
 } from '../api/t0WeaponCatalog.js';
 import { attachWeaponModel, clearWeaponAttach } from '../character/WeaponMeshAttach.js';
+import { stripPlayKitWeapons } from '../character/toonKitPlay.js';
 import { loadEquipMap, saveEquipMap } from '../ui/mainPanelSlots.js';
 import { normalizeHoldKind } from '../character/weaponHoldPose.js';
 import { resolveWarlordsHandBone } from '../config/warlordsAdminLaw.js';
@@ -243,21 +244,11 @@ export async function equipWeapon(weapon, ctx) {
     localStorage.setItem(LS_LOADOUT, String(_loadoutIndex));
   }
 
-  // 1) Kit mesh_ids exclusive weapon slot
-  const slot = weapon.meshSlot;
+  // 1) Never show kit skinned swords/daggers — those are the huge floating voxel blades.
+  //    Catalog GLB on R_hand_container is the play weapon (SI).
   if (character.equipment) {
-    const WEAPON_SLOTS = ['sword', 'axe', 'hammer', 'spear', 'staff', 'bow', 'shield', 'pistol'];
-    for (const w of WEAPON_SLOTS) {
-      if (w !== slot) character.equipment.setSlot?.(w, null);
-    }
-    // Prefer variant A / first available. Kit often has no pistol mesh_ids — skip set then.
-    const summary = character.equipment.getCatalogSummary?.() || {};
-    const variants = summary[slot]?.variants || [];
-    if (variants.length) {
-      const pick =
-        variants.find((v) => v === 'A' || v === '_default') || variants[0] || 'A';
-      character.equipment.setSlot?.(slot, pick);
-    }
+    character.equipment.hideKitWeapons?.();
+    stripPlayKitWeapons(character.model || character.root);
     character._reGroundAfterEquip?.();
     character.ik?.setBones?.(character.equipment.findBones?.());
   }
@@ -299,7 +290,8 @@ export async function equipWeapon(weapon, ctx) {
         weapon.weaponType || weapon.kind || weapon.id || profile
       );
       character.syncWeaponAttach?.();
-      // Oriented cylinder from weapon mesh (+0.02 m pad) → tip / residual / parry
+      stripPlayKitWeapons(character.model || character.root);
+      // Oriented cylinder from catalog mesh only (+0.02 m pad) → tip / residual / parry
       try {
         character.rebuildWeaponVolume?.({ debug: false });
       } catch {
@@ -364,6 +356,8 @@ export function unequipWeapon(ctx) {
   if (character) {
     character.weaponAttach = null;
     character.offhandAttach = null;
+    stripPlayKitWeapons(character.model || character.root);
+    character.equipment?.hideKitWeapons?.();
   }
   _equipped = null;
   _slot3Id = null;

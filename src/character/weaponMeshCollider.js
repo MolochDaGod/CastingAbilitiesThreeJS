@@ -103,8 +103,10 @@ export function resolveWeaponMesh(root, weaponAttach = null) {
   const hits = [];
   root.traverse((o) => {
     if (!o.isMesh || !o.visible) return;
+    if (o.parent?.userData?.weaponAttach) return;
     const n = o.name || '';
     if (WEAPON_EXCLUDE_RE.test(n)) return;
+    if (/voxel|cube|dagger/i.test(n)) return;
     if (WEAPON_NAME_RE.test(n) || o.userData?.labWeapon || o.userData?.equipGroup === 'weapon_r') {
       hits.push(o);
     }

@@ -70,7 +70,8 @@ import {
   reGroundToonKit,
   applyMeshIdsExclusive,
   diagnoseCharacterLook,
-  countSkeletons
+  countSkeletons,
+  stripPlayKitWeapons
 } from '../character/toonKitPlay.js';
 import { RideIK } from '../character/RideIK.js';
 import {
@@ -304,6 +305,7 @@ export class CharacterController {
     }
     this.equipment.hideUtility();
     this.equipment.hideKitWeapons();
+    stripPlayKitWeapons(kit);
     // Fail-closed: never leave hero fully invisible after exclusive equip
     {
       let vis = 0;
@@ -315,6 +317,7 @@ export class CharacterController {
         applyMeshIdsExclusive(kit, []);
         this.equipment.hideUtility();
         this.equipment.hideKitWeapons();
+        stripPlayKitWeapons(kit);
       }
     }
 
