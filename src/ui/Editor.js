@@ -835,6 +835,8 @@ export class Editor {
     const folder = this.gui.addFolder('Jump / air');
     const d = settings.drc;
     const R = Editor.range;
+    folder.add(d, 'maxJumps', 1, 2, 1).name('Max jumps (1=single)');
+    folder.add(d, 'enableDoubleJump').name('Enable double jump');
     R(folder, d, 'jumpVelocity', 2, 12, 0.1, 'Jump velocity');
     R(folder, d, 'doubleJumpVelocity', 2, 12, 0.1, 'Frontflip jump V');
     R(folder, d, 'frontflipDuration', 0.2, 1.2, 0.01, 'Frontflip duration');
@@ -847,6 +849,26 @@ export class Editor {
     R(folder, d, 'backflipHangDuration', 0.2, 2.5, 0.05, 'Hang duration s');
     folder
       .add({ tip: 'Space · Space air=frontflip · S+Space=backflip hang' }, 'tip')
+      .name('Tip')
+      .disable();
+
+    const trav = this.gui.addFolder('Traversal · swim / climb');
+    trav.add(d, 'enableSwim').name('Enable swim');
+    trav.add(d, 'enableClimb').name('Enable climb');
+    trav.add(d, 'enableLadder').name('Enable ladder');
+    R(trav, d, 'swimSpeed', 0.8, 6, 0.1, 'Swim speed m/s');
+    R(trav, d, 'swimSprintMul', 1, 2.5, 0.05, 'Swim sprint mul');
+    R(trav, d, 'climbSpeed', 0.5, 4, 0.1, 'Climb speed m/s');
+    R(trav, d, 'ladderSpeed', 0.5, 5, 0.1, 'Ladder speed m/s');
+    R(trav, d, 'climbReachM', 0.5, 3, 0.05, 'Climb reach m');
+    R(trav, d, 'swimEdgeReachM', 0.5, 3, 0.05, 'Swim-edge reach m');
+    trav
+      .add(
+        {
+          tip: 'Water=swim/tread · W/Space lip=to-edge · Space near climbable/ladder'
+        },
+        'tip'
+      )
       .name('Tip')
       .disable();
   }

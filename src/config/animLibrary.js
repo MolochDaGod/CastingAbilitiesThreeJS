@@ -211,6 +211,72 @@ export const ANIM_ROLE_META = Object.freeze({
     channel: 'mobility',
     label: 'Sprint slide',
     input: 'Shift+Ctrl'
+  },
+  swim: {
+    family: 'mobility',
+    channel: 'gait',
+    label: 'Swim',
+    input: 'In water · WASD'
+  },
+  swimFast: {
+    family: 'mobility',
+    channel: 'gait',
+    label: 'Swim fast',
+    input: 'In water · Shift'
+  },
+  treadWater: {
+    family: 'mobility',
+    channel: 'gait',
+    label: 'Tread water',
+    input: 'In water · idle'
+  },
+  swimToEdge: {
+    family: 'mobility',
+    channel: 'oneShot',
+    label: 'Swim to edge',
+    input: 'Water lip · W/Space'
+  },
+  climb: {
+    family: 'mobility',
+    channel: 'gait',
+    label: 'Climb',
+    input: 'Climbable · Space/W'
+  },
+  climbUp: {
+    family: 'mobility',
+    channel: 'gait',
+    label: 'Climb up',
+    input: 'Climb · W'
+  },
+  climbDown: {
+    family: 'mobility',
+    channel: 'gait',
+    label: 'Climb down',
+    input: 'Climb · S'
+  },
+  climbLadder: {
+    family: 'mobility',
+    channel: 'gait',
+    label: 'Climb ladder',
+    input: 'Ladder · W/S'
+  },
+  toTop: {
+    family: 'mobility',
+    channel: 'oneShot',
+    label: 'Climb to top',
+    input: 'Climb crest'
+  },
+  mantle: {
+    family: 'mobility',
+    channel: 'oneShot',
+    label: 'Mantle / vault lip',
+    input: 'Ledge crest'
+  },
+  hang: {
+    family: 'mobility',
+    channel: 'gait',
+    label: 'Hang idle',
+    input: 'Ledge hang'
   }
 });
 
@@ -256,6 +322,41 @@ export const MOBILITY_BINDINGS = Object.freeze({
     invuln: false,
     play: 'playSlide',
     notes: 'prod:extra/running-slide'
+  },
+  swim: {
+    id: 'swim',
+    label: 'Swim / tread / to-edge',
+    input: 'Water volume · WASD · W/Space at lip',
+    roleMap: {
+      move: 'swim',
+      fast: 'swimFast',
+      idle: 'treadWater',
+      exit: 'swimToEdge'
+    },
+    mm: false,
+    afterimage: false,
+    invuln: false,
+    play: 'playSwim',
+    notes: 'mobility/swim/* baked JSON'
+  },
+  climb: {
+    id: 'climb',
+    label: 'Climb / ladder / to-top',
+    input: 'Climbable or ladder · W/S · Space engage',
+    roleMap: {
+      climb: 'climb',
+      up: 'climbUp',
+      down: 'climbDown',
+      ladder: 'climbLadder',
+      top: 'toTop',
+      mantle: 'mantle',
+      hang: 'hang'
+    },
+    mm: false,
+    afterimage: false,
+    invuln: false,
+    play: 'playClimb',
+    notes: 'mobility/climb/* · userData.climbable / .ladder'
   }
 });
 

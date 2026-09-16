@@ -277,6 +277,12 @@ export class DrcCombatController {
     this.maxOxygen = 20;
     this._drownTick = 0;
     this._inWater = false;
+    /** Traversal modes: null | 'swim' | 'climb' | 'ladder' */
+    this._traverseMode = null;
+    /** @type {import('three').Object3D|null} */
+    this._climbTarget = null;
+    this._ladderTarget = null;
+    this._swimEdgeCooldown = 0;
     this._submerged = false;
   }
 
@@ -1042,39 +1048,69 @@ export class DrcCombatController {
       /* optional */
     }
 
+    const cfg = settings.drc || {};
+    const swimEnabled = cfg.enableSwim !== false;
+    const climbEnabled = cfg.enableClimb !== false;
+    const ladderEnabled = cfg.enableLadder !== false;
+
     let swimMul = 1;
-    if (this._inWater || this._submerged) {
-      swimMul = waterBuffs.swimSpeedMul || 1;
+    if (swimEnabled && (this._inWater || this._submerged)) {
+      const baseSwim = cfg.swimSpeed ?? 2.4;
+      swimMul =
+        (baseSwim / Math.max(0.1, this.moveSpeed)) *
+        (waterBuffs.swimSpeedMul || 1);
+      if (this._sprinting) swimMul *= cfg.swimSprintMul ?? 1.45;
     }
+
+    // Climb / ladder take priority over land gait when engaged
+    this._tickClimbLadder(dt, keys, {
+      climbEnabled,
+      ladderEnabled,
+      moving: _move.lengthSq() > 1e-6,
+      ix,
+      iz
+    });
+
+    const inTraverse =
+      this._traverseMode === 'climb' || this._traverseMode === 'ladder';
 
     const speed =
       this.moveSpeed *
       (this._sprinting ? this.sprintMul : 1) *
       (settings.global?.animationSpeed || 1) *
-      swimMul;
-    const moving = _move.lengthSq() > 1e-6;
+      (inTraverse ? 0 : swimMul);
+    const moving = !inTraverse && _move.lengthSq() > 1e-6;
     let vx = moving ? _move.x * speed : 0;
     let vz = moving ? _move.z * speed : 0;
 
-    // Underwater vertical assist (kinematic vy sample — no dedicated swim API yet)
-    if (this._submerged) {
-      if (keys.has('Space')) this._kinVy = Math.max(this._kinVy || 0, 2.8 * swimMul);
-      else if (keys.has('ControlLeft') || keys.has('ControlRight') || keys.has('KeyC')) {
-        this._kinVy = Math.min(this._kinVy || 0, -2.4 * swimMul);
-      } else if (waterBuffs.breatheUnderwater) {
-        // Fin: slight neutral buoyancy (hold depth)
-        this._kinVy = (this._kinVy || 0) * 0.9;
+    // Swim locomotion + vertical assist
+    if (swimEnabled && !inTraverse && (this._inWater || this._submerged)) {
+      this._tickSwimAnims(keys, moving);
+      if (this._submerged) {
+        if (keys.has('Space')) this._kinVy = Math.max(this._kinVy || 0, 2.8 * swimMul);
+        else if (keys.has('ControlLeft') || keys.has('ControlRight') || keys.has('KeyC')) {
+          this._kinVy = Math.min(this._kinVy || 0, -2.4 * swimMul);
+        } else if (waterBuffs.breatheUnderwater) {
+          this._kinVy = (this._kinVy || 0) * 0.9;
+        }
       }
+      // Swim-to-edge exit when near walkable lip
+      this._tickSwimEdge(dt, keys);
+    } else if (this._traverseMode === 'swim') {
+      this._traverseMode = null;
+      this.character.clearTraversal?.();
     }
 
     // Breath / drown
     this._tickUnderwaterBreath(dt, waterBuffs);
 
     // Face: focus → match camera; free → A/D already turned body
-    this._updateFacingToAim(dt, moving);
+    if (!inTraverse) this._updateFacingToAim(dt, moving);
 
-    // ── Jump / double-jump / S+Space backflip ─────────────────────────
-    this._handleJump(dt, keys, moving);
+    // ── Jump / double-jump / S+Space backflip (not while climbing / swimming surface exit) ──
+    if (!inTraverse && !(swimEnabled && this._inWater && !this._grounded)) {
+      this._handleJump(dt, keys, moving);
+    }
 
     // Frontflip slight forward push
     if (this._frontflipBoostT > 0) {
@@ -1307,6 +1343,191 @@ export class DrcCombatController {
     return !!this._autoTraverse;
   }
 
+  /** Scene roots for climb / ladder probes. */
+  _probeScene() {
+    return this.character?.root?.parent || this.character?.parent || null;
+  }
+
+  /**
+   * @param {'climbable'|'ladder'} kind
+   * @param {number} reach
+   * @returns {import('three').Object3D|null}
+   */
+  _findTraverseProp(kind, reach) {
+    const scene = this._probeScene();
+    const root = this.character?.root;
+    if (!scene || !root) return null;
+    const px = root.position.x;
+    const py = root.position.y;
+    const pz = root.position.z;
+    let best = null;
+    let bestD = reach * reach;
+    scene.traverse((o) => {
+      if (!o?.userData) return;
+      const hit =
+        kind === 'ladder'
+          ? o.userData.ladder || o.userData.grudgeRole === 'ladder'
+          : o.userData.climbable || o.userData.grudgeRole === 'climbable';
+      if (!hit) return;
+      const dx = o.position.x - px;
+      const dy = o.position.y - py;
+      const dz = o.position.z - pz;
+      const d = dx * dx + dy * dy * 0.25 + dz * dz;
+      if (d < bestD) {
+        bestD = d;
+        best = o;
+      }
+    });
+    return best;
+  }
+
+  _tickSwimAnims(keys, moving) {
+    this._traverseMode = 'swim';
+    if (!moving) {
+      this.character.playSwim?.('treadWater');
+      return;
+    }
+    if (this._sprinting || keys.has('ShiftLeft') || keys.has('ShiftRight')) {
+      this.character.playSwim?.('swimFast');
+    } else {
+      this.character.playSwim?.('swim');
+    }
+  }
+
+  /** Near walkable lip: W/Space plays swimToEdge. */
+  _tickSwimEdge(dt, keys) {
+    if (this._swimEdgeCd > 0) this._swimEdgeCd -= dt;
+    const want =
+      keys.has('KeyW') ||
+      keys.has('ArrowUp') ||
+      (keys.has('Space') && !this._submerged);
+    if (!want || this._swimEdgeCd > 0) return;
+    const cfg = settings.drc || {};
+    const reach = cfg.swimEdgeReachM ?? 1.4;
+    const waterY = WORLD.waterY ?? settings.walk?.freerideWaterY ?? -0.04;
+    const feetY = this.character?.root?.position?.y ?? 0;
+    const shallow = feetY > waterY - 0.15;
+    const climbLip = this._findTraverseProp('climbable', reach);
+    if (!shallow && !climbLip) return;
+    if (this.character.playSwimToEdge?.()) {
+      this._swimEdgeCd = 1.1;
+      this.onToast?.('Swim to edge');
+      if (climbLip) {
+        const y = climbLip.position.y + (climbLip.userData.ledgeY || 0.05);
+        const p = this.character.root.position;
+        this.character.placeAt?.(p.x, Math.max(p.y, y), p.z);
+        this._grounded = true;
+        this._inWater = false;
+        this._traverseMode = null;
+      }
+    }
+  }
+
+  /** Engage / drive climbable walls and ladders (userData.climbable / .ladder). */
+  _tickClimbLadder(dt, keys, opts) {
+    const cfg = settings.drc || {};
+    const reach = cfg.climbReachM ?? 1.15;
+    const jumpDown = keys.has('Space');
+    const pressed = jumpDown && !this._wasClimbSpace;
+    this._wasClimbSpace = jumpDown;
+
+    if (opts.ladderEnabled) {
+      const ladder =
+        this._traverseMode === 'ladder'
+          ? this._ladderTarget
+          : this._findTraverseProp('ladder', reach);
+      if (ladder && (this._traverseMode === 'ladder' || pressed || keys.has('KeyW'))) {
+        this._traverseMode = 'ladder';
+        this._ladderTarget = ladder;
+        this._climbTarget = null;
+        const up = keys.has('KeyW') || keys.has('ArrowUp') || keys.has('Space');
+        const down = keys.has('KeyS') || keys.has('ArrowDown');
+        const spd = cfg.ladderSpeed ?? 2.0;
+        const p = this.character.root.position.clone();
+        p.x += (ladder.position.x - p.x) * Math.min(1, dt * 8);
+        p.z += (ladder.position.z - p.z) * Math.min(1, dt * 8);
+        if (up) {
+          p.y += spd * dt;
+          this.character.playClimb?.('climbLadder');
+        } else if (down) {
+          p.y -= spd * dt;
+          this.character.playClimb?.('climbDown');
+        } else {
+          this.character.playClimb?.('hang');
+        }
+        const topY = ladder.position.y + (Number(ladder.userData.heightM) || 3.2);
+        if (p.y >= topY - 0.15) {
+          this.character.playClimbTop?.('toTop');
+          this.character.placeAt?.(ladder.position.x, topY, ladder.position.z);
+          this._traverseMode = null;
+          this._ladderTarget = null;
+          this._grounded = true;
+          this.onToast?.('Ladder top');
+          return;
+        }
+        this.character.placeAt?.(p.x, p.y, p.z);
+        this._grounded = false;
+        this._airborne = true;
+        return;
+      }
+    }
+
+    if (opts.climbEnabled) {
+      const wall =
+        this._traverseMode === 'climb'
+          ? this._climbTarget
+          : this._findTraverseProp('climbable', reach);
+      if (wall && (this._traverseMode === 'climb' || pressed)) {
+        this._traverseMode = 'climb';
+        this._climbTarget = wall;
+        this._ladderTarget = null;
+        const up = keys.has('KeyW') || keys.has('ArrowUp') || keys.has('Space');
+        const down = keys.has('KeyS') || keys.has('ArrowDown');
+        const spd = cfg.climbSpeed ?? 1.8;
+        const p = this.character.root.position.clone();
+        p.x += (wall.position.x - p.x) * Math.min(1, dt * 6);
+        p.z += (wall.position.z - p.z) * Math.min(1, dt * 6);
+        if (up) {
+          p.y += spd * dt;
+          this.character.playClimb?.('climbUp');
+        } else if (down) {
+          p.y -= spd * dt;
+          this.character.playClimb?.('climbDown');
+        } else {
+          this.character.playClimb?.('hang');
+        }
+        const topY =
+          wall.position.y + (Number(wall.userData.heightM) || cfg.climbUpProbeM || 2.2);
+        if (up && p.y >= topY - 0.2) {
+          this.character.playClimbTop?.('toTop');
+          this.character.placeAt?.(wall.position.x, topY + 0.05, wall.position.z);
+          this._traverseMode = null;
+          this._climbTarget = null;
+          this._grounded = true;
+          this.onToast?.('Climb to top');
+          return;
+        }
+        this.character.placeAt?.(p.x, p.y, p.z);
+        this._grounded = false;
+        this._airborne = true;
+        return;
+      }
+    }
+
+    if (this._traverseMode === 'climb' || this._traverseMode === 'ladder') {
+      const still =
+        this._traverseMode === 'ladder'
+          ? this._findTraverseProp('ladder', reach * 1.4)
+          : this._findTraverseProp('climbable', reach * 1.4);
+      if (!still && !keys.has('Space') && !keys.has('KeyW')) {
+        this._traverseMode = null;
+        this._climbTarget = null;
+        this._ladderTarget = null;
+        this.character.clearTraversal?.();
+      }
+    }
+  }
+
   /**
    * Edge-detect Space:
    *  - Ground → jump anim blend
@@ -1324,7 +1545,8 @@ export class DrcCombatController {
     if (this.character._rideActive) return;
 
     const cfg = settings.drc || {};
-    const maxJ = cfg.maxJumps ?? 2;
+    let maxJ = cfg.maxJumps ?? 2;
+    if (cfg.enableDoubleJump === false) maxJ = Math.min(maxJ, 1);
     const holdS = keys.has('KeyS') || keys.has('ArrowDown');
 
     // Ground / coyote: refresh jumps when grounded
@@ -1333,6 +1555,7 @@ export class DrcCombatController {
     if (this._jumpsLeft <= 0) return;
 
     const isSecond = this._jumpsLeft < maxJ || !this._grounded;
+    if (isSecond && maxJ < 2) return;
     const wantBackflip = isSecond && holdS;
 
     if (wantBackflip) {

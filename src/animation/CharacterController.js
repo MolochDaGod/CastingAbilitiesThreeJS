@@ -871,7 +871,22 @@ export class CharacterController {
       rollB: LoopOnce,
       slide: LoopOnce,
       frontflip: LoopOnce,
-      backflip: LoopOnce
+      backflip: LoopOnce,
+      swim: LoopRepeat,
+      swimFast: LoopRepeat,
+      treadWater: LoopRepeat,
+      swimToEdge: LoopOnce,
+      climb: LoopRepeat,
+      climbUp: LoopRepeat,
+      climbDown: LoopRepeat,
+      climbLadder: LoopRepeat,
+      toTop: LoopOnce,
+      mantle: LoopOnce,
+      hang: LoopRepeat,
+      jumpToHang: LoopOnce,
+      standToHang: LoopOnce,
+      freehangClimb: LoopRepeat,
+      wallRun: LoopOnce
     };
 
     for (const [role, rel] of Object.entries(pack)) {
@@ -1690,6 +1705,110 @@ export class CharacterController {
     if (this.animState === 'flip') {
       this._gaitLocked = false;
       this.animState = 'idle';
+    }
+  }
+
+  /**
+   * Resolve first available role (bare or combat_mobility: prefixed).
+   * @param {string[]} candidates
+   * @returns {string|null}
+   */
+  _firstAction(candidates) {
+    for (const c of candidates) {
+      if (this.actions.has(c)) return c;
+      const pref = `combat_mobility:${c}`;
+      if (this.actions.has(pref)) return pref;
+    }
+    return null;
+  }
+
+  /**
+   * Swim / tread locomotion (LoopRepeat). mode: swim | swimFast | treadWater
+   * @param {'swim'|'swimFast'|'treadWater'} mode
+   */
+  playSwim(mode = 'swim') {
+    const map = {
+      swim: ['swim', 'swimFast'],
+      swimFast: ['swimFast', 'swim'],
+      treadWater: ['treadWater', 'swim']
+    };
+    const role = this._firstAction(map[mode] || map.swim);
+    if (!role) return false;
+    if (this.animState === mode && this._activeRole === role) return true;
+    this._airJumpHold = false;
+    this._gaitLocked = true;
+    this.animState = mode;
+    this._activeRole = role;
+    this.play(role, 0.18, { exclusive: true });
+    return true;
+  }
+
+  /**
+   * One-shot swim-to-edge exit onto walkable lip.
+   * @param {number} [fade]
+   */
+  playSwimToEdge(fade = 0.1) {
+    const role = this._firstAction(['swimToEdge', 'mantle', 'toTop']);
+    if (!role) return false;
+    this._gaitLocked = true;
+    this.animState = 'swimToEdge';
+    this.play(role, fade, { exclusive: true });
+    const dur = this.actions.get(role)?.getClip?.()?.duration ?? 0.9;
+    this._oneShotTimer = Math.max(this._oneShotTimer, dur * 0.95);
+    return true;
+  }
+
+  /**
+   * Climb / ladder gait. mode: climb|climbUp|climbDown|climbLadder|hang
+   * @param {string} mode
+   */
+  playClimb(mode = 'climb') {
+    const map = {
+      climb: ['climb', 'climbUp', 'climbLadder'],
+      climbUp: ['climbUp', 'climb', 'climbLadder'],
+      climbDown: ['climbDown', 'climb'],
+      climbLadder: ['climbLadder', 'climb', 'climbUp'],
+      hang: ['hang', 'climb']
+    };
+    const role = this._firstAction(map[mode] || map.climb);
+    if (!role) return false;
+    if (this.animState === mode && this._activeRole === role) return true;
+    this._airJumpHold = false;
+    this._gaitLocked = true;
+    this.animState = mode;
+    this._activeRole = role;
+    this.play(role, 0.12, { exclusive: true });
+    return true;
+  }
+
+  /**
+   * Crest / mantle one-shot then unlock gait.
+   * @param {'toTop'|'mantle'} kind
+   */
+  playClimbTop(kind = 'toTop') {
+    const role = this._firstAction(
+      kind === 'mantle' ? ['mantle', 'toTop'] : ['toTop', 'mantle']
+    );
+    if (!role) return false;
+    this._gaitLocked = true;
+    this.animState = kind;
+    this.play(role, 0.1, { exclusive: true });
+    const dur = this.actions.get(role)?.getClip?.()?.duration ?? 1.0;
+    this._oneShotTimer = Math.max(this._oneShotTimer, dur * 0.95);
+    return true;
+  }
+
+  /** Leave swim/climb exclusive and restore idle gait. */
+  clearTraversal() {
+    if (
+      /^(swim|swimFast|treadWater|swimToEdge|climb|climbUp|climbDown|climbLadder|hang|toTop|mantle)$/.test(
+        this.animState || ''
+      )
+    ) {
+      this._gaitLocked = false;
+      this.animState = 'idle';
+      this._activeRole = null;
+      this.setGait?.(0, false);
     }
   }
 

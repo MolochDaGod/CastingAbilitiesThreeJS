@@ -44,7 +44,7 @@ Weapon mesh swap → `animPackForLoadout` → `setAnimPack` → rebind mobility.
 | `magic` | idle, cast, walk, run, jump | Staff; prod idle has Hand tracks |
 | `sword_shield` | idle, **attack1–3**, **finisher**, **finisherAir**, attack (finisher alias), block, walk, run, jump | Melee combo + jump-dash finisher — `docs/MELEE_COMBO_SSOT.md` |
 | `longbow` | idle, attack, walk, run, jump, dodge* | Dodges also in combat_mobility |
-| `combat_mobility` | roll L/R/F/B, slide, dodge L/R/F/B, parry | Shared; Ghost Rider rolls first |
+| `combat_mobility` | roll/dodge/slide/parry/fall + **swim · climb · ladder · toTop** | Shared; Ghost Rider rolls first; mobility bake `anims/baked/mobility/*` |
 | `locomotion_8way` | optional overlay | Bind only if CDN clips exist |
 
 Clip URL candidates: `bakedClipUrlsForRole` — `prod:…` then open baked.
@@ -57,16 +57,24 @@ Clip URL candidates: `bakedClipUrlsForRole` — `prod:…` then open baked.
 |--------|-------|-----|
 | **gait** | idle, walk, run, jump | `setGait(0\|1\|2, sprinting)` · `playJump` |
 | **combat** | cast, attack1–3, finisher, finisherAir, attack, block, parry | `playMeleeAttack` · `playWeaponCombat` · `requestOneShot` · `playParry` |
-| **mobility** | dodge*, roll*, slide | `playDodge` · `playRoll` · `playSlide` + DRC input |
+| **mobility** | dodge*, roll*, slide, swim*, climb*, ladder, toTop | `playDodge` · `playSwim` · `playClimb` + DRC |
 | **utility** | anything else | `playLibraryClip(role)` |
 
 ### Mobility inputs (DRC combat)
 
 | Action | Input | Clip priority | Motion |
 |--------|-------|---------------|--------|
+| **Jump** | Space (ground) | locomotion/jump · pack jump | `settings.drc.jumpVelocity` |
+| **Double jump** | Air Space (if `maxJumps≥2` + `enableDoubleJump`) | frontflip | Optional — set `maxJumps: 1` to disable |
+| **Backflip** | Air S+Space | backflip | Hang window for air attacks |
 | **MM dodge** | AA / DD / WW double-tap · X back | longbow dodge → locomotion → ghost_rider dodge | Lateral **720 MM (7.2 m)**; F/B 240 MM; afterimage + invuln |
 | **Roll** | Ctrl+A/D (W/S) | **ghost_rider/roll_*** → locomotion → longbow dodge | Impulse + one-shot |
 | **Slide** | Shift+Ctrl while sprint | `prod:extra/running-slide` | Forward impulse |
+| **Swim** | In water · WASD | `mobility/swim/swimming` · tread · to_edge | `enableSwim` · Space/Ctrl vertical when submerged |
+| **Climb** | Near `userData.climbable` · Space | `mobility/climb/*` → to_top | `enableClimb` |
+| **Ladder** | Near `userData.ladder` · W/S | climbLadder / down / toTop | `enableLadder` |
+
+**Space** = jump / swim-up / climb-engage — never melee residual.
 
 ---
 

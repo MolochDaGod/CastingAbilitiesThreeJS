@@ -316,7 +316,26 @@ export const ANIM_PACKS = {
     fall: ['locomotion/falling', 'locomotion/fall', 'extra/falling'],
     fallLand: ['locomotion/fall-to-landing', 'locomotion/falling-to-landing'],
     fallRoll: ['locomotion/fall-to-roll', 'locomotion/falling-to-roll'],
-    fallIdle: ['locomotion/fall-idle', 'locomotion/falling-idle']
+    fallIdle: ['locomotion/fall-idle', 'locomotion/falling-idle'],
+    /**
+     * Traversal — retargeted mobility bake (anims/baked/mobility/*).
+     * Also mirrored under prod/anims/traversal/{role}.json for packages catalog.
+     */
+    swim: ['mobility/swim/swimming'],
+    swimFast: ['mobility/swim/swimming'],
+    treadWater: ['mobility/swim/treading'],
+    swimToEdge: ['mobility/swim/to_edge'],
+    climb: ['mobility/climb/climbing', 'mobility/climb/up'],
+    climbUp: ['mobility/climb/up', 'mobility/climb/climbing'],
+    climbDown: ['mobility/climb/down'],
+    climbLadder: ['mobility/climb/climbing', 'mobility/climb/up'],
+    toTop: ['mobility/climb/to_top'],
+    mantle: ['mobility/climb/to_top', 'mobility/climb/stand_to_hang'],
+    hang: ['mobility/climb/hang_idle'],
+    jumpToHang: ['mobility/climb/jump_to_hang'],
+    standToHang: ['mobility/climb/stand_to_hang'],
+    freehangClimb: ['mobility/climb/freehang_climb'],
+    wallRun: ['mobility/climb/wall_run']
   }
 };
 
@@ -336,9 +355,9 @@ export const ANIM_PACK_META = {
   },
   locomotion_8way: { label: 'Locomotion 8-way', skills: '—', locomotion: 'walk·run·jump' },
   combat_mobility: {
-    label: 'Shared rolls / dodges / slide / parry / fall',
-    skills: 'roll·dodge·slide·parry·fall',
-    locomotion: 'fallLoop·fallLand·fallRoll'
+    label: 'Shared rolls / dodges / slide / parry / fall / swim / climb',
+    skills: 'roll·dodge·slide·parry·fall·swim·climb·ladder',
+    locomotion: 'fallLoop·swim·climb·toTop'
   }
 };
 

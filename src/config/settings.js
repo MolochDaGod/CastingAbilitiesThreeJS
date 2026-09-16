@@ -38,8 +38,24 @@ export const settings = {
     jumpVelocity: 5.4,
     /** Second air jump (frontflip) vertical m/s */
     doubleJumpVelocity: 5.0,
-    /** Max jumps before needing ground (1 = single, 2 = double) */
+    /** Max jumps before needing ground (1 = single, 2 = double — optional) */
     maxJumps: 2,
+    /** Master toggles for traversal systems (lab / SessionState) */
+    enableDoubleJump: true,
+    enableSwim: true,
+    enableClimb: true,
+    enableLadder: true,
+    /** Swim horizontal m/s (multiplied by back-slot swimSpeedMul) */
+    swimSpeed: 2.4,
+    swimSprintMul: 1.45,
+    /** Climb / ladder vertical m/s */
+    climbSpeed: 1.8,
+    ladderSpeed: 2.0,
+    /** Probe reach for climbable / ledge (m) */
+    climbReachM: 1.15,
+    climbUpProbeM: 2.2,
+    /** Water lip exit: forward ray length to walkable (m) */
+    swimEdgeReachM: 1.4,
     /**
      * Air mobility (2nd jump):
      *  - Space alone → quick **frontflip** (standard double jump)

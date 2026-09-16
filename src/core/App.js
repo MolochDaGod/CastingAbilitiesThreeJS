@@ -9,6 +9,7 @@ import { frame } from './FrameUniforms.js';
 import { Environment } from '../world/Environment.js';
 import { Ground } from '../world/Ground.js';
 import { StageWater } from '../world/StageWater.js';
+import { spawnTraversalProps } from '../world/TraversalProps.js';
 import { Seafloor } from '../world/Seafloor.js';
 import { OceanWindIndicators } from '../effects/OceanWindIndicators.js';
 import { IslandHeightfield } from '../world/IslandHeightfield.js';
@@ -215,6 +216,8 @@ export class App {
     console.info(
       `[App] world waterY=${WORLD.waterY} shelfY=${WORLD.seafloorY} oceanFloorY=${WORLD.oceanFloorY ?? -50} (shore bathymetry · single water)`
     );
+    // Lab climb wall + ladder for DRC traversal (userData.climbable / .ladder)
+    this.traversalProps = spawnTraversalProps(this.scene);
     this.dust.setPixelRatio(this.renderer.gl.getPixelRatio());
     /** One map: Training Room · DevIsland (play + /devnode) */
     this.mapId = TRAINING_ROOM_MAP_ID;
