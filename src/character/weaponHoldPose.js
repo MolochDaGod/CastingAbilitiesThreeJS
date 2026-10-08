@@ -294,15 +294,22 @@ function applySideResidual(hand, pose, THREE) {
   if (!hand || !pose || !THREE) return;
   const e = pose.euler || [0, 0, 0];
   const p = pose.pos || [0, 0, 0];
-  if (e[0] || e[1] || e[2]) {
-    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(e[0] || 0, e[1] || 0, e[2] || 0, 'XYZ'));
-    hand.quaternion.multiply(q);
+  const q = new THREE.Quaternion().setFromEuler(
+    new THREE.Euler(e[0] || 0, e[1] || 0, e[2] || 0, 'XYZ')
+  );
+  const delta = new THREE.Vector3(p[0] || 0, p[1] || 0, p[2] || 0);
+  // Mixer rewrites tracked bones. Untracked hand bones do not — multiply/+= then
+  // orbits the knife faster every frame. Undo last residual only if it is still on the bone.
+  const expected = hand.userData._holdExpectedQ;
+  if (expected && hand.quaternion.angleTo(expected) < 0.04 && hand.userData._holdBaseQ) {
+    hand.quaternion.copy(hand.userData._holdBaseQ);
+    hand.position.copy(hand.userData._holdBaseP);
   }
-  if (p[0] || p[1] || p[2]) {
-    hand.position.x += p[0] || 0;
-    hand.position.y += p[1] || 0;
-    hand.position.z += p[2] || 0;
-  }
+  hand.userData._holdBaseQ = hand.quaternion.clone();
+  hand.userData._holdBaseP = hand.position.clone();
+  if (e[0] || e[1] || e[2]) hand.quaternion.multiply(q);
+  if (delta.lengthSq() > 0) hand.position.add(delta);
+  hand.userData._holdExpectedQ = hand.quaternion.clone();
 }
 
 /**
