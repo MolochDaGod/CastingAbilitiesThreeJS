@@ -239,24 +239,56 @@ export function defaultHotbarForWeaponType(cat, weaponTypeId) {
   ].filter(Boolean);
 }
 
-/** Infer anim role to play for a catalog skill. */
+/**
+ * Infer anim role for a catalog skill.
+ * Prefer the authored clip / role so every weapon skill can hit the one mixer
+ * (not a collapsed attack|cast). Pack prefix is resolved in skillAnimMixer.
+ */
 export function animRoleForSkill(skill) {
   if (!skill) return 'attack';
-  if (skill.labStyle === 'spell') return 'cast';
-  if (skill.animation && /cast|spell/i.test(skill.animation)) return 'cast';
-  if (skill.slotType === 'defense' || /parry|guard|block/i.test(skill.id + skill.name)) return 'block';
-  const blob = `${skill.id || ''} ${skill.name || ''} ${skill.weaponTypeId || ''}`.toLowerCase();
-  // T0 pistol: primary = gunplay, empty = reload, secondary = cover/draw, power = charged / whip
-  if (/pistol|handgun|gun/.test(blob) || skill.labPack === 'pistol') {
+  const authored = String(
+    skill.animRole || skill.animation || skill.prefab?.animationClip || skill.prefab?.animRole || ''
+  ).trim();
+  if (authored && !/^https?:/i.test(authored) && !/\.(json|fbx|glb)$/i.test(authored)) {
+    const leaf = authored.split('/').pop().split(':').pop();
+    if (leaf && !/^(true|false|null)$/i.test(leaf)) return leaf;
+  }
+  if (skill.slotType === 'defense' || skill.isWard || /parry|guard|block/i.test(`${skill.id || ''} ${skill.name || ''}`))
+    return 'block';
+  const blob = `${skill.id || ''} ${skill.name || ''} ${skill.weaponTypeId || ''} ${skill.labPack || ''}`.toLowerCase();
+  if (/pistol|handgun|flintlock/.test(blob) || skill.labPack === 'pistol') {
     if (skill.isReload || skill.skillKind === 'reload' || /reload/i.test(blob)) return 'reload';
     if (skill.slotType === 'secondary' || /draw|holster|cover/i.test(blob)) return 'draw';
-    if (skill.slotType === 'ability' || /charge|power|special|suppress|fan/i.test(blob))
-      return 'skill2';
-    if (/whip|bash|melee/.test(blob)) return 'skill3';
-    if (/spin|flourish|gunplay|burst|double|shot/i.test(blob)) return 'gunplay';
+    if (/whip|bash/.test(blob)) return 'skill3';
+    if (skill.slotType === 'ability' || /charge|power|special|suppress|fan/i.test(blob)) return 'skill2';
+    if (/spin|flourish|gunplay|burst/.test(blob)) return 'gunplay';
     return 'attack';
   }
-  return skill.labStyle === 'ranged' ? 'attack' : 'attack';
+  if (/rifle|musket/.test(blob) || skill.labPack === 'rifle') {
+    if (/reload/i.test(blob)) return 'reload';
+    if (/crouch/i.test(blob)) return 'crouchFire';
+    return 'attack';
+  }
+  if (/bow|longbow/.test(blob) || skill.labPack === 'longbow') return 'attack';
+  if (/dagger|knife/.test(blob)) return skill.slotType === 'ultimate' ? 'daggerAttack3' : 'daggerAttack';
+  if (/spear|polearm|halberd/.test(blob)) return skill.slotType === 'ultimate' ? 'spearAttack2' : 'spearAttack';
+  if (/greatsword|twohand|claymore|2h/.test(blob)) return skill.slotType === 'ultimate' ? 'twoHandAttack3' : 'twoHandAttack';
+  if (/unarmed|fist|kick/.test(blob) || skill.labPack === 'unarmed') {
+    if (/kick/.test(blob)) return 'kick';
+    if (/hurricane/.test(blob)) return 'hurricane';
+    if (/stomp/.test(blob)) return 'stomp';
+    if (/upper/.test(blob)) return 'uppercut';
+    return 'attack1';
+  }
+  if (skill.labStyle === 'spell' || skill.style === 'spell' || /staff|magic|cast|bend/.test(blob)) {
+    if (skill.slotType === 'ultimate') return 'skill2';
+    if (skill.slotType === 'ability') return 'skill1';
+    return 'cast';
+  }
+  if (skill.slotType === 'ultimate') return 'finisher';
+  if (skill.slotType === 'ability') return 'skill1';
+  if (skill.labStyle === 'ranged' || skill.style === 'ranged') return 'attack';
+  return 'attack1';
 }
 
 /** Infer VFX effect id from damage type / description / casting kit binds. */

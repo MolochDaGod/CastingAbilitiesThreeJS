@@ -1,5 +1,6 @@
 import { App } from './core/App.js';
 import { LoadingScreen } from './ui/HUD.js';
+import { mountAbilityLabDock } from './ui/abilityLabDock.js';
 
 /**
  * Entry point.
@@ -16,6 +17,7 @@ async function boot() {
 
     // Handy for poking at the scene from the console.
     window.app = app;
+    mountAbilityLabDock(app);
   } catch (error) {
     console.error('[boot] failed to start', error);
     new LoadingScreen().fail(
