@@ -19,11 +19,11 @@ const LAB = 'https://comet-topaz-fair-bolt.grok.me/';
 
 const LAB_CASTS = [
   { id: 'fire', key: 'V', label: 'Fire Bend', element: 'fire', role: 'cast' },
-  { id: 'water', key: 'X', label: 'Water Bend', element: 'water', role: 'cast' },
-  { id: 'air', key: 'Z', label: 'Air Bend', element: 'air', role: 'cast' },
-  { id: 'earth', key: 'Q', label: 'Earth Crown', element: 'earth', role: 'cast' },
+  { id: 'water', key: 'X', label: 'Water Bend', element: 'ice', role: 'cast' },
+  { id: 'air', key: 'Z', label: 'Air Bend', element: 'storm', role: 'cast' },
+  { id: 'earth', key: 'Q', label: 'Earth Crown', element: 'nature', role: 'cast' },
   { id: 'arcane', key: 'E', label: 'Arcane Crown', element: 'arcane', role: 'skill1' },
-  { id: 'buff', key: 'B', label: 'Fire Boost', element: 'fire', role: 'cast', buff: true }
+  { id: 'buff', key: 'B', label: 'Holy Boost', element: 'holy', role: 'cast' }
 ];
 
 export function mountAbilityLabDock(app) {
