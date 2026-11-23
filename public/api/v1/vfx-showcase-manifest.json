@@ -1,0 +1,5018 @@
+{
+ "schema": "grudge.vfx-showcase-manifest/1",
+ "generatedAt": "2026-11-23T21:14:42.710Z",
+ "source": "https://info.grudge-studio.com/api/v1/effectSprites.json",
+ "sourceVersion": "1.0.0",
+ "cdn": "https://assets.grudge-studio.com",
+ "verification": "GET each key on the CDN; real = 2xx with image magic bytes (PNG/JPEG/GIF/WebP); sha256 of full body",
+ "counts": {
+  "total": 157,
+  "real": 157,
+  "missing": 0
+ },
+ "categories": {
+  "cast": 13,
+  "impact": 42,
+  "projectile": 15,
+  "melee": 35,
+  "aura": 12,
+  "buff": 12,
+  "debuff": 10,
+  "heal": 10,
+  "fire": 19,
+  "ice": 16,
+  "lightning": 8,
+  "arcane": 17,
+  "holy": 14,
+  "earth": 7,
+  "water": 12,
+  "wind": 7,
+  "nature": 11,
+  "dark": 12,
+  "poison": 7,
+  "physical": 19,
+  "explosion": 10,
+  "movement": 7,
+  "crit": 8,
+  "spellcrit": 5,
+  "largecrit": 5,
+  "combo": 12,
+  "counter": 9,
+  "block": 5,
+  "dodge": 5,
+  "stun": 5,
+  "slow": 5,
+  "haste": 4,
+  "sleep": 4,
+  "frozen": 12,
+  "stone": 3,
+  "transform": 7,
+  "huechange": 13,
+  "slashColor": 15,
+  "bulletImpact": 5,
+  "retro": 30,
+  "custom": 14,
+  "pixel": 56,
+  "misc": 4
+ },
+ "buffVisuals": {
+  "shield": {
+   "effect": "protectionCircle",
+   "color": "#4488ff"
+  },
+  "regen": {
+   "effect": "healingregen",
+   "color": "#44ff88"
+  },
+  "haste": {
+   "effect": "windProjectile",
+   "color": "#ffdd44",
+   "icon": "\\u26A1",
+   "name": "Haste",
+   "category": "buff"
+  },
+  "strength": {
+   "effect": "holyVfx",
+   "color": "#ff4444",
+   "icon": "\\u2694\\uFE0F",
+   "name": "Strength",
+   "category": "buff"
+  },
+  "poison": {
+   "effect": "windProjectile",
+   "color": "#44ff44",
+   "icon": "\\u2620\\uFE0F",
+   "name": "Poison",
+   "category": "debuff",
+   "effectFilter": "hue-rotate(90deg) saturate(2)",
+   "filter": "hue-rotate(90deg) saturate(2)"
+  },
+  "burn": {
+   "effect": "flamestrike",
+   "color": "#ff8800"
+  },
+  "freeze": {
+   "effect": "frozenIce",
+   "color": "#88ccff",
+   "icon": "\\u2744\\uFE0F",
+   "name": "Freeze",
+   "category": "debuff"
+  },
+  "stun": {
+   "effect": "thunderHit",
+   "color": "#ffff44"
+  },
+  "curse": {
+   "effect": "midnight",
+   "color": "#aa44ff"
+  },
+  "bless": {
+   "effect": "holylight",
+   "color": "#ffffaa",
+   "icon": "\\u2728",
+   "name": "Blessing",
+   "category": "buff"
+  },
+  "rage": {
+   "effect": "fireSpin",
+   "color": "#ff2222"
+  },
+  "mana_shield": {
+   "effect": "protectionCircle",
+   "color": "#8844ff"
+  },
+  "thorns": {
+   "effect": "windProjectile",
+   "color": "#228833"
+  },
+  "lifesteal": {
+   "effect": "nebula",
+   "color": "#cc0000"
+  },
+  "slow": {
+   "effect": "magicBubbles",
+   "color": "#6688aa"
+  }
+ },
+ "weaponVisuals": {
+  "sword": {
+   "trail": "slash",
+   "name": "Sword",
+   "projectile": null
+  },
+  "axe": {
+   "projectile": "axe",
+   "trail": "hitEffect1",
+   "name": "Axe"
+  },
+  "greatsword": {
+   "trail": "slash",
+   "name": "Greatsword",
+   "projectile": null
+  },
+  "greataxe": {
+   "trail": "hitEffect2",
+   "name": "Greataxe",
+   "projectile": null
+  },
+  "hammer_2h": {
+   "trail": "hitEffect2",
+   "name": "Two-Hand Hammer",
+   "projectile": null
+  },
+  "hammer_1h": {
+   "trail": "hitEffect3",
+   "name": "One-Hand Hammer",
+   "projectile": null
+  },
+  "staff": {
+   "projectile": "fireball",
+   "trail": "arcanemist",
+   "name": "Staff"
+  },
+  "dagger": {
+   "projectile": "sword_short",
+   "trail": "slash",
+   "name": "Dagger"
+  },
+  "bow": {
+   "projectile": "arrow_long",
+   "name": "Bow",
+   "trail": null
+  },
+  "crossbow": {
+   "projectile": "ballista_bolt",
+   "name": "Crossbow",
+   "trail": null
+  },
+  "gun": {
+   "projectile": "bullet",
+   "name": "Gun",
+   "trail": null
+  },
+  "wand": {
+   "projectile": "fireball",
+   "trail": "arcaneslash",
+   "name": "Wand"
+  },
+  "shield": {
+   "trail": "hitEffect2",
+   "name": "Shield",
+   "projectile": null
+  },
+  "spear": {
+   "projectile": "spear",
+   "trail": "hitEffect1",
+   "name": "Spear"
+  }
+ },
+ "items": [
+  {
+   "id": "magicSpell",
+   "group": "effect",
+   "name": "Magic Spell",
+   "key": "sprites/effects/pixel/1_magicspell_spritesheet.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/1_magicspell_spritesheet.png",
+   "categories": [
+    "cast",
+    "arcane",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 81,
+   "declaredFrames": 81,
+   "cols": 9,
+   "rows": 9,
+   "frameW": 100,
+   "frameH": 100,
+   "layoutSource": "square-grid-from-image",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 53077,
+    "sha256": "7091ca2c5f1204ec762e3d9c3faa043d2a607f7cb1b6dab869a4d6b37448e0b1",
+    "width": 900,
+    "height": 900
+   }
+  },
+  {
+   "id": "magic8",
+   "group": "effect",
+   "name": "Magic 8",
+   "key": "sprites/effects/pixel/2_magic8_spritesheet.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/2_magic8_spritesheet.png",
+   "categories": [
+    "cast",
+    "arcane",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 64,
+   "declaredFrames": 64,
+   "cols": 8,
+   "rows": 8,
+   "frameW": 100,
+   "frameH": 100,
+   "layoutSource": "square-grid-from-image",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 145952,
+    "sha256": "4c5d6ce4c9df63b0d2d03008705eb52ec265474487b2a9eadf0c6d83424f48dd",
+    "width": 800,
+    "height": 800
+   }
+  },
+  {
+   "id": "blueFire",
+   "group": "effect",
+   "name": "Blue Fire",
+   "key": "sprites/effects/pixel/3_bluefire_spritesheet.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/3_bluefire_spritesheet.png",
+   "categories": [
+    "ice",
+    "frozen",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 64,
+   "declaredFrames": 64,
+   "cols": 8,
+   "rows": 8,
+   "frameW": 100,
+   "frameH": 100,
+   "layoutSource": "square-grid-from-image",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 43393,
+    "sha256": "f722f4ebb26a9bce5d11075a54b594ffe8eae722bea162afec692a6b94c9387d",
+    "width": 800,
+    "height": 800
+   }
+  },
+  {
+   "id": "casting",
+   "group": "effect",
+   "name": "Casting",
+   "key": "sprites/effects/pixel/4_casting_spritesheet.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/4_casting_spritesheet.png",
+   "categories": [
+    "cast",
+    "arcane",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 81,
+   "declaredFrames": 81,
+   "cols": 9,
+   "rows": 9,
+   "frameW": 100,
+   "frameH": 100,
+   "layoutSource": "square-grid-from-image",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 26126,
+    "sha256": "e56211e95399256879e63bf1fc37279a49b45806c71a2750dde4e2bde1d1b693",
+    "width": 900,
+    "height": 900
+   }
+  },
+  {
+   "id": "magickaHit",
+   "group": "effect",
+   "name": "Magicka Hit",
+   "key": "sprites/effects/pixel/5_magickahit_spritesheet.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/5_magickahit_spritesheet.png",
+   "categories": [
+    "debuff",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 49,
+   "declaredFrames": 49,
+   "cols": 7,
+   "rows": 7,
+   "frameW": 100,
+   "frameH": 100,
+   "layoutSource": "square-grid-from-image",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 13952,
+    "sha256": "fadc15e847c900e40b9526af2349ad00d2adfd87159c45b4c7e38cb556fb9c63",
+    "width": 700,
+    "height": 700
+   }
+  },
+  {
+   "id": "flameLash",
+   "group": "effect",
+   "name": "Flame Lash",
+   "key": "sprites/effects/pixel/6_flamelash_spritesheet.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/6_flamelash_spritesheet.png",
+   "categories": [
+    "fire",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 49,
+   "declaredFrames": 49,
+   "cols": 7,
+   "rows": 7,
+   "frameW": 100,
+   "frameH": 100,
+   "layoutSource": "square-grid-from-image",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 34010,
+    "sha256": "927311ae9b6018144e6f4a179760dec244c140bef35c049fcb290f20099dfc4e",
+    "width": 700,
+    "height": 700
+   }
+  },
+  {
+   "id": "fireSpin",
+   "group": "effect",
+   "name": "Fire Spin",
+   "key": "sprites/effects/pixel/7_firespin_spritesheet.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/7_firespin_spritesheet.png",
+   "categories": [
+    "aura",
+    "fire",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 64,
+   "declaredFrames": 64,
+   "cols": 8,
+   "rows": 8,
+   "frameW": 100,
+   "frameH": 100,
+   "layoutSource": "square-grid-from-image",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 67792,
+    "sha256": "358b3e56958e7f1c465bf0ebea8b88ab46bbbdc2083f4e8b71f103ec1c7df8e7",
+    "width": 800,
+    "height": 800
+   }
+  },
+  {
+   "id": "protectionCircle",
+   "group": "effect",
+   "name": "Protection Circle",
+   "key": "sprites/effects/pixel/8_protectioncircle_spritesheet.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/8_protectioncircle_spritesheet.png",
+   "categories": [
+    "cast",
+    "aura",
+    "buff",
+    "block",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 64,
+   "declaredFrames": 64,
+   "cols": 8,
+   "rows": 8,
+   "frameW": 100,
+   "frameH": 100,
+   "layoutSource": "square-grid-from-image",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 53784,
+    "sha256": "b0f72e3bcfe82ce7fd8ee0cd6557dcbad9730e439ef66c738e64a3892befc47b",
+    "width": 800,
+    "height": 800
+   }
+  },
+  {
+   "id": "brightFire",
+   "group": "effect",
+   "name": "Bright Fire",
+   "key": "sprites/effects/pixel/9_brightfire_spritesheet.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/9_brightfire_spritesheet.png",
+   "categories": [
+    "aura",
+    "buff",
+    "fire",
+    "transform",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 64,
+   "declaredFrames": 64,
+   "cols": 8,
+   "rows": 8,
+   "frameW": 100,
+   "frameH": 100,
+   "layoutSource": "square-grid-from-image",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 32766,
+    "sha256": "65f8be13296290c6616a9756dfe4ffdecdfb00d8a8878797640c3d29fe271d22",
+    "width": 800,
+    "height": 800
+   }
+  },
+  {
+   "id": "weaponHit",
+   "group": "effect",
+   "name": "Weapon Hit",
+   "key": "sprites/effects/pixel/10_weaponhit_spritesheet.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/10_weaponhit_spritesheet.png",
+   "categories": [
+    "impact",
+    "melee",
+    "physical",
+    "counter",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 36,
+   "declaredFrames": 36,
+   "cols": 6,
+   "rows": 6,
+   "frameW": 100,
+   "frameH": 100,
+   "layoutSource": "square-grid-from-image",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 6515,
+    "sha256": "075d57f235ad61df12ae1904d7615013fae26e82e6d9e0e565997b0281866887",
+    "width": 600,
+    "height": 600
+   }
+  },
+  {
+   "id": "fire",
+   "group": "effect",
+   "name": "Fire",
+   "key": "sprites/effects/pixel/11_fire_spritesheet.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/11_fire_spritesheet.png",
+   "categories": [
+    "aura",
+    "fire",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 64,
+   "declaredFrames": 64,
+   "cols": 8,
+   "rows": 8,
+   "frameW": 100,
+   "frameH": 100,
+   "layoutSource": "square-grid-from-image",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 49572,
+    "sha256": "ac2e257e76e1080ab8daf49ba6dc825353df1d01b9fe63fdaf13c22a518f391d",
+    "width": 800,
+    "height": 800
+   }
+  },
+  {
+   "id": "nebula",
+   "group": "effect",
+   "name": "Nebula",
+   "key": "sprites/effects/pixel/12_nebula_spritesheet.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/12_nebula_spritesheet.png",
+   "categories": [
+    "cast",
+    "aura",
+    "dark",
+    "transform",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 64,
+   "declaredFrames": 64,
+   "cols": 8,
+   "rows": 8,
+   "frameW": 100,
+   "frameH": 100,
+   "layoutSource": "square-grid-from-image",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 153165,
+    "sha256": "03d76d29474c8ab282190e7a3814b4580a199e5eff19c330b111b61047e9c7e9",
+    "width": 800,
+    "height": 800
+   }
+  },
+  {
+   "id": "vortex",
+   "group": "effect",
+   "name": "Vortex",
+   "key": "sprites/effects/pixel/13_vortex_spritesheet.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/13_vortex_spritesheet.png",
+   "categories": [
+    "cast",
+    "aura",
+    "transform",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 64,
+   "declaredFrames": 64,
+   "cols": 8,
+   "rows": 8,
+   "frameW": 100,
+   "frameH": 100,
+   "layoutSource": "square-grid-from-image",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 104181,
+    "sha256": "dfa9e8ed8fc24d66a29e63d6a1541e1cf5b35138078f8fcca3246134ec4f10c1",
+    "width": 800,
+    "height": 800
+   }
+  },
+  {
+   "id": "phantom",
+   "group": "effect",
+   "name": "Phantom",
+   "key": "sprites/effects/pixel/14_phantom_spritesheet.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/14_phantom_spritesheet.png",
+   "categories": [
+    "aura",
+    "dark",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 64,
+   "declaredFrames": 64,
+   "cols": 8,
+   "rows": 8,
+   "frameW": 100,
+   "frameH": 100,
+   "layoutSource": "square-grid-from-image",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 30395,
+    "sha256": "bb2e67d2a36d7114e58aabff0df4888c8226090b996834914ffcfdaf6c17b42f",
+    "width": 800,
+    "height": 800
+   }
+  },
+  {
+   "id": "sunburn",
+   "group": "effect",
+   "name": "Sunburn",
+   "key": "sprites/effects/pixel/16_sunburn_spritesheet.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/16_sunburn_spritesheet.png",
+   "categories": [
+    "aura",
+    "buff",
+    "fire",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 64,
+   "declaredFrames": 64,
+   "cols": 8,
+   "rows": 8,
+   "frameW": 100,
+   "frameH": 100,
+   "layoutSource": "square-grid-from-image",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 55652,
+    "sha256": "92c83e82874879a63949efef92eeb41c373fe7705c009b80c4d1335bfe2b5c28",
+    "width": 800,
+    "height": 800
+   }
+  },
+  {
+   "id": "felSpell",
+   "group": "effect",
+   "name": "Fel Spell",
+   "key": "sprites/effects/pixel/17_felspell_spritesheet.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/17_felspell_spritesheet.png",
+   "categories": [
+    "debuff",
+    "arcane",
+    "dark",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 100,
+   "declaredFrames": 100,
+   "cols": 10,
+   "rows": 10,
+   "frameW": 100,
+   "frameH": 100,
+   "layoutSource": "square-grid-from-image",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 263943,
+    "sha256": "7f1485ff111a0f37a934979837bbaa85a8e0dca15c8f7a5253681d06ed0dab09",
+    "width": 1000,
+    "height": 1000
+   }
+  },
+  {
+   "id": "midnight",
+   "group": "effect",
+   "name": "Midnight",
+   "key": "sprites/effects/pixel/18_midnight_spritesheet.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/18_midnight_spritesheet.png",
+   "categories": [
+    "debuff",
+    "arcane",
+    "dark",
+    "sleep",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 64,
+   "declaredFrames": 64,
+   "cols": 8,
+   "rows": 8,
+   "frameW": 100,
+   "frameH": 100,
+   "layoutSource": "square-grid-from-image",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 134851,
+    "sha256": "7c9df75ac06deb7a8170ac8161fc2535e819898274d9fae5246389ac9fb2abe5",
+    "width": 800,
+    "height": 800
+   }
+  },
+  {
+   "id": "freezing",
+   "group": "effect",
+   "name": "Freezing",
+   "key": "sprites/effects/pixel/19_freezing_spritesheet.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/19_freezing_spritesheet.png",
+   "categories": [
+    "debuff",
+    "ice",
+    "slow",
+    "frozen",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 100,
+   "declaredFrames": 100,
+   "cols": 10,
+   "rows": 10,
+   "frameW": 100,
+   "frameH": 100,
+   "layoutSource": "square-grid-from-image",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 202938,
+    "sha256": "40739158d386a34a9435852e85e1dda76a6e7b80de9cfc2006770bb3b2903b97",
+    "width": 1000,
+    "height": 1000
+   }
+  },
+  {
+   "id": "magicBubbles",
+   "group": "effect",
+   "name": "Magic Bubbles",
+   "key": "sprites/effects/pixel/20_magicbubbles_spritesheet.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/20_magicbubbles_spritesheet.png",
+   "categories": [
+    "aura",
+    "debuff",
+    "poison",
+    "slow",
+    "sleep",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 64,
+   "declaredFrames": 64,
+   "cols": 8,
+   "rows": 8,
+   "frameW": 100,
+   "frameH": 100,
+   "layoutSource": "square-grid-from-image",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 35396,
+    "sha256": "cfce425237690e2a5f9e6403bf1ec1103a677dac760b268fef6a57b8084fdea3",
+    "width": 800,
+    "height": 800
+   }
+  },
+  {
+   "id": "slash",
+   "group": "effect",
+   "name": "Slash",
+   "key": "sprites/effects/slash_spritesheet.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/slash_spritesheet.png",
+   "categories": [
+    "melee",
+    "physical",
+    "counter"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 1,
+   "rows": 8,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 1560,
+    "sha256": "b82820cf622fe876ff1194c04d71607efd7e58d26ff020f00479c464f65c4d6c",
+    "width": 64,
+    "height": 512
+   }
+  },
+  {
+   "id": "healEffect",
+   "group": "effect",
+   "name": "Heal Effect",
+   "key": "sprites/effects/heal_spritesheet.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/heal_spritesheet.png",
+   "categories": [
+    "buff",
+    "heal",
+    "holy"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 16,
+   "declaredFrames": 16,
+   "cols": 4,
+   "rows": 4,
+   "frameW": 128,
+   "frameH": 128,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 3482,
+    "sha256": "36c8a30feb33009cf6de771e04ba83d01aaefaabd95872c51378e9b5c89f81bc",
+    "width": 512,
+    "height": 512
+   }
+  },
+  {
+   "id": "demonSlash1",
+   "group": "effect",
+   "name": "Demon Slash 1",
+   "key": "sprites/effects/demon_slash_1.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/demon_slash_1.png",
+   "categories": [
+    "melee",
+    "physical",
+    "crit",
+    "combo"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 7,
+   "declaredFrames": 7,
+   "cols": 7,
+   "rows": 1,
+   "frameW": 48,
+   "frameH": 48,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 1204,
+    "sha256": "05be555c1ebf5adad1c5f4845805a9b7598f850ffbe025ee34843519feb745d3",
+    "width": 336,
+    "height": 48
+   }
+  },
+  {
+   "id": "demonSlash2",
+   "group": "effect",
+   "name": "Demon Slash 2",
+   "key": "sprites/effects/demon_slash_2.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/demon_slash_2.png",
+   "categories": [
+    "melee",
+    "physical",
+    "crit",
+    "combo"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 7,
+   "declaredFrames": 7,
+   "cols": 7,
+   "rows": 1,
+   "frameW": 48,
+   "frameH": 48,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 859,
+    "sha256": "6fd02b33970b917178391a2c34d520261ab8bbbd1f9decd33ff033af9b3c88e5",
+    "width": 336,
+    "height": 48
+   }
+  },
+  {
+   "id": "demonSlash3",
+   "group": "effect",
+   "name": "Demon Slash 3",
+   "key": "sprites/effects/demon_slash_3.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/demon_slash_3.png",
+   "categories": [
+    "melee",
+    "physical",
+    "crit",
+    "combo"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 7,
+   "declaredFrames": 7,
+   "cols": 7,
+   "rows": 1,
+   "frameW": 48,
+   "frameH": 48,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 1862,
+    "sha256": "4643965035b648b73464998577e9fd3ae4d04792d38247f63b43866bacefde0f",
+    "width": 336,
+    "height": 48
+   }
+  },
+  {
+   "id": "hitEffect1",
+   "group": "effect",
+   "name": "Hit Effect 1",
+   "key": "sprites/effects/hit_effect_1.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/hit_effect_1.png",
+   "categories": [
+    "impact",
+    "melee",
+    "physical",
+    "counter"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 7,
+   "declaredFrames": 7,
+   "cols": 7,
+   "rows": 1,
+   "frameW": 48,
+   "frameH": 48,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 1878,
+    "sha256": "9c5e7e9b1776e982263b993861be1f239c315e5e77644d7883aeb92eab03dc08",
+    "width": 336,
+    "height": 48
+   }
+  },
+  {
+   "id": "hitEffect2",
+   "group": "effect",
+   "name": "Hit Effect 2",
+   "key": "sprites/effects/hit_effect_2.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/hit_effect_2.png",
+   "categories": [
+    "impact",
+    "melee",
+    "physical",
+    "counter"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 7,
+   "declaredFrames": 7,
+   "cols": 7,
+   "rows": 1,
+   "frameW": 48,
+   "frameH": 48,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 1823,
+    "sha256": "aea8ae03acb0cbf678dab91ab6a77be7b5b3ec4b2c29cd890541c4c260b94dc1",
+    "width": 336,
+    "height": 48
+   }
+  },
+  {
+   "id": "hitEffect3",
+   "group": "effect",
+   "name": "Hit Effect 3",
+   "key": "sprites/effects/hit_effect_3.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/hit_effect_3.png",
+   "categories": [
+    "impact",
+    "melee",
+    "physical",
+    "counter"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 7,
+   "declaredFrames": 7,
+   "cols": 7,
+   "rows": 1,
+   "frameW": 48,
+   "frameH": 48,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 1821,
+    "sha256": "dcdf553466e57426b5e656fd607377fe0ba38a691b7c54abe7d73ba4959766ea",
+    "width": 336,
+    "height": 48
+   }
+  },
+  {
+   "id": "fireExplosion",
+   "group": "effect",
+   "name": "Fire Explosion",
+   "key": "sprites/effects/fire_explosion.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/fire_explosion.png",
+   "categories": [
+    "fire",
+    "explosion",
+    "crit",
+    "largecrit"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 16,
+   "declaredFrames": 16,
+   "cols": 4,
+   "rows": 4,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 5442,
+    "sha256": "e7d3bb5d422003ef14c0c228c065f8626834cdf45b6ed491ee34790e3444b03e",
+    "width": 256,
+    "height": 256
+   }
+  },
+  {
+   "id": "fireExplosion2",
+   "group": "effect",
+   "name": "Fire Explosion 2",
+   "key": "sprites/effects/fire_explosion_2.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/fire_explosion_2.png",
+   "categories": [
+    "fire",
+    "explosion",
+    "crit",
+    "largecrit"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 18,
+   "declaredFrames": 18,
+   "cols": 18,
+   "rows": 1,
+   "frameW": 48,
+   "frameH": 48,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 5858,
+    "sha256": "a78b54dd104b3c5b67c043106f87459dc883acce96d0ced825c5a4f0d337fab9",
+    "width": 864,
+    "height": 48
+   }
+  },
+  {
+   "id": "thunderHit",
+   "group": "effect",
+   "name": "Thunder Hit",
+   "key": "sprites/effects/thunder_hit.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/thunder_hit.png",
+   "categories": [
+    "impact",
+    "lightning",
+    "stun"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 6,
+   "declaredFrames": 6,
+   "cols": 6,
+   "rows": 1,
+   "frameW": 32,
+   "frameH": 32,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 5188,
+    "sha256": "59efc6149b8da5775cff783b983455f451317883157c749f4cfc74d50313c97e",
+    "width": 192,
+    "height": 32
+   }
+  },
+  {
+   "id": "thunderProjectile",
+   "group": "effect",
+   "name": "Thunder Projectile",
+   "key": "sprites/effects/thunder_projectile.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/thunder_projectile.png",
+   "categories": [
+    "projectile",
+    "lightning"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 5,
+   "declaredFrames": 5,
+   "cols": 5,
+   "rows": 1,
+   "frameW": 32,
+   "frameH": 32,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 3889,
+    "sha256": "48cf9f8605c134d06eaebd1462a12771ba984c8535eef9d8243b3d8e3b0cf839",
+    "width": 160,
+    "height": 32
+   }
+  },
+  {
+   "id": "thunderProjectile2",
+   "group": "effect",
+   "name": "Thunder Projectile 2",
+   "key": "sprites/effects/thunder_projectile_2.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/thunder_projectile_2.png",
+   "categories": [
+    "projectile",
+    "lightning"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 16,
+   "declaredFrames": 16,
+   "cols": 16,
+   "rows": 1,
+   "frameW": 48,
+   "frameH": 48,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 22868,
+    "sha256": "03f5f8ca835d2ac1b1b66913a28f43819f2a1d7d364de02642441709799f0679",
+    "width": 768,
+    "height": 48
+   }
+  },
+  {
+   "id": "holyImpact",
+   "group": "effect",
+   "name": "Holy Impact",
+   "key": "sprites/effects/holy_impact.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/holy_impact.png",
+   "categories": [
+    "impact",
+    "holy"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 7,
+   "declaredFrames": 7,
+   "cols": 7,
+   "rows": 1,
+   "frameW": 32,
+   "frameH": 32,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 630,
+    "sha256": "788b6116c1f20325d700a3de4dcf0e8edd5654b379a94b53537687748e7eafc1",
+    "width": 224,
+    "height": 32
+   }
+  },
+  {
+   "id": "holyRepeatable",
+   "group": "effect",
+   "name": "Holy Repeatable",
+   "key": "sprites/effects/holy_repeatable.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/holy_repeatable.png",
+   "categories": [
+    "aura",
+    "holy",
+    "block"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 8,
+   "rows": 1,
+   "frameW": 32,
+   "frameH": 32,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 652,
+    "sha256": "009074c7e7fd1c7395ecb64030d93ad4fb63b8f3a9304009667d98a3df387d95",
+    "width": 256,
+    "height": 32
+   }
+  },
+  {
+   "id": "holyVfx",
+   "group": "effect",
+   "name": "Holy Vfx",
+   "key": "sprites/effects/holy_vfx_02.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/holy_vfx_02.png",
+   "categories": [
+    "aura",
+    "buff",
+    "holy"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 16,
+   "declaredFrames": 16,
+   "cols": 16,
+   "rows": 1,
+   "frameW": 48,
+   "frameH": 48,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 2218,
+    "sha256": "e6642c00f42ae4889fffc39b18ec4260decc2cbccfdb1617f15c1b3eb1d3fb8a",
+    "width": 768,
+    "height": 48
+   }
+  },
+  {
+   "id": "windBreath",
+   "group": "effect",
+   "name": "Wind Breath",
+   "key": "sprites/effects/wind_breath.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/wind_breath.png",
+   "categories": [
+    "buff",
+    "wind",
+    "nature",
+    "movement",
+    "dodge",
+    "haste",
+    "huechange"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 18,
+   "declaredFrames": 18,
+   "cols": 18,
+   "rows": 1,
+   "frameW": 32,
+   "frameH": 32,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 2070,
+    "sha256": "ca43c3a2914c26ad60abe38426848c0247614cb5699ce9b234f24b1cbc1764b2",
+    "width": 576,
+    "height": 32
+   }
+  },
+  {
+   "id": "windHit",
+   "group": "effect",
+   "name": "Wind Hit",
+   "key": "sprites/effects/wind_hit.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/wind_hit.png",
+   "categories": [
+    "wind",
+    "nature",
+    "poison",
+    "dodge",
+    "haste",
+    "huechange"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 6,
+   "declaredFrames": 6,
+   "cols": 3,
+   "rows": 2,
+   "frameW": 32,
+   "frameH": 32,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 819,
+    "sha256": "5279723db764269a6c63edfe045ae76b414dc2f490e64db0ab3ea71cd71dea65",
+    "width": 96,
+    "height": 64
+   }
+  },
+  {
+   "id": "windProjectile",
+   "group": "effect",
+   "name": "Wind Projectile",
+   "key": "sprites/effects/wind_projectile.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/wind_projectile.png",
+   "categories": [
+    "projectile",
+    "wind",
+    "nature",
+    "movement",
+    "haste",
+    "huechange"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 6,
+   "declaredFrames": 6,
+   "cols": 3,
+   "rows": 2,
+   "frameW": 32,
+   "frameH": 32,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 909,
+    "sha256": "8ed66ee8463902ef19edea9161999315d41e39248f697cbcc3a9b3c0bedc058c",
+    "width": 96,
+    "height": 64
+   }
+  },
+  {
+   "id": "resurrect",
+   "group": "effect",
+   "name": "Resurrect",
+   "key": "sprites/effects/resurrect_sprite.768.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/resurrect_sprite.768.png",
+   "categories": [
+    "buff",
+    "heal",
+    "holy",
+    "transform"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 24,
+   "declaredFrames": 24,
+   "cols": 6,
+   "rows": 4,
+   "frameW": 128,
+   "frameH": 128,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 219211,
+    "sha256": "666c3a4adf0812c25125dd830d1952cacc7344d5a1d6117cd492099dba8166f6",
+    "width": 768,
+    "height": 512
+   }
+  },
+  {
+   "id": "worgeTornado",
+   "group": "effect",
+   "name": "Worge Tornado",
+   "key": "sprites/effects/worge_tornado.768.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/worge_tornado.768.png",
+   "categories": [],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 4,
+   "rows": 2,
+   "frameW": 192,
+   "frameH": 256,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 272825,
+    "sha256": "3d07df285be61c84312b966a27b87c0dc32d793b0d0fa3bcb0786c47a8cc843d",
+    "width": 768,
+    "height": 512
+   }
+  },
+  {
+   "id": "loading",
+   "group": "effect",
+   "name": "Loading",
+   "key": "sprites/effects/pixel/15_loading_spritesheet.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/15_loading_spritesheet.png",
+   "categories": [
+    "cast",
+    "pixel",
+    "misc"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 121,
+   "declaredFrames": 121,
+   "cols": 11,
+   "rows": 11,
+   "frameW": 100,
+   "frameH": 100,
+   "layoutSource": "square-grid-from-image",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 55905,
+    "sha256": "0025d6ae1bbd3519431bc8e9b6a277a0a2e4a3d817792bd354be771ad51d918c",
+    "width": 1100,
+    "height": 1100
+   }
+  },
+  {
+   "id": "slashRedSm",
+   "group": "effect",
+   "name": "Slash Red Sm",
+   "key": "sprites/effects/slash/slash_red_sm.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/slash/slash_red_sm.png",
+   "categories": [
+    "melee",
+    "slashColor"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 8,
+   "rows": 1,
+   "frameW": 32,
+   "frameH": 32,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 629,
+    "sha256": "7e6d65d80f904e6713d1fbb7e1d5c45c5a4159c0ed2803a5bd705b550182159b",
+    "width": 256,
+    "height": 32
+   }
+  },
+  {
+   "id": "slashRedMd",
+   "group": "effect",
+   "name": "Slash Red Md",
+   "key": "sprites/effects/slash/slash_red_md.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/slash/slash_red_md.png",
+   "categories": [
+    "melee",
+    "slashColor"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 8,
+   "rows": 1,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 1612,
+    "sha256": "a0a2b069581a77754a14c791b59748848c646157431d8b68b1eb098356a21c8d",
+    "width": 512,
+    "height": 64
+   }
+  },
+  {
+   "id": "slashRedLg",
+   "group": "effect",
+   "name": "Slash Red Lg",
+   "key": "sprites/effects/slash/slash_red_lg.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/slash/slash_red_lg.png",
+   "categories": [
+    "melee",
+    "slashColor"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 8,
+   "rows": 1,
+   "frameW": 96,
+   "frameH": 96,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 2125,
+    "sha256": "20edce906f5a2b7400673421e9034bf7a318d7b5e09fc960aef2af7f992ee594",
+    "width": 768,
+    "height": 96
+   }
+  },
+  {
+   "id": "slashBlueSm",
+   "group": "effect",
+   "name": "Slash Blue Sm",
+   "key": "sprites/effects/slash/slash_blue_sm.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/slash/slash_blue_sm.png",
+   "categories": [
+    "melee",
+    "slashColor"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 8,
+   "rows": 1,
+   "frameW": 32,
+   "frameH": 32,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 655,
+    "sha256": "303d5fd90a31af18ef5aa1c7f78b00cdf81560f96defeb98c5efdab4c59fea8a",
+    "width": 256,
+    "height": 32
+   }
+  },
+  {
+   "id": "slashBlueMd",
+   "group": "effect",
+   "name": "Slash Blue Md",
+   "key": "sprites/effects/slash/slash_blue_md.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/slash/slash_blue_md.png",
+   "categories": [
+    "melee",
+    "slashColor"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 8,
+   "rows": 1,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 1623,
+    "sha256": "719027efecd67e048d4ba2e41421d6776708a89991bbf4f8b84cc4fca0f4f22a",
+    "width": 512,
+    "height": 64
+   }
+  },
+  {
+   "id": "slashBlueLg",
+   "group": "effect",
+   "name": "Slash Blue Lg",
+   "key": "sprites/effects/slash/slash_blue_lg.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/slash/slash_blue_lg.png",
+   "categories": [
+    "melee",
+    "slashColor"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 8,
+   "rows": 1,
+   "frameW": 96,
+   "frameH": 96,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 2147,
+    "sha256": "6b744fcf9ca79901c6c05bbef18e7930915e9d913d1fcc6ff6bd37c8d6f005d0",
+    "width": 768,
+    "height": 96
+   }
+  },
+  {
+   "id": "slashGreenSm",
+   "group": "effect",
+   "name": "Slash Green Sm",
+   "key": "sprites/effects/slash/slash_green_sm.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/slash/slash_green_sm.png",
+   "categories": [
+    "melee",
+    "slashColor"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 8,
+   "rows": 1,
+   "frameW": 32,
+   "frameH": 32,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 644,
+    "sha256": "84bace94dcb180b9c59b2e57185fe0e8eb67c434072ed7b83d63c456f0e27c9b",
+    "width": 256,
+    "height": 32
+   }
+  },
+  {
+   "id": "slashGreenMd",
+   "group": "effect",
+   "name": "Slash Green Md",
+   "key": "sprites/effects/slash/slash_green_md.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/slash/slash_green_md.png",
+   "categories": [
+    "melee",
+    "slashColor"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 8,
+   "rows": 1,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 1640,
+    "sha256": "90b2121010c25c39673dc206ffe61dc0e88b4a5da21c85bb03058f8e23d0674b",
+    "width": 512,
+    "height": 64
+   }
+  },
+  {
+   "id": "slashGreenLg",
+   "group": "effect",
+   "name": "Slash Green Lg",
+   "key": "sprites/effects/slash/slash_green_lg.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/slash/slash_green_lg.png",
+   "categories": [
+    "melee",
+    "slashColor"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 8,
+   "rows": 1,
+   "frameW": 96,
+   "frameH": 96,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 2180,
+    "sha256": "834ae820b004229e2d54d1cd8facc7150f7446a10738dab16d3f8aeade375420",
+    "width": 768,
+    "height": 96
+   }
+  },
+  {
+   "id": "slashPurpleSm",
+   "group": "effect",
+   "name": "Slash Purple Sm",
+   "key": "sprites/effects/slash/slash_purple_sm.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/slash/slash_purple_sm.png",
+   "categories": [
+    "melee",
+    "slashColor"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 8,
+   "rows": 1,
+   "frameW": 32,
+   "frameH": 32,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 606,
+    "sha256": "dc798c4242a8c7973e9eefe9b12d737cf3034689b27bc8829b50224e5b0b0b5c",
+    "width": 256,
+    "height": 32
+   }
+  },
+  {
+   "id": "slashPurpleMd",
+   "group": "effect",
+   "name": "Slash Purple Md",
+   "key": "sprites/effects/slash/slash_purple_md.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/slash/slash_purple_md.png",
+   "categories": [
+    "melee",
+    "slashColor"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 8,
+   "rows": 1,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 1592,
+    "sha256": "695baa3e0a8dfb3bee0c6f0e80ece6eaeb7340004813e8ff29d95d57c868f34b",
+    "width": 512,
+    "height": 64
+   }
+  },
+  {
+   "id": "slashPurpleLg",
+   "group": "effect",
+   "name": "Slash Purple Lg",
+   "key": "sprites/effects/slash/slash_purple_lg.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/slash/slash_purple_lg.png",
+   "categories": [
+    "melee",
+    "slashColor"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 8,
+   "rows": 1,
+   "frameW": 96,
+   "frameH": 96,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 2115,
+    "sha256": "334a7bfc7ef72771bde7aca7dddd3c2e6ff645195d58b8f2a77e724d90609c1d",
+    "width": 768,
+    "height": 96
+   }
+  },
+  {
+   "id": "slashOrangeSm",
+   "group": "effect",
+   "name": "Slash Orange Sm",
+   "key": "sprites/effects/slash/slash_orange_sm.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/slash/slash_orange_sm.png",
+   "categories": [
+    "melee",
+    "slashColor"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 8,
+   "rows": 1,
+   "frameW": 32,
+   "frameH": 32,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 629,
+    "sha256": "07fc4c4477d685cf9e705193b71e55d65c27ebafa2e78095c95ad651a9c36fe0",
+    "width": 256,
+    "height": 32
+   }
+  },
+  {
+   "id": "slashOrangeMd",
+   "group": "effect",
+   "name": "Slash Orange Md",
+   "key": "sprites/effects/slash/slash_orange_md.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/slash/slash_orange_md.png",
+   "categories": [
+    "melee",
+    "slashColor"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 8,
+   "rows": 1,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 1611,
+    "sha256": "b8f60b5ab0c37e4d4ccbc9dadca445b9cb5b433aee1e61b71b4df562503ec5e9",
+    "width": 512,
+    "height": 64
+   }
+  },
+  {
+   "id": "slashOrangeLg",
+   "group": "effect",
+   "name": "Slash Orange Lg",
+   "key": "sprites/effects/slash/slash_orange_lg.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/slash/slash_orange_lg.png",
+   "categories": [
+    "melee",
+    "slashColor"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 8,
+   "rows": 1,
+   "frameW": 96,
+   "frameH": 96,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 2124,
+    "sha256": "86f8012c97b692011c26cdf3f2060f8fe7a9fecfc410a96702d1a075af04577c",
+    "width": 768,
+    "height": 96
+   }
+  },
+  {
+   "id": "arcaneslash",
+   "group": "effect",
+   "name": "Arcaneslash",
+   "key": "sprites/effects/custom/arcaneslash.768.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/custom/arcaneslash.768.png",
+   "categories": [
+    "melee",
+    "arcane",
+    "crit",
+    "spellcrit",
+    "largecrit",
+    "combo",
+    "custom"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 4,
+   "rows": 2,
+   "frameW": 192,
+   "frameH": 256,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 81418,
+    "sha256": "be3e57b27bfc96a82be1d0b251d2970d16928370e9bfbb36bd3399e1625214de",
+    "width": 768,
+    "height": 512
+   }
+  },
+  {
+   "id": "beamHoly",
+   "group": "effect",
+   "name": "Beam Holy",
+   "key": "sprites/effects/custom/beam.768.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/custom/beam.768.png",
+   "categories": [
+    "cast",
+    "buff",
+    "heal",
+    "holy",
+    "transform",
+    "huechange",
+    "custom"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 4,
+   "rows": 2,
+   "frameW": 192,
+   "frameH": 256,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 281000,
+    "sha256": "423750e576a1c0ddc6084f34301ff51688b93b9541811bb2e2274dabe8b55378",
+    "width": 768,
+    "height": 512
+   }
+  },
+  {
+   "id": "critSlash",
+   "group": "effect",
+   "name": "Crit Slash",
+   "key": "sprites/effects/custom/crit.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/custom/crit.png",
+   "categories": [
+    "impact",
+    "melee",
+    "physical",
+    "crit",
+    "combo",
+    "custom"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 4,
+   "declaredFrames": 4,
+   "cols": 4,
+   "rows": 1,
+   "frameW": 384,
+   "frameH": 394,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 163553,
+    "sha256": "856ee7783c67de9caa46849a157567c305e3f11e8d5f91ccef88d33204193d45",
+    "width": 1536,
+    "height": 394
+   }
+  },
+  {
+   "id": "flamestrike",
+   "group": "effect",
+   "name": "Flamestrike",
+   "key": "sprites/effects/custom/flamestrike.768.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/custom/flamestrike.768.png",
+   "categories": [
+    "fire",
+    "explosion",
+    "spellcrit",
+    "largecrit",
+    "huechange",
+    "custom"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 4,
+   "rows": 2,
+   "frameW": 192,
+   "frameH": 256,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 303382,
+    "sha256": "5ba20ab5891020399e71fe390bda0845a95584d016e19467cfe0d67e2bf01ed5",
+    "width": 768,
+    "height": 512
+   }
+  },
+  {
+   "id": "frostbolt",
+   "group": "effect",
+   "name": "Frostbolt",
+   "key": "sprites/effects/custom/frostbolt.768.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/custom/frostbolt.768.png",
+   "categories": [
+    "debuff",
+    "ice",
+    "spellcrit",
+    "frozen",
+    "huechange",
+    "custom"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 4,
+   "rows": 2,
+   "frameW": 192,
+   "frameH": 256,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 317602,
+    "sha256": "7c176c3f7f8cbe3fb736e3390653544ed6e209e46e5281b3118fbb7fd5dbf852",
+    "width": 768,
+    "height": 512
+   }
+  },
+  {
+   "id": "frozenIce",
+   "group": "effect",
+   "name": "Frozen Ice",
+   "key": "sprites/effects/custom/frozen.768.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/custom/frozen.768.png",
+   "categories": [
+    "debuff",
+    "ice",
+    "slow",
+    "frozen",
+    "custom"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 4,
+   "rows": 2,
+   "frameW": 192,
+   "frameH": 256,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 366941,
+    "sha256": "99c9b30a209afaf02c18f9b4e76eef8a5fd51a8ac32816d8c230d1b690154cc8",
+    "width": 768,
+    "height": 512
+   }
+  },
+  {
+   "id": "healingregen",
+   "group": "effect",
+   "name": "Healingregen",
+   "key": "sprites/effects/custom/healingregen.768.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/custom/healingregen.768.png",
+   "categories": [
+    "buff",
+    "heal",
+    "nature",
+    "custom"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 4,
+   "declaredFrames": 4,
+   "cols": 4,
+   "rows": 2,
+   "frameW": 192,
+   "frameH": 256,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 147921,
+    "sha256": "2d3f9e817d57ff7f7e01814dee48b026b188e1eb53e6d64617bf75b372f9336b",
+    "width": 768,
+    "height": 512
+   }
+  },
+  {
+   "id": "healingwave",
+   "group": "effect",
+   "name": "Healingwave",
+   "key": "sprites/effects/custom/healingwave.768.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/custom/healingwave.768.png",
+   "categories": [
+    "buff",
+    "heal",
+    "nature",
+    "huechange",
+    "custom"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 4,
+   "rows": 2,
+   "frameW": 192,
+   "frameH": 256,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 242447,
+    "sha256": "55238c78c4f959348bfd71c899991f3876cd1d5c4494811b66bf3a4e459fe114",
+    "width": 768,
+    "height": 512
+   }
+  },
+  {
+   "id": "hitBurst",
+   "group": "effect",
+   "name": "Hit Burst",
+   "key": "sprites/effects/custom/hit.768.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/custom/hit.768.png",
+   "categories": [
+    "impact",
+    "melee",
+    "physical",
+    "crit",
+    "combo",
+    "custom"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 4,
+   "rows": 2,
+   "frameW": 192,
+   "frameH": 256,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 182745,
+    "sha256": "8bb08a40ded095bb994d2cc236dc3f497ab0dc68392d3a701f1b622a19bc94eb",
+    "width": 768,
+    "height": 512
+   }
+  },
+  {
+   "id": "holyheal",
+   "group": "effect",
+   "name": "Holyheal",
+   "key": "sprites/effects/custom/holyheal.768.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/custom/holyheal.768.png",
+   "categories": [
+    "cast",
+    "buff",
+    "heal",
+    "holy",
+    "custom"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 4,
+   "declaredFrames": 4,
+   "cols": 4,
+   "rows": 2,
+   "frameW": 192,
+   "frameH": 256,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 96784,
+    "sha256": "184e1c5a5889c8cf01c88716e25dbc09b160aa4fa1f4cf252e8c33a6a06b42b6",
+    "width": 768,
+    "height": 512
+   }
+  },
+  {
+   "id": "holylight",
+   "group": "effect",
+   "name": "Holylight",
+   "key": "sprites/effects/custom/holylight.768.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/custom/holylight.768.png",
+   "categories": [
+    "cast",
+    "buff",
+    "heal",
+    "holy",
+    "transform",
+    "huechange",
+    "custom"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 4,
+   "rows": 2,
+   "frameW": 192,
+   "frameH": 256,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 210686,
+    "sha256": "75e446d286a778a7e1debd3980b375dc149cd779e65c1fce1ece8e6e3adbc200",
+    "width": 768,
+    "height": 512
+   }
+  },
+  {
+   "id": "arcanebolt",
+   "group": "effect",
+   "name": "Arcanebolt",
+   "key": "sprites/effects/custom/arcanebolt.768.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/custom/arcanebolt.768.png",
+   "categories": [
+    "arcane",
+    "spellcrit",
+    "huechange",
+    "custom"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 4,
+   "rows": 2,
+   "frameW": 192,
+   "frameH": 256,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 364049,
+    "sha256": "49c94830241560d618da620eb1631ac1aabde314eac67a0d208aa2f582edc7ca",
+    "width": 768,
+    "height": 512
+   }
+  },
+  {
+   "id": "arcanelighting",
+   "group": "effect",
+   "name": "Arcanelighting",
+   "key": "sprites/effects/custom/arcanelighting.768.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/custom/arcanelighting.768.png",
+   "categories": [
+    "lightning",
+    "arcane",
+    "spellcrit",
+    "largecrit",
+    "huechange",
+    "custom"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 4,
+   "rows": 2,
+   "frameW": 192,
+   "frameH": 256,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 253026,
+    "sha256": "54a49b0d91cebd8a1bd08c265f4cd8830c424bfd359cc0fdabf76e4e6bd653f4",
+    "width": 768,
+    "height": 512
+   }
+  },
+  {
+   "id": "arcanemist",
+   "group": "effect",
+   "name": "Arcanemist",
+   "key": "sprites/effects/custom/arcanemist.768.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/custom/arcanemist.768.png",
+   "categories": [
+    "cast",
+    "debuff",
+    "arcane",
+    "dark",
+    "sleep",
+    "transform",
+    "huechange",
+    "custom"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 4,
+   "rows": 2,
+   "frameW": 192,
+   "frameH": 256,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 360310,
+    "sha256": "25308aa96f7c6f631dd91ecbd44bf050496eb085e6548582a0702aa8af381f96",
+    "width": 768,
+    "height": 512
+   }
+  },
+  {
+   "id": "earthBump",
+   "group": "effect",
+   "name": "Earth Bump",
+   "key": "sprites/effects/pixel/earth_bump.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/earth_bump.png",
+   "categories": [
+    "earth",
+    "nature",
+    "explosion",
+    "stun",
+    "stone",
+    "pixel"
+   ],
+   "blendMode": "normal",
+   "fps": 16,
+   "frames": 16,
+   "declaredFrames": 16,
+   "cols": 4,
+   "rows": 4,
+   "frameW": 48,
+   "frameH": 48,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 1766,
+    "sha256": "f5559a016c5288c65b252f8ea1fb38a56238738e69605b4116bfea970fe0d167",
+    "width": 192,
+    "height": 192
+   }
+  },
+  {
+   "id": "earthWall",
+   "group": "effect",
+   "name": "Earth Wall",
+   "key": "sprites/effects/pixel/earth_wall.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/earth_wall.png",
+   "categories": [
+    "earth",
+    "block",
+    "stone",
+    "pixel"
+   ],
+   "blendMode": "normal",
+   "fps": 16,
+   "frames": 16,
+   "declaredFrames": 16,
+   "cols": 4,
+   "rows": 4,
+   "frameW": 48,
+   "frameH": 48,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 2063,
+    "sha256": "b267243c8c4c557a75b11203c58ed5f8f449409be6210939f6ed68293a2cc5b6",
+    "width": 192,
+    "height": 192
+   }
+  },
+  {
+   "id": "iceVfx1",
+   "group": "effect",
+   "name": "Ice Vfx 1",
+   "key": "sprites/effects/pixel/ice_vfx1.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/ice_vfx1.png",
+   "categories": [
+    "cast",
+    "ice",
+    "frozen",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 20,
+   "declaredFrames": 20,
+   "cols": 5,
+   "rows": 4,
+   "frameW": 192,
+   "frameH": 192,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 6311,
+    "sha256": "6a92c59e08bac09c87590a0eee3a1765190db999c585503a03c719d51a4b2038",
+    "width": 960,
+    "height": 768
+   }
+  },
+  {
+   "id": "iceHit",
+   "group": "effect",
+   "name": "Ice Hit",
+   "key": "sprites/effects/pixel/ice_hit.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/ice_hit.png",
+   "categories": [
+    "impact",
+    "ice",
+    "frozen",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 8,
+   "rows": 1,
+   "frameW": 48,
+   "frameH": 32,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 1277,
+    "sha256": "c12576ea77914aa4dad87323892efa6a5821706fa7f76dfb47580fadf114e20d",
+    "width": 384,
+    "height": 32
+   }
+  },
+  {
+   "id": "iceRepeatable",
+   "group": "effect",
+   "name": "Ice Repeatable",
+   "key": "sprites/effects/pixel/ice_repeatable.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/ice_repeatable.png",
+   "categories": [
+    "ice",
+    "frozen",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 10,
+   "declaredFrames": 10,
+   "cols": 10,
+   "rows": 1,
+   "frameW": 48,
+   "frameH": 32,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 1467,
+    "sha256": "f23c5360054f25127d6ad4d8ba33865983873bb994a830c721ae12105fa49098",
+    "width": 480,
+    "height": 32
+   }
+  },
+  {
+   "id": "iceStart",
+   "group": "effect",
+   "name": "Ice Start",
+   "key": "sprites/effects/pixel/ice_start.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/ice_start.png",
+   "categories": [
+    "ice",
+    "frozen",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 3,
+   "declaredFrames": 3,
+   "cols": 3,
+   "rows": 1,
+   "frameW": 48,
+   "frameH": 32,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 449,
+    "sha256": "9c496672542b9071afe190fe1d97c9cee48f1340b35cf948337c4ea747a05699",
+    "width": 144,
+    "height": 32
+   }
+  },
+  {
+   "id": "iceVfx2",
+   "group": "effect",
+   "name": "Ice Vfx 2",
+   "key": "sprites/effects/pixel/ice_vfx2.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/ice_vfx2.png",
+   "categories": [
+    "cast",
+    "ice",
+    "frozen",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 35,
+   "declaredFrames": 35,
+   "cols": 5,
+   "rows": 7,
+   "frameW": 192,
+   "frameH": 192,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 9364,
+    "sha256": "b2933cd26f7f7b12c0032585eb9f6f98ff67f44bdafb6b097c5f51c47eb8c3c9",
+    "width": 960,
+    "height": 1344
+   }
+  },
+  {
+   "id": "iceActive",
+   "group": "effect",
+   "name": "Ice Active",
+   "key": "sprites/effects/pixel/ice_active.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/ice_active.png",
+   "categories": [
+    "aura",
+    "debuff",
+    "ice",
+    "slow",
+    "frozen",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 8,
+   "rows": 1,
+   "frameW": 32,
+   "frameH": 32,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 1149,
+    "sha256": "c3e9a719b5e4c200e8536dd6a5a93683db1b59877a384a0d03ddb6eeddd45cd3",
+    "width": 256,
+    "height": 32
+   }
+  },
+  {
+   "id": "iceVfx2Start",
+   "group": "effect",
+   "name": "Ice Vfx 2Start",
+   "key": "sprites/effects/pixel/ice_vfx2_start.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/ice_vfx2_start.png",
+   "categories": [
+    "ice",
+    "frozen",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 9,
+   "declaredFrames": 9,
+   "cols": 9,
+   "rows": 1,
+   "frameW": 32,
+   "frameH": 32,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 941,
+    "sha256": "3fa3f07350256f9ea5b46f37d8a77064c1785f67c02f992f956693718f347bfc",
+    "width": 288,
+    "height": 32
+   }
+  },
+  {
+   "id": "iceEnding",
+   "group": "effect",
+   "name": "Ice Ending",
+   "key": "sprites/effects/pixel/ice_ending.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/ice_ending.png",
+   "categories": [
+    "ice",
+    "frozen",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 18,
+   "declaredFrames": 18,
+   "cols": 18,
+   "rows": 1,
+   "frameW": 32,
+   "frameH": 32,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 1490,
+    "sha256": "79dc5f02015acfef44e13516e217e32d8e42d49af16a16cc8bb9a911e2a2e317",
+    "width": 576,
+    "height": 32
+   }
+  },
+  {
+   "id": "smokeVfx1",
+   "group": "effect",
+   "name": "Smoke Vfx 1",
+   "key": "sprites/effects/pixel/smoke_vfx1.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/smoke_vfx1.png",
+   "categories": [
+    "earth",
+    "poison",
+    "movement",
+    "dodge",
+    "stone",
+    "huechange",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 9,
+   "declaredFrames": 9,
+   "cols": 9,
+   "rows": 1,
+   "frameW": 48,
+   "frameH": 32,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 1068,
+    "sha256": "2a870ef4dfdfd9557f2c8f81be1e20c0e53adc0c5f881c2234d6427c2f67fc19",
+    "width": 432,
+    "height": 32
+   }
+  },
+  {
+   "id": "smokeVfx2",
+   "group": "effect",
+   "name": "Smoke Vfx 2",
+   "key": "sprites/effects/pixel/smoke_vfx2.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/smoke_vfx2.png",
+   "categories": [
+    "debuff",
+    "earth",
+    "dark",
+    "poison",
+    "movement",
+    "slow",
+    "sleep",
+    "huechange",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 12,
+   "declaredFrames": 12,
+   "cols": 13,
+   "rows": 1,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 5169,
+    "sha256": "0c82a78f0f878a3c9380a3430ff420e8df1d64dc7cfa90f5dfa7ec456e177c46",
+    "width": 832,
+    "height": 64
+   }
+  },
+  {
+   "id": "smokeVfx3",
+   "group": "effect",
+   "name": "Smoke Vfx 3",
+   "key": "sprites/effects/pixel/smoke_vfx3.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/smoke_vfx3.png",
+   "categories": [
+    "earth",
+    "poison",
+    "movement",
+    "dodge",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 10,
+   "rows": 1,
+   "frameW": 32,
+   "frameH": 16,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 508,
+    "sha256": "3484f53655087a811d325fc5d7a6ccac8d2093c4c1fc3a1d29568058ba0d2813",
+    "width": 320,
+    "height": 16
+   }
+  },
+  {
+   "id": "waterSpike",
+   "group": "effect",
+   "name": "Water Spike",
+   "key": "sprites/effects/pixel/water_spike.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/water_spike.png",
+   "categories": [
+    "water",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 25,
+   "declaredFrames": 25,
+   "cols": 5,
+   "rows": 5,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 10440,
+    "sha256": "ebeb7830f5977dca1e468ea97dcfb1794734e6d1144b770f3df98803757a957d",
+    "width": 320,
+    "height": 320
+   }
+  },
+  {
+   "id": "waterSplash",
+   "group": "effect",
+   "name": "Water Splash",
+   "key": "sprites/effects/pixel/water_splash.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/water_splash.png",
+   "categories": [
+    "heal",
+    "water",
+    "nature",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 25,
+   "declaredFrames": 25,
+   "cols": 5,
+   "rows": 5,
+   "frameW": 66,
+   "frameH": 61,
+   "layoutSource": "catalog-grid-trimmed",
+   "layoutNote": "catalog frame 66x62 slightly overflowed 330x308; trimmed to 66x61",
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 15607,
+    "sha256": "298c33016933d06d376e55201728a16da28a2c33796b298e085c56c4bc74c9aa",
+    "width": 330,
+    "height": 308
+   }
+  },
+  {
+   "id": "waterStartup1",
+   "group": "effect",
+   "name": "Water Startup 1",
+   "key": "sprites/effects/pixel/water_startup1.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/water_startup1.png",
+   "categories": [
+    "heal",
+    "water",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 11,
+   "declaredFrames": 11,
+   "cols": 1,
+   "rows": 11,
+   "frameW": 64,
+   "frameH": 16,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 1400,
+    "sha256": "6fe4fe27fab9f14e22bd865fcfea384f9f51e51b05fcc98e6e8ccf99ab553dfb",
+    "width": 64,
+    "height": 176
+   }
+  },
+  {
+   "id": "waterStartup2",
+   "group": "effect",
+   "name": "Water Startup 2",
+   "key": "sprites/effects/pixel/water_startup2.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/water_startup2.png",
+   "categories": [
+    "heal",
+    "water",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 11,
+   "declaredFrames": 11,
+   "cols": 1,
+   "rows": 11,
+   "frameW": 64,
+   "frameH": 16,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 1486,
+    "sha256": "25f5ba38ed61cc462e6c6247fa8cd4065dd98f44a6b21cea56debd2db4927173",
+    "width": 64,
+    "height": 176
+   }
+  },
+  {
+   "id": "thrust1",
+   "group": "effect",
+   "name": "Thrust 1",
+   "key": "sprites/effects/pixel/thrust1.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/thrust1.png",
+   "categories": [
+    "melee",
+    "physical",
+    "movement",
+    "counter",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 3,
+   "declaredFrames": 3,
+   "cols": 1,
+   "rows": 3,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 608,
+    "sha256": "d4b770592180941dd8e8dfb2986093dc3ab7c60161f818035651340aaed45635",
+    "width": 64,
+    "height": 192
+   }
+  },
+  {
+   "id": "thrust2",
+   "group": "effect",
+   "name": "Thrust 2",
+   "key": "sprites/effects/pixel/thrust2.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/thrust2.png",
+   "categories": [
+    "melee",
+    "physical",
+    "movement",
+    "counter",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 3,
+   "declaredFrames": 3,
+   "cols": 1,
+   "rows": 3,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 402,
+    "sha256": "bd812a19d5837ef4cdedd51151a6b6b6930a18490474bccba2ac4f9a0f025db0",
+    "width": 64,
+    "height": 192
+   }
+  },
+  {
+   "id": "effect1",
+   "group": "effect",
+   "name": "Effect 1",
+   "key": "sprites/effects/pixel/effect1.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/effect1.png",
+   "categories": [
+    "melee",
+    "physical",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 3,
+   "declaredFrames": 3,
+   "cols": 1,
+   "rows": 3,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 2072,
+    "sha256": "45897cbd5ad94dbd9ed3c75113033f88e21eb20575d71bf186c2d626fdf4f17f",
+    "width": 64,
+    "height": 192
+   }
+  },
+  {
+   "id": "effect2",
+   "group": "effect",
+   "name": "Effect 2",
+   "key": "sprites/effects/pixel/effect2.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/effect2.png",
+   "categories": [
+    "pixel",
+    "misc"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 10,
+   "declaredFrames": 10,
+   "cols": 2,
+   "rows": 5,
+   "frameW": 32,
+   "frameH": 32,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 1816,
+    "sha256": "851deb070970947c8ff68a1aa22fe8078d37c2d069abd18308294c3ea4762dec",
+    "width": 64,
+    "height": 160
+   }
+  },
+  {
+   "id": "effect3",
+   "group": "effect",
+   "name": "Effect 3",
+   "key": "sprites/effects/pixel/effect3.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/effect3.png",
+   "categories": [
+    "stun",
+    "pixel",
+    "misc"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 5,
+   "declaredFrames": 5,
+   "cols": 1,
+   "rows": 5,
+   "frameW": 32,
+   "frameH": 32,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 483,
+    "sha256": "fe823124b614a0f0e94bc56cd744ac6533206eb1eb06ac4a87eaadada5e7b925",
+    "width": 32,
+    "height": 160
+   }
+  },
+  {
+   "id": "effect4",
+   "group": "effect",
+   "name": "Effect 4",
+   "key": "sprites/effects/pixel/effect4.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/effect4.png",
+   "categories": [
+    "dodge",
+    "pixel",
+    "misc"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 5,
+   "declaredFrames": 5,
+   "cols": 1,
+   "rows": 5,
+   "frameW": 32,
+   "frameH": 32,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 413,
+    "sha256": "acbb3ed750d4048ae624af5c5f79548c17006c5147451573fed4ff3f9a1aaf66",
+    "width": 32,
+    "height": 160
+   }
+  },
+  {
+   "id": "smearH1",
+   "group": "effect",
+   "name": "Smear H1",
+   "key": "sprites/effects/pixel/smear_h1.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/smear_h1.png",
+   "categories": [
+    "melee",
+    "physical",
+    "combo",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 5,
+   "declaredFrames": 5,
+   "cols": 5,
+   "rows": 1,
+   "frameW": 48,
+   "frameH": 48,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 471,
+    "sha256": "a1e28b8951857d94f474b88b9bbd3bc6565b213a3cc7c0aeeeccc17d1fac9768",
+    "width": 240,
+    "height": 48
+   }
+  },
+  {
+   "id": "smearH2",
+   "group": "effect",
+   "name": "Smear H2",
+   "key": "sprites/effects/pixel/smear_h2.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/smear_h2.png",
+   "categories": [
+    "melee",
+    "physical",
+    "combo",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 5,
+   "declaredFrames": 5,
+   "cols": 5,
+   "rows": 1,
+   "frameW": 48,
+   "frameH": 48,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 452,
+    "sha256": "821f3fe902a81e326a43b4344f77a59f68c05eedc3c3ff6e6a23c2ce146733fc",
+    "width": 240,
+    "height": 48
+   }
+  },
+  {
+   "id": "smearH3",
+   "group": "effect",
+   "name": "Smear H3",
+   "key": "sprites/effects/pixel/smear_h3.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/smear_h3.png",
+   "categories": [
+    "melee",
+    "physical",
+    "combo",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 5,
+   "declaredFrames": 5,
+   "cols": 5,
+   "rows": 1,
+   "frameW": 48,
+   "frameH": 48,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 447,
+    "sha256": "1816e4b903bdb3ae79499b182488aaec6e6ca1699950286dc7ba58a80d772b1c",
+    "width": 240,
+    "height": 48
+   }
+  },
+  {
+   "id": "smearV1",
+   "group": "effect",
+   "name": "Smear V1",
+   "key": "sprites/effects/pixel/smear_v1.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/smear_v1.png",
+   "categories": [
+    "melee",
+    "physical",
+    "counter",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 6,
+   "declaredFrames": 6,
+   "cols": 6,
+   "rows": 1,
+   "frameW": 48,
+   "frameH": 48,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 436,
+    "sha256": "9b8791dd6894259ed3eb488786f15007cdd59bfe86b87ec7a048880e6ab50c37",
+    "width": 288,
+    "height": 48
+   }
+  },
+  {
+   "id": "smearV2",
+   "group": "effect",
+   "name": "Smear V2",
+   "key": "sprites/effects/pixel/smear_v2.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/smear_v2.png",
+   "categories": [
+    "melee",
+    "physical",
+    "counter",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 6,
+   "declaredFrames": 6,
+   "cols": 6,
+   "rows": 1,
+   "frameW": 48,
+   "frameH": 48,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 444,
+    "sha256": "325a85af7a7f2cd7781540c0ead6ca32e279f4636cf491eea5ec0cf328d513cd",
+    "width": 288,
+    "height": 48
+   }
+  },
+  {
+   "id": "smearV3",
+   "group": "effect",
+   "name": "Smear V3",
+   "key": "sprites/effects/pixel/smear_v3.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/smear_v3.png",
+   "categories": [
+    "melee",
+    "physical",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 6,
+   "declaredFrames": 6,
+   "cols": 6,
+   "rows": 1,
+   "frameW": 48,
+   "frameH": 48,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 433,
+    "sha256": "d1f8551ee5aeb5fc81cef7eaef5bf7cf2c89b9005f2e963ee38f546fb549d53d",
+    "width": 288,
+    "height": 48
+   }
+  },
+  {
+   "id": "impactFireA",
+   "group": "effect",
+   "name": "Impact Fire A",
+   "key": "sprites/effects/retro_impact/impactFireA.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/retro_impact/impactFireA.png",
+   "categories": [
+    "impact",
+    "fire",
+    "explosion",
+    "combo",
+    "retro"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 54,
+   "declaredFrames": 54,
+   "cols": 9,
+   "rows": 6,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 46008,
+    "sha256": "f7f0c370e0710840da00202c4ab452529971559669f36823e3d02904bd45372d",
+    "width": 576,
+    "height": 384
+   }
+  },
+  {
+   "id": "impactFireB",
+   "group": "effect",
+   "name": "Impact Fire B",
+   "key": "sprites/effects/retro_impact/impactFireB.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/retro_impact/impactFireB.png",
+   "categories": [
+    "impact",
+    "fire",
+    "explosion",
+    "retro"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 54,
+   "declaredFrames": 54,
+   "cols": 9,
+   "rows": 6,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 34457,
+    "sha256": "d4005340f59180750c351e6782dd051b988476923b640bf61482a2ab6dea0a30",
+    "width": 576,
+    "height": 384
+   }
+  },
+  {
+   "id": "impactYellowA",
+   "group": "effect",
+   "name": "Impact Yellow A",
+   "key": "sprites/effects/retro_impact/impactYellowA.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/retro_impact/impactYellowA.png",
+   "categories": [
+    "impact",
+    "lightning",
+    "holy",
+    "stun",
+    "retro"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 54,
+   "declaredFrames": 54,
+   "cols": 9,
+   "rows": 6,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 33813,
+    "sha256": "e85389be59273139a2231b60ad86735e08e77b018435f74dc8402f0ddf771c07",
+    "width": 576,
+    "height": 384
+   }
+  },
+  {
+   "id": "impactYellowB",
+   "group": "effect",
+   "name": "Impact Yellow B",
+   "key": "sprites/effects/retro_impact/impactYellowB.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/retro_impact/impactYellowB.png",
+   "categories": [
+    "impact",
+    "lightning",
+    "holy",
+    "stun",
+    "retro"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 54,
+   "declaredFrames": 54,
+   "cols": 9,
+   "rows": 6,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 40701,
+    "sha256": "5c3fc8f4e54f68d0a4639eb28ddde97ca7897457a3b8df52b59e94674d770d43",
+    "width": 576,
+    "height": 384
+   }
+  },
+  {
+   "id": "impactRedA",
+   "group": "effect",
+   "name": "Impact Red A",
+   "key": "sprites/effects/retro_impact/impactRedA.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/retro_impact/impactRedA.png",
+   "categories": [
+    "impact",
+    "fire",
+    "explosion",
+    "combo",
+    "retro"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 54,
+   "declaredFrames": 54,
+   "cols": 9,
+   "rows": 6,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 55350,
+    "sha256": "ec458ac9ceddcc2c16aed31952ad6a85c8c1084b01e675389a62c832c2695020",
+    "width": 576,
+    "height": 384
+   }
+  },
+  {
+   "id": "impactRedB",
+   "group": "effect",
+   "name": "Impact Red B",
+   "key": "sprites/effects/retro_impact/impactRedB.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/retro_impact/impactRedB.png",
+   "categories": [
+    "impact",
+    "fire",
+    "explosion",
+    "retro"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 54,
+   "declaredFrames": 54,
+   "cols": 9,
+   "rows": 6,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 52753,
+    "sha256": "029026d269882681081cf9299312d6aface7d00c81b9994a557ba13f665318d9",
+    "width": 576,
+    "height": 384
+   }
+  },
+  {
+   "id": "impactOrangeA",
+   "group": "effect",
+   "name": "Impact Orange A",
+   "key": "sprites/effects/retro_impact/impactOrangeA.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/retro_impact/impactOrangeA.png",
+   "categories": [
+    "impact",
+    "fire",
+    "lightning",
+    "earth",
+    "combo",
+    "retro"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 54,
+   "declaredFrames": 54,
+   "cols": 9,
+   "rows": 6,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 70318,
+    "sha256": "3362a0e498d1b0f048c75a46523a0bbc32ecf7e9d68a86ec347ece98763f66cf",
+    "width": 576,
+    "height": 384
+   }
+  },
+  {
+   "id": "impactOrangeB",
+   "group": "effect",
+   "name": "Impact Orange B",
+   "key": "sprites/effects/retro_impact/impactOrangeB.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/retro_impact/impactOrangeB.png",
+   "categories": [
+    "impact",
+    "fire",
+    "lightning",
+    "earth",
+    "retro"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 54,
+   "declaredFrames": 54,
+   "cols": 9,
+   "rows": 6,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 75798,
+    "sha256": "cf96180f24ab7a7d5e60a1a7639266adc97ed1d870695ef81164a87b6537e09b",
+    "width": 576,
+    "height": 384
+   }
+  },
+  {
+   "id": "impactPurpleA",
+   "group": "effect",
+   "name": "Impact Purple A",
+   "key": "sprites/effects/retro_impact/impactPurpleA.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/retro_impact/impactPurpleA.png",
+   "categories": [
+    "impact",
+    "arcane",
+    "dark",
+    "retro"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 54,
+   "declaredFrames": 54,
+   "cols": 9,
+   "rows": 6,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 44795,
+    "sha256": "5ecbe738de0fe4e43cd9ec60c50374b03cd196d90f583b7730bca034bca2501f",
+    "width": 576,
+    "height": 384
+   }
+  },
+  {
+   "id": "impactCyanA",
+   "group": "effect",
+   "name": "Impact Cyan A",
+   "key": "sprites/effects/retro_impact/impactCyanA.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/retro_impact/impactCyanA.png",
+   "categories": [
+    "impact",
+    "ice",
+    "water",
+    "retro"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 54,
+   "declaredFrames": 54,
+   "cols": 9,
+   "rows": 6,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 35503,
+    "sha256": "2338e755fb4174680969e200d4c82ae48a57d9aec640d8e590fbcd0d4d596a34",
+    "width": 576,
+    "height": 384
+   }
+  },
+  {
+   "id": "impactCyanB",
+   "group": "effect",
+   "name": "Impact Cyan B",
+   "key": "sprites/effects/retro_impact/impactCyanB.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/retro_impact/impactCyanB.png",
+   "categories": [
+    "impact",
+    "ice",
+    "water",
+    "retro"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 54,
+   "declaredFrames": 54,
+   "cols": 9,
+   "rows": 6,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 38085,
+    "sha256": "44f689d0cdd10cabf15812cbbd396d61828f1003776b23e8ca5af9ff9e9b60eb",
+    "width": 576,
+    "height": 384
+   }
+  },
+  {
+   "id": "impactBlueA",
+   "group": "effect",
+   "name": "Impact Blue A",
+   "key": "sprites/effects/retro_impact/impactBlueA.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/retro_impact/impactBlueA.png",
+   "categories": [
+    "impact",
+    "ice",
+    "arcane",
+    "retro"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 54,
+   "declaredFrames": 54,
+   "cols": 9,
+   "rows": 6,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 46118,
+    "sha256": "f606fecbbbe6ed3a6830e680613b8a0c48b0880776561a515466cf9d003093b7",
+    "width": 576,
+    "height": 384
+   }
+  },
+  {
+   "id": "impactBlueB",
+   "group": "effect",
+   "name": "Impact Blue B",
+   "key": "sprites/effects/retro_impact/impactBlueB.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/retro_impact/impactBlueB.png",
+   "categories": [
+    "impact",
+    "ice",
+    "arcane",
+    "retro"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 54,
+   "declaredFrames": 54,
+   "cols": 9,
+   "rows": 6,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 48877,
+    "sha256": "b1e5c61ea89fa4a2bc21217dacad066cd8dda8a5850b1af21316724d64a3e206",
+    "width": 576,
+    "height": 384
+   }
+  },
+  {
+   "id": "impactGreenA",
+   "group": "effect",
+   "name": "Impact Green A",
+   "key": "sprites/effects/retro_impact/impactGreenA.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/retro_impact/impactGreenA.png",
+   "categories": [
+    "impact",
+    "wind",
+    "nature",
+    "poison",
+    "retro"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 54,
+   "declaredFrames": 54,
+   "cols": 9,
+   "rows": 6,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 66890,
+    "sha256": "cc050aee03750f9f508fa0cfa0bfd56a15a7ed92e2ce889a0fd8e313b932a0ae",
+    "width": 576,
+    "height": 384
+   }
+  },
+  {
+   "id": "impactGreenB",
+   "group": "effect",
+   "name": "Impact Green B",
+   "key": "sprites/effects/retro_impact/impactGreenB.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/retro_impact/impactGreenB.png",
+   "categories": [
+    "impact",
+    "wind",
+    "nature",
+    "poison",
+    "retro"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 54,
+   "declaredFrames": 54,
+   "cols": 9,
+   "rows": 6,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 67723,
+    "sha256": "dfa06aab591c2124f80e0d096e03013180ccb04a98b743e0e76a3ad6b5095ed4",
+    "width": 576,
+    "height": 384
+   }
+  },
+  {
+   "id": "impactWhiteA",
+   "group": "effect",
+   "name": "Impact White A",
+   "key": "sprites/effects/retro_impact/impactWhiteA.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/retro_impact/impactWhiteA.png",
+   "categories": [
+    "impact",
+    "holy",
+    "block",
+    "retro"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 54,
+   "declaredFrames": 54,
+   "cols": 9,
+   "rows": 6,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 49658,
+    "sha256": "2b81b5271904269a4a38492de49fcf894f2622e95c0d8eb8632b2d92c489100d",
+    "width": 576,
+    "height": 384
+   }
+  },
+  {
+   "id": "impactPinkA",
+   "group": "effect",
+   "name": "Impact Pink A",
+   "key": "sprites/effects/retro_impact/impactPinkA.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/retro_impact/impactPinkA.png",
+   "categories": [
+    "impact",
+    "retro"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 54,
+   "declaredFrames": 54,
+   "cols": 9,
+   "rows": 6,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 40240,
+    "sha256": "b86ae2d7df9a4cfc034212084ab7918a3063aa25c2e0908f04b42c9b31594c94",
+    "width": 576,
+    "height": 384
+   }
+  },
+  {
+   "id": "impactMagentaA",
+   "group": "effect",
+   "name": "Impact Magenta A",
+   "key": "sprites/effects/retro_impact/impactMagentaA.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/retro_impact/impactMagentaA.png",
+   "categories": [
+    "impact",
+    "arcane",
+    "dark",
+    "retro"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 54,
+   "declaredFrames": 54,
+   "cols": 9,
+   "rows": 6,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 51611,
+    "sha256": "5c3faead07a4ee58fdc3eee40437f314f65250505951f7c822ea8b7f02b56fc9",
+    "width": 576,
+    "height": 384
+   }
+  },
+  {
+   "id": "impactTealA",
+   "group": "effect",
+   "name": "Impact Teal A",
+   "key": "sprites/effects/retro_impact/impactTealA.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/retro_impact/impactTealA.png",
+   "categories": [
+    "impact",
+    "water",
+    "wind",
+    "nature",
+    "haste",
+    "retro"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 54,
+   "declaredFrames": 54,
+   "cols": 9,
+   "rows": 6,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 74902,
+    "sha256": "4513003698b03dae6ccc7ea4cca6aacd77a508f2bc5996af5a22b3ac24969133",
+    "width": 576,
+    "height": 384
+   }
+  },
+  {
+   "id": "impactTealB",
+   "group": "effect",
+   "name": "Impact Teal B",
+   "key": "sprites/effects/retro_impact/impactTealB.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/retro_impact/impactTealB.png",
+   "categories": [
+    "impact",
+    "water",
+    "wind",
+    "nature",
+    "retro"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 54,
+   "declaredFrames": 54,
+   "cols": 9,
+   "rows": 6,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 72780,
+    "sha256": "7408fa9dba072f36b7a45c599c061ce7db9e73483a885027e0c2b5ff85afcdb6",
+    "width": 576,
+    "height": 384
+   }
+  },
+  {
+   "id": "bulletImpactBlue",
+   "group": "effect",
+   "name": "Bullet Impact Blue",
+   "key": "sprites/effects/bullet_impact/bullet_blue.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/bullet_impact/bullet_blue.png",
+   "categories": [
+    "projectile",
+    "bulletImpact"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 320,
+   "declaredFrames": 320,
+   "cols": 20,
+   "rows": 16,
+   "frameW": 32,
+   "frameH": 32,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 75020,
+    "sha256": "36e75bad7a1b0ea2edf938dea2cad2f69f223f7ef6946416eeb91c4da93450a4",
+    "width": 640,
+    "height": 512
+   }
+  },
+  {
+   "id": "bulletImpactGreen",
+   "group": "effect",
+   "name": "Bullet Impact Green",
+   "key": "sprites/effects/bullet_impact/bullet_green.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/bullet_impact/bullet_green.png",
+   "categories": [
+    "projectile",
+    "bulletImpact"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 320,
+   "declaredFrames": 320,
+   "cols": 20,
+   "rows": 16,
+   "frameW": 32,
+   "frameH": 32,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 76996,
+    "sha256": "968e0bb4b4040bbd95c174e59435a74bcb14ed0755d367aafef5c9811feef80c",
+    "width": 640,
+    "height": 512
+   }
+  },
+  {
+   "id": "bulletImpactPurple",
+   "group": "effect",
+   "name": "Bullet Impact Purple",
+   "key": "sprites/effects/bullet_impact/bullet_purple.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/bullet_impact/bullet_purple.png",
+   "categories": [
+    "projectile",
+    "bulletImpact"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 320,
+   "declaredFrames": 320,
+   "cols": 20,
+   "rows": 16,
+   "frameW": 32,
+   "frameH": 32,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 75150,
+    "sha256": "bc34a2dbb9df63d59435ef473aa1ed57f17e01bc074006090678ebae248d81f9",
+    "width": 640,
+    "height": 512
+   }
+  },
+  {
+   "id": "bulletImpactRed",
+   "group": "effect",
+   "name": "Bullet Impact Red",
+   "key": "sprites/effects/bullet_impact/bullet_red.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/bullet_impact/bullet_red.png",
+   "categories": [
+    "projectile",
+    "bulletImpact"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 320,
+   "declaredFrames": 320,
+   "cols": 20,
+   "rows": 16,
+   "frameW": 32,
+   "frameH": 32,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 75405,
+    "sha256": "5631b1322f7001ce540aedbe4720651d5c5a86cc45be1442222980e7bcbd7d9d",
+    "width": 640,
+    "height": 512
+   }
+  },
+  {
+   "id": "bulletImpactYellow",
+   "group": "effect",
+   "name": "Bullet Impact Yellow",
+   "key": "sprites/effects/bullet_impact/bullet_yellow.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/bullet_impact/bullet_yellow.png",
+   "categories": [
+    "projectile",
+    "bulletImpact"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 320,
+   "declaredFrames": 320,
+   "cols": 20,
+   "rows": 16,
+   "frameW": 32,
+   "frameH": 32,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 75723,
+    "sha256": "d2cec4161df921de2f943d99ae72043106fdc7a3c0cfa108c3b15476757930a4",
+    "width": 640,
+    "height": 512
+   }
+  },
+  {
+   "id": "impactFireC",
+   "group": "effect",
+   "name": "Impact Fire C",
+   "key": "sprites/effects/retro_impact/impactFireC.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/retro_impact/impactFireC.png",
+   "categories": [
+    "impact",
+    "fire",
+    "explosion",
+    "retro"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 54,
+   "declaredFrames": 54,
+   "cols": 9,
+   "rows": 6,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 48630,
+    "sha256": "c0e65ff08295555ba7ebd92d6a8d1a4fc259ac40bc3c5ed6607f16ba45388a5a",
+    "width": 576,
+    "height": 384
+   }
+  },
+  {
+   "id": "impactFireD",
+   "group": "effect",
+   "name": "Impact Fire D",
+   "key": "sprites/effects/retro_impact/impactFireD.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/retro_impact/impactFireD.png",
+   "categories": [
+    "impact",
+    "fire",
+    "explosion",
+    "retro"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 54,
+   "declaredFrames": 54,
+   "cols": 9,
+   "rows": 6,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 35713,
+    "sha256": "1410d728acee6ac1b45989c56abe6cc70758ed141750e223460fdc253d4d0cb2",
+    "width": 576,
+    "height": 384
+   }
+  },
+  {
+   "id": "impactMagentaB",
+   "group": "effect",
+   "name": "Impact Magenta B",
+   "key": "sprites/effects/retro_impact/impactMagentaB.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/retro_impact/impactMagentaB.png",
+   "categories": [
+    "impact",
+    "arcane",
+    "dark",
+    "retro"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 54,
+   "declaredFrames": 54,
+   "cols": 9,
+   "rows": 6,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 51315,
+    "sha256": "e764beb55812178a6a223602c4532f29b8638c0b2423810302fb60a235be8681",
+    "width": 576,
+    "height": 384
+   }
+  },
+  {
+   "id": "impactPinkB",
+   "group": "effect",
+   "name": "Impact Pink B",
+   "key": "sprites/effects/retro_impact/impactPinkB.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/retro_impact/impactPinkB.png",
+   "categories": [
+    "impact",
+    "retro"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 54,
+   "declaredFrames": 54,
+   "cols": 9,
+   "rows": 6,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 38947,
+    "sha256": "3979a2a09fb83025de4228b592d36577b82f23587e37b4ef4f69875523e8853f",
+    "width": 576,
+    "height": 384
+   }
+  },
+  {
+   "id": "impactPurpleB",
+   "group": "effect",
+   "name": "Impact Purple B",
+   "key": "sprites/effects/retro_impact/impactPurpleB.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/retro_impact/impactPurpleB.png",
+   "categories": [
+    "impact",
+    "arcane",
+    "dark",
+    "retro"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 54,
+   "declaredFrames": 54,
+   "cols": 9,
+   "rows": 6,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 32772,
+    "sha256": "d3adaf4a10b7411e38a4b84b9ae832f2290f8006ada6be1efae767f645891336",
+    "width": 576,
+    "height": 384
+   }
+  },
+  {
+   "id": "impactPurpleC",
+   "group": "effect",
+   "name": "Impact Purple C",
+   "key": "sprites/effects/retro_impact/impactPurpleC.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/retro_impact/impactPurpleC.png",
+   "categories": [
+    "impact",
+    "arcane",
+    "dark",
+    "retro"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 54,
+   "declaredFrames": 54,
+   "cols": 9,
+   "rows": 6,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 45287,
+    "sha256": "36d491998a3d9e5beb3ecf052e5159950010c0186c52532bc95a2a72944cc5d9",
+    "width": 576,
+    "height": 384
+   }
+  },
+  {
+   "id": "impactPurpleD",
+   "group": "effect",
+   "name": "Impact Purple D",
+   "key": "sprites/effects/retro_impact/impactPurpleD.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/retro_impact/impactPurpleD.png",
+   "categories": [
+    "impact",
+    "arcane",
+    "dark",
+    "retro"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 54,
+   "declaredFrames": 54,
+   "cols": 9,
+   "rows": 6,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 33359,
+    "sha256": "835beb6a67d375e9a389d42e6c2f656fab04ac279021a2dc9b6e827b55ff137e",
+    "width": 576,
+    "height": 384
+   }
+  },
+  {
+   "id": "impactWhiteB",
+   "group": "effect",
+   "name": "Impact White B",
+   "key": "sprites/effects/retro_impact/impactWhiteB.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/retro_impact/impactWhiteB.png",
+   "categories": [
+    "impact",
+    "holy",
+    "block",
+    "retro"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 54,
+   "declaredFrames": 54,
+   "cols": 9,
+   "rows": 6,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 36210,
+    "sha256": "fefac389c2995b896e38faa25af0f4fe85c64d3a613e41e66110b7aa16583271",
+    "width": 576,
+    "height": 384
+   }
+  },
+  {
+   "id": "impactWhiteC",
+   "group": "effect",
+   "name": "Impact White C",
+   "key": "sprites/effects/retro_impact/impactWhiteC.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/retro_impact/impactWhiteC.png",
+   "categories": [
+    "impact",
+    "holy",
+    "retro"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 54,
+   "declaredFrames": 54,
+   "cols": 9,
+   "rows": 6,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 48007,
+    "sha256": "6585b23d05b44c8e59b1bb9150c587ca9802fd79692fcf74f9a32f2aa12e078a",
+    "width": 576,
+    "height": 384
+   }
+  },
+  {
+   "id": "impactWhiteD",
+   "group": "effect",
+   "name": "Impact White D",
+   "key": "sprites/effects/retro_impact/impactWhiteD.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/retro_impact/impactWhiteD.png",
+   "categories": [
+    "impact",
+    "holy",
+    "retro"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 54,
+   "declaredFrames": 54,
+   "cols": 9,
+   "rows": 6,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 34833,
+    "sha256": "f5c2022155f60f181ed6e76b95a3ae52263f77080d4be680d0f931617d57c20a",
+    "width": 576,
+    "height": 384
+   }
+  },
+  {
+   "id": "fireBreath",
+   "group": "effect",
+   "name": "Fire Breath",
+   "key": "sprites/effects/pixel/fire_breath.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/fire_breath.png",
+   "categories": [
+    "projectile",
+    "fire",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 24,
+   "declaredFrames": 24,
+   "cols": 8,
+   "rows": 3,
+   "frameW": 48,
+   "frameH": 48,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 7207,
+    "sha256": "c5189fd197012cd49c710aae063ce7e63ba7585d7602bc2c4565fbfe33962ccc",
+    "width": 384,
+    "height": 144
+   }
+  },
+  {
+   "id": "fireBreathHit",
+   "group": "effect",
+   "name": "Fire Breath Hit",
+   "key": "sprites/effects/pixel/fire_breath_hit.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/fire_breath_hit.png",
+   "categories": [
+    "impact",
+    "projectile",
+    "fire",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 5,
+   "declaredFrames": 5,
+   "cols": 5,
+   "rows": 1,
+   "frameW": 48,
+   "frameH": 48,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 1574,
+    "sha256": "78863e3707cdd85eb7d2613d76e72692f05ecf17d0b1392f8a08897e12714197",
+    "width": 240,
+    "height": 48
+   }
+  },
+  {
+   "id": "firebolt",
+   "group": "effect",
+   "name": "Firebolt",
+   "key": "sprites/effects/pixel/firebolt.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/firebolt.png",
+   "categories": [
+    "projectile",
+    "fire",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 11,
+   "declaredFrames": 11,
+   "cols": 11,
+   "rows": 1,
+   "frameW": 48,
+   "frameH": 48,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 2994,
+    "sha256": "835f9dc5f84db4e5d847943558fa781998f33012a888c7834f9e77a390b966eb",
+    "width": 528,
+    "height": 48
+   }
+  },
+  {
+   "id": "waterBall",
+   "group": "effect",
+   "name": "Water Ball",
+   "key": "sprites/effects/pixel/water_ball.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/water_ball.png",
+   "categories": [
+    "projectile",
+    "water",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 25,
+   "declaredFrames": 25,
+   "cols": 5,
+   "rows": 5,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 17678,
+    "sha256": "91d18974cf620371c74be03b5b3fc919cc6492210f42e982be8cd9b47e94ebf0",
+    "width": 320,
+    "height": 320
+   }
+  },
+  {
+   "id": "waterBallImpact",
+   "group": "effect",
+   "name": "Water Ball Impact",
+   "key": "sprites/effects/pixel/water_ball_impact.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/water_ball_impact.png",
+   "categories": [
+    "impact",
+    "water",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 16,
+   "declaredFrames": 16,
+   "cols": 4,
+   "rows": 4,
+   "frameW": 64,
+   "frameH": 64,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 19857,
+    "sha256": "85c3c1fc1bad5490a651d0e2d024d61f81913b526e2bc758216297d14965a063",
+    "width": 256,
+    "height": 256
+   }
+  },
+  {
+   "id": "waterBlast",
+   "group": "effect",
+   "name": "Water Blast",
+   "key": "sprites/effects/pixel/water_blast.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/water_blast.png",
+   "categories": [
+    "projectile",
+    "water",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 12,
+   "declaredFrames": 12,
+   "cols": 4,
+   "rows": 3,
+   "frameW": 128,
+   "frameH": 128,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 9680,
+    "sha256": "a8da24b17e14b00a7aab5c9fb01fb623e691000bdfc4e78275721b749696d346",
+    "width": 512,
+    "height": 384
+   }
+  },
+  {
+   "id": "waterBlastEnd",
+   "group": "effect",
+   "name": "Water Blast End",
+   "key": "sprites/effects/pixel/water_blast_end.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/pixel/water_blast_end.png",
+   "categories": [
+    "projectile",
+    "water",
+    "pixel"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 9,
+   "declaredFrames": 9,
+   "cols": 3,
+   "rows": 3,
+   "frameW": 128,
+   "frameH": 128,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 14486,
+    "sha256": "b6d11a6aa338c613847e0776ced3bb17a1c0c2e615a6f5a4aaf0cc61c857cc4b",
+    "width": 384,
+    "height": 384
+   }
+  },
+  {
+   "id": "starBurst",
+   "group": "effect",
+   "name": "Star Burst",
+   "key": "sprites/effects/star_burst.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/star_burst.png",
+   "categories": [
+    "impact"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 7,
+   "declaredFrames": 7,
+   "cols": 7,
+   "rows": 1,
+   "frameW": 50,
+   "frameH": 50,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 1767,
+    "sha256": "f696753c059eb89649fcff71474a67814301508dffe4a22e7e864a2072b61dc8",
+    "width": 350,
+    "height": 50
+   }
+  },
+  {
+   "id": "energyProjectile",
+   "group": "effect",
+   "name": "Energy Projectile",
+   "key": "sprites/effects/energy_projectile.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/effects/energy_projectile.png",
+   "categories": [
+    "projectile"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 4,
+   "declaredFrames": 4,
+   "cols": 4,
+   "rows": 1,
+   "frameW": 50,
+   "frameH": 50,
+   "layoutSource": "catalog",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 1153,
+    "sha256": "ea8039b854441771bd562ab1b5916bb1d62228fdf89414530c021b36304a21a5",
+    "width": 200,
+    "height": 50
+   }
+  },
+  {
+   "id": "projectile.arrow_long",
+   "group": "projectile",
+   "name": "Long Arrow",
+   "key": "sprites/projectiles/arrow_long.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/projectiles/arrow_long.png",
+   "categories": [
+    "projectile",
+    "physical"
+   ],
+   "blendMode": "normal",
+   "fps": 16,
+   "frames": 1,
+   "declaredFrames": 3,
+   "cols": 1,
+   "rows": 1,
+   "frameW": 32,
+   "frameH": 32,
+   "layoutSource": "single-frame-fallback",
+   "layoutNote": "catalog grid 3x3@32x32 does not fit 32x32; shown as one frame",
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 766,
+    "sha256": "ace8e6753aa1f42f08776983f2c421ce5637a9d192f6087a403dba34f1e674af",
+    "width": 32,
+    "height": 32
+   }
+  },
+  {
+   "id": "projectile.arrow_short",
+   "group": "projectile",
+   "name": "Short Arrow",
+   "key": "sprites/projectiles/arrow_short.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/projectiles/arrow_short.png",
+   "categories": [
+    "projectile",
+    "physical"
+   ],
+   "blendMode": "normal",
+   "fps": 16,
+   "frames": 1,
+   "declaredFrames": 3,
+   "cols": 1,
+   "rows": 1,
+   "frameW": 32,
+   "frameH": 32,
+   "layoutSource": "single-frame-fallback",
+   "layoutNote": "catalog grid 3x3@32x32 does not fit 32x32; shown as one frame",
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 794,
+    "sha256": "85bf86f574f57d1daa99d94f175de7f2bc7c2f229ef6e6320a4714748e5d3671",
+    "width": 32,
+    "height": 32
+   }
+  },
+  {
+   "id": "projectile.axe",
+   "group": "projectile",
+   "name": "Throwing Axe",
+   "key": "sprites/projectiles/axe.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/projectiles/axe.png",
+   "categories": [
+    "projectile",
+    "physical"
+   ],
+   "blendMode": "normal",
+   "fps": 16,
+   "frames": 8,
+   "declaredFrames": 8,
+   "cols": 4,
+   "rows": 2,
+   "frameW": 16,
+   "frameH": 16,
+   "layoutSource": "catalog-grid-fit-to-image",
+   "layoutNote": "catalog frame 32x32 overflowed 64x32; re-fit to 16x16",
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 1498,
+    "sha256": "5a4e4c5469c45ed60ffa4633c0b179a8ea0c6e767393e36b1b7625d6cf6f21bb",
+    "width": 64,
+    "height": 32
+   }
+  },
+  {
+   "id": "projectile.ballista_bolt",
+   "group": "projectile",
+   "name": "Ballista Bolt",
+   "key": "sprites/projectiles/ballista_bolt.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/projectiles/ballista_bolt.png",
+   "categories": [
+    "projectile",
+    "physical"
+   ],
+   "blendMode": "normal",
+   "fps": 16,
+   "frames": 1,
+   "declaredFrames": 3,
+   "cols": 1,
+   "rows": 1,
+   "frameW": 32,
+   "frameH": 16,
+   "layoutSource": "single-frame-fallback",
+   "layoutNote": "catalog grid 3x1@32x32 does not fit 32x16; shown as one frame",
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 795,
+    "sha256": "364b1d53a9ab5afc5a5150746dbef4c26f7e3da6ddc832ccc5a1e07c764e6f53",
+    "width": 32,
+    "height": 16
+   }
+  },
+  {
+   "id": "projectile.bullet",
+   "group": "projectile",
+   "name": "Bullet",
+   "key": "sprites/projectiles/bullet.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/projectiles/bullet.png",
+   "categories": [
+    "projectile",
+    "physical"
+   ],
+   "blendMode": "normal",
+   "fps": 16,
+   "frames": 1,
+   "declaredFrames": 3,
+   "cols": 1,
+   "rows": 1,
+   "frameW": 32,
+   "frameH": 32,
+   "layoutSource": "single-frame-fallback",
+   "layoutNote": "catalog grid 3x3@32x32 does not fit 32x32; shown as one frame",
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 679,
+    "sha256": "804129f944f54da8a552a5758091ea20d82102a80b28b5ba4de2673e17ddeddd",
+    "width": 32,
+    "height": 32
+   }
+  },
+  {
+   "id": "projectile.fireball",
+   "group": "projectile",
+   "name": "Fireball",
+   "key": "sprites/projectiles/fireball.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/projectiles/fireball.png",
+   "categories": [
+    "projectile",
+    "magic"
+   ],
+   "blendMode": "normal",
+   "fps": 16,
+   "frames": 4,
+   "declaredFrames": 4,
+   "cols": 4,
+   "rows": 1,
+   "frameW": 16,
+   "frameH": 16,
+   "layoutSource": "catalog-grid-fit-to-image",
+   "layoutNote": "catalog frame 32x32 overflowed 64x16; re-fit to 16x16",
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 1167,
+    "sha256": "81ef84fb927e651e4e73f5e0b4cccfc623f6bbb7cf038e76bc70ae21cfb8eeb4",
+    "width": 64,
+    "height": 16
+   }
+  },
+  {
+   "id": "projectile.short_big",
+   "group": "projectile",
+   "name": "Short Big",
+   "key": "sprites/projectiles/short_big.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/projectiles/short_big.png",
+   "categories": [
+    "projectile",
+    "physical"
+   ],
+   "blendMode": "normal",
+   "fps": 16,
+   "frames": 2,
+   "declaredFrames": 2,
+   "cols": 2,
+   "rows": 1,
+   "frameW": 16,
+   "frameH": 16,
+   "layoutSource": "catalog-grid-fit-to-image",
+   "layoutNote": "catalog frame 32x32 overflowed 32x16; re-fit to 16x16",
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 924,
+    "sha256": "57b12087c71a42637823c26111d2848f046c6ce75b9952127146b5fcf22d8204",
+    "width": 32,
+    "height": 16
+   }
+  },
+  {
+   "id": "projectile.spear",
+   "group": "projectile",
+   "name": "Spear",
+   "key": "sprites/projectiles/spear.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/projectiles/spear.png",
+   "categories": [
+    "projectile",
+    "physical"
+   ],
+   "blendMode": "normal",
+   "fps": 16,
+   "frames": 2,
+   "declaredFrames": 2,
+   "cols": 2,
+   "rows": 1,
+   "frameW": 16,
+   "frameH": 16,
+   "layoutSource": "catalog-grid-fit-to-image",
+   "layoutNote": "catalog frame 32x32 overflowed 32x16; re-fit to 16x16",
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 696,
+    "sha256": "897e87cbd2cf5cab943273eb990979694629df06b9c1d264464013a01d968e37",
+    "width": 32,
+    "height": 16
+   }
+  },
+  {
+   "id": "projectile.sword_short",
+   "group": "projectile",
+   "name": "Short Sword",
+   "key": "sprites/projectiles/sword_short.png",
+   "cdnUrl": "https://assets.grudge-studio.com/sprites/projectiles/sword_short.png",
+   "categories": [
+    "projectile",
+    "physical"
+   ],
+   "blendMode": "normal",
+   "fps": 16,
+   "frames": 2,
+   "declaredFrames": 2,
+   "cols": 2,
+   "rows": 1,
+   "frameW": 16,
+   "frameH": 16,
+   "layoutSource": "catalog-grid-fit-to-image",
+   "layoutNote": "catalog frame 32x32 overflowed 32x16; re-fit to 16x16",
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 899,
+    "sha256": "702fe5b8e12c09f73fb03611d71081ba38903e895d6d4df275aa8a77076827f5",
+    "width": 32,
+    "height": 16
+   }
+  },
+  {
+   "id": "beam.green",
+   "group": "beam",
+   "name": "Beam green",
+   "key": "effects/beams/beam_green.png",
+   "cdnUrl": "https://assets.grudge-studio.com/effects/beams/beam_green.png",
+   "categories": [
+    "beam",
+    "trail"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 1,
+   "declaredFrames": 1,
+   "cols": 1,
+   "rows": 1,
+   "frameW": 1024,
+   "frameH": 128,
+   "layoutSource": "square-grid-from-image",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 42289,
+    "sha256": "666af11724e58f0230fe27e74982dbfbcfc241555c6bc3dd6c0be495390ac4f7",
+    "width": 1024,
+    "height": 128
+   }
+  },
+  {
+   "id": "beam.orange",
+   "group": "beam",
+   "name": "Beam orange",
+   "key": "effects/beams/beam_orange.png",
+   "cdnUrl": "https://assets.grudge-studio.com/effects/beams/beam_orange.png",
+   "categories": [
+    "beam",
+    "trail"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 1,
+   "declaredFrames": 1,
+   "cols": 1,
+   "rows": 1,
+   "frameW": 1024,
+   "frameH": 128,
+   "layoutSource": "square-grid-from-image",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 52677,
+    "sha256": "1283843453aa731b5848bf64ae6647f812e884750f03660c3d289ff6a344434b",
+    "width": 1024,
+    "height": 128
+   }
+  },
+  {
+   "id": "beam.purple",
+   "group": "beam",
+   "name": "Beam purple",
+   "key": "effects/beams/beam_purple.png",
+   "cdnUrl": "https://assets.grudge-studio.com/effects/beams/beam_purple.png",
+   "categories": [
+    "beam",
+    "trail"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 1,
+   "declaredFrames": 1,
+   "cols": 1,
+   "rows": 1,
+   "frameW": 1024,
+   "frameH": 128,
+   "layoutSource": "square-grid-from-image",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 49744,
+    "sha256": "8568d4af9b317d03110c57ae4d15fcf283b85ee6a41f781474f9020b1c39f8ec",
+    "width": 1024,
+    "height": 128
+   }
+  },
+  {
+   "id": "beam.red",
+   "group": "beam",
+   "name": "Beam red",
+   "key": "effects/beams/beam_red.png",
+   "cdnUrl": "https://assets.grudge-studio.com/effects/beams/beam_red.png",
+   "categories": [
+    "beam",
+    "trail"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 1,
+   "declaredFrames": 1,
+   "cols": 1,
+   "rows": 1,
+   "frameW": 1024,
+   "frameH": 128,
+   "layoutSource": "square-grid-from-image",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 44618,
+    "sha256": "aaf8543a0991f2a56a26db03b9c57ac43e02ce3fc3c2ac404b1e6216bff90be9",
+    "width": 1024,
+    "height": 128
+   }
+  },
+  {
+   "id": "beam.blue",
+   "group": "beam",
+   "name": "Beam blue",
+   "key": "effects/beams/beam_blue.png",
+   "cdnUrl": "https://assets.grudge-studio.com/effects/beams/beam_blue.png",
+   "categories": [
+    "beam",
+    "trail"
+   ],
+   "blendMode": "additive",
+   "fps": 16,
+   "frames": 1,
+   "declaredFrames": 1,
+   "cols": 1,
+   "rows": 1,
+   "frameW": 1024,
+   "frameH": 128,
+   "layoutSource": "square-grid-from-image",
+   "layoutNote": null,
+   "sheet": {
+    "status": "real",
+    "mime": "image/png",
+    "bytes": 32102,
+    "sha256": "da3732e70c461d22035f572b239d2d6e5854b3f83bb58eb1894c2724be114453",
+    "width": 1024,
+    "height": 128
+   }
+  }
+ ]
+}

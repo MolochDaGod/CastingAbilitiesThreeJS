@@ -50,7 +50,8 @@
     "scaffold:skill": "node scripts/scaffold-weapon-skill.mjs",
     "bake:warrior-monk": "node scripts/bake-warrior-monk-clips.mjs",
     "bake:crossbow-shoot": "node scripts/bake-crossbow-shoot.mjs",
-    "bake:mixamo-bip001": "node scripts/bake-mixamo-to-bip001.mjs"
+    "bake:mixamo-bip001": "node scripts/bake-mixamo-to-bip001.mjs",
+    "vfx:manifest": "node scripts/vfx-sprite-manifest.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.3",
