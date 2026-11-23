@@ -48,22 +48,25 @@ export function loadSheet(key) {
   if (p) return p;
   p = (async () => {
     try {
-      const res = await fetch(fetchUrlForKey(key), { mode: 'cors', credentials: 'omit' });
+      const url = fetchUrlForKey(key);
+      // Same-origin proxy keeps cookies (Vercel preview auth); the CDN gets none.
+      const sameOrigin = url.startsWith('/');
+      const res = await fetch(url, sameOrigin ? { credentials: 'same-origin' } : { mode: 'cors', credentials: 'omit' });
       if (!res.ok) return miss(key, `http ${res.status}`);
       const bytes = new Uint8Array(await res.arrayBuffer());
       const mime = sniffImage(bytes);
       if (!mime) return miss(key, 'not an image');
-      const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
+      const objUrl = URL.createObjectURL(new Blob([bytes], { type: mime }));
       const image = new Image();
       image.decoding = 'async';
-      image.src = url;
+      image.src = objUrl;
       try {
         await image.decode();
       } catch {
-        URL.revokeObjectURL(url);
+        URL.revokeObjectURL(objUrl);
         return miss(key, 'decode failed');
       }
-      URL.revokeObjectURL(url);
+      URL.revokeObjectURL(objUrl);
       stats.ok++;
       return { ok: true, key, bytes, mime, image };
     } catch (e) {
