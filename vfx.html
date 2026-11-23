@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Grudge Warlords · Casting VFX</title>
+    <meta name="description" content="Animated casting spell VFX: live 3D effects and CDN sprite sheets with copy-URL, JSON and download for game use." />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://assets.grudge-studio.com" crossorigin />
+  </head>
+  <body>
+    <header class="top">
+      <div class="brand">
+        <a href="/" class="back">← Casting</a>
+        <h1>Casting VFX</h1>
+        <p class="sub">Live spell effects for games: 3D casting effects and CDN sprite sheets. Copy a link, grab the JSON, or download the sheet.</p>
+      </div>
+      <div class="stats" aria-live="polite">
+        <span><b id="count3d">0</b> 3D effects</span>
+        <span><b id="countSheets">0</b> sprite sheets</span>
+        <span class="ok"><b id="countReal">0</b> verified on CDN</span>
+        <span class="bad"><b id="countMissing">0</b> missing</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="browser" aria-label="Effect browser">
+        <div class="filters">
+          <div class="tabs" role="tablist">
+            <button type="button" class="tab is-active" data-tab="all">All</button>
+            <button type="button" class="tab" data-tab="3d">3D casting</button>
+            <button type="button" class="tab" data-tab="sheets">Sprite sheets</button>
+            <button type="button" class="tab" data-tab="projectiles">Projectiles</button>
+            <button type="button" class="tab" data-tab="beams">Beams</button>
+          </div>
+          <input id="search" class="search" type="search" placeholder="Search effects…" aria-label="Search effects" />
+          <div id="pills" class="pills"></div>
+          <div class="shown"><span id="shown">0</span> shown</div>
+        </div>
+        <div id="grid" class="grid"></div>
+      </section>
+
+      <section class="detail" aria-label="Effect preview">
+        <div id="stageWrap" class="stage-wrap">
+          <canvas id="stage"></canvas>
+          <div id="stageFlash" class="stage-flash"></div>
+          <div id="frameReadout" class="readout"></div>
+        </div>
+        <div class="controls">
+          <button type="button" id="btnPlay">Pause</button>
+          <button type="button" id="btnCast">Cast</button>
+          <button type="button" id="btnPrev" title="Previous frame">‹</button>
+          <button type="button" id="btnNext" title="Next frame">›</button>
+          <label class="chk"><input type="checkbox" id="loop" checked /> Loop</label>
+          <label class="chk"><input type="checkbox" id="modeToggle" /> Ground</label>
+          <label class="rng">Speed <input type="range" id="speed" min="0.25" max="3" step="0.05" value="1" /> <span id="speedVal">1.00×</span></label>
+          <label class="rng">FPS <input type="range" id="fps" min="4" max="40" step="1" value="16" /> <span id="fpsVal">16</span></label>
+        </div>
+        <div class="info">
+          <h2 id="detailName">—</h2>
+          <code id="detailId"></code>
+          <div id="detailRows" class="drows"></div>
+        </div>
+        <div class="actions">
+          <button type="button" id="btnCopyCdn">Copy CDN URL</button>
+          <button type="button" id="btnCopyLink">Copy share link</button>
+          <button type="button" id="btnCopyJson">Copy JSON</button>
+          <button type="button" id="btnCopyEmbed">Copy embed snippet</button>
+          <button type="button" id="btnPng" class="dl">Download PNG</button>
+          <button type="button" id="btnJson" class="dl">Download JSON</button>
+          <button type="button" id="btnZip" class="dl">Download ZIP</button>
+        </div>
+        <p class="note">Sprite sheets are served from <code>assets.grudge-studio.com</code> and byte-checked on load. A sheet that isn't a real image shows the <span class="icon-missing inline">icon missing</span> marker. 3D effects are built in code, so they have no CDN file.</p>
+      </section>
+    </main>
+    <div id="toast" class="toast" role="status"></div>
+    <script type="module" src="/src/showcase/vfxShowcase.js"></script>
+  </body>
+</html>

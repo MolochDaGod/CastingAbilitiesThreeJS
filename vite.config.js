@@ -65,7 +65,9 @@ export default defineConfig({
       },
       '/api': {
         target: 'https://grudge-api-production-0d46.up.railway.app',
-        changeOrigin: true
+        changeOrigin: true,
+        // public/api/v1/* is static (as on Vercel, where filesystem wins over rewrites)
+        bypass: (req) => (req.url && req.url.startsWith('/api/v1/') ? req.url : undefined)
       }
     }
   },
@@ -76,7 +78,8 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
-        devnode: resolve(__dirname, 'devnode.html')
+        devnode: resolve(__dirname, 'devnode.html'),
+        vfx: resolve(__dirname, 'vfx.html')
       }
     }
   },

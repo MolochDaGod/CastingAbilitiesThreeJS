@@ -86,6 +86,10 @@
       "destination": "https://grudge-api-production-0d46.up.railway.app/matchmake/:path*"
     },
     {
+      "source": "/vfx",
+      "destination": "/vfx.html"
+    },
+    {
       "source": "/((?!api/|models/|assets/|icons/|ui/|anims/|hdri/|skills/|maps/|hud/|textures/|devnode|favicon).*)",
       "destination": "/index.html"
     }
