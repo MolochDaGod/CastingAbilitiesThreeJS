@@ -115,7 +115,11 @@ export default function handler(req, res) {
         if (typeof v === 'string') res.setHeader(name, v);
         else if (Array.isArray(v)) res.setHeader(name, v.join(', '));
       }
-      if (!res.getHeader('cache-control')) {
+      const okStatus = (upRes.statusCode || 502) >= 200 && (upRes.statusCode || 502) < 400;
+      if (!okStatus) {
+        // Never let the edge cache a transient upstream failure (429 / 5xx / 403).
+        res.setHeader('Cache-Control', 'no-store');
+      } else if (!res.getHeader('cache-control')) {
         res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=3600');
       }
       if (req.method === 'HEAD') {
@@ -131,6 +135,7 @@ export default function handler(req, res) {
   });
   up.on('error', () => {
     if (!res.headersSent) {
+      res.setHeader('Cache-Control', 'no-store');
       res.statusCode = 502;
       res.end('Bad Gateway');
     } else {

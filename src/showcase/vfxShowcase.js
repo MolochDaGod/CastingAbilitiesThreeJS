@@ -373,7 +373,7 @@ async function select(item, { push = true } = {}) {
   stage.clear();
   $('#frameReadout').textContent = 'loading…';
   renderDetailRows(item);
-  const entry = await loadSheet(item.key);
+  const entry = await loadSheet(item.key, { priority: true });
   if (state.selected !== item) return;
   if (!entry.ok) {
     markMissing(host, item.key);

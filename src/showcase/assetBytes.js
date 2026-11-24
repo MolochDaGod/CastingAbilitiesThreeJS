@@ -41,19 +41,75 @@ export function sniffImage(bytes) {
 
 /** @type {Map<string, Promise<{ok: boolean, key: string, bytes?: Uint8Array, mime?: string, image?: HTMLImageElement, reason?: string}>>} */
 const cache = new Map();
-export const stats = { ok: 0, missing: 0, missingKeys: new Set() };
+export const stats = { ok: 0, missing: 0, missingKeys: new Set(), retries: 0 };
 
-export function loadSheet(key) {
+/*
+ * A fresh deployment has an empty edge cache, so opening the grid used to fire
+ * ~150 simultaneous /api/assets function invocations (cold starts) and some came
+ * back as 5xx / 429 / non-image bodies — real sheets wrongly shown as missing.
+ * Keep at most MAX_IN_FLIGHT requests open and retry transient failures; a sheet
+ * is only "missing" when the CDN answers definitively (404, or 200 that is not
+ * an image).
+ */
+const MAX_IN_FLIGHT = 6;
+const RETRY_DELAYS_MS = [400, 1200, 2500];
+let inFlight = 0;
+const queue = [];
+
+function acquire(priority = false) {
+  if (inFlight < MAX_IN_FLIGHT) { inFlight++; return Promise.resolve(); }
+  // The sheet on the stage jumps ahead of grid thumbnails.
+  return new Promise((resolve) => (priority ? queue.unshift(resolve) : queue.push(resolve)));
+}
+function release() {
+  const next = queue.shift();
+  if (next) next();
+  else inFlight--;
+}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function isTransient(status, upstream) {
+  if (status === 0 || status === 408 || status === 425 || status === 429 || status >= 500) return true;
+  const up = Number(upstream);
+  return Number.isFinite(up) && (up === 429 || up >= 500);
+}
+
+async function fetchBytesOnce(url, sameOrigin) {
+  const res = await fetch(url, sameOrigin ? { credentials: 'same-origin' } : { mode: 'cors', credentials: 'omit' });
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  return { status: res.status, upstream: res.headers.get('x-upstream-status'), bytes };
+}
+
+async function fetchBytes(key, priority = false) {
+  const url = fetchUrlForKey(key);
+  // Same-origin proxy keeps cookies (Vercel preview auth); the CDN gets none.
+  const sameOrigin = url.startsWith('/');
+  let last = { status: 0, upstream: null, bytes: null, reason: 'fetch error' };
+  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+    if (attempt) { stats.retries++; await sleep(RETRY_DELAYS_MS[attempt - 1]); }
+    await acquire(priority);
+    try {
+      const r = await fetchBytesOnce(url, sameOrigin);
+      last = { ...r, reason: `http ${r.status}` };
+      if (r.status >= 200 && r.status < 300 && sniffImage(r.bytes)) return last;
+      if (!isTransient(r.status, r.upstream)) return last; // definitive: 404 / stored HTML
+    } catch {
+      last = { status: 0, upstream: null, bytes: null, reason: 'fetch error' };
+    } finally {
+      release();
+    }
+  }
+  return last;
+}
+
+export function loadSheet(key, { priority = false } = {}) {
   let p = cache.get(key);
   if (p) return p;
   p = (async () => {
     try {
-      const url = fetchUrlForKey(key);
-      // Same-origin proxy keeps cookies (Vercel preview auth); the CDN gets none.
-      const sameOrigin = url.startsWith('/');
-      const res = await fetch(url, sameOrigin ? { credentials: 'same-origin' } : { mode: 'cors', credentials: 'omit' });
-      if (!res.ok) return miss(key, `http ${res.status}`);
-      const bytes = new Uint8Array(await res.arrayBuffer());
+      const r = await fetchBytes(key, priority);
+      if (!r.bytes || r.status < 200 || r.status >= 300) return miss(key, r.reason);
+      const bytes = r.bytes;
       const mime = sniffImage(bytes);
       if (!mime) return miss(key, 'not an image');
       const objUrl = URL.createObjectURL(new Blob([bytes], { type: mime }));
@@ -69,7 +125,7 @@ export function loadSheet(key) {
       URL.revokeObjectURL(objUrl);
       stats.ok++;
       return { ok: true, key, bytes, mime, image };
-    } catch (e) {
+    } catch {
       return miss(key, 'fetch error');
     }
   })();
